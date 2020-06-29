@@ -2,10 +2,10 @@
 
 This repository provides a template for creating a plugin for the Salesforce CLI. (<REPLACE ME>)
 
-[![CircleCI](https://circleci.com/gh/forcedotcom/salesforcedx-templates/tree/master.svg?style=shield)](https://circleci.com/gh/forcedotcom/salesforcedx-templates/tree/master)
-[![Codecov](https://codecov.io/gh/forcedotcom/salesforcedx-templates/branch/master/graph/badge.svg)](https://codecov.io/gh/forcedotcom/salesforcedx-templates)
-[![Known Vulnerabilities](https://snyk.io/test/github/forcedotcom/salesforcedx-templates/badge.svg)](https://snyk.io/test/github/forcedotcom/salesforcedx-templates)
-[![License](https://img.shields.io/npm/l/salesforcedx-templates.svg)](https://github.com/forcedotcom/salesforcedx-templates/blob/master/package.json)
+[![CircleCI](https://circleci.com/gh/salesforcecli/plugin-<REPLACE ME>/tree/master.svg?style=shield)](https://circleci.com/gh/salesforcecli/plugin-<REPLACE ME>/tree/master)
+[![Codecov](https://codecov.io/gh/salesforcecli/plugin-<REPLACE ME>/branch/master/graph/badge.svg)](https://codecov.io/gh/salesforcecli/plugin-<REPLACE ME>)
+[![Known Vulnerabilities](https://snyk.io/test/github/salesforcecli/plugin-<REPLACE ME>/badge.svg)](https://snyk.io/test/github/salesforcecli/plugin-<REPLACE ME>)
+[![License](https://img.shields.io/npm/l/plugin-<REPLACE ME>.svg)](https://github.com/salesforcecli/plugin-<REPLACE ME>/blob/master/package.json)
 
 ## Getting Started
 
@@ -14,8 +14,8 @@ To use, install the [Salesforce CLI](https://developer.salesforce.com/tools/sfdx
 ```
 Verify the CLI is installed
   $ sfdx (-v | --version)
-Install the salesforcedx plugin
-  $ sfdx plugins:install salesforcedx
+Install the <REPLACE ME> plugin
+  $ sfdx plugins:install <REPLACE ME>
 To run a command
   $ sfdx [command]
 ```

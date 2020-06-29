@@ -54,7 +54,7 @@
     "/npm-shrinkwrap.json",
     "/oclif.manifest.json"
   ],
-  "homepage": "https://github.com/forcedotcom/salesforcedx-templates",
+  "homepage": "https://github.com/salesforcecli/plugin-<REPLACE ME>",
   "keywords": [
     "force",
     "salesforce",

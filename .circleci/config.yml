@@ -83,7 +83,7 @@ jobs:
 
 workflows:
   version: 2
-  'salesforcedx-templates':
+  'plugin-<REPLACE ME>':
     jobs:
       - node-latest
       - node-12
