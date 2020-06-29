@@ -1,6 +1,6 @@
 {
-  "name": "<REPLACE ME>",
-  "description": "<REPLACE ME>",
+  "name": "REPLACE_ME",
+  "description": "REPLACE_ME",
   "version": "48.8.0",
   "author": "Salesforce",
   "bugs": "https://github.com/salesforcecli/plugin-<REPLACE ME>/issues",
@@ -9,13 +9,13 @@
     "@oclif/config": "^1",
     "@oclif/errors": "^1",
     "@salesforce/command": "^2.2.0",
-    "@salesforce/core": "^2.3.0",
+    "@salesforce/core": "^2.6.0",
     "husky": "^4.2.5",
     "lint-staged": "^10.2.2",
     "mkdirp": "^0.5.1",
     "tslib": "^1",
-    "yeoman-environment": "2.4.0",
-    "yeoman-generator": "4.0.1"
+    "yeoman-environment": "^2.4.0",
+    "yeoman-generator": "^4.0.1"
   },
   "devDependencies": {
     "@oclif/dev-cli": "^1",
