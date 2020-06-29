@@ -1,9 +1,9 @@
 {
-  "name": "salesforcedx-templates",
-  "description": "Salesforce CLI scaffolding commands for different types of Force.com metadata",
+  "name": "<REPLACE ME>",
+  "description": "<REPLACE ME>",
   "version": "48.8.0",
   "author": "Salesforce",
-  "bugs": "https://github.com/forcedotcom/salesforcedx-templates/issues",
+  "bugs": "https://github.com/salesforcecli/plugin-<REPLACE ME>/issues",
   "dependencies": {
     "@oclif/command": "^1",
     "@oclif/config": "^1",
@@ -103,7 +103,7 @@
       }
     }
   },
-  "repository": "forcedotcom/salesforcedx-templates",
+  "repository": "salesforcecli/plugin-<REPLACE ME>",
   "scripts": {
     "clean:lib": "shx rm -rf lib && shx rm -rf coverage && shx rm -rf .nyc_output && shx rm -f oclif.manifest.json",
     "compile": "tsc -b",
@@ -117,7 +117,7 @@
     "posttest": "yarn lint && yarn test:deprecation-policy && yarn test:command-reference",
     "version": "oclif-dev readme && git add README.md",
     "test:deprecation-policy": "./bin/run snapshot:compare",
-    "test:command-reference": "./bin/run commandreference:generate -p salesforcedx-templates --erroronwarnings"
+    "test:command-reference": "./bin/run commandreference:generate -p plugin-<REPLACE ME> --erroronwarnings"
   },
   "husky": {
     "hooks": {

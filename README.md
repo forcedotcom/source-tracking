@@ -1,6 +1,6 @@
-# salesforcedx-templates
+# plugin-<REPLACE ME>
 
-This repository provides a series of commands, templates, and generators for various metadata types. It is bundled with the [salesforcedx plugin](https://www.npmjs.com/package/salesforcedx).
+This repository provides a template for creating a plugin for the Salesforce CLI. (<REPLACE ME>)
 
 [![CircleCI](https://circleci.com/gh/forcedotcom/salesforcedx-templates/tree/master.svg?style=shield)](https://circleci.com/gh/forcedotcom/salesforcedx-templates/tree/master)
 [![Codecov](https://codecov.io/gh/forcedotcom/salesforcedx-templates/branch/master/graph/badge.svg)](https://codecov.io/gh/forcedotcom/salesforcedx-templates)
@@ -24,7 +24,7 @@ To build the plugin locally, make sure to have yarn installed and run the follow
 
 ```
 Clone the repository
-  $ git clone git@github.com:forcedotcom/salesforcedx-templates.git
+  $ git clone git@github.com:salesforcecli/plugin-<REPLACE ME>
 Install the dependencies and compile
   $ yarn install
   $ yarn prepack
@@ -32,21 +32,9 @@ Link your plugin to the sfdx cli
   $ sfdx plugins:link .
 To verify
   $ sfdx plugins
-  salesforcedx-templates 0.0.0 (link) /Users/a.jha/Documents/repos/salesforcedx-templates
 ```
 
 ## Commands
-
-- [`sfdx force:apex:class:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forceapexclasscreate)
-- [`sfdx force:apex:trigger:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forceapextriggercreate)
-- [`sfdx force:lightning:app:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forcelightningappcreate)
-- [`sfdx force:lightning:component:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forcelightningcomponentcreate)
-- [`sfdx force:lightning:event:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forcelightningeventcreate)
-- [`sfdx force:lightning:interface:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forcelightninginterfacecreate)
-- [`sfdx force:lightning:test:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forcelightningtestcreate)
-- [`sfdx force:project:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forceprojectcreate)
-- [`sfdx force:visualforce:component:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forcevisualforcecomponentcreate)
-- [`sfdx force:visualforce:page:create`](https://github.com/forcedotcom/salesforcedx-templates/blob/master/COMMANDS.md#sfdx-forcevisualforcepagecreate)
 
 ## Debugging your plugin
 
