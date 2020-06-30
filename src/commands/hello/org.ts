@@ -10,7 +10,6 @@ Messages.importMessagesDirectory(__dirname);
 const messages = Messages.loadMessages('test', 'org');
 
 export default class Org extends SfdxCommand {
-
   public static description = messages.getMessage('commandDescription');
 
   public static examples = [
@@ -27,8 +26,14 @@ export default class Org extends SfdxCommand {
 
   protected static flagsConfig = {
     // flag with a value (-n, --name=VALUE)
-    name: flags.string({ char: 'n', description: messages.getMessage('nameFlagDescription') }),
-    force: flags.boolean({ char: 'f', description: messages.getMessage('forceFlagDescription') })
+    name: flags.string({
+      char: 'n',
+      description: messages.getMessage('nameFlagDescription')
+    }),
+    force: flags.boolean({
+      char: 'f',
+      description: messages.getMessage('forceFlagDescription')
+    })
   };
 
   // Comment this out if your command does not require an org username
@@ -59,7 +64,9 @@ export default class Org extends SfdxCommand {
     // Organization will always return one result, but this is an example of throwing an error
     // The output and --json will automatically be handled for you.
     if (!result.records || result.records.length <= 0) {
-      throw new SfdxError(messages.getMessage('errorNoOrgResults', [this.org!.getOrgId()]));
+      throw new SfdxError(
+        messages.getMessage('errorNoOrgResults', [this.org!.getOrgId()])
+      );
     }
 
     // Organization always only returns one result
