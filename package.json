@@ -71,53 +71,20 @@
       "@oclif/plugin-command-snapshot",
       "@salesforce/plugin-command-reference"
     ],
-    "topics": {
-      "force": {
-        "external": true,
-        "subtopics": {
-          "apex": {
-            "external": true
-          },
-          "analytics": {
-            "description": "work with analytics assets",
-            "longDescription": "Work with analytics assets.",
-            "subtopics": {
-              "template": {
-                "description": "work with analytics templates",
-                "longDescription": "Work with analytics templates."
-              }
-            }
-          },
-          "lightning": {
-            "external": true
-          },
-          "project": {
-            "external": true,
-            "subtopics": {}
-          },
-          "visualforce": {
-            "external": true,
-            "subtopics": {}
-          }
-        }
-      }
-    }
+    "topics": {}
   },
   "repository": "salesforcecli/plugin-<REPLACE ME>",
   "scripts": {
     "clean:lib": "shx rm -rf lib && shx rm -rf coverage && shx rm -rf .nyc_output && shx rm -f oclif.manifest.json",
     "compile": "tsc -b",
-    "build": "yarn run clean:lib && yarn build:templates && yarn compile",
-    "build:templates": "node scripts/build-templates",
+    "build": "yarn run clean:lib && yarn compile",
     "lint": "tslint --project . --config tslint.json --format stylish",
     "postpack": "shx rm -f oclif.manifest.json",
     "prepack": "yarn run build && oclif-dev manifest",
     "reformat": "prettier --config .prettierrc --write './*.{js,json,md}' './**/*.{ts,json,md}'",
     "test": "nyc --extension .ts mocha --forbid-only \"test/**/*.test.ts\"",
-    "posttest": "yarn lint && yarn test:deprecation-policy && yarn test:command-reference",
-    "version": "oclif-dev readme && git add README.md",
-    "test:deprecation-policy": "./bin/run snapshot:compare",
-    "test:command-reference": "./bin/run commandreference:generate -p plugin-<REPLACE ME> --erroronwarnings"
+    "posttest": "yarn lint",
+    "version": "oclif-dev readme && git add README.md"
   },
   "husky": {
     "hooks": {
