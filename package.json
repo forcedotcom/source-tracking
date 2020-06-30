@@ -71,7 +71,11 @@
       "@oclif/plugin-command-snapshot",
       "@salesforce/plugin-command-reference"
     ],
-    "topics": {}
+    "topics": {
+      "hello": {
+        "description": "Commands to say hello."
+      }
+    }
   },
   "repository": "salesforcecli/plugin-<REPLACE ME>",
   "scripts": {
