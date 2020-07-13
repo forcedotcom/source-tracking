@@ -1,6 +1,20 @@
 # plugin-<REPLACE ME>
 
-This repository provides a template for creating a plugin for the Salesforce CLI. (<REPLACE ME DESCRIPTION>)
+Change above to <REPLACE_ME> before finalizing
+
+<REPLACE ME DESCRIPTION START>
+
+This repository provides a template for creating a plugin for the Salesforce CLI. To convert this template to a working plugin:
+
+1. Clone this repo
+2. Delete the .git folder
+3. Replace filler values
+   a) Every instance of `<REPLACE_ME>` can be directly substitued for the name of the new plugin. However beware, things like github paths are for the salesforcecli Github organization
+   b) Search for case-matching `REPLACE` to find other filler values, such as for the plugin description
+4. Use `git init` to set up the desired git information
+5. Follow the getting started steps below until the `sfdx hello:org` commmand is functioning
+
+<REPLACE ME DESCRIPTION END>
 
 ## Getting Started
 
@@ -9,8 +23,8 @@ To use, install the [Salesforce CLI](https://developer.salesforce.com/tools/sfdx
 ```
 Verify the CLI is installed
   $ sfdx (-v | --version)
-Install the <REPLACE ME> plugin
-  $ sfdx plugins:install <REPLACE ME>
+Install the <REPLACE_ME> plugin
+  $ sfdx plugins:install <REPLACE_ME>
 To run a command
   $ sfdx [command]
 ```
@@ -19,7 +33,7 @@ To build the plugin locally, make sure to have yarn installed and run the follow
 
 ```
 Clone the repository
-  $ git clone git@github.com:salesforcecli/plugin-<REPLACE ME>
+  $ git clone git@github.com:salesforcecli/plugin-<REPLACE_ME>
 Install the dependencies and compile
   $ yarn install
   $ yarn prepack

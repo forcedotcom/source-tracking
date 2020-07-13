@@ -1,9 +1,9 @@
 {
   "name": "REPLACE_ME",
-  "description": "REPLACE_ME_DESCRIPTION",
+  "description": "REPLACE ME DESCRIPTION",
   "version": "48.8.0",
   "author": "Salesforce",
-  "bugs": "https://github.com/salesforcecli/plugin-<REPLACE ME>/issues",
+  "bugs": "https://github.com/salesforcecli/plugin-<REPLACE_ME>/issues",
   "dependencies": {
     "@oclif/config": "^1",
     "@salesforce/command": "^2.2.0",
@@ -36,7 +36,7 @@
     "/npm-shrinkwrap.json",
     "/oclif.manifest.json"
   ],
-  "homepage": "https://github.com/salesforcecli/plugin-<REPLACE ME>",
+  "homepage": "https://github.com/salesforcecli/plugin-<REPLACE_ME>",
   "keywords": [
     "force",
     "salesforce",
@@ -59,7 +59,7 @@
       }
     }
   },
-  "repository": "salesforcecli/plugin-<REPLACE ME>",
+  "repository": "salesforcecli/plugin-<REPLACE_ME>",
   "scripts": {
     "clean:lib": "shx rm -rf lib && shx rm -rf coverage && shx rm -rf .nyc_output && shx rm -f oclif.manifest.json",
     "compile": "tsc -b",
