@@ -16,7 +16,7 @@ This repository provides a template for creating a plugin for the Salesforce CLI
 
 &lt;REPLACE ME DESCRIPTION END&gt;
 
-###**Everything past here is only a suggestion as to what should be in your specific plugin's descsription.**
+### Everything past here is only a suggestion as to what should be in your specific plugin's descsription.
 
 ## Getting Started
 
