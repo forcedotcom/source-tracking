@@ -1,9 +1,9 @@
 {
-  "name": "REPLACE_ME",
-  "description": "REPLACE ME DESCRIPTION",
-  "version": "48.8.0",
+  "name": "plugin-template",
+  "description": "A template repository for sfdx plugins",
+  "version": "1.0.0",
   "author": "Salesforce",
-  "bugs": "https://github.com/salesforcecli/plugin-<REPLACE_ME>/issues",
+  "bugs": "https://github.com/forcedotcom/cli/issues",
   "dependencies": {
     "@oclif/config": "^1",
     "@salesforce/command": "^2.2.0",
@@ -33,10 +33,9 @@
   "files": [
     "/lib",
     "/messages",
-    "/npm-shrinkwrap.json",
     "/oclif.manifest.json"
   ],
-  "homepage": "https://github.com/salesforcecli/plugin-<REPLACE_ME>",
+  "homepage": "https://github.com/salesforcecli/plugin-template",
   "keywords": [
     "force",
     "salesforce",
@@ -59,7 +58,7 @@
       }
     }
   },
-  "repository": "salesforcecli/plugin-<REPLACE_ME>",
+  "repository": "salesforcecli/plugin-template",
   "scripts": {
     "clean:lib": "shx rm -rf lib && shx rm -rf coverage && shx rm -rf .nyc_output && shx rm -f oclif.manifest.json",
     "compile": "tsc -b",
