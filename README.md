@@ -1,8 +1,8 @@
-# plugin-<REPLACE ME>
+# plugin-&lt;REPLACE ME&gt;
 
 Change above to <REPLACE_ME> before finalizing
 
-<REPLACE ME DESCRIPTION START>
+&lt;REPLACE ME DESCRIPTION START&gt;
 
 This repository provides a template for creating a plugin for the Salesforce CLI. To convert this template to a working plugin:
 
@@ -14,7 +14,9 @@ This repository provides a template for creating a plugin for the Salesforce CLI
 4. Use `git init` to set up the desired git information
 5. Follow the getting started steps below until the `sfdx hello:org` commmand is functioning
 
-<REPLACE ME DESCRIPTION END>
+&lt;REPLACE ME DESCRIPTION END&gt;
+
+###**Everything past here is only a suggestion as to what should be in your specific plugin's descsription.**
 
 ## Getting Started
 
