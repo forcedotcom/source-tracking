@@ -54,3 +54,8 @@ GitIgnoreTest2/
 
 # ignore oclif manifest file
 oclif.manifest.json
+
+# ignore sfdx-trust files
+*.tgz
+*.sig
+package.json.bak.
