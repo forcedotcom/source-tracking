@@ -84,5 +84,8 @@
       "pre-commit": "lint-staged",
       "commit-msg": "yarn sf-husky-commit-msg"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
