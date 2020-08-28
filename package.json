@@ -1,5 +1,5 @@
 {
-  "name": "plugin-template",
+  "name": "@salesforce/plugin-template",
   "description": "A template repository for sfdx plugins",
   "version": "1.0.0",
   "author": "Salesforce",

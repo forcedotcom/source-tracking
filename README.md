@@ -13,6 +13,9 @@ This repository provides a template for creating a plugin for the Salesforce CLI
    b) Search for case-matching `REPLACE` to find other filler values, such as for the plugin description
 4. Use `git init` to set up the desired git information
 5. Follow the getting started steps below until the `sfdx hello:org` commmand is functioning
+6. In order to prevent build failures on the intial build, you will need to do the following:
+   1. `npm publish`
+   2. `git tag v1.0.0 ; git push origin v1.0.0`
 
 &lt;REPLACE ME DESCRIPTION END&gt;
 
