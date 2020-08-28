@@ -56,9 +56,7 @@
     "commands": "./lib/commands",
     "bin": "sfdx",
     "devPlugins": [
-      "@oclif/plugin-help",
-      "@oclif/plugin-command-snapshot",
-      "@salesforce/plugin-command-reference"
+      "@oclif/plugin-help"
     ],
     "topics": {
       "hello": {
