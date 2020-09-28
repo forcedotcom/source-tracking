@@ -79,7 +79,7 @@
   "scripts": {
     "build": "sf-build",
     "clean": "sf-clean",
-    "clean-all": "sf-clean all",
+    "clean-all": "-clean all",
     "clean:lib": "shx rm -rf lib && shx rm -rf coverage && shx rm -rf .nyc_output && shx rm -f oclif.manifest.json",
     "compile": "sf-compile",
     "docs": "sf-docs",
@@ -88,6 +88,8 @@
     "postpack": "shx rm -f oclif.manifest.json",
     "posttest": "yarn lint",
     "prepack": "sf-build",
+    "prepare": "sf-install",
+    "pretest": "sf-compile-test",
     "test": "sf-test",
     "version": "oclif-dev readme && git add README.md"
   },
