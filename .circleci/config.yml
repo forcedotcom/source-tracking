@@ -18,6 +18,7 @@ workflows:
           name: node-12
       - release-management/release-package:
           sign: true
+          github-release: true
           requires:
             - node-latest
           filters:
