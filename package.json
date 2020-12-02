@@ -12,8 +12,10 @@
   },
   "devDependencies": {
     "@oclif/dev-cli": "^1",
+    "@oclif/plugin-command-snapshot": "^2.0.0",
     "@salesforce/dev-config": "^2.0.0",
     "@salesforce/dev-scripts": "0.6.2",
+    "@salesforce/plugin-command-reference": "^1.2.3",
     "@salesforce/prettier-config": "^0.0.1",
     "@salesforce/ts-sinon": "1.1.3",
     "@typescript-eslint/eslint-plugin": "^2.30.0",
@@ -66,7 +68,9 @@
     "commands": "./lib/commands",
     "bin": "sfdx",
     "devPlugins": [
-      "@oclif/plugin-help"
+      "@oclif/plugin-help",
+      "@oclif/plugin-command-snapshot",
+      "@salesforce/plugin-command-reference"
     ],
     "topics": {
       "hello": {
@@ -85,7 +89,9 @@
     "format": "sf-format",
     "lint": "sf-lint",
     "postpack": "shx rm -f oclif.manifest.json",
-    "posttest": "yarn lint",
+    "posttest": "yarn lint && yarn test:deprecation-policy && yarn test:command-reference",
+    "test:deprecation-policy": "./bin/run snapshot:compare",
+    "test:command-reference": "./bin/run commandreference:generate -p @salesforce/plugin-templates --erroronwarnings",
     "prepack": "sf-build",
     "prepare": "sf-install",
     "pretest": "sf-compile-test",

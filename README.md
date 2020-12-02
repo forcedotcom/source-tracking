@@ -19,7 +19,15 @@ This repository provides a template for creating a plugin for the Salesforce CLI
 
 &lt;REPLACE ME DESCRIPTION END&gt;
 
-### Everything past here is only a suggestion as to what should be in your specific plugin's descsription.
+## Learn about the plugin-template
+
+Salesforce CLI plugins are based on the [oclif plugin framework](<(https://oclif.io/docs/introduction.html)>). Read the [plugin developer guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_plugins.meta/sfdx_cli_plugins/cli_plugins_architecture_sf_cli.htm) to learn about Salesforce CLI plugin development.
+
+This repository contains a lot of additional scripts and tools to help with general Salesforce node development and enforce coding standards. You should familiarize yourself with some of the [node developer packages](https://github.com/forcedotcom/sfdx-dev-packages/) used by Salesforce. There is also a default circleci config using the [release management orb](https://github.com/forcedotcom/npm-release-management-orb) standards.
+
+Additionally, there are some additional tests that the Salesforce CLI will enforce if this plugin is ever bundled with the CLI. These test are included by default under the `posttest` script and it is recommended to keep these tests active in your plugin, regardless if you plan to have it bundled.
+
+# Everything past here is only a suggestion as to what should be in your specific plugin's description
 
 ## Getting Started
 
@@ -36,16 +44,29 @@ To run a command
 
 To build the plugin locally, make sure to have yarn installed and run the following commands:
 
+```bash
+# Clone the repository
+git clone git@github.com:salesforcecli/plugin-<REPLACE_ME>
+
+# Install the dependencies and compile
+yarn install
+yarn build
 ```
-Clone the repository
-  $ git clone git@github.com:salesforcecli/plugin-<REPLACE_ME>
-Install the dependencies and compile
-  $ yarn install
-  $ yarn prepack
-Link your plugin to the sfdx cli
-  $ sfdx plugins:link .
-To verify
-  $ sfdx plugins
+
+To use your plugin, run using the local `./bin/run` or `./bin/run.cmd` file.
+
+```bash
+# Run using local run file.
+./bin/run hello:world
+```
+
+There should be no differences when running via the Salesforce CLI or using the local run file. However, it can be useful to link the plugin to do some additional testing or run your commands from anywhere on your machine.
+
+```bash
+# Link your plugin to the sfdx cli
+sfdx plugins:link .
+# To verify
+sfdx plugins
 ```
 
 ## Debugging your plugin
