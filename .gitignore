@@ -1,5 +1,5 @@
 # -- CLEAN
-
+tmp/
 # use yarn by default, so ignore npm
 package-lock.json
 
