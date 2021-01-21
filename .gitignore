@@ -29,7 +29,7 @@ node_modules
 
 # --
 # put files here you don't want cleaned with sf-clean
-/tmp/g
+tmp/
 # os specific files
 .DS_Store
 .idea
