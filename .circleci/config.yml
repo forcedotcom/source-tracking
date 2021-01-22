@@ -1,8 +1,6 @@
----
 version: 2.1
 orbs:
   release-management: salesforce/npm-release-management@4
-
 workflows:
   version: 2
   test-and-release:
@@ -24,3 +22,13 @@ workflows:
           filters:
             branches:
               only: main
+  test-ts-update:
+    triggers:
+      - schedule:
+          cron: 0 0 * * *
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - release-management/test-ts-update
