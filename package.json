@@ -13,8 +13,8 @@
   "devDependencies": {
     "@oclif/dev-cli": "^1",
     "@oclif/plugin-command-snapshot": "^2.0.0",
-    "@salesforce/dev-config": "^2.1.0",
-    "@salesforce/dev-scripts": "0.6.2",
+    "@salesforce/dev-config": "^2.0.0",
+    "@salesforce/dev-scripts": "0.7.0",
     "@salesforce/plugin-command-reference": "^1.2.3",
     "@salesforce/prettier-config": "^0.0.1",
     "@salesforce/ts-sinon": "1.1.3",
