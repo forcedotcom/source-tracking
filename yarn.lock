@@ -566,6 +566,26 @@
     mkdirp "1.0.4"
     sfdx-faye "^1.0.9"
 
+"@salesforce/core@^2.15.4":
+  version "2.18.0"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-2.18.0.tgz#0a514682c5720c9bae4cc05a6a62edb78bdb9ded"
+  integrity sha512-LBcQ8rIkf6fKnN96XkfRZPbQ3yyioihJppUyZ8O+/JQjlGu6Me18YHR84ic92p+LqhtQqyth84xFvcCHmJCZxg==
+  dependencies:
+    "@salesforce/bunyan" "^2.0.0"
+    "@salesforce/kit" "^1.3.3"
+    "@salesforce/schemas" "^1.0.1"
+    "@salesforce/ts-types" "^1.0.0"
+    "@types/graceful-fs" "^4.1.3"
+    "@types/jsforce" "1.9.23"
+    "@types/mkdirp" "1.0.0"
+    debug "^3.1.0"
+    graceful-fs "^4.2.4"
+    jsen "0.6.6"
+    jsforce "^1.10.0"
+    jsonwebtoken "8.5.0"
+    mkdirp "1.0.4"
+    sfdx-faye "^1.0.9"
+
 "@salesforce/core@^2.6.0":
   version "2.10.0"
   resolved "https://registry.npmjs.org/@salesforce/core/-/core-2.10.0.tgz#947a64a6c493337c55eff82545a8b0e8ae58e945"
@@ -707,14 +727,6 @@
     "@sinonjs/commons" "^1"
     "@sinonjs/samsam" "^3.1.0"
 
-"@sinonjs/formatio@^5.0.1":
-  version "5.0.1"
-  resolved "https://registry.npmjs.org/@sinonjs/formatio/-/formatio-5.0.1.tgz#f13e713cb3313b1ab965901b01b0828ea6b77089"
-  integrity sha512-KaiQ5pBf1MpS09MuA0kp6KBQt2JUOQycqVG1NZXvzeaXe5LGFqAKueIS0bw4w0P9r7KuBSVdUk5QjXsUdu2CxQ==
-  dependencies:
-    "@sinonjs/commons" "^1"
-    "@sinonjs/samsam" "^5.0.2"
-
 "@sinonjs/samsam@^3.1.0":
   version "3.3.3"
   resolved "https://registry.npmjs.org/@sinonjs/samsam/-/samsam-3.3.3.tgz#46682efd9967b259b81136b9f120fd54585feb4a"
@@ -724,19 +736,10 @@
     array-from "^2.1.1"
     lodash "^4.17.15"
 
-"@sinonjs/samsam@^5.0.2":
-  version "5.1.0"
-  resolved "https://registry.npmjs.org/@sinonjs/samsam/-/samsam-5.1.0.tgz#3afe719232b541bb6cf3411a4c399a188de21ec0"
-  integrity sha512-42nyaQOVunX5Pm6GRJobmzbS7iLI+fhERITnETXzzwDZh+TtDr/Au3yAvXVjFmZ4wEUaE4Y3NFZfKv0bV0cbtg==
-  dependencies:
-    "@sinonjs/commons" "^1.6.0"
-    lodash.get "^4.4.2"
-    type-detect "^4.0.8"
-
-"@sinonjs/samsam@^5.2.0":
-  version "5.3.0"
-  resolved "https://registry.yarnpkg.com/@sinonjs/samsam/-/samsam-5.3.0.tgz#1d2f0743dc54bf13fe9d508baefacdffa25d4329"
-  integrity sha512-hXpcfx3aq+ETVBwPlRFICld5EnrkexXuXDwqUNhDdr5L8VjvMeSRwyOa0qL7XFmR+jVWR4rUZtnxlG7RX72sBg==
+"@sinonjs/samsam@^5.3.1":
+  version "5.3.1"
+  resolved "https://registry.yarnpkg.com/@sinonjs/samsam/-/samsam-5.3.1.tgz#375a45fe6ed4e92fca2fb920e007c48232a6507f"
+  integrity sha512-1Hc0b1TtyfBu8ixF/tpfSHTVWKwCBLY4QJbkgnE7HcwyvT2xArDxb4K7dMgqRm3szI+LJbzmW/s4xxEhv6hwDg==
   dependencies:
     "@sinonjs/commons" "^1.6.0"
     lodash.get "^4.4.2"
@@ -3770,6 +3773,27 @@ jsforce@^1.10.0:
     request "^2.72.0"
     xml2js "^0.4.16"
 
+jsforce@^1.10.0:
+  version "1.10.1"
+  resolved "https://registry.yarnpkg.com/jsforce/-/jsforce-1.10.1.tgz#ca1cf58d4439d94e1f84482d83081acd12c93269"
+  integrity sha512-rv+UpBR9n/sWdgLhyPOJuKgT9ZKngypYf9XOHoXVRpSllvTFCjn+M3H81Nu1oYjPH9JKXVS8hL1dmmq8+kOAJg==
+  dependencies:
+    base64-url "^2.2.0"
+    co-prompt "^1.0.0"
+    coffeescript "^1.10.0"
+    commander "^2.9.0"
+    csv-parse "^4.10.1"
+    csv-stringify "^1.0.4"
+    faye "^1.2.0"
+    inherits "^2.0.1"
+    lodash "^4.17.19"
+    multistream "^2.0.5"
+    opn "^5.3.0"
+    promise "^7.1.1"
+    readable-stream "^2.1.0"
+    request "^2.72.0"
+    xml2js "^0.4.16"
+
 json-parse-better-errors@^1.0.1:
   version "1.0.2"
   resolved "https://registry.npmjs.org/json-parse-better-errors/-/json-parse-better-errors-1.0.2.tgz#bb867cfb3450e69107c131d1c514bab3dc8bcaa9"
@@ -5646,15 +5670,14 @@ sinon@5.1.1:
     supports-color "^5.4.0"
     type-detect "^4.0.8"
 
-sinon@^9.0.0, sinon@^9.0.2:
-  version "9.2.1"
-  resolved "https://registry.yarnpkg.com/sinon/-/sinon-9.2.1.tgz#64cc88beac718557055bd8caa526b34a2231be6d"
-  integrity sha512-naPfsamB5KEE1aiioaoqJ6MEhdUs/2vtI5w1hPAXX/UwvoPjXcwh1m5HiKx0HGgKR8lQSoFIgY5jM6KK8VrS9w==
+sinon@^9.0.0, sinon@^9.0.2, sinon@^9.2.4:
+  version "9.2.4"
+  resolved "https://registry.yarnpkg.com/sinon/-/sinon-9.2.4.tgz#e55af4d3b174a4443a8762fa8421c2976683752b"
+  integrity sha512-zljcULZQsJxVra28qIAL6ow1Z9tpattkCTEJR4RBP3TGc00FcttsP5pK284Nas5WjMZU5Yzy3kAIp3B3KRf5Yg==
   dependencies:
     "@sinonjs/commons" "^1.8.1"
     "@sinonjs/fake-timers" "^6.0.1"
-    "@sinonjs/formatio" "^5.0.1"
-    "@sinonjs/samsam" "^5.2.0"
+    "@sinonjs/samsam" "^5.3.1"
     diff "^4.0.2"
     nise "^4.0.4"
     supports-color "^7.1.0"
