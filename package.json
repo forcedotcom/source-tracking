@@ -36,8 +36,8 @@
     "mocha": "^8.2.1",
     "nyc": "^15.1.0",
     "prettier": "^2.0.5",
-    "pretty-quick": "^3.1.0",
-    "shx": "0.2.2",
+    "pretty-quick": "^2.0.1",
+    "shx": "0.3.3",
     "sinon": "^9.0.2",
     "ts-node": "^8.10.2",
     "typescript": "^3.9.3"
