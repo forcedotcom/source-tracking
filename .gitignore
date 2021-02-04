@@ -24,6 +24,11 @@ coverage
 # generated docs
 docs
 
+# ignore sfdx-trust files
+*.tgz
+*.sig
+package.json.bak.
+
 # -- CLEAN ALL
 node_modules
 
