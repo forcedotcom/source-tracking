@@ -13,6 +13,7 @@
   "devDependencies": {
     "@oclif/dev-cli": "^1",
     "@oclif/plugin-command-snapshot": "^2.0.0",
+    "@salesforce/cli-plugins-testkit": "^0.0.8",
     "@salesforce/dev-config": "^2.1.0",
     "@salesforce/dev-scripts": "^0.7.0",
     "@salesforce/plugin-command-reference": "^1.3.0",
@@ -96,7 +97,8 @@
     "test": "sf-test",
     "test:command-reference": "./bin/run commandreference:generate --erroronwarnings",
     "test:deprecation-policy": "./bin/run snapshot:compare",
-    "version": "oclif-dev readme && git add README.md"
+    "version": "oclif-dev readme && git add README.md",
+    "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel"
   },
   "husky": {
     "hooks": {
