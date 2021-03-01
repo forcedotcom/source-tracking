@@ -7,17 +7,17 @@
   "dependencies": {
     "@oclif/config": "^1",
     "@salesforce/command": "^3.1.0",
-    "@salesforce/core": "^2.18.0",
+    "@salesforce/core": "^2.20.3",
     "tslib": "^2"
   },
   "devDependencies": {
     "@oclif/dev-cli": "^1",
     "@oclif/plugin-command-snapshot": "^2.0.0",
-    "@salesforce/cli-plugins-testkit": "^0.0.8",
+    "@salesforce/cli-plugins-testkit": "^0.0.13",
     "@salesforce/dev-config": "^2.1.0",
-    "@salesforce/dev-scripts": "^0.7.0",
+    "@salesforce/dev-scripts": "^0.9.1",
     "@salesforce/plugin-command-reference": "^1.3.0",
-    "@salesforce/prettier-config": "^0.0.1",
+    "@salesforce/prettier-config": "^0.0.2",
     "@salesforce/ts-sinon": "1.3.0",
     "@typescript-eslint/eslint-plugin": "^4.2.0",
     "@typescript-eslint/parser": "^4.2.0",
@@ -34,7 +34,7 @@
     "eslint-plugin-prettier": "^3.1.3",
     "husky": "^4.2.5",
     "lint-staged": "^10.2.2",
-    "mocha": "^7.2.0",
+    "mocha": "^8.3.0",
     "nyc": "^15.1.0",
     "prettier": "^2.0.5",
     "pretty-quick": "^2.0.1",
@@ -83,7 +83,7 @@
   "scripts": {
     "build": "sf-build",
     "clean": "sf-clean",
-    "clean-all": "-clean all",
+    "clean-all": "sf-clean all",
     "clean:lib": "shx rm -rf lib && shx rm -rf coverage && shx rm -rf .nyc_output && shx rm -f oclif.manifest.json",
     "compile": "sf-compile",
     "docs": "sf-docs",
@@ -91,14 +91,14 @@
     "lint": "sf-lint",
     "postpack": "shx rm -f oclif.manifest.json",
     "posttest": "yarn lint && yarn test:deprecation-policy && yarn test:command-reference",
-    "prepack": "sf-build",
+    "prepack": "sf-prepack",
     "prepare": "sf-install",
     "pretest": "sf-compile-test",
     "test": "sf-test",
     "test:command-reference": "./bin/run commandreference:generate --erroronwarnings",
     "test:deprecation-policy": "./bin/run snapshot:compare",
-    "version": "oclif-dev readme",
-    "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel"
+    "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "version": "oclif-dev readme"
   },
   "husky": {
     "hooks": {
