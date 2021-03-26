@@ -1,3 +1,7 @@
+### Use the [lerna template](https://github.com/salesforcecli/lerna-template) if you need a library and plugin
+
+### This template is useful if the library is already in another repository or the plugin is a wrapper around an API.
+
 # plugin-&lt;REPLACE ME&gt;
 
 [![NPM](https://img.shields.io/npm/v/@salesforce/plugin-template.svg?label=@salesforce/plugin-template)](https://www.npmjs.com/package/@salesforce/plugin-template) [![CircleCI](https://circleci.com/gh/salesforcecli/plugin-template/tree/main.svg?style=shield)](https://circleci.com/gh/salesforcecli/plugin-template/tree/main) [![Downloads/week](https://img.shields.io/npm/dw/@salesforce/plugin-template.svg)](https://npmjs.org/package/@salesforce/plugin-template) [![License](https://img.shields.io/badge/License-BSD%203--Clause-brightgreen.svg)](https://raw.githubusercontent.com/salesforcecli/plugin-template/main/LICENSE.txt)
