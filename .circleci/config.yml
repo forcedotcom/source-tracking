@@ -9,6 +9,21 @@ workflows:
           filters:
             branches:
               ignore: main
+        release-management/test-package:
+          matrix:
+            parameters:
+              os:
+                - linux
+                - windows
+              node_version:
+                - latest
+                - lts
+                - maintenance
+            exclude:
+              - os: windows
+                node_version: lts
+              - os: windows
+                node_version: maintenance
       - release-management/test-package:
           matrix:
             parameters:
