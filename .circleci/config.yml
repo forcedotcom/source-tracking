@@ -47,6 +47,7 @@ workflows:
           filters:
             branches:
               only: main
+    when: << pipeline.parameters.run-auto-workflows >>
   test-ts-update:
     triggers:
       - schedule:
@@ -57,3 +58,47 @@ workflows:
                 - main
     jobs:
       - release-management/test-ts-update
+  just-nuts:
+    when: << pipeline.parameters.run-just-nuts >>
+    jobs:
+      - release-management/test-nut:
+          name: just-nuts-<< matrix.os >>
+          sfdx_version: << pipeline.parameters.sfdx_version >>
+          sfdx_executable_path: sfdx
+          repo_tag: << pipeline.parameters.repo_tag >>
+          matrix:
+            parameters:
+              os:
+                - linux
+                - windows
+parameters:
+  run-auto-workflows:
+    description: >
+      Boolean that controls when an workflow would run.
+
+      It is used to gate which workflows should run when github events occur.
+
+      This parameter is used by automation to determine if a workflow will run
+      within a pipeline.
+    default: true
+    type: boolean
+  run-just-nuts:
+    description: >
+      Boolean that controls when the just-nuts will run.
+
+      Default value is false and this parameter is used by automation to
+      determine if
+
+      the just-nuts workflow will run.
+    default: false
+    type: boolean
+  sfdx_version:
+    description: |
+      By default, the latest version of the standalone CLI will be installed.
+      To install via npm, supply a version tag such as "latest" or "6".
+    default: ''
+    type: string
+  repo_tag:
+    description: 'The tag of the module repo to checkout, '''' defaults to branch/PR'
+    default: ''
+    type: string
