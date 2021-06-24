@@ -72,6 +72,16 @@ workflows:
                 - linux
                 - windows
           npm_module_name: << pipeline.parameters.npm_module_name >>
+  dependabot-automerge:
+    triggers:
+      - schedule:
+          cron: '0 2,5,8,11 * * *'
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - release-management/dependabot-automerge
 parameters:
   run-auto-workflows:
     description: >
@@ -100,10 +110,10 @@ parameters:
     default: ''
     type: string
   repo_tag:
-    description: The tag of the module repo to checkout, '' defaults to branch/PR
+    description: 'The tag of the module repo to checkout, '''' defaults to branch/PR'
     default: ''
     type: string
   npm_module_name:
-    description: The fully qualified npm module name, i.e. @salesforce/plugins-data
+    description: 'The fully qualified npm module name, i.e. @salesforce/plugins-data'
     default: ''
     type: string
