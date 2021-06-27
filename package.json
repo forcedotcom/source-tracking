@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "@oclif/dev-cli": "^1",
-    "@oclif/plugin-command-snapshot": "^2.0.0",
+    "@oclif/plugin-command-snapshot": "^2.1.2",
     "@salesforce/cli-plugins-testkit": "^1.1.5",
     "@salesforce/dev-config": "^2.1.2",
     "@salesforce/dev-scripts": "^0.9.11",
