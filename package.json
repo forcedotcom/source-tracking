@@ -15,7 +15,7 @@
     "@oclif/plugin-command-snapshot": "^2.1.2",
     "@salesforce/cli-plugins-testkit": "^1.1.5",
     "@salesforce/dev-config": "^2.1.2",
-    "@salesforce/dev-scripts": "^0.9.11",
+    "@salesforce/dev-scripts": "^0.9.15",
     "@salesforce/plugin-command-reference": "^1.3.4",
     "@salesforce/prettier-config": "^0.0.2",
     "@salesforce/ts-sinon": "1.3.18",
