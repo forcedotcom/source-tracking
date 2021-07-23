@@ -47,6 +47,26 @@ workflows:
           filters:
             branches:
               only: main
+        release-management/test-nut:
+          matrix:
+            parameters:
+              os:
+                - linux
+                - windows
+              sfdx_version:
+                - latest
+              node_version:
+                - latest
+          requires:
+            - release-management/test-package
+      - release-management/release-package:
+          sign: true
+          github-release: true
+          requires:
+            - release-management/test-package
+          filters:
+            branches:
+              only: main
     when: << pipeline.parameters.run-auto-workflows >>
   test-ts-update:
     triggers:
