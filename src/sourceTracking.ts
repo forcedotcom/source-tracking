@@ -20,8 +20,11 @@ export class SourceTracking {
    *
    * @returns local and remote changed metadata
    */
+  // eslint-disable-next-line @typescript-eslint/require-await
   public async getChanges(options?: ChangeOptions): Promise<string[]> {
     // by default return all local and remote changes
+    // eslint-disable-next-line no-console
+    console.log(options);
     return [];
   }
 
@@ -30,8 +33,11 @@ export class SourceTracking {
    *
    * @param options the files to update
    */
+  // eslint-disable-next-line @typescript-eslint/require-await
   public async update(options?: UpdateOptions): Promise<void> {
     // update local and remote tracking
     // by default update everything
+    // eslint-disable-next-line no-console
+    console.log(options);
   }
 }

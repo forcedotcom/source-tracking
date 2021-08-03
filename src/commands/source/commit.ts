@@ -9,6 +9,7 @@ import {
   // flags,
   SfdxCommand,
 } from '@salesforce/command';
+import { SfdxProject, Org } from '@salesforce/core';
 import { AnyJson } from '@salesforce/ts-types';
 import { ShadowRepo } from '../../shared/repo';
 
@@ -17,7 +18,8 @@ export default class SourceCommit extends SfdxCommand {
   protected static flagsConfig = {};
   protected static requiresUsername = true;
   protected static requiresProject = true;
-
+  public project!: SfdxProject;
+  public org!: Org;
   public async run(): Promise<AnyJson> {
     this.ux.log(
       `project is ${this.project.getPath()} and pkgDirs are ${this.project

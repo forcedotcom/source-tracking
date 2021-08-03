@@ -42,12 +42,14 @@ interface CommitRequest {
 }
 
 export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
-  public gitDir: string;
-  public projectPath: string;
-  private packageDirs: NamedPackageDir[];
-  private status: StatusRow[];
+  // next 5 props get set in init() from asyncCreatable
+  public gitDir!: string;
+  public projectPath!: string;
+  private packageDirs!: NamedPackageDir[];
+  private status!: StatusRow[];
+  private logger!: Logger;
+
   private options: ShadowRepoOptions;
-  private logger: Logger;
 
   public constructor(options: ShadowRepoOptions) {
     super(options);
