@@ -25,8 +25,8 @@ export default class SourceStatus extends SfdxCommand {
   protected static flagsConfig = {};
   protected static requiresUsername = true;
   protected static requiresProject = true;
-  public project!: SfdxProject;
-  public org!: Org;
+  protected project!: SfdxProject;
+  protected org!: Org;
 
   public async run(): Promise<AnyJson> {
     this.ux.log(
