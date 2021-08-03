@@ -58,7 +58,6 @@
     "@salesforce/dev-config": "^2.1.2",
     "@salesforce/dev-scripts": "^0.9.18",
     "@salesforce/prettier-config": "^0.0.2",
-    "@types/jsforce": "^1.9.33",
     "@types/sinon": "^10.0.2",
     "@typescript-eslint/eslint-plugin": "^4.29.0",
     "@typescript-eslint/parser": "^4.29.0",
