@@ -1,5 +1,5 @@
 {
-  "require": "ts-node/register,source-map-support/register",
+  "require": "test/init.js, ts-node/register, source-map-support/register",
   "watch-extensions": "ts",
   "recursive": true,
   "reporter": "spec",
