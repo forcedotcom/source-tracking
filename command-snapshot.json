@@ -1,7 +1,12 @@
 [
   {
-    "command": "hello:org",
+    "command": "source:commit",
     "plugin": "@salesforce/plugin-template",
-    "flags": ["apiversion", "force", "json", "loglevel", "name", "targetdevhubusername", "targetusername"]
+    "flags": ["apiversion", "json", "loglevel", "targetusername"]
+  },
+  {
+    "command": "source:status",
+    "plugin": "@salesforce/plugin-template",
+    "flags": ["apiversion", "json", "loglevel", "targetusername"]
   }
 ]
