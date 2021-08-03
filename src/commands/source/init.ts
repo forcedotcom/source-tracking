@@ -11,7 +11,7 @@ import {
 } from '@salesforce/command';
 // import { SfdxError } from '@salesforce/core';
 import { AnyJson } from '@salesforce/ts-types';
-import { ShadowRepo } from '../../lib/repo';
+import { ShadowRepo } from '../../shared/repo';
 
 export default class SourceInit extends SfdxCommand {
   public static description = 'initiate Source Tracking';

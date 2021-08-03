@@ -10,7 +10,7 @@ import {
   SfdxCommand,
 } from '@salesforce/command';
 import { AnyJson } from '@salesforce/ts-types';
-import { ShadowRepo } from '../../lib/repo';
+import { ShadowRepo } from '../../shared/repo';
 
 export default class SourceCommit extends SfdxCommand {
   public static description = 'commit local changes';

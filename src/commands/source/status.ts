@@ -10,7 +10,7 @@ import {
   SfdxCommand,
 } from '@salesforce/command';
 import { AnyJson } from '@salesforce/ts-types';
-import { ShadowRepo } from '../../lib/repo';
+import { ShadowRepo } from '../../shared/repo';
 
 // array members for status results
 // https://isomorphic-git.org/docs/en/statusMatrix#docsNav
