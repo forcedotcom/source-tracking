@@ -75,8 +75,8 @@
       "@salesforce/plugin-command-reference"
     ],
     "topics": {
-      "hello": {
-        "description": "Commands to say hello."
+      "source": {
+        "description": "Commands for directly accessing the library.  Do not use in plugins"
       }
     }
   },
