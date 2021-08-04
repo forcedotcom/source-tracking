@@ -52,7 +52,8 @@
     "@salesforce/command": "^4.0.0",
     "@salesforce/core": "^2.27.0",
     "@salesforce/kit": "^1.5.17",
-    "isomorphic-git": "^1.9.2"
+    "isomorphic-git": "^1.9.2",
+    "ts-retry-promise": "^0.6.0"
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^1.2.11",
