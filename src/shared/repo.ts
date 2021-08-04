@@ -43,8 +43,8 @@ interface CommitRequest {
 
 export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   // next 5 props get set in init() from asyncCreatable
-  public gitDir!: string;
-  public projectPath!: string;
+  public gitDir: string;
+  public projectPath: string;
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
@@ -54,14 +54,14 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   public constructor(options: ShadowRepoOptions) {
     super(options);
     this.options = options;
+    this.gitDir = getGitDir(options.orgId, options.projectPath);
+    this.projectPath = options.projectPath;
+    this.packageDirs = options.packageDirs;
   }
 
   public async init(): Promise<void> {
-    this.gitDir = getGitDir(this.options.orgId, this.options.projectPath);
     this.logger = await Logger.child('ShadowRepo');
     this.logger.debug('options for constructor are', this.options);
-    this.projectPath = this.options.projectPath;
-    this.packageDirs = this.options.packageDirs;
     // initialize the shadow repo if it doesn't exist
     if (!fs.existsSync(this.gitDir)) {
       this.logger.debug('initializing git repo');
@@ -137,7 +137,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     deployedFiles = [],
     deletedFiles = [],
     message = 'sfdx source tracking',
-  }: CommitRequest = {}): Promise<string> {
+  }: CommitRequest): Promise<string> {
     // if no files are specified, commit all changes
     if (deployedFiles.length === 0 && deletedFiles.length === 0) {
       deployedFiles = await this.getNonDeleteFilenames();
