@@ -137,7 +137,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     deployedFiles = [],
     deletedFiles = [],
     message = 'sfdx source tracking',
-  }: CommitRequest): Promise<string> {
+  }: CommitRequest = {}): Promise<string> {
     // if no files are specified, commit all changes
     if (deployedFiles.length === 0 && deletedFiles.length === 0) {
       deployedFiles = await this.getNonDeleteFilenames();

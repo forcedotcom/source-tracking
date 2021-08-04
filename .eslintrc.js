@@ -6,4 +6,6 @@
  */
 module.exports = {
   extends: ['eslint-config-salesforce-typescript', 'eslint-config-salesforce-license'],
+  // ignore eslint files in NUT test repos
+  ignorePatterns: ['test/nuts/ebikes-lwc'],
 };

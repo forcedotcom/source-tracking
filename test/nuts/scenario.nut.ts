@@ -10,7 +10,7 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { fs } from '@salesforce/core';
 import { expect } from 'chai';
 import { shouldThrow } from '@salesforce/core/lib/testSetup';
-import { ShadowRepo } from '../src/shared/repo';
+import { ShadowRepo } from '../../src/shared/repo';
 
 describe('end-to-end-test', () => {
   let session: TestSession;
@@ -19,7 +19,7 @@ describe('end-to-end-test', () => {
   before(async () => {
     session = await TestSession.create({
       project: {
-        gitClone: 'https://github.com/trailheadapps/ebikes-lwc',
+        sourceDir: 'test/nuts/ebikes-lwc',
       },
       authStrategy: 'NONE',
     });
