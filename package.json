@@ -55,7 +55,7 @@
     "isomorphic-git": "^1.9.2"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^1.2.11",
+    "@salesforce/cli-plugins-testkit": "^1.2.12",
     "@salesforce/dev-config": "^2.1.2",
     "@salesforce/dev-scripts": "^0.9.18",
     "@salesforce/prettier-config": "^0.0.2",
