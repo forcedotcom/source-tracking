@@ -23,7 +23,8 @@
     "lint-fix": "yarn sf-lint --fix",
     "prepack": "sf-build",
     "pretest": "sf-compile-test",
-    "test": "sf-test --require ts-node/register"
+    "test": "sf-test --require ts-node/register",
+    "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel"
   },
   "keywords": [
     "force",
