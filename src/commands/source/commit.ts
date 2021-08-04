@@ -11,7 +11,7 @@ import {
 } from '@salesforce/command';
 import { SfdxProject, Org } from '@salesforce/core';
 import { AnyJson } from '@salesforce/ts-types';
-import { ShadowRepo } from '../../shared/repo';
+import { ShadowRepo } from '../../shared/localShadowRepo';
 
 export default class SourceCommit extends SfdxCommand {
   public static description = 'commit local changes';
