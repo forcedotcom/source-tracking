@@ -34,6 +34,7 @@ export type ChangeElement = {
   deleted?: boolean;
 };
 
+// represents the contents of the config file stored in 'maxRevision.json'
 interface Contents {
   serverMaxRevisionCounter: number;
   sourceMembers: Dictionary<MemberRevision>;
@@ -151,7 +152,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       }
     }
 
-    const contents = this.getContents();
+    const contents = this.getContents() as unknown as Contents;
     // Initialize a new maxRevision.json if the file doesn't yet exist.
     if (!contents.serverMaxRevisionCounter && !contents.sourceMembers) {
       try {
@@ -408,16 +409,19 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * stopping when all members have been matched or the polling timeout is met or exceeded.
    * NOTE: This can be removed when the Team Dependency (TD-0085369) for W-7737094 is delivered.
    *
-   * @param memberNames Array of metadata names to poll
+   * @param expectedMemberNames Array of metadata names to poll
    * @param pollingTimeout maximum amount of time in seconds to poll for SourceMembers
    */
-  private async pollForSourceTracking(memberNames: string[], pollingTimeout?: Duration.Unit.SECONDS): Promise<void> {
+  private async pollForSourceTracking(
+    expectedMemberNames: string[],
+    pollingTimeout?: Duration.Unit.SECONDS
+  ): Promise<void> {
     if (env.getBoolean('SFDX_DISABLE_SOURCE_MEMBER_POLLING', false)) {
       this.logger.warn('Not polling for SourceMembers since SFDX_DISABLE_SOURCE_MEMBER_POLLING = true.');
       return;
     }
 
-    if (memberNames.length === 0) {
+    if (expectedMemberNames.length === 0) {
       // Don't bother polling if we're not matching SourceMembers
       return;
     }
@@ -432,22 +436,22 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     // member names being polled plus a buffer of 5 seconds.  This will
     // wait 50s for each 1000 components, plus 5s.
     if (!pollingTimeout) {
-      pollingTimeout = Math.ceil(memberNames.length * 0.05) + 5;
+      pollingTimeout = Math.ceil(expectedMemberNames.length * 0.05) + 5;
       this.logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
     }
 
     const fromRevision = this.getServerMaxRevision();
     this.logger.debug(
-      `Polling for ${memberNames.length} SourceMembers from revision ${fromRevision} with timeout of ${pollingTimeout}s`
+      `Polling for ${expectedMemberNames.length} SourceMembers from revision ${fromRevision} with timeout of ${pollingTimeout}s`
     );
 
     let pollAttempts = 0;
 
     // we need to keep asking the server for sourceMembers until time runs out OR we find everything in matches
-    const matches = new Set(memberNames);
+    const expectedSourceMembers = new Set(expectedMemberNames);
     let sourceMembers;
     const poll = async (): Promise<SourceMember[]> => {
-      pollAttempts += 1;
+      pollAttempts += 1; // not used to stop polling, but for debug logging
       sourceMembers = await this.querySourceMembersFrom({
         fromRevision,
         quiet: pollAttempts !== 1,
@@ -455,18 +459,20 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       });
 
       for (const member of sourceMembers) {
-        matches.delete(member.MemberName);
+        expectedSourceMembers.delete(member.MemberName);
       }
 
       this.logger.debug(
-        `[${pollAttempts}] Found ${memberNames.length - matches.size} of ${memberNames.length} SourceMembers`
+        `[${pollAttempts}] Found ${expectedMemberNames.length - expectedSourceMembers.size} of ${
+          expectedMemberNames.length
+        } SourceMembers`
       );
-      if (matches.size === 0) {
+      if (expectedSourceMembers.size === 0) {
         return sourceMembers;
       }
 
-      if (matches.size < 20) {
-        this.logger.debug(`Still looking for SourceMembers: ${Array.from(matches).join(',')}`);
+      if (expectedSourceMembers.size < 20) {
+        this.logger.debug(`Still looking for SourceMembers: ${Array.from(expectedSourceMembers).join(',')}`);
       }
       throw new Error();
     };
@@ -480,10 +486,12 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       this.logger.debug(`Retrieved all SourceMember data after ${pollAttempts} attempts`);
     } catch {
       this.logger.warn(`Polling for SourceMembers timed out after ${pollAttempts} attempts`);
-      if (matches.size < 51) {
-        this.logger.debug(`Could not find ${matches.size} SourceMembers: ${Array.from(matches).join(',')}`);
+      if (expectedSourceMembers.size < 51) {
+        this.logger.debug(
+          `Could not find ${expectedSourceMembers.size} SourceMembers: ${Array.from(expectedSourceMembers).join(',')}`
+        );
       } else {
-        this.logger.debug(`Could not find SourceMembers for ${matches.size} components`);
+        this.logger.debug(`Could not find SourceMembers for ${expectedSourceMembers.size} components`);
       }
     }
 
