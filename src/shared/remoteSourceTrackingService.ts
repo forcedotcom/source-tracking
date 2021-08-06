@@ -9,9 +9,10 @@
 
 import * as path from 'path';
 import { join as pathJoin } from 'path';
-import { ConfigFile, Connection, fs, Logger, Org, SfdxError } from '@salesforce/core';
+import { ConfigFile, fs, Logger, Org, SfdxError, Messages } from '@salesforce/core';
 import { Dictionary, Optional } from '@salesforce/ts-types';
-import { Duration, env, sleep, toNumber } from '@salesforce/kit';
+import { Duration, env, toNumber } from '@salesforce/kit';
+import { retryDecorator } from 'ts-retry-promise';
 
 export type MemberRevision = {
   serverRevisionCounter: number;
@@ -32,6 +33,11 @@ export type ChangeElement = {
   type: string;
   deleted?: boolean;
 };
+
+interface Contents {
+  serverMaxRevisionCounter: number;
+  sourceMembers: Dictionary<MemberRevision>;
+}
 
 export namespace RemoteSourceTrackingService {
   // Constructor Options for RemoteSourceTrackingService.
@@ -84,14 +90,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   private static remoteSourceTrackingServiceDictionary: Dictionary<RemoteSourceTrackingService> = {};
   protected logger!: Logger;
   private org!: Org;
-  private readonly FIRST_REVISION_COUNTER_API_VERSION: string = '47.0';
-  private conn!: Connection;
-  private currentApiVersion!: string;
   private isSourceTrackedOrg = true;
-  protected contents!: {
-    serverMaxRevisionCounter: number;
-    sourceMembers: { [key: string]: MemberRevision };
-  };
 
   // A short term cache (within the same process) of query results based on a revision.
   // Useful for source:pull, which makes 3 of the same queries; during status, building manifests, after pull success.
@@ -111,7 +110,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     if (!this.remoteSourceTrackingServiceDictionary[options.username]) {
       this.remoteSourceTrackingServiceDictionary[options.username] = await RemoteSourceTrackingService.create(options);
     }
-    return this.remoteSourceTrackingServiceDictionary[options.username];
+    return this.remoteSourceTrackingServiceDictionary[options.username] as RemoteSourceTrackingService;
   }
 
   /**
@@ -132,8 +131,6 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     this.options.filename = RemoteSourceTrackingService.getFileName();
     this.org = await Org.create({ aliasOrUsername: this.options.username });
     this.logger = await Logger.child(this.constructor.name);
-    this.conn = this.org.getConnection();
-    this.currentApiVersion = this.conn.getApiVersion();
 
     try {
       await super.init();
@@ -162,7 +159,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         // for SourceMembers.  If a certain error is thrown during the query we won't try to do
         // source tracking for this org.  Calling querySourceMembersFrom() has the extra benefit
         // of caching the query so we don't have to make an identical request in the same process.
-        await this.querySourceMembersFrom(0);
+        await this.querySourceMembersFrom({ fromRevision: 0 });
 
         this.logger.debug('Initializing source tracking state');
         contents.serverMaxRevisionCounter = 0;
@@ -254,7 +251,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     if (toRevision != null) {
       members = await this.querySourceMembersTo(toRevision);
     } else {
-      members = await this.querySourceMembersFrom(0);
+      members = await this.querySourceMembersFrom({ fromRevision: 0 });
     }
 
     await this.trackSourceMembers(members, true);
@@ -273,19 +270,19 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private getServerMaxRevision(): number {
-    return this['contents'].serverMaxRevisionCounter;
+    return (this['contents'] as Contents).serverMaxRevisionCounter;
   }
 
   private setServerMaxRevision(revision = 0): void {
-    this['contents'].serverMaxRevisionCounter = revision;
+    (this['contents'] as Contents).serverMaxRevisionCounter = revision;
   }
 
   private getSourceMembers(): Dictionary<MemberRevision> {
-    return this['contents'].sourceMembers;
+    return (this['contents'] as Contents).sourceMembers;
   }
 
   private initSourceMembers(): void {
-    this['contents'].sourceMembers = {};
+    (this['contents'] as Contents).sourceMembers = {};
   }
 
   // Return a tracked element as MemberRevision data.
@@ -294,7 +291,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    this.getContents().sourceMembers[key] = sourceMember;
+    (this.getContents() as unknown as Contents).sourceMembers[key] = sourceMember;
   }
 
   // Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
@@ -439,51 +436,52 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       this.logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
     }
 
-    const pollStartTime = Date.now();
-    let pollEndTime: number;
-    let totalPollTime = 0;
     const fromRevision = this.getServerMaxRevision();
     this.logger.debug(
       `Polling for ${memberNames.length} SourceMembers from revision ${fromRevision} with timeout of ${pollingTimeout}s`
     );
 
-    let pollAttempts = 1;
+    let pollAttempts = 0;
 
+    // we need to keep asking the server for sourceMembers until time runs out OR we find everything in matches
     const matches = new Set(memberNames);
-
-    retry;
+    let sourceMembers;
     const poll = async (): Promise<SourceMember[]> => {
-      const allMembers = await this.querySourceMembersFrom(fromRevision, pollAttempts !== 1, false);
+      pollAttempts += 1;
+      sourceMembers = await this.querySourceMembersFrom({
+        fromRevision,
+        quiet: pollAttempts !== 1,
+        useCache: false,
+      });
 
-      for (const member of allMembers) {
+      for (const member of sourceMembers) {
         matches.delete(member.MemberName);
       }
 
       this.logger.debug(
         `[${pollAttempts}] Found ${memberNames.length - matches.size} of ${memberNames.length} SourceMembers`
       );
-      pollEndTime = Date.now();
-      totalPollTime = Math.round((pollEndTime - pollStartTime) / 1000) || 1;
-      if (matches.size === 0 || totalPollTime >= pollingTimeout) {
-        return allMembers;
+      if (matches.size === 0) {
+        return sourceMembers;
       }
 
       if (matches.size < 20) {
-        this.logger.debug(`Still looking for SourceMembers: ${[...matches].join(',')}`);
+        this.logger.debug(`Still looking for SourceMembers: ${Array.from(matches).join(',')}`);
       }
-
-      await sleep(Duration.seconds(1));
-      pollAttempts += 1;
-      return poll();
+      throw new Error();
     };
-    const sourceMembers = await poll();
-
-    if (matches.size === 0) {
-      this.logger.debug(`Retrieved all SourceMember data after ${totalPollTime}s and ${pollAttempts} attempts`);
-    } else {
-      this.logger.warn(`Polling for SourceMembers timed out after ${totalPollTime}s and ${pollAttempts} attempts`);
+    const pollingFunction = retryDecorator(poll, {
+      timeout: pollingTimeout * 1000,
+      delay: 1000,
+      retries: 'INFINITELY',
+    });
+    try {
+      await pollingFunction();
+      this.logger.debug(`Retrieved all SourceMember data after ${pollAttempts} attempts`);
+    } catch {
+      this.logger.warn(`Polling for SourceMembers timed out after ${pollAttempts} attempts`);
       if (matches.size < 51) {
-        this.logger.debug(`Could not find ${matches.size} SourceMembers: ${[...matches].join(',')}`);
+        this.logger.debug(`Could not find ${matches.size} SourceMembers: ${Array.from(matches).join(',')}`);
       } else {
         this.logger.debug(`Could not find SourceMembers for ${matches.size} components`);
       }
@@ -497,7 +495,11 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     await this.trackSourceMembers(sourceMembers, true);
   }
 
-  private async querySourceMembersFrom(fromRevision?: number, quiet = false, useCache = true): Promise<SourceMember[]> {
+  private async querySourceMembersFrom({
+    fromRevision,
+    quiet = false,
+    useCache = true,
+  }: { fromRevision?: number; quiet?: boolean; useCache?: boolean } = {}): Promise<SourceMember[]> {
     const rev = fromRevision != null ? fromRevision : this.getServerMaxRevision();
 
     if (useCache) {
@@ -519,27 +521,21 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
   private async querySourceMembersTo(toRevision: number, quiet = false): Promise<SourceMember[]> {
     const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
-    return this.query(query, quiet);
+    return this.query<SourceMember>(query, quiet);
   }
 
   private async query<T>(query: string, quiet = false): Promise<T[]> {
-    // to switch to using RevisionCounter - apiVersion > 46.0
-    // set the api version of the connection to 47.0, query, revert api version
     if (!this.isSourceTrackedOrg) {
-      throw SfdxError.create('salesforce-alm', 'source', 'NonSourceTrackedOrgError');
+      Messages.importMessagesDirectory(__dirname);
+      this.messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
+      throw SfdxError.create('@salesforce/source-tracking', 'source', 'NonSourceTrackedOrgError');
     }
     if (!quiet) {
       this.logger.debug(query);
     }
 
-    let results;
-    if (parseFloat(this.currentApiVersion) < parseFloat(this.FIRST_REVISION_COUNTER_API_VERSION)) {
-      this.conn.setApiVersion(this.FIRST_REVISION_COUNTER_API_VERSION);
-      results = await this.conn.tooling.autoFetchQuery<T>(query);
-      this.conn.setApiVersion(this.currentApiVersion);
-    } else {
-      results = await this.conn.tooling.autoFetchQuery<T>(query);
-    }
+    const results = await this.org.getConnection().tooling.autoFetchQuery<T>(query);
+
     return results.records;
   }
 }
