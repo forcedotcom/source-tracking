@@ -90,7 +90,6 @@ const getMetadataKey = (metadataType: string, metadataName: string): string => {
 export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTrackingService.Options> {
   private static remoteSourceTrackingServiceDictionary: Dictionary<RemoteSourceTrackingService> = {};
   protected logger!: Logger;
-  private org!: Org;
   private isSourceTrackedOrg = true;
 
   // A short term cache (within the same process) of query results based on a revision.
@@ -130,7 +129,6 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   public async init(): Promise<void> {
     this.options.filePath = pathJoin('orgs', this.options.username);
     this.options.filename = RemoteSourceTrackingService.getFileName();
-    this.org = await Org.create({ aliasOrUsername: this.options.username });
     this.logger = await Logger.child(this.constructor.name);
 
     try {
@@ -541,8 +539,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     if (!quiet) {
       this.logger.debug(query);
     }
-
-    const results = await this.org.getConnection().tooling.autoFetchQuery<T>(query);
+    const org = await Org.create({ aliasOrUsername: this.options.username });
+    const results = await org.getConnection().tooling.autoFetchQuery<T>(query);
 
     return results.records;
   }
