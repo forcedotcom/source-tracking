@@ -50,6 +50,10 @@ export default class SourceStatus extends SfdxCommand {
       adds,
       modifies,
     };
+    if (!this.flags.json) {
+      this.ux.logJson(output);
+    }
+
     return output;
   }
 }

@@ -48,7 +48,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
-
+  private stashed = false;
   private options: ShadowRepoOptions;
 
   public constructor(options: ShadowRepoOptions) {
@@ -170,10 +170,22 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   }
 
   private async stashIgnoreFile(): Promise<void> {
-    await fs.promises.rename(path.join(this.projectPath, '.gitignore'), path.join(this.projectPath, '.BAK.gitignore'));
+    if (!this.stashed) {
+      this.stashed = true;
+      await fs.promises.rename(
+        path.join(this.projectPath, '.gitignore'),
+        path.join(this.projectPath, '.BAK.gitignore')
+      );
+    }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
-    await fs.promises.rename(path.join(this.projectPath, '.BAK.gitignore'), path.join(this.projectPath, '.gitignore'));
+    if (this.stashed) {
+      this.stashed = false;
+      await fs.promises.rename(
+        path.join(this.projectPath, '.BAK.gitignore'),
+        path.join(this.projectPath, '.gitignore')
+      );
+    }
   }
 }
