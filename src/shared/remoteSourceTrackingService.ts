@@ -32,6 +32,8 @@ export type ChangeElement = {
   name: string;
   type: string;
   deleted?: boolean;
+  modified?: boolean;
+  filepath?: string;
 };
 
 // represents the contents of the config file stored in 'maxRevision.json'
@@ -43,6 +45,8 @@ interface Contents {
 export namespace RemoteSourceTrackingService {
   // Constructor Options for RemoteSourceTrackingService.
   export interface Options extends ConfigFile.Options {
+    orgId: string;
+    /** only used for connecting to the org */
     username: string;
   }
 }
@@ -52,7 +56,7 @@ const getMetadataKey = (metadataType: string, metadataName: string): string => {
 };
 /**
  * This service handles source tracking of metadata between a local project and an org.
- * Source tracking state is persisted to .sfdx/orgs/<username>/maxRevision.json.
+ * Source tracking state is persisted to .sfdx/orgs/<orgId>/maxRevision.json.
  * This JSON file keeps track of `SourceMember` objects and the `serverMaxRevisionCounter`,
  * which is the highest `serverRevisionCounter` value of all the tracked elements.
  *
@@ -108,10 +112,10 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * @returns {Promise<RemoteSourceTrackingService>} the remoteSourceTrackingService object for the given username
    */
   public static async getInstance(options: RemoteSourceTrackingService.Options): Promise<RemoteSourceTrackingService> {
-    if (!this.remoteSourceTrackingServiceDictionary[options.username]) {
-      this.remoteSourceTrackingServiceDictionary[options.username] = await RemoteSourceTrackingService.create(options);
+    if (!this.remoteSourceTrackingServiceDictionary[options.orgId]) {
+      this.remoteSourceTrackingServiceDictionary[options.orgId] = await RemoteSourceTrackingService.create(options);
     }
-    return this.remoteSourceTrackingServiceDictionary[options.username] as RemoteSourceTrackingService;
+    return this.remoteSourceTrackingServiceDictionary[options.orgId] as RemoteSourceTrackingService;
   }
 
   /**
@@ -128,7 +132,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * the state to begin source tracking of metadata changes in the org.
    */
   public async init(): Promise<void> {
-    this.options.filePath = pathJoin('orgs', this.options.username);
+    this.options.filePath = pathJoin('orgs', this.options.orgId);
     this.options.filename = RemoteSourceTrackingService.getFileName();
     this.org = await Org.create({ aliasOrUsername: this.options.username });
     this.logger = await Logger.child(this.constructor.name);
@@ -412,7 +416,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * @param expectedMemberNames Array of metadata names to poll
    * @param pollingTimeout maximum amount of time in seconds to poll for SourceMembers
    */
-  private async pollForSourceTracking(
+  public async pollForSourceTracking(
     expectedMemberNames: string[],
     pollingTimeout?: Duration.Unit.SECONDS
   ): Promise<void> {

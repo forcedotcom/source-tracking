@@ -7,9 +7,9 @@
 
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { SfdxProject, Org } from '@salesforce/core';
-import { ComponentSet, FileResponse } from '@salesforce/source-deploy-retrieve';
-
+import { ComponentSet, FileResponse, ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { SourceTracking } from '../../sourceTracking';
+import { writeConflictTable } from '../../writeConflictTable';
 
 export default class SourcePush extends SfdxCommand {
   public static description = 'get local changes';
@@ -24,38 +24,63 @@ export default class SourcePush extends SfdxCommand {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async run(): Promise<FileResponse[]> {
     const tracking = new SourceTracking({
-      orgId: this.org.getOrgId(),
-      projectPath: this.project.getPath(),
-      packageDirs: this.project.getPackageDirectories(),
+      org: this.org,
+      project: this.project,
     });
     if (!this.flags.forceoverwrite) {
-      // TODO: check for conflicts
+      const conflicts = await tracking.getConflicts();
+      if (conflicts.length > 0) {
+        writeConflictTable(conflicts, this.ux);
+        throw new Error('conflicts detected');
+      }
     }
-    // give me the deletes and nonDeletes
+    // give me the deletes and nonDeletes in parallel
     // const [deletes, nonDeletes] = await Promise.all([
     //   tracking.getChanges({ origin: 'local', state: 'delete' }),
     //   tracking.getChanges({ origin: 'local', state: 'changed' }),
     // ]);
-    const nonDeletes = await tracking.getChanges({ origin: 'local', state: 'changed' });
-    const deletes = await tracking.getChanges({ origin: 'local', state: 'delete' });
+    const nonDeletes = (await tracking.getChanges({ origin: 'local', state: 'changed' }))
+      .map((change) => change.filenames as string[])
+      .flat();
+    const deletes = (await tracking.getChanges({ origin: 'local', state: 'delete' }))
+      .map((change) => change.filenames as string[])
+      .flat();
+
+    // create ComponentSet
+    if (nonDeletes.length === 0 && deletes.length === 0) {
+      this.ux.log('There are no changes to deploy');
+      return [];
+    }
 
     this.ux.warn(
       `Delete not yet implemented in SDR.  Would have deleted ${deletes.length > 0 ? deletes.join(',') : 'nothing'}`
     );
-    // create ComponentSet
-    if (nonDeletes.length === 0) {
-      this.ux.log('There are no changes to deploy');
-      return [];
-    }
-    this.ux.log(`should build component set from ${nonDeletes.join(',')}`);
-    const componentSet = ComponentSet.fromSource(nonDeletes);
-    // this.ux.logJson(componentSet.getSourceComponents());
+    // this.ux.log(`should build component set from ${nonDeletes.join(',')}`);
+    const componentSet = ComponentSet.fromSource({ fsPaths: nonDeletes });
     const deploy = await componentSet.deploy({ usernameOrConnection: this.org.getUsername() as string });
     const result = await deploy.pollStatus();
 
-    // then commit to local tracking;
-    await tracking.update({ files: result.getFileResponses().map((file) => file.filePath) as string[] });
+    // then commit successes to local tracking;
+    await tracking.updateLocal({
+      files: result
+        .getFileResponses()
+        .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed)
+        .map((fileResponse) => fileResponse.filePath) as string[],
+    });
+    if (!this.flags.json) {
+      this.ux.logJson(result.response);
+    }
+    // and update the remote tracking
+    const successComponentNames = (
+      Array.isArray(result.response.details.componentSuccesses)
+        ? result.response.details.componentSuccesses
+        : [result.response.details.componentSuccesses]
+    )
+      .filter((success) => success?.componentType && success.fullName) // we don't want package.xml
+      .map((success) => success?.fullName as string);
+
+    // this includes polling for sourceMembers
+    await tracking.updateRemote(successComponentNames);
     return result.getFileResponses();
-    // return [];
   }
 }

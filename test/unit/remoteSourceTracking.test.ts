@@ -44,6 +44,7 @@ const getMemberRevisionEntries = (revision: number, synced = false): { [key: str
 
 describe('remoteSourceTrackingService', () => {
   const username = 'foo@bar.com';
+  const orgId = '00D456789012345';
   const $$ = instantiateContext();
   let remoteSourceTrackingService: RemoteSourceTrackingService;
 
@@ -55,11 +56,12 @@ describe('remoteSourceTrackingService', () => {
 
     const orgData = new MockTestOrgData();
     orgData.username = username;
+    orgData.orgId = orgId;
     // Fake user
     $$.configStubs.AuthInfoConfig = {
       contents: await orgData.getConfig(),
     };
-    remoteSourceTrackingService = await RemoteSourceTrackingService.create({ username });
+    remoteSourceTrackingService = await RemoteSourceTrackingService.create({ username, orgId });
   });
 
   afterEach(() => {
@@ -249,7 +251,7 @@ describe('remoteSourceTrackingService', () => {
       serverMaxRevisionCounter: null,
       sourceMembers: null,
     });
-    remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({ username });
+    remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({ username, orgId });
 
     expect(remoteSourceTrackingService['isSourceTrackedOrg']).to.equal(false);
     $$.SANDBOX.restore();
