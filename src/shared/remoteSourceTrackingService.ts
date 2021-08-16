@@ -28,12 +28,11 @@ export type SourceMember = {
   RevisionCounter: number;
 };
 
-export type ChangeElement = {
+export type RemoteChangeElement = {
   name: string;
   type: string;
   deleted?: boolean;
   modified?: boolean;
-  filepath?: string;
 };
 
 // represents the contents of the config file stored in 'maxRevision.json'
@@ -51,7 +50,7 @@ export namespace RemoteSourceTrackingService {
   }
 }
 
-const getMetadataKey = (metadataType: string, metadataName: string): string => {
+export const getMetadataKey = (metadataType: string, metadataName: string): string => {
   return `${metadataType}__${metadataName}`;
 };
 /**
@@ -156,7 +155,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       }
     }
 
-    const contents = this.getContents() as unknown as Contents;
+    const contents = this.getTypedContents();
     // Initialize a new maxRevision.json if the file doesn't yet exist.
     if (!contents.serverMaxRevisionCounter && !contents.sourceMembers) {
       try {
@@ -181,12 +180,44 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   /**
+   * pass in a set of metadata keys (type__name like 'ApexClass__MyClass').\
+   * it sets their last retrieved revision to the current revision counter from the server.
+   */
+  public async syncNamedElementsByKey(metadataKeys: string[]): Promise<void> {
+    if (metadataKeys.length === 0) {
+      return;
+    }
+    const quiet = metadataKeys.length > 100;
+    if (quiet) {
+      this.logger.debug(`Syncing ${metadataKeys.length} Revisions by key`);
+    }
+
+    // makes sure we have updated SourceMember data for the org; uses cache
+    await this.retrieveUpdates();
+    const revisions = this.getSourceMembers();
+    metadataKeys.map((metadataKey) => {
+      const revision = revisions[metadataKey];
+      if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
+        if (!quiet) {
+          this.logger.debug(
+            `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
+          );
+        }
+        revision.lastRetrievedFromServer = revision.serverRevisionCounter;
+        this.setMemberRevision(metadataKey, revision);
+      } else {
+        this.logger.warn(`could not find remote tracking entry for ${metadataKey}`);
+      }
+    });
+    await this.write();
+  }
+  /**
    * Returns the `ChangeElement` currently being tracked given a metadata key,
    * or `undefined` if not found.
    *
    * @param key string of the form, `<type>__<name>` e.g.,`ApexClass__MyClass`
    */
-  public getTrackedElement(key: string): ChangeElement | undefined {
+  public getTrackedElement(key: string): RemoteChangeElement | undefined {
     const memberRevision = this.getSourceMembers()[key];
     if (memberRevision) {
       return RemoteSourceTrackingService.convertRevisionToChange(key, memberRevision);
@@ -196,44 +227,10 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   /**
    * Returns an array of `ChangeElements` currently being tracked.
    */
-  public getTrackedElements(): ChangeElement[] {
+  public getTrackedElements(): RemoteChangeElement[] {
     return Object.keys(this.getSourceMembers())
       .map((key) => this.getTrackedElement(key))
-      .filter((element) => element !== undefined) as ChangeElement[];
-  }
-
-  /**
-   * Queries the org for any new, updated, or deleted metadata and updates
-   * source tracking state.  All `ChangeElements` not in sync with the org
-   * are returned.
-   */
-  public async retrieveUpdates(): Promise<ChangeElement[]> {
-    return this._retrieveUpdates();
-  }
-
-  /**
-   * Synchronizes local and remote source tracking with data from the associated org.
-   *
-   * When called without `ChangeElements` passed this will query all `SourceMember`
-   * objects from the last retrieval and update the tracked elements.  This is
-   * typically called after retrieving all new, changed, or deleted metadata from
-   * the org.  E.g., after a `source:pull` command.
-   *
-   * When called with `ChangeElements` passed this will poll the org for
-   * corresponding `SourceMember` data and update the tracked elements.  This is
-   * typically called after deploying metadata from a local project to the org.
-   * E.g., after a `source:push` command.
-   */
-  public async sync(metadataNames?: string[]): Promise<void> {
-    if (!metadataNames) {
-      // This is for a source:pull
-      await this._retrieveUpdates(true);
-    } else {
-      // This is for a source:push
-      if (metadataNames.length > 0) {
-        await this.pollForSourceTracking(metadataNames);
-      }
-    }
+      .filter(Boolean) as RemoteChangeElement[];
   }
 
   /**
@@ -266,7 +263,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   //  * * * * *  P R I V A T E    M E T H O D S  * * * * *
   //
 
-  private static convertRevisionToChange(memberKey: string, memberRevision: MemberRevision): ChangeElement {
+  private static convertRevisionToChange(memberKey: string, memberRevision: MemberRevision): RemoteChangeElement {
     return {
       type: memberRevision.memberType,
       name: memberKey.replace(`${memberRevision.memberType}__`, ''),
@@ -296,16 +293,18 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    (this.getContents() as unknown as Contents).sourceMembers[key] = sourceMember;
+    this.getTypedContents().sourceMembers[key] = sourceMember;
   }
 
+  private getTypedContents(): Contents {
+    return this.getContents() as unknown as Contents;
+  }
   // Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
   // the lastRetrievedFromServer field (sync), and persists the changes to maxRevision.json.
-  private async trackSourceMembers(sourceMembers: SourceMember[] = [], sync = false): Promise<void> {
-    let quiet = false;
-    if (sourceMembers.length > 100) {
+  public async trackSourceMembers(sourceMembers: SourceMember[] = [], sync = false): Promise<void> {
+    const quiet = sourceMembers.length > 100;
+    if (quiet) {
       this.logger.debug(`Upserting ${sourceMembers.length} SourceMembers to maxRevision.json`);
-      quiet = true;
     }
 
     // A sync with empty sourceMembers means "update all currently tracked elements".
@@ -376,11 +375,17 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     await this.write();
   }
 
+  /**
+   * Queries the org for any new, updated, or deleted metadata and updates
+   * source tracking state.  All `ChangeElements` not in sync with the org
+   * are returned.
+   */
+
   // Internal implementation of the public `retrieveUpdates` function that adds the ability
   // to sync the retrieved SourceMembers; meaning it will update the lastRetrievedFromServer
   // field to the SourceMember's RevisionCounter, and update the serverMaxRevisionCounter
   // to the highest RevisionCounter.
-  private async _retrieveUpdates(sync = false): Promise<ChangeElement[]> {
+  public async retrieveUpdates(sync = false): Promise<RemoteChangeElement[]> {
     // Always track new SourceMember data, or update tracking when we sync.
     const queriedSourceMembers = await this.querySourceMembersFrom();
     if (queriedSourceMembers.length || sync) {
@@ -390,7 +395,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
     // does not match the serverRevisionCounter.
     const trackedRevisions = this.getSourceMembers();
-    const returnElements: ChangeElement[] = [];
+    const returnElements: RemoteChangeElement[] = [];
 
     for (const key of Object.keys(trackedRevisions)) {
       const member = trackedRevisions[key];

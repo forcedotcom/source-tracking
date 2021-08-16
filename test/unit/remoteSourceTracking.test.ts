@@ -169,64 +169,64 @@ describe('remoteSourceTrackingService', () => {
       });
     });
 
-    it('will sync the serverRevisionCounter and lastRetrievedFromServer for memberNames passed into sync()', async () => {
-      // Set initial test state of 5 apex classes not yet synced.
-      remoteSourceTrackingService['contents'] = {
-        serverMaxRevisionCounter: 5,
-        sourceMembers: getMemberRevisionEntries(5),
-      };
+    // it('will sync the serverRevisionCounter and lastRetrievedFromServer for memberNames passed into sync()', async () => {
+    //   // Set initial test state of 5 apex classes not yet synced.
+    //   remoteSourceTrackingService['contents'] = {
+    //     serverMaxRevisionCounter: 5,
+    //     sourceMembers: getMemberRevisionEntries(5),
+    //   };
 
-      const sourceMembers = [1, 2, 3, 4, 5].map((rev) => getSourceMember(rev));
-      // @ts-ignore
-      $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
-      // @ts-ignore
-      const pollSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'pollForSourceTracking');
-      // @ts-ignore
-      const retrieveSpy = $$.SANDBOX.spy(remoteSourceTrackingService, '_retrieveUpdates');
+    //   const sourceMembers = [1, 2, 3, 4, 5].map((rev) => getSourceMember(rev));
+    //   // @ts-ignore
+    //   $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
+    //   // @ts-ignore
+    //   const pollSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'pollForSourceTracking');
+    //   // @ts-ignore
+    //   const retrieveSpy = $$.SANDBOX.spy(remoteSourceTrackingService, '_retrieveUpdates');
 
-      // Passing metadata names to sync will poll for SourceMembers
-      const metadataNames = ['MyClass1', 'MyClass5'];
-      await remoteSourceTrackingService.sync(metadataNames);
+    //   // Passing metadata names to sync will poll for SourceMembers
+    //   const metadataNames = ['MyClass1', 'MyClass5'];
+    //   await remoteSourceTrackingService.sync(metadataNames);
 
-      const contents = remoteSourceTrackingService.getContents();
-      expect(contents.serverMaxRevisionCounter).to.equal(5);
-      const expectedMemberRevisions = getMemberRevisionEntries(5, true);
-      expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
+    //   const contents = remoteSourceTrackingService.getContents();
+    //   expect(contents.serverMaxRevisionCounter).to.equal(5);
+    //   const expectedMemberRevisions = getMemberRevisionEntries(5, true);
+    //   expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
 
-      // eslint-disable-next-line no-unused-expressions
-      expect(pollSpy.calledOnce).to.be.true;
-      // pollSpy.calledWith(metadataNames).should.equal(true);
-      // eslint-disable-next-line no-unused-expressions
-      expect(retrieveSpy.called, '_retrieveUpdates should not have been called during sync').to.be.false;
-    });
+    //   // eslint-disable-next-line no-unused-expressions
+    //   expect(pollSpy.calledOnce).to.be.true;
+    //   // pollSpy.calledWith(metadataNames).should.equal(true);
+    //   // eslint-disable-next-line no-unused-expressions
+    //   expect(retrieveSpy.called, '_retrieveUpdates should not have been called during sync').to.be.false;
+    // });
 
-    it('will sync all SourceMembers when nothing is passed into sync()', async () => {
-      // Set initial test state of 5 apex classes not yet synced.
-      remoteSourceTrackingService['contents'] = {
-        serverMaxRevisionCounter: 5,
-        sourceMembers: getMemberRevisionEntries(5),
-      };
+    // it('will sync all SourceMembers when nothing is passed into sync()', async () => {
+    //   // Set initial test state of 5 apex classes not yet synced.
+    //   remoteSourceTrackingService['contents'] = {
+    //     serverMaxRevisionCounter: 5,
+    //     sourceMembers: getMemberRevisionEntries(5),
+    //   };
 
-      const sourceMembers = [1, 2, 3, 4, 5].map((rev) => getSourceMember(rev));
-      // @ts-ignore
-      $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
-      // @ts-ignore
-      const pollSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'pollForSourceTracking');
-      // @ts-ignore
-      const retrieveSpy = $$.SANDBOX.spy(remoteSourceTrackingService, '_retrieveUpdates');
+    //   const sourceMembers = [1, 2, 3, 4, 5].map((rev) => getSourceMember(rev));
+    //   // @ts-ignore
+    //   $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
+    //   // @ts-ignore
+    //   const pollSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'pollForSourceTracking');
+    //   // @ts-ignore
+    //   const retrieveSpy = $$.SANDBOX.spy(remoteSourceTrackingService, '_retrieveUpdates');
 
-      await remoteSourceTrackingService.sync();
+    //   await remoteSourceTrackingService.sync();
 
-      const contents = remoteSourceTrackingService.getContents();
-      expect(contents.serverMaxRevisionCounter).to.equal(5);
-      const expectedMemberRevisions = getMemberRevisionEntries(5, true);
-      expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
-      // eslint-disable-next-line no-unused-expressions
-      expect(retrieveSpy.calledOnce).to.be.true;
-      // expect(retrieveSpy.calledOnceWith(true)).to.equal(true);
-      // eslint-disable-next-line no-unused-expressions
-      expect(pollSpy.called, 'pollForSourceTracking should NOT have been called during sync').to.be.false;
-    });
+    //   const contents = remoteSourceTrackingService.getContents();
+    //   expect(contents.serverMaxRevisionCounter).to.equal(5);
+    //   const expectedMemberRevisions = getMemberRevisionEntries(5, true);
+    //   expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
+    //   // eslint-disable-next-line no-unused-expressions
+    //   expect(retrieveSpy.calledOnce).to.be.true;
+    //   // expect(retrieveSpy.calledOnceWith(true)).to.equal(true);
+    //   // eslint-disable-next-line no-unused-expressions
+    //   expect(pollSpy.called, 'pollForSourceTracking should NOT have been called during sync').to.be.false;
+    // });
   });
 
   describe('setServerMaxRevision', () => {

@@ -8,22 +8,38 @@ import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { ComponentSet } from '@salesforce/source-deploy-retrieve';
 
-import { RemoteSourceTrackingService, ChangeElement } from './shared/remoteSourceTrackingService';
+import { RemoteSourceTrackingService, RemoteChangeElement, getMetadataKey } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 
-const getKey = (element: Partial<ChangeElement>): string => `${element.type}__${element.name}`;
+export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): string => {
+  if (element.type && element.name) {
+    return getMetadataKey(element.type, element.name);
+  }
+  throw new Error(`unable to complete key from ${JSON.stringify(element)}`);
+};
+
+// external users of SDR might need to convert a fileResponse to a key
+export const getKeyFromStrings = getMetadataKey;
+
+export interface MetadataKeyPair {
+  type: string;
+  name: string;
+}
 
 export interface ChangeOptions {
   origin?: 'local' | 'remote';
   state: 'add' | 'delete' | 'changed' | 'unchanged' | 'moved';
 }
 
-export interface UpdateOptions {
+export interface LocalUpdateOptions {
   files?: string[];
   deletedFiles?: string[];
 }
 
-export type ChangeResult = Partial<ChangeElement> & {
+/**
+ * Summary type that supports both local and remote change types
+ */
+export type ChangeResult = Partial<RemoteChangeElement> & {
   origin: 'local' | 'remote';
   filenames?: string[];
 };
@@ -33,9 +49,12 @@ export class SourceTracking {
   private projectPath: string;
   private packagesDirs: NamedPackageDir[];
   private username: string;
-  private localRepo!: ShadowRepo;
   private logger: Logger;
+
+  // remote and local tracking may not exist if not initialized
+  private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
+
   public constructor(options: { org: Org; project: SfdxProject }) {
     this.orgId = options.org.getOrgId();
     this.username = options.org.getUsername() as string;
@@ -49,7 +68,6 @@ export class SourceTracking {
    *
    * @returns local and remote changed metadata
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
   public async getChanges(options?: ChangeOptions): Promise<ChangeResult[]> {
     if (options?.origin === 'local') {
       await this.ensureLocalTracking();
@@ -61,6 +79,12 @@ export class SourceTracking {
       }
       if (options.state === 'delete') {
         return (await this.localRepo.getDeleteFilenames()).map((filename) => ({
+          filenames: [filename],
+          origin: 'local',
+        }));
+      }
+      if (options.state === 'add') {
+        return (await this.localRepo.getAddFilenames()).map((filename) => ({
           filenames: [filename],
           origin: 'local',
         }));
@@ -81,7 +105,7 @@ export class SourceTracking {
     return [];
   }
 
-  public async getRemoteChanges(): Promise<ChangeElement[]> {
+  public async getRemoteChanges(): Promise<RemoteChangeElement[]> {
     await this.ensureRemoteTracking();
     return this.remoteSourceTrackingService.retrieveUpdates();
   }
@@ -90,23 +114,22 @@ export class SourceTracking {
    *
    * @param options the files to update
    */
-  public async updateLocal(options: UpdateOptions): Promise<void> {
+  public async updateLocalTracking(options: LocalUpdateOptions): Promise<void> {
     await this.ensureLocalTracking();
     await this.localRepo.commitChanges({
-      deployedFiles: options.files?.map((file) =>
-        // SDR fileResponses can be absolute paths, but we need relative for isomorphic git
-        path.isAbsolute(file) ? path.relative(this.projectPath, file) : file
-      ),
-      deletedFiles: options.deletedFiles?.map((file) =>
-        // SDR fileResponses can be absolute paths, but we need relative for isomorphic git
-        path.isAbsolute(file) ? path.relative(this.projectPath, file) : file
-      ),
+      deployedFiles: options.files?.map((file) => this.ensureRelative(file)),
+      deletedFiles: options.deletedFiles?.map((file) => this.ensureRelative(file)),
     });
   }
 
-  public async updateRemote(metadataNames?: string[]): Promise<void> {
+  /**
+   * Mark remote source tracking files that we have received to the latest version
+   */
+  public async updateRemoteTracking(metadataKeys: MetadataKeyPair[]): Promise<void> {
     await this.ensureRemoteTracking();
-    await this.remoteSourceTrackingService.sync(metadataNames);
+    await this.remoteSourceTrackingService.syncNamedElementsByKey(
+      metadataKeys.map((input) => getKeyFromStrings(input.type, input.name))
+    );
   }
 
   /**
@@ -150,14 +173,14 @@ export class SourceTracking {
   // public async populateFilePaths(elements: ChangeResult[]): Promise<ChangeResult[]> {
   public populateFilePaths(elements: ChangeResult[]): ChangeResult[] {
     if (elements.length === 0) {
-      return elements;
+      return [];
     }
 
     this.logger.debug('populateFilePaths for change elements', elements);
     // component set generated from an array of ComponentLike from all the remote changes
     const remoteChangesAsComponentLike = elements.map((element) => ({
-      type: element.type as string,
-      fullName: element.name as string,
+      type: element?.type as string,
+      fullName: element?.name as string,
     }));
     const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
 
@@ -181,7 +204,7 @@ export class SourceTracking {
     // make it simpler to find things later
     const elementMap = new Map<string, ChangeResult>();
     elements.map((element) => {
-      elementMap.set(getKey(element), element);
+      elementMap.set(getKeyFromObject(element), element);
     });
 
     // iterates the local components and sets their filenames
@@ -192,7 +215,7 @@ export class SourceTracking {
             matchingComponent.xml
           } and maybe ${matchingComponent.walkContent().toString()}`
         );
-        const key = getKey({ type: matchingComponent.type.name, name: matchingComponent.fullName });
+        const key = getKeyFromStrings(matchingComponent.type.name, matchingComponent.fullName);
         elementMap.set(key, {
           ...(elementMap.get(key) as ChangeResult),
           modified: true,
@@ -238,5 +261,9 @@ export class SourceTracking {
     });
     // deeply de-dupe
     return [...conflicts];
+  }
+
+  private ensureRelative(filePath: string): string {
+    return path.isAbsolute(filePath) ? path.relative(this.projectPath, filePath) : filePath;
   }
 }

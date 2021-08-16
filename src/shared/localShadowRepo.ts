@@ -101,6 +101,9 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     return this.status;
   }
 
+  /**
+   * returns any change (add, modify, delete)
+   */
   public async getChangedRows(): Promise<StatusRow[]> {
     return (await this.getStatus()).filter((file) => file[HEAD] !== file[WORKDIR]);
   }
@@ -117,12 +120,34 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     return toFilenames(await this.getDeletes());
   }
 
+  /**
+   * returns adds and modifies but not deletes
+   */
   public async getNonDeletes(): Promise<StatusRow[]> {
     return (await this.getStatus()).filter((file) => file[WORKDIR] === 2);
   }
 
   public async getNonDeleteFilenames(): Promise<string[]> {
     return toFilenames(await this.getNonDeletes());
+  }
+
+  public async getAdds(): Promise<StatusRow[]> {
+    return (await this.getStatus()).filter((file) => file[HEAD] === 0 && file[WORKDIR] === 2);
+  }
+
+  public async getAddFilenames(): Promise<string[]> {
+    return toFilenames(await this.getAdds());
+  }
+
+  /**
+   * returns files that were not added or deleted, but changed locally
+   */
+  public async getModifies(): Promise<StatusRow[]> {
+    return (await this.getStatus()).filter((file) => file[HEAD] === 1 && file[WORKDIR] === 2);
+  }
+
+  public async getModifyFilenames(): Promise<string[]> {
+    return toFilenames(await this.getModifies());
   }
 
   /**

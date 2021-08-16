@@ -8,7 +8,7 @@
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { SfdxProject, Org } from '@salesforce/core';
 import { ComponentSet, FileResponse, ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { SourceTracking } from '../../sourceTracking';
+import { MetadataKeyPair, SourceTracking } from '../../sourceTracking';
 import { writeConflictTable } from '../../writeConflictTable';
 
 export default class SourcePush extends SfdxCommand {
@@ -52,35 +52,40 @@ export default class SourcePush extends SfdxCommand {
       return [];
     }
 
-    this.ux.warn(
-      `Delete not yet implemented in SDR.  Would have deleted ${deletes.length > 0 ? deletes.join(',') : 'nothing'}`
-    );
+    if (deletes.length > 0) {
+      this.ux.warn(
+        `Delete not yet implemented in SDR.  Would have deleted ${deletes.length > 0 ? deletes.join(',') : 'nothing'}`
+      );
+    }
+
     // this.ux.log(`should build component set from ${nonDeletes.join(',')}`);
     const componentSet = ComponentSet.fromSource({ fsPaths: nonDeletes });
     const deploy = await componentSet.deploy({ usernameOrConnection: this.org.getUsername() as string });
     const result = await deploy.pollStatus();
 
+    const successes = result.getFileResponses().filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
     // then commit successes to local tracking;
-    await tracking.updateLocal({
-      files: result
-        .getFileResponses()
-        .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed)
-        .map((fileResponse) => fileResponse.filePath) as string[],
+    await tracking.updateLocalTracking({
+      files: successes.map((fileResponse) => fileResponse.filePath) as string[],
     });
     if (!this.flags.json) {
       this.ux.logJson(result.response);
     }
     // and update the remote tracking
-    const successComponentNames = (
+    const successComponentKeys = (
       Array.isArray(result.response.details.componentSuccesses)
         ? result.response.details.componentSuccesses
         : [result.response.details.componentSuccesses]
     )
-      .filter((success) => success?.componentType && success.fullName) // we don't want package.xml
-      .map((success) => success?.fullName as string);
+      .map((success) =>
+        success?.fullName && success?.componentType
+          ? { name: success?.fullName, type: success?.componentType }
+          : undefined
+      )
+      .filter(Boolean) as MetadataKeyPair[]; // we don't want package.xml
 
     // this includes polling for sourceMembers
-    await tracking.updateRemote(successComponentNames);
+    await tracking.updateRemoteTracking(successComponentKeys);
     return result.getFileResponses();
   }
 }

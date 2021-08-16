@@ -9,7 +9,7 @@ import { unlink } from 'fs/promises';
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 
 import { SfdxProject, Org } from '@salesforce/core';
-import { ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { ComponentSet, ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { writeConflictTable } from '../../writeConflictTable';
 import { SourceTracking, ChangeResult } from '../../sourceTracking';
 
@@ -71,13 +71,17 @@ export default class SourcePull extends SfdxCommand {
         .flat()
         .filter(Boolean);
       await Promise.all(filenames.map((filename) => unlink(filename)));
-      await tracking.updateLocal({ deletedFiles: filenames });
+      await Promise.all([
+        tracking.updateLocalTracking({ deletedFiles: filenames }),
+        tracking.updateRemoteTracking(
+          changesToDeleteWithFilePaths.map((change) => ({ type: change.type as string, name: change.name as string }))
+        ),
+      ]);
     }
 
     // we might skip this and do only local deletes!
     if (componentSetFromRemoteChanges.size === 0) {
       this.ux.stopSpinner('No remote adds/modifications to merge locally');
-      await tracking.updateRemote();
       return;
     }
 
@@ -93,33 +97,26 @@ export default class SourcePull extends SfdxCommand {
     });
     this.ux.setSpinnerStatus('waiting for the retrieve results');
     const retrieveResult = await mdapiRetrieve.pollStatus(1000);
+    this.ux.setSpinnerStatus('updating source tracking files');
 
-    this.ux.setSpinnerStatus('updating source tracking files');
-    // TODO: those remote deletes need to delete the local source!
-    this.ux.warn(
-      `Delete not yet implemented in.  Would have deleted ${
-        changesToDelete.length > 0 ? changesToDelete.map((change) => `${change.filepath}`).join(',') : 'nothing'
-      }`
-    );
-    this.ux.setSpinnerStatus('updating source tracking files');
+    const successes = retrieveResult
+      .getFileResponses()
+      .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
 
     this.logger.debug(
       'files received from the server are',
-      retrieveResult
-        .getFileResponses()
-        .map((fileResponse) => fileResponse.filePath as string)
-        .filter(Boolean)
+      successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean)
     );
+
     await Promise.all([
       // commit the local file changes that the retrieve modified
-      tracking.updateLocal({
-        files: retrieveResult
-          .getFileResponses()
-          .map((fileResponse) => fileResponse.filePath as string)
-          .filter(Boolean),
+      tracking.updateLocalTracking({
+        files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
       }),
       // calling with no metadata types gets the latest sourceMembers from the org
-      tracking.updateRemote(),
+      tracking.updateRemoteTracking(
+        successes.map((fileResponse) => ({ name: fileResponse.fullName, type: fileResponse.type }))
+      ),
     ]);
     return retrieveResult.response;
   }
