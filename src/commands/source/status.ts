@@ -63,7 +63,8 @@ export default class SourceStatus extends SfdxCommand {
     }
 
     if (this.flags.remote || this.flags.all || (!this.flags.local && !this.flags.all)) {
-      await tracking.ensureRemoteTracking();
+      // by initializeWithQuery true, one query runs so that parallel getChanges aren't doing parallel queries
+      await tracking.ensureRemoteTracking(true);
       const [remoteDeletes, remoteModifies] = await Promise.all([
         tracking.getChanges({ origin: 'remote', state: 'delete' }),
         tracking.getChanges({ origin: 'remote', state: 'changed' }),
@@ -92,7 +93,16 @@ export default class SourceStatus extends SfdxCommand {
         );
       }
     }
-
+    // sort order is state, type, fullname
+    outputRows.sort((a, b) => {
+      if (a.state.toLowerCase() === b.state.toLowerCase()) {
+        if (a.type.toLowerCase() === b.type.toLowerCase()) {
+          return a.fullName.toLowerCase() < b.fullName.toLowerCase() ? -1 : 1;
+        }
+        return a.type.toLowerCase() < b.type.toLowerCase() ? -1 : 1;
+      }
+      return a.state.toLowerCase() < b.state.toLowerCase() ? -1 : 1;
+    });
     this.ux.table(outputRows, {
       columns: [
         { label: 'STATE', key: 'state' },
@@ -122,9 +132,9 @@ export default class SourceStatus extends SfdxCommand {
       return 'Add';
     };
     const baseObject = {
-      type: input.type || 'TODO',
+      type: input.type ?? '',
       state: `${input.origin} ${state()}`,
-      fullName: input.name || 'TODO',
+      fullName: input.name ?? '',
     };
     this.logger.debug(baseObject);
 

@@ -155,7 +155,7 @@ export class SourceTracking {
    * Does nothing if it already exists.
    * Useful before parallel operations
    */
-  public async ensureRemoteTracking(): Promise<void> {
+  public async ensureRemoteTracking(initializeWithQuery = false): Promise<void> {
     if (this.remoteSourceTrackingService) {
       this.logger.debug('ensureRemoteTracking: remote tracking already exists');
       return;
@@ -165,6 +165,9 @@ export class SourceTracking {
       username: this.username,
       orgId: this.orgId,
     });
+    if (initializeWithQuery) {
+      await this.remoteSourceTrackingService.retrieveUpdates();
+    }
   }
 
   /**
@@ -272,7 +275,7 @@ export class SourceTracking {
   }
 
   /**
-   * uses SDR to translate remote metadata records into local file paths
+   * uses SDR to translate remote metadata records into local file paths (which only typically have the filename)
    */
   // public async populateFilePaths(elements: ChangeResult[]): Promise<ChangeResult[]> {
   public populateTypesAndNames(elements: ChangeResult[]): ChangeResult[] {
@@ -280,7 +283,7 @@ export class SourceTracking {
       return [];
     }
 
-    this.logger.debug('populateTypesAndNames for change elements', elements);
+    this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
     // component set generated from an filenames on all local changes
     const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
       fsPaths: elements
