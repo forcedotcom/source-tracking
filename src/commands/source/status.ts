@@ -42,18 +42,24 @@ export default class SourceStatus extends SfdxCommand {
       org: this.org,
       project: this.project,
     });
-    const outputRows: StatusResult[] = [];
+    let outputRows: StatusResult[] = [];
 
     if (this.flags.local || this.flags.all || (!this.flags.remote && !this.flags.all)) {
       await tracking.ensureLocalTracking();
-      const [localDeletes, localModifies, localAdds] = await Promise.all([
-        tracking.getChanges({ origin: 'local', state: 'delete' }),
-        tracking.getChanges({ origin: 'local', state: 'changed' }),
-        tracking.getChanges({ origin: 'local', state: 'add' }),
-      ]);
-      outputRows.concat(localAdds.map((item) => this.statusResultToOutputRows(item, 'add')).flat());
-      outputRows.concat(localModifies.map((item) => this.statusResultToOutputRows(item, 'changed')).flat());
-      outputRows.concat(localDeletes.map((item) => this.statusResultToOutputRows(item, 'delete')).flat());
+      const [localDeletes, localModifies, localAdds] = (
+        await Promise.all([
+          tracking.getChanges({ origin: 'local', state: 'delete' }),
+          tracking.getChanges({ origin: 'local', state: 'changed' }),
+          tracking.getChanges({ origin: 'local', state: 'add' }),
+        ])
+      )
+        // we don't get type/name on local changes unless we request them
+        .map((changes) => tracking.populateTypesAndNames(changes));
+      outputRows = outputRows.concat(localAdds.map((item) => this.statusResultToOutputRows(item, 'add')).flat());
+      outputRows = outputRows.concat(
+        localModifies.map((item) => this.statusResultToOutputRows(item, 'changed')).flat()
+      );
+      outputRows = outputRows.concat(localDeletes.map((item) => this.statusResultToOutputRows(item, 'delete')).flat());
     }
 
     if (this.flags.remote || this.flags.all || (!this.flags.local && !this.flags.all)) {
@@ -62,17 +68,17 @@ export default class SourceStatus extends SfdxCommand {
         tracking.getChanges({ origin: 'remote', state: 'delete' }),
         tracking.getChanges({ origin: 'remote', state: 'changed' }),
       ]);
-      outputRows.concat(remoteDeletes.map((item) => this.statusResultToOutputRows(item, 'delete')).flat());
-      outputRows.concat(
+      outputRows = outputRows.concat(remoteDeletes.map((item) => this.statusResultToOutputRows(item)).flat());
+      outputRows = outputRows.concat(
         remoteModifies
           .filter((item) => item.modified)
-          .map((item) => this.statusResultToOutputRows(item, 'delete'))
+          .map((item) => this.statusResultToOutputRows(item))
           .flat()
       );
-      outputRows.concat(
+      outputRows = outputRows.concat(
         remoteModifies
           .filter((item) => !item.modified)
-          .map((item) => this.statusResultToOutputRows(item, 'delete'))
+          .map((item) => this.statusResultToOutputRows(item))
           .flat()
       );
     }
@@ -86,12 +92,13 @@ export default class SourceStatus extends SfdxCommand {
         );
       }
     }
+
     this.ux.table(outputRows, {
       columns: [
         { label: 'STATE', key: 'state' },
-        { label: 'FULL NAME', key: 'name' },
+        { label: 'FULL NAME', key: 'fullName' },
         { label: 'TYPE', key: 'type' },
-        { label: 'PROJECT PATH', key: 'filenames' },
+        { label: 'PROJECT PATH', key: 'filepath' },
       ],
     });
 
@@ -100,7 +107,7 @@ export default class SourceStatus extends SfdxCommand {
   }
 
   private statusResultToOutputRows(input: ChangeResult, localType?: 'delete' | 'changed' | 'add'): StatusResult[] {
-    this.logger.debug(input);
+    this.logger.debug('converting ChangeResult to a row', input);
 
     const state = (): string => {
       if (localType) {
@@ -114,12 +121,12 @@ export default class SourceStatus extends SfdxCommand {
       }
       return 'Add';
     };
-    this.logger.debug(state);
     const baseObject = {
-      type: input.type || '',
+      type: input.type || 'TODO',
       state: `${input.origin} ${state()}`,
-      fullName: input.name || '',
+      fullName: input.name || 'TODO',
     };
+    this.logger.debug(baseObject);
 
     if (!input.filenames) {
       return [baseObject];

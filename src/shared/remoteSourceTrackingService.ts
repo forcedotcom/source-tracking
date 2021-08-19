@@ -8,8 +8,8 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 
 import * as path from 'path';
-import { join as pathJoin } from 'path';
-import { ConfigFile, fs, Logger, Org, SfdxError, Messages } from '@salesforce/core';
+import * as fs from 'fs';
+import { ConfigFile, Logger, Org, SfdxError, Messages } from '@salesforce/core';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { Duration, env, toNumber } from '@salesforce/kit';
 import { retryDecorator } from 'ts-retry-promise';
@@ -117,13 +117,21 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     return this.remoteSourceTrackingServiceDictionary[options.orgId] as RemoteSourceTrackingService;
   }
 
-  /**
-   * Returns the name of the file used for remote source tracking persistence.
-   *
-   * @override
-   */
   public static getFileName(): string {
     return 'maxRevision.json';
+  }
+
+  public static getFilePath(orgId: string): string {
+    return path.join('.sfdx', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
+  }
+
+  public static async delete(orgId: string): Promise<string> {
+    const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId);
+    // the file might not exist, in which case we don't need to delete it
+    if (fs.existsSync(fileToDelete)) {
+      await fs.promises.rm(fileToDelete, { recursive: true });
+    }
+    return path.isAbsolute(fileToDelete) ? fileToDelete : path.join(process.cwd(), fileToDelete);
   }
 
   /**
@@ -131,28 +139,15 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * the state to begin source tracking of metadata changes in the org.
    */
   public async init(): Promise<void> {
-    this.options.filePath = pathJoin('orgs', this.options.orgId);
-    this.options.filename = RemoteSourceTrackingService.getFileName();
     this.org = await Org.create({ aliasOrUsername: this.options.username });
     this.logger = await Logger.child(this.constructor.name);
+    this.options.filePath = path.join('orgs', this.org.getOrgId());
+    this.options.filename = RemoteSourceTrackingService.getFileName();
 
     try {
       await super.init();
     } catch (err) {
-      // This error is thrown when the legacy maxRevision.json is read.  Transform to the new schema.
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (err.name === 'JsonDataFormatError') {
-        const filePath = path.join(process.cwd(), this.options.filePath, RemoteSourceTrackingService.getFileName());
-        const legacyRevision = await fs.readFile(filePath, 'utf-8');
-        this.logger.debug(`Converting legacy maxRevision.json with revision ${legacyRevision} to new schema`);
-        await fs.writeFile(
-          filePath,
-          JSON.stringify({ serverMaxRevisionCounter: parseInt(legacyRevision, 10), sourceMembers: {} }, null, 4)
-        );
-        await super.init();
-      } else {
-        throw SfdxError.wrap(err);
-      }
+      throw SfdxError.wrap(err);
     }
 
     const contents = this.getTypedContents();
@@ -244,7 +239,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    *
    * @param toRevision The `RevisionCounter` number to sync to.
    */
-  public async reset(toRevision?: number): Promise<void> {
+  public async reset(toRevision?: number): Promise<string[]> {
     // Called during a source:tracking:reset
     this.setServerMaxRevision(0);
     this.initSourceMembers();
@@ -257,6 +252,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
 
     await this.trackSourceMembers(members, true);
+    return members.map((member) => getMetadataKey(member.MemberType, member.MemberName));
   }
 
   //

@@ -72,7 +72,7 @@ export class SourceTracking {
     if (options?.origin === 'local') {
       await this.ensureLocalTracking();
       if (options.state === 'changed') {
-        return (await this.localRepo.getNonDeleteFilenames()).map((filename) => ({
+        return (await this.localRepo.getModifyFilenames()).map((filename) => ({
           filenames: [filename],
           origin: 'local',
         }));
@@ -157,14 +157,56 @@ export class SourceTracking {
    */
   public async ensureRemoteTracking(): Promise<void> {
     if (this.remoteSourceTrackingService) {
+      this.logger.debug('ensureRemoteTracking: remote tracking already exists');
       return;
     }
+    this.logger.debug('ensureRemoteTracking: remote tracking does not exist yet; getting instance');
     this.remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({
       username: this.username,
       orgId: this.orgId,
     });
-    // loads the status from file so that it's cached
-    await this.remoteSourceTrackingService.init();
+  }
+
+  /**
+   * Deletes the local tracking shadowRepo
+   * return the list of files that were in it
+   */
+  public async clearLocalTracking(): Promise<string> {
+    await this.ensureLocalTracking();
+    return this.localRepo.delete();
+  }
+
+  /**
+   * Commits all the local changes so that no changes are present in status
+   */
+  public async resetLocalTracking(): Promise<string[]> {
+    await this.ensureLocalTracking();
+    const [deletes, nonDeletes] = await Promise.all([
+      this.localRepo.getDeleteFilenames(),
+      this.localRepo.getNonDeleteFilenames(),
+    ]);
+    await this.localRepo.commitChanges({
+      deletedFiles: deletes,
+      deployedFiles: nonDeletes,
+      message: 'via resetLocalTracking',
+    });
+    return [...deletes, ...nonDeletes];
+  }
+
+  /**
+   * Deletes the remote tracking files
+   */
+  public async clearRemoteTracking(): Promise<string> {
+    return RemoteSourceTrackingService.delete(this.orgId);
+  }
+
+  /**
+   * Sets the files to max revision so that no changes appear
+   */
+  public async resetRemoteTracking(serverRevision?: number): Promise<number> {
+    await this.ensureRemoteTracking();
+    const resetMembers = await this.remoteSourceTrackingService.reset(serverRevision);
+    return resetMembers.length;
   }
 
   /**
@@ -227,6 +269,58 @@ export class SourceTracking {
     }
 
     return Array.from(elementMap.values());
+  }
+
+  /**
+   * uses SDR to translate remote metadata records into local file paths
+   */
+  // public async populateFilePaths(elements: ChangeResult[]): Promise<ChangeResult[]> {
+  public populateTypesAndNames(elements: ChangeResult[]): ChangeResult[] {
+    if (elements.length === 0) {
+      return [];
+    }
+
+    this.logger.debug('populateTypesAndNames for change elements', elements);
+    // component set generated from an filenames on all local changes
+    const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
+      fsPaths: elements
+        .map((element) => element.filenames)
+        .flat()
+        .filter(Boolean) as string[],
+    });
+
+    this.logger.debug(
+      ` local source-backed component set has ${matchingLocalSourceComponentsSet.size.toString()} items from remote`
+    );
+
+    // make it simpler to find things later
+    const elementMap = new Map<string, ChangeResult>();
+    elements.map((element) => {
+      element.filenames?.map((filename) => {
+        elementMap.set(this.ensureRelative(filename), element);
+      });
+    });
+
+    // iterates the local components and sets their filenames
+    matchingLocalSourceComponentsSet
+      .getSourceComponents()
+      .toArray()
+      .map((matchingComponent) => {
+        if (matchingComponent?.fullName && matchingComponent?.type.name) {
+          const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
+          filenamesFromMatchingComponent.map((filename) => {
+            if (filename && elementMap.has(filename)) {
+              // add the type/name from the componentSet onto the element
+              elementMap.set(filename, {
+                ...(elementMap.get(filename) as ChangeResult),
+                type: matchingComponent.type.name,
+                name: matchingComponent.fullName,
+              });
+            }
+          });
+        }
+      });
+    return [...new Set(elementMap.values())];
   }
 
   public async getConflicts(): Promise<ChangeResult[]> {

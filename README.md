@@ -8,6 +8,17 @@ You should use the class named sourceTracking.
 
 ## TODO
 
+can migrate maxRevision.json to its new home
+
+This code in SourceTracking.ts is making identical queries in parallel, which could be really expensive
+
+````ts
+if (options?.origin === 'remote') {
+      await this.ensureRemoteTracking();
+      const remoteChanges = await this.remoteSourceTrackingService.retrieveUpdates();
+
+tracking:clear may not handle errors where it fails to delete local or remote
+
 integration testing
 
 Push can have partial successes and needs a proper status code ex:
@@ -88,4 +99,4 @@ Push can have partial successes and needs a proper status code ex:
   "status": "Failed",
   "success": false
 }
-```
+````

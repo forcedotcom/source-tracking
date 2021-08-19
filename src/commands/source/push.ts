@@ -39,7 +39,14 @@ export default class SourcePush extends SfdxCommand {
     //   tracking.getChanges({ origin: 'local', state: 'delete' }),
     //   tracking.getChanges({ origin: 'local', state: 'changed' }),
     // ]);
-    const nonDeletes = (await tracking.getChanges({ origin: 'local', state: 'changed' }))
+    await tracking.ensureLocalTracking();
+    const nonDeletes = (
+      await Promise.all([
+        tracking.getChanges({ origin: 'local', state: 'changed' }),
+        tracking.getChanges({ origin: 'local', state: 'add' }),
+      ])
+    )
+      .flat()
       .map((change) => change.filenames as string[])
       .flat();
     const deletes = (await tracking.getChanges({ origin: 'local', state: 'delete' }))
