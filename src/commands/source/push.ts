@@ -8,7 +8,7 @@
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { SfdxProject, Org } from '@salesforce/core';
 import { ComponentSet, FileResponse, ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { MetadataKeyPair, SourceTracking } from '../../sourceTracking';
+import { MetadataKeyPair, SourceTracking, stringGuard } from '../../sourceTracking';
 import { writeConflictTable } from '../../writeConflictTable';
 
 export default class SourcePush extends SfdxCommand {
@@ -40,17 +40,22 @@ export default class SourcePush extends SfdxCommand {
     //   tracking.getChanges({ origin: 'local', state: 'changed' }),
     // ]);
     await tracking.ensureLocalTracking();
-    const nonDeletes = (
-      await Promise.all([
-        tracking.getChanges({ origin: 'local', state: 'changed' }),
-        tracking.getChanges({ origin: 'local', state: 'add' }),
-      ])
-    )
-      .flat()
-      .map((change) => change.filenames as string[])
+    const nonDeletes = tracking
+      // populateTypesAndNames is used to make sure the filenames could be deployed (that they are resolvable in SDR)
+      .populateTypesAndNames(
+        (
+          await Promise.all([
+            tracking.getChanges({ origin: 'local', state: 'changed' }),
+            tracking.getChanges({ origin: 'local', state: 'add' }),
+          ])
+        ).flat(),
+        true
+      )
+      .map((change) => change.filenames)
       .flat();
-    const deletes = (await tracking.getChanges({ origin: 'local', state: 'delete' }))
-      .map((change) => change.filenames as string[])
+    const deletes = tracking
+      .populateTypesAndNames(await tracking.getChanges({ origin: 'local', state: 'delete' }), true)
+      .map((change) => change.filenames)
       .flat();
 
     // create ComponentSet
@@ -65,8 +70,7 @@ export default class SourcePush extends SfdxCommand {
       );
     }
 
-    // this.ux.log(`should build component set from ${nonDeletes.join(',')}`);
-    const componentSet = ComponentSet.fromSource({ fsPaths: nonDeletes });
+    const componentSet = ComponentSet.fromSource({ fsPaths: nonDeletes.filter(stringGuard) });
     const deploy = await componentSet.deploy({ usernameOrConnection: this.org.getUsername() as string });
     const result = await deploy.pollStatus();
 

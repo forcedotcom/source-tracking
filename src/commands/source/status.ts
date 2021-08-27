@@ -54,7 +54,7 @@ export default class SourceStatus extends SfdxCommand {
         ])
       )
         // we don't get type/name on local changes unless we request them
-        .map((changes) => tracking.populateTypesAndNames(changes));
+        .map((changes) => tracking.populateTypesAndNames(changes, true));
       outputRows = outputRows.concat(localAdds.map((item) => this.statusResultToOutputRows(item, 'add')).flat());
       outputRows = outputRows.concat(
         localModifies.map((item) => this.statusResultToOutputRows(item, 'changed')).flat()

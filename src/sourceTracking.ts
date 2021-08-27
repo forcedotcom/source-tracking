@@ -6,7 +6,7 @@
  */
 import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
-import { ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { ComponentSet, MetadataResolver, SourceComponent } from '@salesforce/source-deploy-retrieve';
 
 import { RemoteSourceTrackingService, RemoteChangeElement, getMetadataKey } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
@@ -275,26 +275,37 @@ export class SourceTracking {
   }
 
   /**
-   * uses SDR to translate remote metadata records into local file paths (which only typically have the filename)
+   * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
+   *
+   * @input elements: ChangeResult[]
+   * @input excludeUnresolvables: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
    */
   // public async populateFilePaths(elements: ChangeResult[]): Promise<ChangeResult[]> {
-  public populateTypesAndNames(elements: ChangeResult[]): ChangeResult[] {
+  public populateTypesAndNames(elements: ChangeResult[], excludeUnresolvable = false): ChangeResult[] {
     if (elements.length === 0) {
       return [];
     }
 
     this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-    // component set generated from an filenames on all local changes
-    const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-      fsPaths: elements
-        .map((element) => element.filenames)
-        .flat()
-        .filter(Boolean) as string[],
-    });
+    // component set generated from the filenames on all local changes
+    const resolver = new MetadataResolver();
+    const sourceComponents = elements
+      .map((element) => element.filenames)
+      .flat()
+      .filter(stringGuard)
+      .map((filename) => {
+        try {
+          return resolver.getComponentsFromPath(filename);
+        } catch (e) {
+          // there will be some unresolvable files
+          this.logger.warn(`unable to resolve ${filename}`);
+          return undefined;
+        }
+      })
+      .flat()
+      .filter(sourceComponentGuard);
 
-    this.logger.debug(
-      ` local source-backed component set has ${matchingLocalSourceComponentsSet.size.toString()} items from remote`
-    );
+    this.logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
 
     // make it simpler to find things later
     const elementMap = new Map<string, ChangeResult>();
@@ -305,25 +316,24 @@ export class SourceTracking {
     });
 
     // iterates the local components and sets their filenames
-    matchingLocalSourceComponentsSet
-      .getSourceComponents()
-      .toArray()
-      .map((matchingComponent) => {
-        if (matchingComponent?.fullName && matchingComponent?.type.name) {
-          const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
-          filenamesFromMatchingComponent.map((filename) => {
-            if (filename && elementMap.has(filename)) {
-              // add the type/name from the componentSet onto the element
-              elementMap.set(filename, {
-                ...(elementMap.get(filename) as ChangeResult),
-                type: matchingComponent.type.name,
-                name: matchingComponent.fullName,
-              });
-            }
-          });
-        }
-      });
-    return [...new Set(elementMap.values())];
+    sourceComponents.map((matchingComponent) => {
+      if (matchingComponent?.fullName && matchingComponent?.type.name) {
+        const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
+        filenamesFromMatchingComponent.map((filename) => {
+          if (filename && elementMap.has(filename)) {
+            // add the type/name from the componentSet onto the element
+            elementMap.set(filename, {
+              ...(elementMap.get(filename) as ChangeResult),
+              type: matchingComponent.type.name,
+              name: matchingComponent.fullName,
+            });
+          }
+        });
+      }
+    });
+    return excludeUnresolvable
+      ? [...new Set(elementMap.values())].filter((changeResult) => changeResult.name && changeResult.type)
+      : [...new Set(elementMap.values())];
   }
 
   public async getConflicts(): Promise<ChangeResult[]> {
@@ -364,3 +374,11 @@ export class SourceTracking {
     return path.isAbsolute(filePath) ? path.relative(this.projectPath, filePath) : filePath;
   }
 }
+
+export const stringGuard = (input: string | undefined): input is string => {
+  return typeof input === 'string';
+};
+
+const sourceComponentGuard = (input: SourceComponent | undefined): input is SourceComponent => {
+  return input instanceof SourceComponent;
+};

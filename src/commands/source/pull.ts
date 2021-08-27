@@ -118,6 +118,6 @@ export default class SourcePull extends SfdxCommand {
         successes.map((fileResponse) => ({ name: fileResponse.fullName, type: fileResponse.type }))
       ),
     ]);
-    return retrieveResult.response;
+    return retrieveResult.getFileResponses();
   }
 }

@@ -99,8 +99,8 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
         dir: this.projectPath,
         gitdir: this.gitDir,
         filepaths: this.packageDirs.map((dir) => dir.path),
-        // filter out hidden files
-        filter: (f) => !f.includes('/.'),
+        // filter out hidden files and __tests__ patterns, regardless of gitignore
+        filter: (f) => !f.includes('/.') && !f.includes('__tests__'),
       });
       await this.unStashIgnoreFile();
     }
