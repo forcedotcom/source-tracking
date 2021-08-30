@@ -10,6 +10,7 @@ import { ComponentSet, MetadataResolver, SourceComponent } from '@salesforce/sou
 
 import { RemoteSourceTrackingService, RemoteChangeElement, getMetadataKey } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
+import { RemoteSyncInput } from './shared/types';
 
 export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): string => {
   if (element.type && element.name) {
@@ -20,11 +21,6 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
 
 // external users of SDR might need to convert a fileResponse to a key
 export const getKeyFromStrings = getMetadataKey;
-
-export interface MetadataKeyPair {
-  type: string;
-  name: string;
-}
 
 export interface ChangeOptions {
   origin?: 'local' | 'remote';
@@ -44,6 +40,11 @@ export type ChangeResult = Partial<RemoteChangeElement> & {
   filenames?: string[];
 };
 
+export interface ConflictError {
+  message: string;
+  name: 'conflict';
+  conflicts: ChangeResult[];
+}
 export class SourceTracking {
   private orgId: string;
   private projectPath: string;
@@ -61,6 +62,14 @@ export class SourceTracking {
     this.projectPath = options.project.getPath();
     this.packagesDirs = options.project.getPackageDirectories();
     this.logger = Logger.childFromRoot('SourceTracking');
+  }
+
+  public async deployLocalChanges({ overwrite = false, ignoreWarnings = false, wait = 33 }): Promise<void> {
+    // TODO: this is basically the logic for a push
+  }
+
+  public async retrieveRemoteChanges(): Promise<void> {
+    // TODO: this is basically the logic for a pull
   }
 
   /**
@@ -125,11 +134,12 @@ export class SourceTracking {
   /**
    * Mark remote source tracking files that we have received to the latest version
    */
-  public async updateRemoteTracking(metadataKeys: MetadataKeyPair[]): Promise<void> {
+  public async updateRemoteTracking(fileResponses: RemoteSyncInput[]): Promise<void> {
     await this.ensureRemoteTracking();
-    await this.remoteSourceTrackingService.syncNamedElementsByKey(
-      metadataKeys.map((input) => getKeyFromStrings(input.type, input.name))
-    );
+    // TODO: poll for source tracking to be complete
+    // to make sure we have the updates before syncing the ones from metadataKeys
+    await this.remoteSourceTrackingService.retrieveUpdates({ cache: false });
+    await this.remoteSourceTrackingService.syncSpecifiedElements(fileResponses);
   }
 
   /**

@@ -13,6 +13,8 @@ import { ConfigFile, Logger, Org, SfdxError, Messages } from '@salesforce/core';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { Duration, env, toNumber } from '@salesforce/kit';
 import { retryDecorator } from 'ts-retry-promise';
+import { RemoteSyncInput } from '../shared/types';
+import { getMetadataKeyFromFileResponse } from './metadataKeys';
 
 export type MemberRevision = {
   serverRevisionCounter: number;
@@ -53,6 +55,7 @@ export namespace RemoteSourceTrackingService {
 export const getMetadataKey = (metadataType: string, metadataName: string): string => {
   return `${metadataType}__${metadataName}`;
 };
+
 /**
  * This service handles source tracking of metadata between a local project and an org.
  * Source tracking state is persisted to .sfdx/orgs/<orgId>/maxRevision.json.
@@ -178,19 +181,21 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * pass in a set of metadata keys (type__name like 'ApexClass__MyClass').\
    * it sets their last retrieved revision to the current revision counter from the server.
    */
-  public async syncNamedElementsByKey(metadataKeys: string[]): Promise<void> {
-    if (metadataKeys.length === 0) {
+  public async syncSpecifiedElements(elements: RemoteSyncInput[]): Promise<void> {
+    if (elements.length === 0) {
       return;
     }
-    const quiet = metadataKeys.length > 100;
+    const quiet = elements.length > 100;
     if (quiet) {
-      this.logger.debug(`Syncing ${metadataKeys.length} Revisions by key`);
+      this.logger.debug(`Syncing ${elements.length} Revisions by key`);
     }
 
-    // makes sure we have updated SourceMember data for the org; uses cache
-    await this.retrieveUpdates();
     const revisions = this.getSourceMembers();
-    metadataKeys.map((metadataKey) => {
+
+    // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
+    // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
+    // so we de-dupe via a set
+    [...new Set(elements.map((element) => getMetadataKeyFromFileResponse(element)).flat())].map((metadataKey) => {
       const revision = revisions[metadataKey];
       if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
         if (!quiet) {
@@ -201,11 +206,13 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         revision.lastRetrievedFromServer = revision.serverRevisionCounter;
         this.setMemberRevision(metadataKey, revision);
       } else {
-        this.logger.warn(`could not find remote tracking entry for ${metadataKey}`);
+        this.logger.warn(`found no matching revision for ${metadataKey}`);
       }
     });
+
     await this.write();
   }
+
   /**
    * Returns the `ChangeElement` currently being tracked given a metadata key,
    * or `undefined` if not found.
@@ -381,9 +388,9 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   // to sync the retrieved SourceMembers; meaning it will update the lastRetrievedFromServer
   // field to the SourceMember's RevisionCounter, and update the serverMaxRevisionCounter
   // to the highest RevisionCounter.
-  public async retrieveUpdates(sync = false): Promise<RemoteChangeElement[]> {
+  public async retrieveUpdates({ sync = false, cache = true } = {}): Promise<RemoteChangeElement[]> {
     // Always track new SourceMember data, or update tracking when we sync.
-    const queriedSourceMembers = await this.querySourceMembersFrom();
+    const queriedSourceMembers = await this.querySourceMembersFrom({ useCache: cache });
     if (queriedSourceMembers.length || sync) {
       await this.trackSourceMembers(queriedSourceMembers, sync);
     }

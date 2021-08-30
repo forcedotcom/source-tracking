@@ -8,9 +8,8 @@
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { SfdxProject, Org } from '@salesforce/core';
 import { ComponentSet, FileResponse, ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { MetadataKeyPair, SourceTracking, stringGuard } from '../../sourceTracking';
+import { SourceTracking, stringGuard } from '../../sourceTracking';
 import { writeConflictTable } from '../../writeConflictTable';
-
 export default class SourcePush extends SfdxCommand {
   public static description = 'get local changes';
   protected static readonly flagsConfig: FlagsConfig = {
@@ -66,7 +65,7 @@ export default class SourcePush extends SfdxCommand {
 
     if (deletes.length > 0) {
       this.ux.warn(
-        `Delete not yet implemented in SDR.  Would have deleted ${deletes.length > 0 ? deletes.join(',') : 'nothing'}`
+        `Delete not yet implemented.  Would have deleted ${deletes.length > 0 ? deletes.join(',') : 'nothing'}`
       );
     }
 
@@ -82,21 +81,9 @@ export default class SourcePush extends SfdxCommand {
     if (!this.flags.json) {
       this.ux.logJson(result.response);
     }
-    // and update the remote tracking
-    const successComponentKeys = (
-      Array.isArray(result.response.details.componentSuccesses)
-        ? result.response.details.componentSuccesses
-        : [result.response.details.componentSuccesses]
-    )
-      .map((success) =>
-        success?.fullName && success?.componentType
-          ? { name: success?.fullName, type: success?.componentType }
-          : undefined
-      )
-      .filter(Boolean) as MetadataKeyPair[]; // we don't want package.xml
 
     // this includes polling for sourceMembers
-    await tracking.updateRemoteTracking(successComponentKeys);
+    await tracking.updateRemoteTracking(successes);
     return result.getFileResponses();
   }
 }

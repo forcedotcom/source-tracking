@@ -12,7 +12,6 @@ import { SfdxProject, Org } from '@salesforce/core';
 import { ComponentSet, ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { writeConflictTable } from '../../writeConflictTable';
 import { SourceTracking, ChangeResult } from '../../sourceTracking';
-
 export default class SourcePull extends SfdxCommand {
   public static description = 'get local changes';
   protected static readonly flagsConfig: FlagsConfig = {
@@ -67,6 +66,7 @@ export default class SourcePull extends SfdxCommand {
       const changesToDeleteWithFilePaths = tracking.populateFilePaths(changesToDelete);
       // delete the files
       const filenames = changesToDeleteWithFilePaths
+        // TODO: test that this works for undefined, string and string[]
         .map((change) => change.filenames as string[])
         .flat()
         .filter(Boolean);
@@ -74,7 +74,17 @@ export default class SourcePull extends SfdxCommand {
       await Promise.all([
         tracking.updateLocalTracking({ deletedFiles: filenames }),
         tracking.updateRemoteTracking(
-          changesToDeleteWithFilePaths.map((change) => ({ type: change.type as string, name: change.name as string }))
+          changesToDeleteWithFilePaths
+            .map((change) =>
+              change && change.filenames
+                ? change.filenames.map((filename) => ({
+                    type: change.type as string,
+                    fullName: change.name as string,
+                    filePath: filename,
+                  }))
+                : []
+            )
+            .flat()
         ),
       ]);
     }
@@ -113,9 +123,8 @@ export default class SourcePull extends SfdxCommand {
       tracking.updateLocalTracking({
         files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
       }),
-      // calling with no metadata types gets the latest sourceMembers from the org
       tracking.updateRemoteTracking(
-        successes.map((fileResponse) => ({ name: fileResponse.fullName, type: fileResponse.type }))
+        successes.map((success) => ({ filePath: success.filePath, type: success.type, fullName: success.fullName }))
       ),
     ]);
     return retrieveResult.getFileResponses();
