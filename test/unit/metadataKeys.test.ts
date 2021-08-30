@@ -62,4 +62,19 @@ describe('metadataKeys', () => {
       ]);
     });
   });
+
+  describe('object children', () => {
+    it('creates a key for the object from a field', () => {
+      const fileResponse = {
+        fullName: 'Case.Product__c',
+        type: 'CustomField',
+        state: 'Created',
+        filePath: 'force-app/main/default/objects/Case/fields/Product__c.field-meta.xml',
+      };
+      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
+        'CustomObject__Case',
+        'CustomField__Case.Product__c',
+      ]);
+    });
+  });
 });

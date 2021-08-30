@@ -3,5 +3,5 @@
   "compilerOptions": {
     "outDir": "./lib"
   },
-  "include": ["src/**/*.ts", "test/unit/metadataKeys.test.ts"]
+  "include": ["src/**/*.ts"]
 }

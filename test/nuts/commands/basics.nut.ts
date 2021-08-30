@@ -50,15 +50,17 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
 
       const remoteResult = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
         .result;
-      console.log(remoteResult);
+      // console.log(remoteResult);
       expect(remoteResult.length).to.equal(1);
       expect(remoteResult.some((item) => item.type === 'Profile')).to.equal(true);
+      // expect(remoteResult.some((item) => item.type === 'FieldRestrictionRule')).to.equal(true);
+      // expect(remoteResult.some((item) => item.type === 'Audience')).to.equal(true);
     });
 
     it('can pull the remote profile', () => {
-      const pushResult = execCmd<FileResponse[]>('source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
-      console.log(pushResult);
-      expect(pushResult.some((item) => item.type === 'Profile')).to.equal(true);
+      const pullResult = execCmd<FileResponse[]>('source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      console.log(pullResult);
+      expect(pullResult.some((item) => item.type === 'Profile')).to.equal(true);
     });
 
     it('sees no local or remote changes', () => {

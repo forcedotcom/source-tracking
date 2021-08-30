@@ -150,7 +150,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     try {
       await super.init();
     } catch (err) {
-      throw SfdxError.wrap(err);
+      throw SfdxError.wrap(err as Error);
     }
 
     const contents = this.getTypedContents();
@@ -169,9 +169,15 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         await this.write();
       } catch (e) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-        if (e.name === 'INVALID_TYPE' && e.message.includes("sObject type 'SourceMember' is not supported")) {
+        if (
+          e instanceof SfdxError &&
+          e.name === 'INVALID_TYPE' &&
+          e.message.includes("sObject type 'SourceMember' is not supported")
+        ) {
           // non-source-tracked org E.G. DevHub or trailhead playground
           this.isSourceTrackedOrg = false;
+        } else {
+          throw e;
         }
       }
     }
@@ -195,20 +201,22 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
     // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
     // so we de-dupe via a set
-    [...new Set(elements.map((element) => getMetadataKeyFromFileResponse(element)).flat())].map((metadataKey) => {
-      const revision = revisions[metadataKey];
-      if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
-        if (!quiet) {
-          this.logger.debug(
-            `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
-          );
+    Array.from(new Set(elements.map((element) => getMetadataKeyFromFileResponse(element)).flat())).map(
+      (metadataKey) => {
+        const revision = revisions[metadataKey];
+        if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
+          if (!quiet) {
+            this.logger.debug(
+              `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
+            );
+          }
+          revision.lastRetrievedFromServer = revision.serverRevisionCounter;
+          this.setMemberRevision(metadataKey, revision);
+        } else {
+          this.logger.warn(`found no matching revision for ${metadataKey}`);
         }
-        revision.lastRetrievedFromServer = revision.serverRevisionCounter;
-        this.setMemberRevision(metadataKey, revision);
-      } else {
-        this.logger.warn(`found no matching revision for ${metadataKey}`);
       }
-    });
+    );
 
     await this.write();
   }

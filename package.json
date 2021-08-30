@@ -27,7 +27,7 @@
     "test": "sf-test --require ts-node/register",
     "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:commands": "nyc mocha \"**/commands/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:nuts:commands:basics": "nyc mocha \"**/commands/basics.nut.ts\" --slow 4500 --timeout 600000 --parallel"
+    "test:nuts:commands:basics": "nyc mocha \"**/commands/basics.nut.ts\" --slow 4500 --timeout 600000"
   },
   "keywords": [
     "force",

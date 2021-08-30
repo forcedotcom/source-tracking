@@ -64,13 +64,13 @@ export class SourceTracking {
     this.logger = Logger.childFromRoot('SourceTracking');
   }
 
-  public async deployLocalChanges({ overwrite = false, ignoreWarnings = false, wait = 33 }): Promise<void> {
-    // TODO: this is basically the logic for a push
-  }
+  // public async deployLocalChanges({ overwrite = false, ignoreWarnings = false, wait = 33 }): Promise<void> {
+  //   // TODO: this is basically the logic for a push
+  // }
 
-  public async retrieveRemoteChanges(): Promise<void> {
-    // TODO: this is basically the logic for a pull
-  }
+  // public async retrieveRemoteChanges(): Promise<void> {
+  //   // TODO: this is basically the logic for a pull
+  // }
 
   /**
    * Get metadata changes made locally and in the org.
@@ -342,8 +342,8 @@ export class SourceTracking {
       }
     });
     return excludeUnresolvable
-      ? [...new Set(elementMap.values())].filter((changeResult) => changeResult.name && changeResult.type)
-      : [...new Set(elementMap.values())];
+      ? Array.from(new Set(elementMap.values())).filter((changeResult) => changeResult.name && changeResult.type)
+      : Array.from(new Set(elementMap.values()));
   }
 
   public async getConflicts(): Promise<ChangeResult[]> {
@@ -377,7 +377,7 @@ export class SourceTracking {
       });
     });
     // deeply de-dupe
-    return [...conflicts];
+    return Array.from(conflicts);
   }
 
   private ensureRelative(filePath: string): string {

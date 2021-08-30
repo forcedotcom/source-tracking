@@ -7,26 +7,37 @@
 import { RemoteSyncInput } from './types';
 import { getMetadataKey } from './remoteSourceTrackingService';
 
-// handle all "weird" type/name translation between SourceMember and SDR FileResponse
-export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): string[] => {
-  // LWC can have child folders (ex: dynamic templates like LightningComponentResource__errorPanel/templates/noDataIllustration.html
-  const pathAfterFullName = (): string =>
-    fileResponse && fileResponse.filePath
-      ? fileResponse.filePath.substr(fileResponse.filePath.indexOf(fileResponse.fullName))
-      : '';
+// LWC can have child folders (ex: dynamic templates like /templates/noDataIllustration.html
+const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
+  fileResponse && fileResponse.filePath
+    ? fileResponse.filePath.substr(fileResponse.filePath.indexOf(fileResponse.fullName))
+    : '';
 
+// handle all "weird" type/name translation between SourceMember and SDR FileResponse
+// These get de-duplicated in a set later
+export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): string[] => {
+  // also create an element for the parent object
+  if (fileResponse.type === 'CustomField' && fileResponse.filePath) {
+    const splits = fileResponse.filePath.split('/');
+    const objectFolderIndex = splits.indexOf('objects');
+    return [
+      getMetadataKey('CustomObject', splits[objectFolderIndex + 1]),
+      getMetadataKey(fileResponse.type, fileResponse.fullName),
+    ];
+  }
   // Aura/LWC need to have both the bundle level and file level keys
-  // These get de-duplicated in a set later
   if (fileResponse.type === 'LightningComponentBundle' && fileResponse.filePath) {
     return [
-      `LightningComponentResource__${pathAfterFullName()}`,
+      `LightningComponentResource__${pathAfterFullName(fileResponse)}`,
       getMetadataKey(fileResponse.type, fileResponse.fullName),
     ];
   }
   if (fileResponse.type === 'AuraDefinitionBundle' && fileResponse.filePath) {
-    return [`AuraDefinition__${pathAfterFullName()}`, getMetadataKey(fileResponse.type, fileResponse.fullName)];
+    return [
+      `AuraDefinition__${pathAfterFullName(fileResponse)}`,
+      getMetadataKey(fileResponse.type, fileResponse.fullName),
+    ];
   }
-
   // standard key
   return [getMetadataKey(fileResponse.type, fileResponse.fullName)];
 };
