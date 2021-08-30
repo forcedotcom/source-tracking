@@ -10,8 +10,6 @@ You should use the class named sourceTracking.
 
 consolidate the conflict logic into SourceTracking. Should return a ChangeResult[] of the conflicts so commands can display.
 
-after pushing ebikes (testProj) the remote changes are showing in source tracking (they should have been polled for and retrieved!)
-
 can migrate maxRevision.json to its new home
 
 integration testing

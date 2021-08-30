@@ -8,6 +8,8 @@
 /* eslint-disable no-console */
 
 import * as path from 'path';
+import * as fs from 'fs';
+
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { FileResponse } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
@@ -27,7 +29,7 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
 
   after(async () => {
     await session?.zip(undefined, 'artifacts');
-    await session?.clean();
+    // await session?.clean();
   });
 
   describe('basic status and pull', () => {
@@ -69,10 +71,24 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
       expect(result).to.have.length(0);
     });
 
-    it('sees a local delete in status');
-    it('does not see any change in remote status');
+    it('sees a local delete in local status', async () => {
+      const classDir = path.join(session.project.dir, 'force-app', 'main', 'default', 'classes');
+      await Promise.all([
+        fs.promises.rm(path.join(classDir, 'TestOrderController.cls')),
+        fs.promises.rm(path.join(classDir, 'TestOrderController.cls-meta.xml')),
+      ]);
+      const result = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput.result;
+      console.log(result);
+      expect(result).to.deep.equal([]);
+    });
+    it('does not see any change in remote status', () => {
+      const result = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput.result;
+      console.log(result);
+      expect(result).to.have.length(0);
+    });
+
     it('pushes the local delete to the org');
-    it('sees no local changes, but remote change in profile');
+    it('sees no local or remote changes');
   });
 
   describe('non-successes', () => {

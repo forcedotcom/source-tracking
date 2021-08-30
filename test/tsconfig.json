@@ -1,8 +1,7 @@
 {
-  "extends": "../node_modules/@salesforce/dev-config/tsconfig",
-  "include": ["unit/**/*.ts", "../node_modules/@types/**/*.d.ts", "**/*.nut.ts", "nuts/basics.ts"],
+  "extends": "@salesforce/dev-config/tsconfig-test",
+  "include": ["./**/*.ts"],
   "compilerOptions": {
-    "noEmit": true,
     "skipLibCheck": true
   }
 }
