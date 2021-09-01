@@ -11,6 +11,7 @@ import { ComponentSet, MetadataResolver, SourceComponent } from '@salesforce/sou
 import { RemoteSourceTrackingService, RemoteChangeElement, getMetadataKey } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { RemoteSyncInput } from './shared/types';
+import { filenamesToVirtualTree } from './shared/filenamesToVirtualTree';
 
 export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): string => {
   if (element.type && element.name) {
@@ -291,23 +292,32 @@ export class SourceTracking {
    * @input excludeUnresolvables: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
    */
   // public async populateFilePaths(elements: ChangeResult[]): Promise<ChangeResult[]> {
-  public populateTypesAndNames(elements: ChangeResult[], excludeUnresolvable = false): ChangeResult[] {
+  public populateTypesAndNames({
+    elements,
+    excludeUnresolvable = false,
+    resolveDeleted = false,
+  }: {
+    elements: ChangeResult[];
+    excludeUnresolvable?: boolean;
+    resolveDeleted?: boolean;
+  }): ChangeResult[] {
     if (elements.length === 0) {
       return [];
     }
 
     this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-    // component set generated from the filenames on all local changes
-    const resolver = new MetadataResolver();
-    const sourceComponents = elements
+    const filenames = elements
       .map((element) => element.filenames)
       .flat()
-      .filter(stringGuard)
+      .filter(stringGuard);
+
+    // component set generated from the filenames on all local changes
+    const resolver = new MetadataResolver(undefined, resolveDeleted ? filenamesToVirtualTree(filenames) : undefined);
+    const sourceComponents = filenames
       .map((filename) => {
         try {
           return resolver.getComponentsFromPath(filename);
         } catch (e) {
-          // there will be some unresolvable files
           this.logger.warn(`unable to resolve ${filename}`);
           return undefined;
         }

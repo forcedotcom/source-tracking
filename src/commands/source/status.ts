@@ -46,15 +46,31 @@ export default class SourceStatus extends SfdxCommand {
 
     if (this.flags.local || this.flags.all || (!this.flags.remote && !this.flags.all)) {
       await tracking.ensureLocalTracking();
-      const [localDeletes, localModifies, localAdds] = (
-        await Promise.all([
-          tracking.getChanges({ origin: 'local', state: 'delete' }),
-          tracking.getChanges({ origin: 'local', state: 'changed' }),
-          tracking.getChanges({ origin: 'local', state: 'add' }),
-        ])
-      )
-        // we don't get type/name on local changes unless we request them
-        .map((changes) => tracking.populateTypesAndNames(changes, true));
+      const localDeletes = tracking.populateTypesAndNames({
+        elements: await tracking.getChanges({ origin: 'local', state: 'delete' }),
+        excludeUnresolvable: true,
+        resolveDeleted: true,
+      });
+
+      const localAdds = tracking.populateTypesAndNames({
+        elements: await tracking.getChanges({ origin: 'local', state: 'add' }),
+        excludeUnresolvable: true,
+      });
+
+      const localModifies = tracking.populateTypesAndNames({
+        elements: await tracking.getChanges({ origin: 'local', state: 'changed' }),
+        excludeUnresolvable: true,
+      });
+
+      // const [localDeletes, localModifies, localAdds] = (
+      //   await Promise.all([
+      //     tracking.getChanges({ origin: 'local', state: 'delete' }),
+      //     tracking.getChanges({ origin: 'local', state: 'changed' }),
+      //     tracking.getChanges({ origin: 'local', state: 'add' }),
+      //   ])
+      // )
+      //   // we don't get type/name on local changes unless we request them
+      //   .map((changes) => tracking.populateTypesAndNames(changes, true));
       outputRows = outputRows.concat(localAdds.map((item) => this.statusResultToOutputRows(item, 'add')).flat());
       outputRows = outputRows.concat(
         localModifies.map((item) => this.statusResultToOutputRows(item, 'changed')).flat()

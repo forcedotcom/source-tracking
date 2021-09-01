@@ -41,19 +41,22 @@ export default class SourcePush extends SfdxCommand {
     await tracking.ensureLocalTracking();
     const nonDeletes = tracking
       // populateTypesAndNames is used to make sure the filenames could be deployed (that they are resolvable in SDR)
-      .populateTypesAndNames(
-        (
+      .populateTypesAndNames({
+        elements: (
           await Promise.all([
             tracking.getChanges({ origin: 'local', state: 'changed' }),
             tracking.getChanges({ origin: 'local', state: 'add' }),
           ])
         ).flat(),
-        true
-      )
+        excludeUnresolvable: true,
+      })
       .map((change) => change.filenames)
       .flat();
     const deletes = tracking
-      .populateTypesAndNames(await tracking.getChanges({ origin: 'local', state: 'delete' }), true)
+      .populateTypesAndNames({
+        elements: await tracking.getChanges({ origin: 'local', state: 'delete' }),
+        excludeUnresolvable: true,
+      })
       .map((change) => change.filenames)
       .flat();
 
@@ -63,13 +66,10 @@ export default class SourcePush extends SfdxCommand {
       return [];
     }
 
-    if (deletes.length > 0) {
-      this.ux.warn(
-        `Delete not yet implemented.  Would have deleted ${deletes.length > 0 ? deletes.join(',') : 'nothing'}`
-      );
-    }
-
-    const componentSet = ComponentSet.fromSource({ fsPaths: nonDeletes.filter(stringGuard) });
+    const componentSet = ComponentSet.fromSource({
+      fsPaths: nonDeletes.filter(stringGuard),
+      fsDeletePaths: deletes.filter(stringGuard),
+    });
     const deploy = await componentSet.deploy({ usernameOrConnection: this.org.getUsername() as string });
     const result = await deploy.pollStatus();
 
