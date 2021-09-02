@@ -15,26 +15,18 @@ import { VirtualTreeContainer, VirtualDirectory } from '@salesforce/source-deplo
  * @returns VirtualTreeContainer to use with MetadataResolver
  */
 export const filenamesToVirtualTree = (filenames: string[]): VirtualTreeContainer => {
+  // a map to reduce array iterations
   const virtualDirectoryByFullPath = new Map<string, VirtualDirectory>();
   filenames.map((filename) => {
     const splits = filename.split(path.sep);
     for (let i = 0; i < splits.length - 1; i++) {
       const fullPathSoFar = splits.slice(0, i + 1).join(path.sep);
-      if (virtualDirectoryByFullPath.has(fullPathSoFar)) {
-        const existing = virtualDirectoryByFullPath.get(fullPathSoFar) as VirtualDirectory;
+      const existing = virtualDirectoryByFullPath.get(fullPathSoFar);
+      virtualDirectoryByFullPath.set(fullPathSoFar, {
+        dirPath: fullPathSoFar,
         // only add to children if we don't already have it
-        if (!existing.children.includes(splits[i + 1])) {
-          virtualDirectoryByFullPath.set(fullPathSoFar, {
-            dirPath: existing.dirPath,
-            children: [...existing.children, splits[i + 1]],
-          });
-        }
-      } else {
-        virtualDirectoryByFullPath.set(fullPathSoFar, {
-          dirPath: fullPathSoFar,
-          children: [splits[i + 1]],
-        });
-      }
+        children: Array.from(new Set(existing?.children ?? []).add(splits[i + 1])),
+      });
     }
   });
   return new VirtualTreeContainer(Array.from(virtualDirectoryByFullPath.values()));
