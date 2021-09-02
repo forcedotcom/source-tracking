@@ -4,18 +4,22 @@ JavaScript library for tracking local and remote Salesforce metadata changes.
 
 **_ UNDER DEVELOPMENT _**
 
-You should use the class named sourceTracking.
+You should use the class named sourceTracking
 
 ## TODO
 
-consolidate the conflict logic into SourceTracking. Should return a ChangeResult[] of the conflicts so commands can display.
-
+push: wait and ignoreWarnings logic
+consolidate the conflict logic into SourceTrackingOperations. Should return a ChangeResult[] of the conflicts so commands can display.
+reorganize the getChanges logic to be more use-friendly (nonDeletes, option or <type> to specify return structure)
 can migrate maxRevision.json to its new home
+after pushing ebikes, toolbelt shows no remote changes but STL shows the Admin Profile being changed
 
-integration testing
+more integration testing
 
 why does push take so long?
 
+**new feature**
+status can "mark ignores"
 Push can have partial successes and needs a proper status code ex:
 
 ```json

@@ -6,7 +6,13 @@
  */
 import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
-import { ComponentSet, MetadataResolver, SourceComponent } from '@salesforce/source-deploy-retrieve';
+import {
+  ComponentSet,
+  MetadataResolver,
+  ComponentStatus,
+  SourceComponent,
+  FileResponse,
+} from '@salesforce/source-deploy-retrieve';
 
 import { RemoteSourceTrackingService, RemoteChangeElement, getMetadataKey } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
@@ -65,9 +71,60 @@ export class SourceTracking {
     this.logger = Logger.childFromRoot('SourceTracking');
   }
 
-  // public async deployLocalChanges({ overwrite = false, ignoreWarnings = false, wait = 33 }): Promise<void> {
-  //   // TODO: this is basically the logic for a push
-  // }
+  public async deployLocalChanges({ ignoreWarnings = false, wait = 33 }): Promise<FileResponse[]> {
+    // TODO: this is basically the logic for a push
+    await this.ensureLocalTracking();
+    const [nonDeletes, deletes] = await Promise.all([
+      this.localRepo.getNonDeleteFilenames(),
+      this.localRepo.getDeleteFilenames(),
+    ]);
+    if (nonDeletes.length === 0 && deletes.length === 0) {
+      throw new Error('There are no changes to deploy');
+    }
+    const componentSet = new ComponentSet();
+    // optimistic resolution...some files may not be possible to resolve
+    const resolverForNonDeletes = new MetadataResolver();
+    // we need virtual components for the deletes.
+    // TODO: could we use the same for the non-deletes
+    const resolverForDeletes = new MetadataResolver(undefined, filenamesToVirtualTree(deletes));
+
+    nonDeletes
+      .map((filename) => {
+        try {
+          return resolverForNonDeletes.getComponentsFromPath(filename);
+        } catch (e) {
+          this.logger.warn(`unable to resolve ${filename}`);
+          return undefined;
+        }
+      })
+      .flat()
+      .filter(sourceComponentGuard)
+      .map((component) => componentSet.add(component));
+
+    deletes
+      .map((filename) => resolverForDeletes.getComponentsFromPath(filename))
+      .flat()
+      .filter(sourceComponentGuard)
+      .map((component) => componentSet.add(component, true));
+
+    // make SourceComponents from deletes and add to toDeploy
+    const deploy = await componentSet.deploy({ usernameOrConnection: this.username });
+    const result = await deploy.pollStatus();
+
+    const successes = result.getFileResponses().filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
+    const successNonDeletes = successes.filter((fileResponse) => fileResponse.state !== ComponentStatus.Deleted);
+    const successDeletes = successes.filter((fileResponse) => fileResponse.state === ComponentStatus.Deleted);
+
+    // then commit successes to local tracking;
+    await this.updateLocalTracking({
+      files: successNonDeletes.map((fileResponse) => fileResponse.filePath) as string[],
+      deletedFiles: successDeletes.map((fileResponse) => fileResponse.filePath) as string[],
+    });
+
+    // this includes polling for sourceMembers
+    await this.updateRemoteTracking(successes);
+    return result.getFileResponses();
+  }
 
   // public async retrieveRemoteChanges(): Promise<void> {
   //   // TODO: this is basically the logic for a pull

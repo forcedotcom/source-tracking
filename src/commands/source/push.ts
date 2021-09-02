@@ -7,8 +7,8 @@
 
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { SfdxProject, Org } from '@salesforce/core';
-import { ComponentSet, FileResponse, ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { SourceTracking, stringGuard } from '../../sourceTracking';
+import { FileResponse } from '@salesforce/source-deploy-retrieve';
+import { SourceTracking } from '../../sourceTracking';
 import { writeConflictTable } from '../../writeConflictTable';
 export default class SourcePush extends SfdxCommand {
   public static description = 'get local changes';
@@ -17,8 +17,8 @@ export default class SourcePush extends SfdxCommand {
   };
   protected static requiresUsername = true;
   protected static requiresProject = true;
-  protected project!: SfdxProject;
-  protected org!: Org;
+  protected project!: SfdxProject; // ok because requiresProject
+  protected org!: Org; // ok because requiresUsername
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async run(): Promise<FileResponse[]> {
@@ -33,57 +33,17 @@ export default class SourcePush extends SfdxCommand {
         throw new Error('conflicts detected');
       }
     }
-    // give me the deletes and nonDeletes in parallel
-    // const [deletes, nonDeletes] = await Promise.all([
-    //   tracking.getChanges({ origin: 'local', state: 'delete' }),
-    //   tracking.getChanges({ origin: 'local', state: 'changed' }),
-    // ]);
-    await tracking.ensureLocalTracking();
-    const nonDeletes = tracking
-      // populateTypesAndNames is used to make sure the filenames could be deployed (that they are resolvable in SDR)
-      .populateTypesAndNames({
-        elements: (
-          await Promise.all([
-            tracking.getChanges({ origin: 'local', state: 'changed' }),
-            tracking.getChanges({ origin: 'local', state: 'add' }),
-          ])
-        ).flat(),
-        excludeUnresolvable: true,
-      })
-      .map((change) => change.filenames)
-      .flat();
-    const deletes = tracking
-      .populateTypesAndNames({
-        elements: await tracking.getChanges({ origin: 'local', state: 'delete' }),
-        excludeUnresolvable: true,
-      })
-      .map((change) => change.filenames)
-      .flat();
-
-    // create ComponentSet
-    if (nonDeletes.length === 0 && deletes.length === 0) {
-      this.ux.log('There are no changes to deploy');
-      return [];
-    }
-
-    const componentSet = ComponentSet.fromSource({
-      fsPaths: nonDeletes.filter(stringGuard),
-      fsDeletePaths: deletes.filter(stringGuard),
+    const deployResult = await tracking.deployLocalChanges({
+      ignoreWarnings: this.flags.ignorewarnings as boolean,
+      wait: this.flags.wait as number,
     });
-    const deploy = await componentSet.deploy({ usernameOrConnection: this.org.getUsername() as string });
-    const result = await deploy.pollStatus();
 
-    const successes = result.getFileResponses().filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
-    // then commit successes to local tracking;
-    await tracking.updateLocalTracking({
-      files: successes.map((fileResponse) => fileResponse.filePath) as string[],
-    });
+    // TODO: convert deployResult to the proper type
+    // TODO: catch the noChanges to deploy error
     if (!this.flags.json) {
-      this.ux.logJson(result.response);
+      this.ux.logJson(deployResult);
     }
 
-    // this includes polling for sourceMembers
-    await tracking.updateRemoteTracking(successes);
-    return result.getFileResponses();
+    return deployResult;
   }
 }
