@@ -6,6 +6,7 @@
  */
 import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
+import { Duration } from '@salesforce/kit';
 import {
   ComponentSet,
   MetadataResolver,
@@ -29,6 +30,7 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
 // external users of SDR might need to convert a fileResponse to a key
 export const getKeyFromStrings = getMetadataKey;
 
+export type ChangeOptionTypes = ChangeResult | SourceComponent | string;
 export interface ChangeOptions {
   origin?: 'local' | 'remote';
   state: 'add' | 'delete' | 'changed' | 'unchanged' | 'moved';
@@ -71,8 +73,7 @@ export class SourceTracking {
     this.logger = Logger.childFromRoot('SourceTracking');
   }
 
-  public async deployLocalChanges({ ignoreWarnings = false, wait = 33 }): Promise<FileResponse[]> {
-    // TODO: this is basically the logic for a push
+  public async deployLocalChanges({ ignoreWarnings = false, wait = Duration.minutes(33) }): Promise<FileResponse[]> {
     await this.ensureLocalTracking();
     const [nonDeletes, deletes] = await Promise.all([
       this.localRepo.getNonDeleteFilenames(),
@@ -108,8 +109,8 @@ export class SourceTracking {
       .map((component) => componentSet.add(component, true));
 
     // make SourceComponents from deletes and add to toDeploy
-    const deploy = await componentSet.deploy({ usernameOrConnection: this.username });
-    const result = await deploy.pollStatus();
+    const deploy = await componentSet.deploy({ usernameOrConnection: this.username, apiOptions: { ignoreWarnings } });
+    const result = await deploy.pollStatus(30, wait.seconds);
 
     const successes = result.getFileResponses().filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
     const successNonDeletes = successes.filter((fileResponse) => fileResponse.state !== ComponentStatus.Deleted);
