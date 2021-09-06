@@ -5,17 +5,22 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
-import { unlink } from 'fs/promises';
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
-
+import { Duration } from '@salesforce/kit';
 import { SfdxProject, Org } from '@salesforce/core';
-import { ComponentSet, ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { writeConflictTable } from '../../writeConflictTable';
-import { SourceTracking, ChangeResult } from '../../sourceTracking';
+import { SourceTracking } from '../../sourceTracking';
 export default class SourcePull extends SfdxCommand {
   public static description = 'get local changes';
   protected static readonly flagsConfig: FlagsConfig = {
     forceoverwrite: flags.boolean({ char: 'f', description: 'overwrite files without prompting' }),
+    // TODO: use shared flags from plugin-source
+    wait: flags.minutes({
+      char: 'w',
+      default: Duration.minutes(33),
+      min: Duration.minutes(0), // wait=0 means deploy is asynchronous
+      description: 'tbd',
+    }),
   };
   protected static requiresUsername = true;
   protected static requiresProject = true;
@@ -24,23 +29,21 @@ export default class SourcePull extends SfdxCommand {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async run(): Promise<any> {
-    this.ux.startSpinner('Initializing source tracking');
-    const tracking = new SourceTracking({
+    const tracking = await SourceTracking.create({
       org: this.org,
       project: this.project,
+      apiVersion: this.flags.apiversion as string,
     });
 
-    await tracking.ensureRemoteTracking();
+    await tracking.ensureRemoteTracking(true);
+    // pull supports early exit if no remmote changes
     const remoteChangesToPull = await tracking.getRemoteChanges();
     if (remoteChangesToPull.length === 0) {
-      this.ux.stopSpinner('No remote changes exist');
-      return;
+      this.ux.log('No remote changes exist');
+      return [];
     }
-    const componentSetFromRemoteChanges = new ComponentSet();
-    this.ux.setSpinnerStatus('creating the retrieve request');
 
     if (!this.flags.forceoverwrite) {
-      this.ux.setSpinnerStatus('checking for source conflicts');
       const conflicts = await tracking.getConflicts();
       if (conflicts.length > 0) {
         writeConflictTable(conflicts, this.ux);
@@ -48,85 +51,16 @@ export default class SourcePull extends SfdxCommand {
       }
     }
 
-    const changesToDelete: ChangeResult[] = [];
+    const retrieveResult = await tracking.retrieveRemoteChanges({ wait: this.flags.wait as Duration });
 
-    // separate the deletes (local operations only) and the non deletes (will need to retrieve before local operations)
-    remoteChangesToPull.map((component) => {
-      this.logger.debug(`adding ${component.type} ${component.name} to component set`);
-      if (component.deleted) {
-        changesToDelete.push({ ...component, origin: 'remote' });
-      } else {
-        componentSetFromRemoteChanges.add({ type: component.type, fullName: component.name });
-      }
-    });
-
-    if (changesToDelete.length > 0) {
-      this.ux.setSpinnerStatus('deleting remote changes locally');
-      // build a component set of the deleted types
-      const changesToDeleteWithFilePaths = tracking.populateFilePaths(changesToDelete);
-      // delete the files
-      const filenames = changesToDeleteWithFilePaths
-        // TODO: test that this works for undefined, string and string[]
-        .map((change) => change.filenames as string[])
-        .flat()
-        .filter(Boolean);
-      await Promise.all(filenames.map((filename) => unlink(filename)));
-      await Promise.all([
-        tracking.updateLocalTracking({ deletedFiles: filenames }),
-        tracking.updateRemoteTracking(
-          changesToDeleteWithFilePaths
-            .map((change) =>
-              change && change.filenames
-                ? change.filenames.map((filename) => ({
-                    type: change.type as string,
-                    fullName: change.name as string,
-                    filePath: filename,
-                  }))
-                : []
-            )
-            .flat()
-        ),
-      ]);
+    if (!this.flags.json) {
+      this.ux.logJson(retrieveResult);
     }
-
-    // we might skip this and do only local deletes!
-    if (componentSetFromRemoteChanges.size === 0) {
-      this.ux.stopSpinner('No remote adds/modifications to merge locally');
-      return;
-    }
-
-    const mdapiRetrieve = await componentSetFromRemoteChanges.retrieve({
-      usernameOrConnection: this.org.getUsername() as string,
-      merge: true,
-      output: this.project.getDefaultPackage().fullPath,
-      apiVersion: (this.flags.apiversion ??
-        (
-          await this.project.resolveProjectConfig()
-        ).sourceApiVersion ??
-        this.configAggregator.getPropertyValue('apiVersion')) as string | undefined,
-    });
-    this.ux.setSpinnerStatus('waiting for the retrieve results');
-    const retrieveResult = await mdapiRetrieve.pollStatus(1000);
-    this.ux.setSpinnerStatus('updating source tracking files');
-
-    const successes = retrieveResult
-      .getFileResponses()
-      .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
-
-    this.logger.debug(
-      'files received from the server are',
-      successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean)
-    );
-
-    await Promise.all([
-      // commit the local file changes that the retrieve modified
-      tracking.updateLocalTracking({
-        files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
-      }),
-      tracking.updateRemoteTracking(
-        successes.map((success) => ({ filePath: success.filePath, type: success.type, fullName: success.fullName }))
-      ),
-    ]);
-    return retrieveResult.getFileResponses();
+    return retrieveResult.map((fileResponse) => ({
+      state: fileResponse.state,
+      fullName: fileResponse.fullName,
+      type: fileResponse.type,
+      filePath: fileResponse.filePath,
+    }));
   }
 }

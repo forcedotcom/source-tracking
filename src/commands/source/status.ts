@@ -37,28 +37,28 @@ export default class SourceStatus extends SfdxCommand {
         .map((dir) => dir.path)
         .join(',')}`
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tracking = new SourceTracking({
+    const tracking = await SourceTracking.create({
       org: this.org,
       project: this.project,
+      apiVersion: this.flags.apiversion as string,
     });
     let outputRows: StatusResult[] = [];
 
     if (this.flags.local || this.flags.all || (!this.flags.remote && !this.flags.all)) {
       await tracking.ensureLocalTracking();
       const localDeletes = tracking.populateTypesAndNames({
-        elements: await tracking.getChanges({ origin: 'local', state: 'delete' }),
+        elements: await tracking.getChanges<ChangeResult>({ origin: 'local', state: 'delete', format: 'ChangeResult' }),
         excludeUnresolvable: true,
         resolveDeleted: true,
       });
 
       const localAdds = tracking.populateTypesAndNames({
-        elements: await tracking.getChanges({ origin: 'local', state: 'add' }),
+        elements: await tracking.getChanges<ChangeResult>({ origin: 'local', state: 'add', format: 'ChangeResult' }),
         excludeUnresolvable: true,
       });
 
       const localModifies = tracking.populateTypesAndNames({
-        elements: await tracking.getChanges({ origin: 'local', state: 'changed' }),
+        elements: await tracking.getChanges<ChangeResult>({ origin: 'local', state: 'modify', format: 'ChangeResult' }),
         excludeUnresolvable: true,
       });
 
@@ -82,8 +82,8 @@ export default class SourceStatus extends SfdxCommand {
       // by initializeWithQuery true, one query runs so that parallel getChanges aren't doing parallel queries
       await tracking.ensureRemoteTracking(true);
       const [remoteDeletes, remoteModifies] = await Promise.all([
-        tracking.getChanges({ origin: 'remote', state: 'delete' }),
-        tracking.getChanges({ origin: 'remote', state: 'changed' }),
+        tracking.getChanges<ChangeResult>({ origin: 'remote', state: 'delete', format: 'ChangeResult' }),
+        tracking.getChanges<ChangeResult>({ origin: 'remote', state: 'nondelete', format: 'ChangeResult' }),
       ]);
       outputRows = outputRows.concat(remoteDeletes.map((item) => this.statusResultToOutputRows(item)).flat());
       outputRows = outputRows.concat(

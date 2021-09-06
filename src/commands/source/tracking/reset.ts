@@ -42,7 +42,11 @@ export class SourceTrackingResetCommand extends SfdxCommand {
 
   public async run(): Promise<SourceTrackingResetResult> {
     if (this.flags.noprompt || (await this.ux.confirm(chalk.dim(messages.getMessage('promptMessage'))))) {
-      const sourceTracking = new SourceTracking({ project: this.project, org: this.org });
+      const sourceTracking = await SourceTracking.create({
+        project: this.project,
+        org: this.org,
+        apiVersion: this.flags.apiversion as string,
+      });
 
       const [remoteResets, localResets] = await Promise.all([
         sourceTracking.resetRemoteTracking(this.flags.revision as number),

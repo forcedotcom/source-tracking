@@ -61,13 +61,11 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
 
     it('can pull the remote profile', () => {
       const pullResult = execCmd<FileResponse[]>('source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
-      console.log(pullResult);
       expect(pullResult.some((item) => item.type === 'Profile')).to.equal(true);
     });
 
     it('sees no local or remote changes', () => {
       const result = execCmd<StatusResult[]>('source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
-      console.log(result);
       expect(result).to.have.length(0);
     });
 
@@ -78,17 +76,34 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
         fs.promises.rm(path.join(classDir, 'TestOrderController.cls-meta.xml')),
       ]);
       const result = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput.result;
-      console.log(result);
-      expect(result).to.deep.equal([]);
+      expect(result).to.deep.equal([
+        {
+          type: 'ApexClass',
+          state: 'local Delete',
+          fullName: 'TestOrderController',
+          filepath: 'force-app/main/default/classes/TestOrderController.cls',
+        },
+        {
+          type: 'ApexClass',
+          state: 'local Delete',
+          fullName: 'TestOrderController',
+          filepath: 'force-app/main/default/classes/TestOrderController.cls-meta.xml',
+        },
+      ]);
     });
     it('does not see any change in remote status', () => {
       const result = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput.result;
-      console.log(result);
       expect(result).to.have.length(0);
     });
 
-    it('pushes the local delete to the org');
-    it('sees no local or remote changes');
+    it('pushes the local delete to the org', () => {
+      const result = execCmd<FileResponse[]>('source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      expect(result).to.be.an.instanceof(Array).with.length(2);
+    });
+    it('sees no local changes', () => {
+      const result = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput.result;
+      expect(result).to.be.an.instanceof(Array).with.length(0);
+    });
   });
 
   describe('non-successes', () => {

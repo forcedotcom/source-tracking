@@ -38,7 +38,11 @@ export class SourceTrackingClearCommand extends SfdxCommand {
   public async run(): Promise<SourceTrackingClearResult> {
     let clearedFiles: string[] = [];
     if (this.flags.noprompt || (await this.ux.confirm(chalk.dim(messages.getMessage('promptMessage'))))) {
-      const sourceTracking = new SourceTracking({ project: this.project, org: this.org });
+      const sourceTracking = await SourceTracking.create({
+        project: this.project,
+        org: this.org,
+        apiVersion: this.flags.apiversion as string,
+      });
       clearedFiles = await Promise.all([sourceTracking.clearLocalTracking(), sourceTracking.clearRemoteTracking()]);
       this.ux.log('Cleared local tracking files.');
     }

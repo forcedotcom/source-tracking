@@ -261,9 +261,12 @@ describe('remoteSourceTrackingService', () => {
       // @ts-ignore
       await remoteSourceTrackingService.query('SELECT MemberName FROM SourceMember');
       chai.assert.fail('should throw an error :D');
-    } catch (e) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
       const sourceMessages = Messages.loadMessages('@salesforce/source-tracking', 'source');
+      // @ts-ignore
       expect(e.message).to.equal(sourceMessages.getMessage('NonSourceTrackedOrgError'));
+      // @ts-ignore
       expect(e.name).to.equal('NonSourceTrackedOrgError');
     }
   });

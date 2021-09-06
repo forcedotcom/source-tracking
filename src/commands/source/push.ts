@@ -32,9 +32,10 @@ export default class SourcePush extends SfdxCommand {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async run(): Promise<PushPullResponse[]> {
-    const tracking = new SourceTracking({
+    const tracking = await SourceTracking.create({
       org: this.org,
       project: this.project,
+      apiVersion: this.flags.apiversion as string,
     });
     if (!this.flags.forceoverwrite) {
       const conflicts = await tracking.getConflicts();
@@ -48,7 +49,6 @@ export default class SourcePush extends SfdxCommand {
       wait: this.flags.wait as Duration,
     });
 
-    // TODO: convert deployResult to the proper type
     // TODO: catch the noChanges to deploy error
     if (!this.flags.json) {
       this.ux.logJson(deployResult);
