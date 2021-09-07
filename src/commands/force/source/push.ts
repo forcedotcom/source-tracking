@@ -8,9 +8,10 @@
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { Duration } from '@salesforce/kit';
 import { SfdxProject, Org } from '@salesforce/core';
-import { writeConflictTable } from '../../writeConflictTable';
-import { SourceTracking } from '../../sourceTracking';
-export default class SourcePull extends SfdxCommand {
+import { PushPullResponse } from '../../../shared/types';
+import { SourceTracking } from '../../../sourceTracking';
+import { writeConflictTable } from '../../../writeConflictTable';
+export default class SourcePush extends SfdxCommand {
   public static description = 'get local changes';
   protected static readonly flagsConfig: FlagsConfig = {
     forceoverwrite: flags.boolean({ char: 'f', description: 'overwrite files without prompting' }),
@@ -22,21 +23,20 @@ export default class SourcePull extends SfdxCommand {
       description: 'tbd',
     }),
   };
+
   protected static requiresUsername = true;
   protected static requiresProject = true;
-  protected project!: SfdxProject;
-  protected org!: Org;
+
+  protected project!: SfdxProject; // ok because requiresProject
+  protected org!: Org; // ok because requiresUsername
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public async run(): Promise<any> {
+  public async run(): Promise<PushPullResponse[]> {
     const tracking = await SourceTracking.create({
       org: this.org,
       project: this.project,
       apiVersion: this.flags.apiversion as string,
     });
-
-    await tracking.ensureRemoteTracking(true);
-
     if (!this.flags.forceoverwrite) {
       const conflicts = await tracking.getConflicts();
       if (conflicts.length > 0) {
@@ -44,13 +44,17 @@ export default class SourcePull extends SfdxCommand {
         throw new Error('conflicts detected');
       }
     }
+    const deployResult = await tracking.deployLocalChanges({
+      ignoreWarnings: this.flags.ignorewarnings as boolean,
+      wait: this.flags.wait as Duration,
+    });
 
-    const retrieveResult = await tracking.retrieveRemoteChanges({ wait: this.flags.wait as Duration });
-
+    // TODO: catch the noChanges to deploy error
     if (!this.flags.json) {
-      this.ux.logJson(retrieveResult);
+      this.ux.logJson(deployResult);
     }
-    return retrieveResult.map((fileResponse) => ({
+
+    return deployResult.map((fileResponse) => ({
       state: fileResponse.state,
       fullName: fileResponse.fullName,
       type: fileResponse.type,

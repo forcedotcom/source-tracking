@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { expect } from 'chai';
-import { StatusResult } from '../../../src/commands/source/status';
+import { StatusResult } from '../../../src/commands/force/source/status';
 
 let session: TestSession;
 
@@ -35,7 +35,7 @@ describe('conflict detection and resolution', () => {
   });
 
   it('pushes to initiate the remote', () => {
-    execCmd('source:push', { ensureExitCode: 0 });
+    execCmd('force:source:push', { ensureExitCode: 0 });
   });
   it('edits a remote file', async () => {
     const conn = await Connection.create({
@@ -54,7 +54,8 @@ describe('conflict detection and resolution', () => {
         description: 'modified',
       },
     });
-    const result = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput.result;
+    const result = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
+      .result;
     // profile and customApplication
     expect(result).to.have.lengthOf(2);
   });
@@ -73,18 +74,18 @@ describe('conflict detection and resolution', () => {
     );
   });
   it('can see the conflict in status', () => {
-    const result = execCmd<StatusResult[]>('source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
+    const result = execCmd<StatusResult[]>('force:source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
     expect(result).to.have.lengthOf(3);
     result.filter((app) => app.type === 'CustomApplication').map((app) => expect(app.state).to.include('(Conflict)'));
   });
 
   it('gets conflict error on push', () => {
-    execCmd<StatusResult[]>('source:push --json', { ensureExitCode: 1 });
+    execCmd<StatusResult[]>('force:source:push --json', { ensureExitCode: 1 });
   });
   it('gets conflict error on pull', () => {
-    execCmd<StatusResult[]>('source:pull --json', { ensureExitCode: 1 });
+    execCmd<StatusResult[]>('force:source:pull --json', { ensureExitCode: 1 });
   });
   it('can push with forceoverwrite', () => {
-    execCmd<StatusResult[]>('source:push --json --forceoverwrite', { ensureExitCode: 0 });
+    execCmd<StatusResult[]>('force:source:push --json --forceoverwrite', { ensureExitCode: 0 });
   });
 });

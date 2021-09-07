@@ -62,9 +62,16 @@ export interface ConflictError {
 export interface SourceTrackingOptions {
   org: Org;
   project: SfdxProject;
+  /** defaults to sfdxProject sourceApiVersion unless provided */
   apiVersion?: string;
 }
 
+/**
+ * Manages source tracking files (remote and local)
+ *
+ * const tracking = await SourceTracking.create({org: this.org, project: this.project});
+ *
+ */
 export class SourceTracking extends AsyncCreatable {
   private orgId: string;
   private projectPath: string;
@@ -226,17 +233,20 @@ export class SourceTracking extends AsyncCreatable {
     });
 
     const retrieveResult = await mdapiRetrieve.pollStatus(1000, wait.seconds);
+    this.logger.debug(
+      'files received from the server are',
+      retrieveResult
+        .getFileResponses()
+        .map((fileResponse) => fileResponse.filePath as string)
+        .filter(Boolean)
+    );
+
     const successes = retrieveResult
       .getFileResponses()
       .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
 
-    this.logger.debug(
-      'files received from the server are',
-      successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean)
-    );
-
     await Promise.all([
-      // commit the local file changes that the retrieve modified
+      // commit the local file successes that the retrieve modified
       this.updateLocalTracking({
         files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
       }),
@@ -430,73 +440,11 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   /**
-   * uses SDR to translate remote metadata records into local file paths
-   */
-  public populateFilePaths(elements: ChangeResult[]): ChangeResult[] {
-    if (elements.length === 0) {
-      return [];
-    }
-
-    this.logger.debug('populateFilePaths for change elements', elements);
-    // component set generated from an array of ComponentLike from all the remote changes
-    const remoteChangesAsComponentLike = elements.map((element) => ({
-      type: element?.type as string,
-      fullName: element?.name as string,
-    }));
-    const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
-
-    this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
-    if (remoteChangesAsComponentSet.size < elements.length) {
-      throw new Error(
-        `unable to generate complete component set for ${elements
-          .map((element) => `${element.name}(${element.type})`)
-          .join(',')}`
-      );
-    }
-
-    const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-      fsPaths: this.packagesDirs.map((dir) => dir.path),
-      include: remoteChangesAsComponentSet,
-    });
-    this.logger.debug(
-      ` local source-backed component set has ${matchingLocalSourceComponentsSet.size.toString()} items from remote`
-    );
-
-    // make it simpler to find things later
-    const elementMap = new Map<string, ChangeResult>();
-    elements.map((element) => {
-      elementMap.set(getKeyFromObject(element), element);
-    });
-
-    // iterates the local components and sets their filenames
-    for (const matchingComponent of matchingLocalSourceComponentsSet.getSourceComponents().toArray()) {
-      if (matchingComponent.fullName && matchingComponent.type.name) {
-        this.logger.debug(
-          `${matchingComponent.fullName}|${matchingComponent.type.name} matches ${
-            matchingComponent.xml
-          } and maybe ${matchingComponent.walkContent().toString()}`
-        );
-        const key = getKeyFromStrings(matchingComponent.type.name, matchingComponent.fullName);
-        elementMap.set(key, {
-          ...(elementMap.get(key) as ChangeResult),
-          modified: true,
-          filenames: [matchingComponent.xml as string, ...matchingComponent.walkContent()].filter(
-            (filename) => filename
-          ),
-        });
-      }
-    }
-
-    return Array.from(elementMap.values());
-  }
-
-  /**
    * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
    *
    * @input elements: ChangeResult[]
    * @input excludeUnresolvables: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
    */
-  // public async populateFilePaths(elements: ChangeResult[]): Promise<ChangeResult[]> {
   public populateTypesAndNames({
     elements,
     excludeUnresolvable = false,
@@ -595,6 +543,67 @@ export class SourceTracking extends AsyncCreatable {
     });
     // deeply de-dupe
     return Array.from(conflicts);
+  }
+
+  /**
+   * uses SDR to translate remote metadata records into local file paths
+   */
+  private populateFilePaths(elements: ChangeResult[]): ChangeResult[] {
+    if (elements.length === 0) {
+      return [];
+    }
+
+    this.logger.debug('populateFilePaths for change elements', elements);
+    // component set generated from an array of ComponentLike from all the remote changes
+    const remoteChangesAsComponentLike = elements.map((element) => ({
+      type: element?.type as string,
+      fullName: element?.name as string,
+    }));
+    const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
+
+    this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
+    if (remoteChangesAsComponentSet.size < elements.length) {
+      throw new Error(
+        `unable to generate complete component set for ${elements
+          .map((element) => `${element.name}(${element.type})`)
+          .join(',')}`
+      );
+    }
+
+    const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
+      fsPaths: this.packagesDirs.map((dir) => dir.path),
+      include: remoteChangesAsComponentSet,
+    });
+    this.logger.debug(
+      ` local source-backed component set has ${matchingLocalSourceComponentsSet.size.toString()} items from remote`
+    );
+
+    // make it simpler to find things later
+    const elementMap = new Map<string, ChangeResult>();
+    elements.map((element) => {
+      elementMap.set(getKeyFromObject(element), element);
+    });
+
+    // iterates the local components and sets their filenames
+    for (const matchingComponent of matchingLocalSourceComponentsSet.getSourceComponents().toArray()) {
+      if (matchingComponent.fullName && matchingComponent.type.name) {
+        this.logger.debug(
+          `${matchingComponent.fullName}|${matchingComponent.type.name} matches ${
+            matchingComponent.xml
+          } and maybe ${matchingComponent.walkContent().toString()}`
+        );
+        const key = getKeyFromStrings(matchingComponent.type.name, matchingComponent.fullName);
+        elementMap.set(key, {
+          ...(elementMap.get(key) as ChangeResult),
+          modified: true,
+          filenames: [matchingComponent.xml as string, ...matchingComponent.walkContent()].filter(
+            (filename) => filename
+          ),
+        });
+      }
+    }
+
+    return Array.from(elementMap.values());
   }
 
   /**

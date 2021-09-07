@@ -7,9 +7,9 @@
 
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { SfdxProject, Org } from '@salesforce/core';
-import { getKeyFromStrings } from '../..';
+import { getKeyFromStrings } from '../../..';
 
-import { ChangeResult, SourceTracking, getKeyFromObject } from '../../sourceTracking';
+import { ChangeResult, SourceTracking, getKeyFromObject } from '../../../sourceTracking';
 export interface StatusResult {
   state: string;
   fullName: string;

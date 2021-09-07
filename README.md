@@ -4,21 +4,17 @@ JavaScript library for tracking local and remote Salesforce metadata changes.
 
 **_ UNDER DEVELOPMENT _**
 
-You should use the class named sourceTracking
+You should use the class named sourceTracking.
+
+### Use cases:
+
+1. push => `deployLocalChanges()`
+1. pull => `retrieveRemoteChanges()`
+1. push,pull,status: `getConflicts()`
+1. retrieve/retrieve: `updateLocalTracking()`,`updateRemoteTracking`
 
 ## TODO
 
-push: ignoreWarnings logic? What is this actually doing originally?
-push/pull throw proper error for conflicts (with label!)
-can migrate maxRevision.json to its new home
-lots more integration testing
-why does push take so long?
-
-review commented code
-review public methods for whether they should be public
-failing UT on remoteTrackingService for non-ST orgs
-**new feature**
-status can "mark ignores"
 Push can have partial successes and needs a proper status code ex:
 
 ```json
@@ -98,3 +94,33 @@ Push can have partial successes and needs a proper status code ex:
   "success": false
 }
 ```
+
+- push: ignoreWarnings logic? What is this actually doing originally?
+- push/pull throw proper error for conflicts (with label!)
+- polling for source tracking to complete (use it, w/ rewrite)
+- RSTS: don't use trackSourceMembers with empty sourceMembers array (equivalent of sync all)
+- push/pull proper table output
+
+- SDR sets all retrieve FileResponse as `Changed` even if it didn't exist locally. That's going to yield slightly different json output on a `pull` than toolbelt did. See `remoteChanges.nut.ts > remote changes:add > can pull the add`. Fixing in pull is less optimal than fixing in SDR (because source:retrieve is also currently reporting those as `Changed` instead of `Created`)
+
+### Test
+
+- create a NUT For non-ST org (ex: the dev hub)
+- failing UT on remoteTrackingService for non-ST orgs
+
+### Migration
+
+- can migrate maxRevision.json to its new home
+
+### Enhancements
+
+- status can "mark ignores"
+- why does push take so long?
+- for updating ST after deploy/retrieve, we need a quick way for those commands to ask, "is this an ST org?" OR a graceful "ifSupported" wrapper for those methods.
+
+### Cleanup
+
+- review commented code
+- review public methods for whether they should be public
+- organize any shared types
+- export top-level stuff

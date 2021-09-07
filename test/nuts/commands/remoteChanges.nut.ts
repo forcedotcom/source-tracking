@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { expect } from 'chai';
-import { StatusResult } from '../../../src/commands/source/status';
+import { StatusResult } from '../../../src/commands/force/source/status';
 
 let session: TestSession;
 let conn: Connection;
@@ -40,7 +40,7 @@ describe('remote changes', () => {
 
   describe('remote changes: delete', () => {
     it('pushes to initiate the remote', () => {
-      execCmd('source:push', { ensureExitCode: 0 });
+      execCmd('force:source:push', { ensureExitCode: 0 });
     });
 
     it('deletes on the server', async () => {
@@ -68,16 +68,18 @@ describe('remote changes', () => {
       ).to.equal(true);
     });
     it('can see the delete in status', () => {
-      const result = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
+        .result;
       // it shows up as one class on the server, but 2 files when pulled
       expect(result.filter((r) => r.state.includes('Delete'))).to.have.length(1);
     });
     it('does not see any change in local status', () => {
-      const result = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 }).jsonOutput
+        .result;
       expect(result).to.have.length(0);
     });
     it('can pull the delete', () => {
-      const result = execCmd<StatusResult[]>('source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(result).to.have.length(3); // profile plus the 2 files for the apexClass
       result.filter((r) => r.fullName === 'TestOrderController').map((r) => expect(r.state).to.equal('Deleted'));
     });
@@ -94,21 +96,49 @@ describe('remote changes', () => {
       ).to.equal(false);
     });
     it('sees correct local and remote status', () => {
-      const remoteResult = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const remoteResult = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 })
+        .jsonOutput.result;
       expect(remoteResult.filter((r) => r.state.includes('Remote Deleted'))).to.have.length(0);
 
-      const localStatus = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const localStatus = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 })
+        .jsonOutput.result;
       expect(localStatus).to.have.length(0);
     });
   });
 
   describe('remote changes: add', () => {
-    it('adds on the server');
-    it('can see the add in status');
-    it('can pull the add');
-    it('sees correct local and remote status');
+    it('adds on the server', async () => {
+      const createResult = await conn.tooling.create('ApexClass', {
+        Name: 'CreatedClass',
+        Body: 'public class CreatedClass {}',
+        Status: 'Active',
+      });
+      if (!Array.isArray(createResult) && createResult.success) {
+        expect(createResult.id).to.be.a('string');
+      }
+    });
+    it('can see the add in status', () => {
+      const result = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
+        .result;
+      // it shows up as one class on the server, plus Admin Profile
+      expect(result.filter((r) => r.state.includes('Add'))).to.have.length(2);
+      expect(result.some((r) => r.fullName === 'CreatedClass')).to.equal(true);
+    });
+    it('can pull the add', () => {
+      const result = execCmd<StatusResult[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      expect(result).to.have.length(3); // 2 files for the apexClass, plus AdminProfile
+      // SDR marks all retrieves as 'Changed' even if it creates new local files.  This is different from toolbelt, which marked those as 'Created'
+      result.filter((r) => r.fullName === 'CreatedClass').map((r) => expect(r.state).to.equal('Changed'));
+    });
+    it('sees correct local and remote status', () => {
+      const remoteResult = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 })
+        .jsonOutput.result;
+      expect(remoteResult).to.have.length(0);
+
+      const localStatus = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 })
+        .jsonOutput.result;
+      expect(localStatus).to.have.length(0);
+    });
   });
 
   describe('remote changes: mixed', () => {

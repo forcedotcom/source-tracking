@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { FileResponse } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
-import { StatusResult } from '../../../src/commands/source/status';
+import { StatusResult } from '../../../src/commands/force/source/status';
 
 let session: TestSession;
 
@@ -34,38 +34,33 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
 
   describe('basic status and pull', () => {
     it('detects the initial metadata status', () => {
-      const result = execCmd<StatusResult[]>('source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>('force:source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(result).to.be.an.instanceof(Array);
       // the fields should be populated
       expect(result.every((row) => row.type && row.fullName)).to.equal(true);
     });
     it('pushes the initial metadata to the org', () => {
-      const result = execCmd<FileResponse[]>('source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
-      // console.log(result);
+      const result = execCmd<FileResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(result).to.be.an.instanceof(Array);
     });
     it('sees no local changes (all were committed from push), but profile updated in remote', () => {
-      const localResult = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput
-        .result;
-      // console.log(localResult);
+      const localResult = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 })
+        .jsonOutput.result;
       expect(localResult).to.deep.equal([]);
 
-      const remoteResult = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
-        .result;
-      // console.log(remoteResult);
+      const remoteResult = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 })
+        .jsonOutput.result;
       expect(remoteResult.length).to.equal(1);
       expect(remoteResult.some((item) => item.type === 'Profile')).to.equal(true);
-      // expect(remoteResult.some((item) => item.type === 'FieldRestrictionRule')).to.equal(true);
-      // expect(remoteResult.some((item) => item.type === 'Audience')).to.equal(true);
     });
 
     it('can pull the remote profile', () => {
-      const pullResult = execCmd<FileResponse[]>('source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const pullResult = execCmd<FileResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(pullResult.some((item) => item.type === 'Profile')).to.equal(true);
     });
 
     it('sees no local or remote changes', () => {
-      const result = execCmd<StatusResult[]>('source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>('force:source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(result).to.have.length(0);
     });
 
@@ -75,7 +70,8 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
         fs.promises.rm(path.join(classDir, 'TestOrderController.cls')),
         fs.promises.rm(path.join(classDir, 'TestOrderController.cls-meta.xml')),
       ]);
-      const result = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 }).jsonOutput
+        .result;
       expect(result).to.deep.equal([
         {
           type: 'ApexClass',
@@ -92,16 +88,18 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
       ]);
     });
     it('does not see any change in remote status', () => {
-      const result = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
+        .result;
       expect(result).to.have.length(0);
     });
 
     it('pushes the local delete to the org', () => {
-      const result = execCmd<FileResponse[]>('source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<FileResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(result).to.be.an.instanceof(Array).with.length(2);
     });
     it('sees no local changes', () => {
-      const result = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 }).jsonOutput
+        .result;
       expect(result).to.be.an.instanceof(Array).with.length(0);
     });
   });
