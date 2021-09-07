@@ -10,6 +10,7 @@ describe('remote changes', () => {
     it('can see the delete in status');
     it('does not see any change in local status');
     it('can pull the delete');
+    it('local file was deleted');
     it('sees correct local and remote status');
   });
   describe('remote changes: change', () => {

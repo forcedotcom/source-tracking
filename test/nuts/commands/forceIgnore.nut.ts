@@ -10,14 +10,14 @@ describe('forceignore changes', () => {
     // source status to init tracking
   });
 
-  it('will not push a file that was created, then ignored', () => {
+  it.skip('will not push a file that was created, then ignored', () => {
     // add a file in the local source
     // setup a forceIgnore with some file
     // push
     // verify not in results
   });
 
-  it('will not push a file that was created, then un-ignored', () => {
+  it.skip('will not push a file that was created, then un-ignored', () => {
     // setup a forceIgnore with some file
     // add a file in the local source
     // unignore the file
@@ -25,7 +25,7 @@ describe('forceignore changes', () => {
     // verify file pushed in results
   });
 
-  it('will not pull a remote file added to the ignore AFTER it is being tracked', () => {
+  it.skip('will not pull a remote file added to the ignore AFTER it is being tracked', () => {
     // make a remote change
     // add that type to the forceignore
     // pull doesn't retrieve that change

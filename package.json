@@ -27,7 +27,9 @@
     "test": "sf-test --require ts-node/register",
     "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:commands": "nyc mocha \"**/commands/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:nuts:commands:basics": "nyc mocha \"**/commands/basics.nut.ts\" --slow 4500 --timeout 600000"
+    "test:nuts:commands:basics": "nyc mocha \"**/commands/basics.nut.ts\" --slow 4500 --timeout 600000",
+    "test:nuts:commands:conflicts": "nyc mocha \"**/commands/conflicts.nut.ts\" --slow 4500 --timeout 600000",
+    "prune:dead": "ts-prune | grep -v 'src/commands/' | grep -v 'source-deploy-retrieve'"
   },
   "keywords": [
     "force",
@@ -89,6 +91,7 @@
     "pretty-quick": "^3.1.1",
     "sinon": "^10.0.0",
     "ts-node": "^10.1.0",
+    "ts-prune": "^0.10.0",
     "typescript": "^4.3.5"
   },
   "oclif": {

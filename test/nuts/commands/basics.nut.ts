@@ -29,7 +29,7 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
 
   after(async () => {
     await session?.zip(undefined, 'artifacts');
-    // await session?.clean();
+    await session?.clean();
   });
 
   describe('basic status and pull', () => {

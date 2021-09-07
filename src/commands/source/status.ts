@@ -7,8 +7,9 @@
 
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { SfdxProject, Org } from '@salesforce/core';
+import { getKeyFromStrings } from '../..';
 
-import { ChangeResult, SourceTracking } from '../../sourceTracking';
+import { ChangeResult, SourceTracking, getKeyFromObject } from '../../sourceTracking';
 export interface StatusResult {
   state: string;
   fullName: string;
@@ -62,15 +63,6 @@ export default class SourceStatus extends SfdxCommand {
         excludeUnresolvable: true,
       });
 
-      // const [localDeletes, localModifies, localAdds] = (
-      //   await Promise.all([
-      //     tracking.getChanges({ origin: 'local', state: 'delete' }),
-      //     tracking.getChanges({ origin: 'local', state: 'changed' }),
-      //     tracking.getChanges({ origin: 'local', state: 'add' }),
-      //   ])
-      // )
-      //   // we don't get type/name on local changes unless we request them
-      //   .map((changes) => tracking.populateTypesAndNames(changes, true));
       outputRows = outputRows.concat(localAdds.map((item) => this.statusResultToOutputRows(item, 'add')).flat());
       outputRows = outputRows.concat(
         localModifies.map((item) => this.statusResultToOutputRows(item, 'changed')).flat()
@@ -86,26 +78,17 @@ export default class SourceStatus extends SfdxCommand {
         tracking.getChanges<ChangeResult>({ origin: 'remote', state: 'nondelete', format: 'ChangeResult' }),
       ]);
       outputRows = outputRows.concat(remoteDeletes.map((item) => this.statusResultToOutputRows(item)).flat());
-      outputRows = outputRows.concat(
-        remoteModifies
-          .filter((item) => item.modified)
-          .map((item) => this.statusResultToOutputRows(item))
-          .flat()
-      );
-      outputRows = outputRows.concat(
-        remoteModifies
-          .filter((item) => !item.modified)
-          .map((item) => this.statusResultToOutputRows(item))
-          .flat()
-      );
+      outputRows = outputRows.concat(remoteModifies.map((item) => this.statusResultToOutputRows(item)).flat());
     }
 
     if (!this.flags.local && !this.flags.remote) {
-      // a flat array of conflict filenames
-      const conflictFilenames = (await tracking.getConflicts()).map((conflict) => conflict.filenames).flat();
-      if (conflictFilenames.length > 0) {
-        outputRows.map((row) =>
-          conflictFilenames.includes(row.filePath) ? { ...row, state: `${row.state} (Conflict)` } : row
+      // keys like ApexClass__MyClass.cls
+      const conflictKeys = (await tracking.getConflicts()).map((conflict) => getKeyFromObject(conflict));
+      if (conflictKeys.length > 0) {
+        outputRows = outputRows.map((row) =>
+          conflictKeys.includes(getKeyFromStrings(row.type, row.fullName))
+            ? { ...row, state: `${row.state} (Conflict)` }
+            : row
         );
       }
     }
@@ -128,7 +111,6 @@ export default class SourceStatus extends SfdxCommand {
       ],
     });
 
-    // convert things into the output format to match the existing command
     return outputRows;
   }
 

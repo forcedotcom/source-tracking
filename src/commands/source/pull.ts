@@ -36,12 +36,6 @@ export default class SourcePull extends SfdxCommand {
     });
 
     await tracking.ensureRemoteTracking(true);
-    // pull supports early exit if no remmote changes
-    const remoteChangesToPull = await tracking.getRemoteChanges();
-    if (remoteChangesToPull.length === 0) {
-      this.ux.log('No remote changes exist');
-      return [];
-    }
 
     if (!this.flags.forceoverwrite) {
       const conflicts = await tracking.getConflicts();

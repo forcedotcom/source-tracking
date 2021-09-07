@@ -160,11 +160,12 @@ export class SourceTracking extends AsyncCreatable {
     await this.ensureRemoteTracking();
     const changesToDelete: ChangeResult[] = [];
     const remoteChangesToPull = await this.getRemoteChanges();
-    const componentSetFromRemoteChanges = new ComponentSet();
-
     if (remoteChangesToPull.length === 0) {
       return [];
     }
+
+    const componentSetFromRemoteChanges = new ComponentSet();
+
     remoteChangesToPull.map((component) => {
       this.logger.debug(`adding ${component.type} ${component.name} to component set`);
       if (component.deleted) {
@@ -324,10 +325,6 @@ export class SourceTracking extends AsyncCreatable {
     return [];
   }
 
-  public async getRemoteChanges(): Promise<RemoteChangeElement[]> {
-    await this.ensureRemoteTracking();
-    return this.remoteSourceTrackingService.retrieveUpdates();
-  }
   /**
    * Update tracking for the options passed.
    *
@@ -435,7 +432,6 @@ export class SourceTracking extends AsyncCreatable {
   /**
    * uses SDR to translate remote metadata records into local file paths
    */
-  // public async populateFilePaths(elements: ChangeResult[]): Promise<ChangeResult[]> {
   public populateFilePaths(elements: ChangeResult[]): ChangeResult[] {
     if (elements.length === 0) {
       return [];
@@ -569,15 +565,15 @@ export class SourceTracking extends AsyncCreatable {
     // we're going to need have both initialized
     await Promise.all([this.ensureRemoteTracking(), this.ensureLocalTracking()]);
 
-    const localChanges = (
-      await Promise.all([
-        this.getChanges<ChangeResult>({ state: 'modify', origin: 'local', format: 'ChangeResult' }),
-        this.getChanges<ChangeResult>({ state: 'add', origin: 'local', format: 'ChangeResult' }),
-      ])
-    ).flat();
+    const localChanges = await this.getChanges<ChangeResult>({
+      state: 'nondelete',
+      origin: 'local',
+      format: 'ChangeResult',
+    });
+
     // remote adds won't have a filename
     const remoteChanges = this.populateFilePaths(
-      await this.getChanges<ChangeResult>({ origin: 'remote', state: 'modify', format: 'ChangeResult' })
+      await this.getChanges<ChangeResult>({ origin: 'remote', state: 'nondelete', format: 'ChangeResult' })
     );
 
     // index them by filename
@@ -599,6 +595,16 @@ export class SourceTracking extends AsyncCreatable {
     });
     // deeply de-dupe
     return Array.from(conflicts);
+  }
+
+  /**
+   * Calls the server to get all RemoteChangeElements directly
+   *
+   * @returns Promise<RemoteChangeElement[]
+   */
+  private async getRemoteChanges(): Promise<RemoteChangeElement[]> {
+    await this.ensureRemoteTracking();
+    return this.remoteSourceTrackingService.retrieveUpdates();
   }
 
   private ensureRelative(filePath: string): string {

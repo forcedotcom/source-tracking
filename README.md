@@ -8,13 +8,10 @@ You should use the class named sourceTracking
 
 ## TODO
 
-push: wait and ignoreWarnings logic
-reorganize the getChanges logic to be more use-friendly (nonDeletes, option or <type> to specify return structure)
+push: ignoreWarnings logic? What is this actually doing originally?
+push/pull throw proper error for conflicts (with label!)
 can migrate maxRevision.json to its new home
-after pushing ebikes, toolbelt shows no remote changes but STL shows the Admin Profile being changed
-
-more integration testing
-
+lots more integration testing
 why does push take so long?
 
 **new feature**
