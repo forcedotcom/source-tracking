@@ -4,20 +4,104 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+
+import * as path from 'path';
+import * as fs from 'fs';
+
+import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
+import { Connection, AuthInfo } from '@salesforce/core';
+import { expect } from 'chai';
+import { StatusResult } from '../../../src/commands/source/status';
+
+let session: TestSession;
+let conn: Connection;
+
 describe('remote changes', () => {
-  describe('remote changes: delete', () => {
-    it('deletes on the server');
-    it('can see the delete in status');
-    it('does not see any change in local status');
-    it('can pull the delete');
-    it('local file was deleted');
-    it('sees correct local and remote status');
+  before(async () => {
+    session = await TestSession.create({
+      project: {
+        sourceDir: path.join('test', 'nuts', 'ebikes-lwc'),
+      },
+      setupCommands: [`sfdx force:org:create -d 1 -s -f ${path.join('config', 'project-scratch-def.json')}`],
+    });
+    conn = await Connection.create({
+      authInfo: await AuthInfo.create({ username: session.setup[0].result?.username as string }),
+    });
   });
-  describe('remote changes: change', () => {
-    it('change on the server');
-    it('can see the change in status');
-    it('can pull the change');
-    it('sees correct local and remote status');
+
+  after(async () => {
+    await session?.zip(undefined, 'artifacts');
+    await session?.clean();
+  });
+
+  describe('remote changes: delete', () => {
+    it('pushes to initiate the remote', () => {
+      execCmd('source:push', { ensureExitCode: 0 });
+    });
+
+    it('deletes on the server', async () => {
+      const testClass = await conn.singleRecordQuery<{ Id: string }>(
+        "select Id from ApexClass where Name = 'TestOrderController'",
+        {
+          tooling: true,
+        }
+      );
+      const deleteResult = await conn.tooling.delete('ApexClass', testClass.Id);
+      if (!Array.isArray(deleteResult) && deleteResult.success) {
+        expect(deleteResult.id).to.be.a('string');
+      }
+    });
+    it('local file is present', () => {
+      expect(
+        fs.existsSync(
+          path.join(session.project.dir, 'force-app', 'main', 'default', 'classes', 'TestOrderController.cls')
+        )
+      ).to.equal(true);
+      expect(
+        fs.existsSync(
+          path.join(session.project.dir, 'force-app', 'main', 'default', 'classes', 'TestOrderController.cls-meta.xml')
+        )
+      ).to.equal(true);
+    });
+    it('can see the delete in status', () => {
+      const result = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput.result;
+      // it shows up as one class on the server, but 2 files when pulled
+      expect(result.filter((r) => r.state.includes('Delete'))).to.have.length(1);
+    });
+    it('does not see any change in local status', () => {
+      const result = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput.result;
+      expect(result).to.have.length(0);
+    });
+    it('can pull the delete', () => {
+      const result = execCmd<StatusResult[]>('source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      expect(result).to.have.length(3); // profile plus the 2 files for the apexClass
+      result.filter((r) => r.fullName === 'TestOrderController').map((r) => expect(r.state).to.equal('Deleted'));
+    });
+    it('local file was deleted', () => {
+      expect(
+        fs.existsSync(
+          path.join(session.project.dir, 'force-app', 'main', 'default', 'classes', 'TestOrderController.cls')
+        )
+      ).to.equal(false);
+      expect(
+        fs.existsSync(
+          path.join(session.project.dir, 'force-app', 'main', 'default', 'classes', 'TestOrderController.cls-meta.xml')
+        )
+      ).to.equal(false);
+    });
+    it('sees correct local and remote status', () => {
+      const remoteResult = execCmd<StatusResult[]>('source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
+        .result;
+      expect(remoteResult.filter((r) => r.state.includes('Remote Deleted'))).to.have.length(0);
+
+      const localStatus = execCmd<StatusResult[]>('source:status --json --local', { ensureExitCode: 0 }).jsonOutput
+        .result;
+      expect(localStatus).to.have.length(0);
+    });
   });
 
   describe('remote changes: add', () => {

@@ -29,6 +29,7 @@
     "test:nuts:commands": "nyc mocha \"**/commands/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:commands:basics": "nyc mocha \"**/commands/basics.nut.ts\" --slow 4500 --timeout 600000",
     "test:nuts:commands:conflicts": "nyc mocha \"**/commands/conflicts.nut.ts\" --slow 4500 --timeout 600000",
+    "test:nuts:commands:remote": "nyc mocha \"**/commands/remoteChanges.nut.ts\" --slow 4500 --timeout 600000",
     "prune:dead": "ts-prune | grep -v 'src/commands/' | grep -v 'source-deploy-retrieve'"
   },
   "keywords": [

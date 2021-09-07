@@ -14,6 +14,9 @@ can migrate maxRevision.json to its new home
 lots more integration testing
 why does push take so long?
 
+review commented code
+review public methods for whether they should be public
+failing UT on remoteTrackingService for non-ST orgs
 **new feature**
 status can "mark ignores"
 Push can have partial successes and needs a proper status code ex:
