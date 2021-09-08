@@ -11,13 +11,17 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
+import { Env } from '@salesforce/kit';
+import { ensureString } from '@salesforce/ts-types';
 import { FileResponse } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
 import { StatusResult } from '../../../src/commands/force/source/status';
 
 let session: TestSession;
-
+let hubUsername: string;
 describe('end-to-end-test for tracking with an org (single packageDir)', () => {
+  const env = new Env();
+
   before(async () => {
     session = await TestSession.create({
       project: {
@@ -25,6 +29,7 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
       },
       setupCommands: [`sfdx force:org:create -d 1 -s -f ${path.join('config', 'project-scratch-def.json')}`],
     });
+    hubUsername = ensureString(env.getString('TESTKIT_HUB_USERNAME'));
   });
 
   after(async () => {
@@ -105,7 +110,13 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
   });
 
   describe('non-successes', () => {
-    it('should throw an err when attempting to pull from a non scratch-org');
+    it('should throw an err when attempting to pull from a non scratch-org', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      const failure = execCmd(`force:source:status -u ${hubUsername} --remote --json`, {
+        ensureExitCode: 1,
+      }).jsonOutput;
+      expect(failure.name).to.equal('NonSourceTrackedOrgError');
+    });
     it('should not poll for SourceMembers when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true');
 
     describe('push partial success', () => {

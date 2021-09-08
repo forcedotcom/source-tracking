@@ -157,7 +157,7 @@ export class SourceTracking extends AsyncCreatable {
         files: successNonDeletes.map((fileResponse) => fileResponse.filePath) as string[],
         deletedFiles: successDeletes.map((fileResponse) => fileResponse.filePath) as string[],
       }),
-      this.updateRemoteTracking(successes), // this includes polling for sourceMembers
+      this.updateRemoteTracking(successes), // this should include polling for sourceMembers
     ]);
 
     return result.getFileResponses();
@@ -251,7 +251,12 @@ export class SourceTracking extends AsyncCreatable {
         files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
       }),
       this.updateRemoteTracking(
-        successes.map((success) => ({ filePath: success.filePath, type: success.type, fullName: success.fullName }))
+        successes.map((success) => ({
+          filePath: success.filePath,
+          type: success.type,
+          fullName: success.fullName,
+          state: success.state,
+        }))
       ),
     ]);
     return [...deletesAsFileResponse, ...retrieveResult.getFileResponses()];
@@ -349,13 +354,16 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   /**
-   * Mark remote source tracking files that we have received to the latest version
+   * Mark remote source tracking files so say that we have received the latest version from the server
+   * Optionall skip polling for the SourceMembers to exist on the server and be updated in local files
    */
-  public async updateRemoteTracking(fileResponses: RemoteSyncInput[]): Promise<void> {
-    await this.ensureRemoteTracking();
-    // TODO: poll for source tracking to be complete
-    // to make sure we have the updates before syncing the ones from metadataKeys
-    await this.remoteSourceTrackingService.retrieveUpdates({ cache: false });
+  public async updateRemoteTracking(fileResponses: RemoteSyncInput[], skipPolling = false): Promise<void> {
+    // false to explicitly NOT query until we do the polling
+    await this.ensureRemoteTracking(false);
+    if (!skipPolling) {
+      // poll to make sure we have the updates before syncing the ones from metadataKeys
+      await this.remoteSourceTrackingService.pollForSourceTracking(fileResponses);
+    }
     await this.remoteSourceTrackingService.syncSpecifiedElements(fileResponses);
   }
 

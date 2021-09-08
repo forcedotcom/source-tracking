@@ -12,14 +12,15 @@
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
 import { Connection, Messages } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
-import * as chai from 'chai';
 import { expect } from 'chai';
 import { SinonStub } from 'sinon';
+import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import {
   RemoteSourceTrackingService,
   SourceMember,
   MemberRevision,
 } from '../../src/shared/remoteSourceTrackingService';
+import { RemoteSyncInput } from '../../src/shared/types';
 Messages.importMessagesDirectory(__dirname);
 
 const getSourceMember = (revision: number, deleted = false): SourceMember => ({
@@ -238,41 +239,13 @@ describe('remoteSourceTrackingService', () => {
     });
   });
 
-  it('should set isSourceTrackedOrg correctly if the initial query fails', async () => {
-    // this is a class private variable but we need to assure it's true, and then false at the end
-    expect(remoteSourceTrackingService['isSourceTrackedOrg']).to.equal(true);
-
-    // @ts-ignore
-    $$.SANDBOX.stub(RemoteSourceTrackingService.prototype, 'query').throws({
-      name: 'INVALID_TYPE',
-      message: "sObject type 'SourceMember' is not supported",
-    });
-    $$.SANDBOX.stub(RemoteSourceTrackingService.prototype, 'getContents').returns({
-      serverMaxRevisionCounter: null,
-      sourceMembers: null,
-    });
-    remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({ username, orgId });
-
-    expect(remoteSourceTrackingService['isSourceTrackedOrg']).to.equal(false);
-    $$.SANDBOX.restore();
-
-    try {
-      // query is now a private method so we will ignore the warning
-      // @ts-ignore
-      await remoteSourceTrackingService.query('SELECT MemberName FROM SourceMember');
-      chai.assert.fail('should throw an error :D');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      const sourceMessages = Messages.loadMessages('@salesforce/source-tracking', 'source');
-      // @ts-ignore
-      expect(e.message).to.equal(sourceMessages.getMessage('NonSourceTrackedOrgError'));
-      // @ts-ignore
-      expect(e.name).to.equal('NonSourceTrackedOrgError');
-    }
-  });
-
   describe('pollForSourceMembers', () => {
-    const memberNames = ['MyClass1', 'MyClass2', 'MyClass3'];
+    const memberNames: RemoteSyncInput[] = ['MyClass1', 'MyClass2', 'MyClass3'].map((name) => ({
+      type: 'ApexClass',
+      fullName: name,
+      filePath: 'foo',
+      state: ComponentStatus.Changed,
+    }));
 
     it('should sync SourceMembers when query results match', async () => {
       // @ts-ignore
@@ -292,11 +265,16 @@ describe('remoteSourceTrackingService', () => {
 
       // @ts-ignore
       await remoteSourceTrackingService.pollForSourceTracking(memberNames, 2);
-      expect(trackSpy.calledOnce).to.equal(true);
-      // expect(trackSpy.calledOnceWith(queryResult, true)).to.equal(true);
-      // expect(queryStub.calledWith(maxRev)).to.equal(true);
+      // this test changed from toolbelt because each server query now update the tracking files
+      expect(
+        trackSpy.calledTwice,
+        `trackSourceMembers was not called twice.  it was called ${trackSpy.callCount} times`
+      ).to.equal(true);
       expect(queryStub.called).to.equal(true);
-      expect(getServerMaxRevisionStub.calledOnce).to.equal(true);
+      expect(
+        getServerMaxRevisionStub.calledOnce,
+        `getServerMaxRevisionStub was not called once.  it was called ${queryStub.callCount} times`
+      ).to.equal(true);
     });
     it('should not poll when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
       const getBooleanStub = $$.SANDBOX.stub(kit.env, 'getBoolean').callsFake(() => true);
@@ -314,30 +292,6 @@ describe('remoteSourceTrackingService', () => {
     });
 
     describe('timeout handling', () => {
-      it('should stop if the pollingTimeout passed in is exceeded', async () => {
-        // @ts-ignore
-        const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
-        const warnSpy = $$.SANDBOX.spy($$.TEST_LOGGER, 'warn');
-        // @ts-ignore
-        const getServerMaxRevisionStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'getServerMaxRevision');
-        const maxRev = 9;
-        getServerMaxRevisionStub.returns(maxRev);
-        const pollingTimeout = 4;
-
-        // @ts-ignore
-        const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
-
-        // @ts-ignore
-        await remoteSourceTrackingService.pollForSourceTracking(memberNames, pollingTimeout);
-        expect(trackSpy.calledOnce).to.equal(true);
-        // expect(trackSpy.calledOnceWith([], true)).to.equal(true);
-        expect(warnSpy.called).to.equal(true);
-        const expectedMsg = 'Polling for SourceMembers timed out after 4 attempts';
-        expect(warnSpy.calledOnceWith(expectedMsg)).to.equal(true);
-        expect(queryStub.called).to.equal(true);
-        // expect(queryStub.calledWith(maxRev)).to.equal(true);
-        expect(getServerMaxRevisionStub.calledOnce).to.equal(true);
-      });
       it('should stop if the computed pollingTimeout is exceeded', async () => {
         // @ts-ignore
         const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
@@ -352,13 +306,12 @@ describe('remoteSourceTrackingService', () => {
 
         // @ts-ignore
         await remoteSourceTrackingService.pollForSourceTracking(memberNames);
-        expect(trackSpy.calledOnce).to.equal(true);
-        // expect(trackSpy.calledOnceWith([], true)).to.equal(true);
+        // changed from toolbelt because each query result goes to tracking
+        expect(trackSpy.callCount).to.equal(6);
         expect(warnSpy.called).to.equal(true);
         const expectedMsg = 'Polling for SourceMembers timed out after 6 attempts';
         expect(warnSpy.calledOnceWith(expectedMsg)).to.equal(true);
         expect(queryStub.called).to.equal(true);
-        // expect(queryStub.calledWith(maxRev)).to.equal(true);
         expect(getServerMaxRevisionStub.calledOnce).to.equal(true);
       }).timeout(10000);
 

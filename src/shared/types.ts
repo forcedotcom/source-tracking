@@ -7,6 +7,6 @@
 
 import { FileResponse } from '@salesforce/source-deploy-retrieve';
 
-export type RemoteSyncInput = Pick<FileResponse, 'fullName' | 'filePath' | 'type'>;
+export type RemoteSyncInput = Pick<FileResponse, 'fullName' | 'filePath' | 'type' | 'state'>;
 
 export type PushPullResponse = Pick<FileResponse, 'filePath' | 'fullName' | 'state' | 'type'>;

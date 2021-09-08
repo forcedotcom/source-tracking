@@ -6,6 +6,7 @@
  */
 
 import { expect } from 'chai';
+import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { getMetadataKeyFromFileResponse } from '../../src/shared/metadataKeys';
 
 describe('metadataKeys', () => {
@@ -13,7 +14,7 @@ describe('metadataKeys', () => {
     const fileResponse = {
       fullName: 'Order__c',
       type: 'CustomTab',
-      state: 'Created',
+      state: ComponentStatus.Created,
       filePath: 'force-app/main/default/tabs/Order__c.tab-meta.xml',
     };
 
@@ -25,7 +26,7 @@ describe('metadataKeys', () => {
       const fileResponse = {
         fullName: 'productTileList',
         type: 'LightningComponentBundle',
-        state: 'Created',
+        state: ComponentStatus.Created,
         filePath: 'force-app/main/default/lwc/productTileList/productTileList.css',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
@@ -38,7 +39,7 @@ describe('metadataKeys', () => {
       const fileResponse = {
         fullName: 'errorPanel',
         type: 'LightningComponentBundle',
-        state: 'Created',
+        state: ComponentStatus.Created,
         filePath: 'force-app/main/default/lwc/errorPanel/templates/noDataIllustration.html',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
@@ -53,7 +54,7 @@ describe('metadataKeys', () => {
       const fileResponse = {
         fullName: 'pageTemplate_2_7_3',
         type: 'AuraDefinitionBundle',
-        state: 'Created',
+        state: ComponentStatus.Created,
         filePath: 'force-app/main/default/aura/pageTemplate_2_7_3/pageTemplate_2_7_3.cmp',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
@@ -68,7 +69,7 @@ describe('metadataKeys', () => {
       const fileResponse = {
         fullName: 'Case.Product__c',
         type: 'CustomField',
-        state: 'Created',
+        state: ComponentStatus.Created,
         filePath: 'force-app/main/default/objects/Case/fields/Product__c.field-meta.xml',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
