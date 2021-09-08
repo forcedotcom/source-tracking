@@ -97,7 +97,6 @@ Push can have partial successes but rolls back. Filter those out, except if they
 
 - push/pull throw proper error for conflicts (with label!)
 - push/pull proper table output (exists over in plugin-source so why redo it here?)
-- don't use fs.promises (won't support node12)
 
 - SDR sets all retrieve FileResponse as `Changed` even if it didn't exist locally. That's going to yield slightly different json output on a `pull` than toolbelt did. See `remoteChanges.nut.ts > remote changes:add > can pull the add`. Fixing in pull is less optimal than fixing in SDR (because source:retrieve is also currently reporting those as `Changed` instead of `Created`)
 
