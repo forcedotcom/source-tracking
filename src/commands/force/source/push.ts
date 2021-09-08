@@ -22,6 +22,10 @@ export default class SourcePush extends SfdxCommand {
       min: Duration.minutes(0), // wait=0 means deploy is asynchronous
       description: 'tbd',
     }),
+    ignorewarnings: flags.boolean({
+      char: 'g',
+      description: 'tbd',
+    }),
   };
 
   protected static requiresUsername = true;
