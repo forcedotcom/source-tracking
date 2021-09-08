@@ -7,10 +7,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "homepage": "https://github.com/forcedotcom/source-tracking#readme",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/forcedotcom/source-tracking.git"
-  },
+  "repository": "forcedotcom/source-tracking.git",
   "scripts": {
     "build": "sf-build",
     "ci-docs": "yarn sf-ci-docs",
