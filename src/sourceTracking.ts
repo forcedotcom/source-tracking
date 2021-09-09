@@ -4,7 +4,7 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import { unlink } from 'fs/promises';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { getString } from '@salesforce/ts-types';
@@ -210,7 +210,7 @@ export class SourceTracking extends AsyncCreatable {
         .map((change) => change.filenames as string[])
         .flat()
         .filter(Boolean);
-      await Promise.all(filenames.map((filename) => unlink(filename)));
+      await Promise.all(filenames.map((filename) => fs.unlink(filename)));
       await Promise.all([
         this.updateLocalTracking({ deletedFiles: filenames }),
         this.updateRemoteTracking(
