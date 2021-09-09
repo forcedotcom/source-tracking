@@ -7,7 +7,9 @@
 /* eslint-disable no-console */
 
 import { join as pathJoin } from 'path';
-import { promises as fs, existsSync } from 'fs';
+// what's fsp?  well, we'd like to fs.promises but can't until we upgrade node beyond 12
+import { promises as fsp, existsSync } from 'fs';
+import * as fs from 'fs';
 import { AsyncCreatable } from '@salesforce/kit';
 import { NamedPackageDir, Logger } from '@salesforce/core';
 import * as git from 'isomorphic-git';
@@ -74,12 +76,12 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
    *
    */
   public async gitInit(): Promise<void> {
-    await fs.mkdir(this.gitDir, { recursive: true });
+    await fsp.mkdir(this.gitDir, { recursive: true });
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
   }
 
   public async delete(): Promise<string> {
-    await fs.rm(this.gitDir, { recursive: true, force: true });
+    await fsp.rm(this.gitDir, { recursive: true, force: true });
     return this.gitDir;
   }
   /**
@@ -209,14 +211,14 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   private async stashIgnoreFile(): Promise<void> {
     if (!this.stashed) {
       this.stashed = true;
-      await fs.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
+      await fsp.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
     }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
     if (this.stashed) {
       this.stashed = false;
-      await fs.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
+      await fsp.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
     }
   }
 }

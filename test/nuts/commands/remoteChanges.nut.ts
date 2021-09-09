@@ -29,7 +29,9 @@ describe('remote changes', () => {
       setupCommands: [`sfdx force:org:create -d 1 -s -f ${path.join('config', 'project-scratch-def.json')}`],
     });
     conn = await Connection.create({
-      authInfo: await AuthInfo.create({ username: session.setup[0].result?.username as string }),
+      authInfo: await AuthInfo.create({
+        username: (session.setup[0] as { result: { username: string } }).result?.username,
+      }),
     });
   });
 

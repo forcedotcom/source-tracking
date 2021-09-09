@@ -143,7 +143,11 @@ export class SourceTracking extends AsyncCreatable {
       .filter(sourceComponentGuard)
       .map((component) => componentSet.add(component, true));
 
-    // make SourceComponents from deletes and add to toDeploy
+    // there might have been components in local tracking, but they might be ignored by SDR or unresolvable.
+    // SDR will throw when you try to resolve them, so don't
+    if (componentSet.size === 0) {
+      return [];
+    }
     const deploy = await componentSet.deploy({ usernameOrConnection: this.username, apiOptions: { ignoreWarnings } });
     const result = await deploy.pollStatus(30, wait.seconds);
 

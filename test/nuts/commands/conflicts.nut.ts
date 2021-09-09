@@ -11,10 +11,10 @@
 
 import * as path from 'path';
 import { promises as fs } from 'fs';
+import { expect } from 'chai';
 
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
-import { expect } from 'chai';
 import { StatusResult } from '../../../src/commands/force/source/status';
 
 let session: TestSession;
@@ -39,7 +39,9 @@ describe('conflict detection and resolution', () => {
   });
   it('edits a remote file', async () => {
     const conn = await Connection.create({
-      authInfo: await AuthInfo.create({ username: session.setup[0].result?.username as string }),
+      authInfo: await AuthInfo.create({
+        username: (session.setup[0] as { result: { username: string } }).result?.username,
+      }),
     });
     const app = await conn.singleRecordQuery<{ Id: string; Metadata: any }>(
       "select Id, Metadata from CustomApplication where DeveloperName = 'EBikes'",
