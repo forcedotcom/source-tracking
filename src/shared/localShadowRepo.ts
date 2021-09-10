@@ -7,7 +7,7 @@
 /* eslint-disable no-console */
 
 import { join as pathJoin } from 'path';
-import { promises as fs, existsSync } from 'fs';
+import * as fs from 'fs';
 import { AsyncCreatable } from '@salesforce/kit';
 import { NamedPackageDir, Logger } from '@salesforce/core';
 import * as git from 'isomorphic-git';
@@ -63,7 +63,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     this.logger = await Logger.child('ShadowRepo');
     this.logger.debug('options for constructor are', this.options);
     // initialize the shadow repo if it doesn't exist
-    if (!existsSync(this.gitDir)) {
+    if (!fs.existsSync(this.gitDir)) {
       this.logger.debug('initializing git repo');
       await this.gitInit();
     }
@@ -74,12 +74,16 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
    *
    */
   public async gitInit(): Promise<void> {
-    await fs.mkdir(this.gitDir, { recursive: true });
+    await fs.promises.mkdir(this.gitDir, { recursive: true });
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
   }
 
   public async delete(): Promise<string> {
-    await fs.rm(this.gitDir, { recursive: true, force: true });
+    if (typeof fs.promises.rm === 'function') {
+      await fs.promises.rm(this.gitDir, { recursive: true, force: true });
+    } else {
+      fs.rmdirSync(this.gitDir, { recursive: true });
+    }
     return this.gitDir;
   }
   /**
@@ -209,14 +213,14 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   private async stashIgnoreFile(): Promise<void> {
     if (!this.stashed) {
       this.stashed = true;
-      await fs.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
+      await fs.promises.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
     }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
     if (this.stashed) {
       this.stashed = false;
-      await fs.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
+      await fs.promises.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
     }
   }
 }

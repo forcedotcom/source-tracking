@@ -11,11 +11,13 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
+import { expect } from 'chai';
 
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
-import { expect } from 'chai';
+import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { StatusResult } from '../../../src/commands/force/source/status';
+import { PushPullResponse } from '../../../src/shared/types';
 
 let session: TestSession;
 let conn: Connection;
@@ -29,7 +31,9 @@ describe('remote changes', () => {
       setupCommands: [`sfdx force:org:create -d 1 -s -f ${path.join('config', 'project-scratch-def.json')}`],
     });
     conn = await Connection.create({
-      authInfo: await AuthInfo.create({ username: session.setup[0].result?.username as string }),
+      authInfo: await AuthInfo.create({
+        username: (session.setup[0] as { result: { username: string } }).result?.username,
+      }),
     });
   });
 
@@ -40,7 +44,13 @@ describe('remote changes', () => {
 
   describe('remote changes: delete', () => {
     it('pushes to initiate the remote', () => {
-      execCmd('force:source:push', { ensureExitCode: 0 });
+      const pushResult = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
+        .result;
+      expect(pushResult, JSON.stringify(pushResult)).to.have.lengthOf(234);
+      expect(
+        pushResult.every((r) => r.state !== ComponentStatus.Failed),
+        JSON.stringify(pushResult)
+      ).to.equal(true);
     });
 
     it('deletes on the server', async () => {

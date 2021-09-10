@@ -4,7 +4,7 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import { unlink } from 'fs/promises';
+import * as fs from 'fs';
 import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { getString } from '@salesforce/ts-types';
@@ -143,7 +143,11 @@ export class SourceTracking extends AsyncCreatable {
       .filter(sourceComponentGuard)
       .map((component) => componentSet.add(component, true));
 
-    // make SourceComponents from deletes and add to toDeploy
+    // there might have been components in local tracking, but they might be ignored by SDR or unresolvable.
+    // SDR will throw when you try to resolve them, so don't
+    if (componentSet.size === 0) {
+      return [];
+    }
     const deploy = await componentSet.deploy({ usernameOrConnection: this.username, apiOptions: { ignoreWarnings } });
     const result = await deploy.pollStatus(30, wait.seconds);
 
@@ -206,7 +210,7 @@ export class SourceTracking extends AsyncCreatable {
         .map((change) => change.filenames as string[])
         .flat()
         .filter(Boolean);
-      await Promise.all(filenames.map((filename) => unlink(filename)));
+      await Promise.all(filenames.map((filename) => fs.promises.unlink(filename)));
       await Promise.all([
         this.updateLocalTracking({ deletedFiles: filenames }),
         this.updateRemoteTracking(

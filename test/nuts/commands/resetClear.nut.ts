@@ -11,7 +11,7 @@
 /* eslint-disable no-console */
 
 import * as path from 'path';
-import { promises as fs, existsSync } from 'fs';
+import * as fs from 'fs';
 
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
@@ -25,7 +25,9 @@ let trackingFileFolder: string;
 let conn: Connection;
 
 const getRevisionsAsArray = async (): Promise<MemberRevision[]> => {
-  const revisionFile = JSON.parse(await fs.readFile(path.join(trackingFileFolder, 'maxRevision.json'), 'utf8'));
+  const revisionFile = JSON.parse(
+    await fs.promises.readFile(path.join(trackingFileFolder, 'maxRevision.json'), 'utf8')
+  );
   return Reflect.ownKeys(revisionFile.sourceMembers).map((key) => revisionFile.sourceMembers[key] as MemberRevision);
 };
 
@@ -37,10 +39,12 @@ describe('reset and clear', () => {
       },
       setupCommands: [`sfdx force:org:create -d 1 -s -f ${path.join('config', 'project-scratch-def.json')}`],
     });
-    orgId = session.setup[0].result?.orgId;
+    orgId = (session.setup[0] as { result: { orgId: string } }).result?.orgId;
     trackingFileFolder = path.join(session?.project.dir, '.sfdx', 'orgs', orgId);
     conn = await Connection.create({
-      authInfo: await AuthInfo.create({ username: session.setup[0].result?.username as string }),
+      authInfo: await AuthInfo.create({
+        username: (session.setup[0] as { result: { username: string } }).result?.username,
+      }),
     });
   });
 
@@ -56,10 +60,10 @@ describe('reset and clear', () => {
     });
 
     it('local tracking file exists', () => {
-      expect(existsSync(path.join(trackingFileFolder, 'localSourceTracking'))).to.equal(true);
+      expect(fs.existsSync(path.join(trackingFileFolder, 'localSourceTracking'))).to.equal(true);
     });
     it('remote tracking file exists', () => {
-      expect(existsSync(path.join(trackingFileFolder, 'maxRevision.json'))).to.equal(true);
+      expect(fs.existsSync(path.join(trackingFileFolder, 'maxRevision.json'))).to.equal(true);
     });
     it('runs clear', () => {
       const clearResult = execCmd<SourceTrackingClearResult>('force:source:tracking:clear --noprompt --json', {
@@ -68,10 +72,10 @@ describe('reset and clear', () => {
       expect(clearResult.clearedFiles.some((file) => file.includes('maxRevision.json'))).to.equal(true);
     });
     it('local tracking is gone', () => {
-      expect(existsSync(path.join(trackingFileFolder, 'localSourceTracking'))).to.equal(false);
+      expect(fs.existsSync(path.join(trackingFileFolder, 'localSourceTracking'))).to.equal(false);
     });
     it('remote tracking is gone', () => {
-      expect(existsSync(path.join(trackingFileFolder, 'maxRevision.json'))).to.equal(false);
+      expect(fs.existsSync(path.join(trackingFileFolder, 'maxRevision.json'))).to.equal(false);
     });
   });
 
@@ -96,7 +100,9 @@ describe('reset and clear', () => {
       // gets tracking files from server
       execCmd('force:source:status --json --remote', { ensureExitCode: 0 });
       const revisions = await getRevisionsAsArray();
-      const revisionFile = JSON.parse(await fs.readFile(path.join(trackingFileFolder, 'maxRevision.json'), 'utf8'));
+      const revisionFile = JSON.parse(
+        await fs.promises.readFile(path.join(trackingFileFolder, 'maxRevision.json'), 'utf8')
+      );
       lowestRevision = revisions.reduce(
         (previousValue, revision) => Math.min(previousValue, revision.serverRevisionCounter),
         revisionFile.serverMaxRevisionCounter

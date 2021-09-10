@@ -28,6 +28,7 @@
     "test:nuts:commands:conflicts": "nyc mocha \"**/commands/conflicts.nut.ts\" --slow 4500 --timeout 600000",
     "test:nuts:commands:remote": "nyc mocha \"**/commands/remoteChanges.nut.ts\" --slow 4500 --timeout 600000",
     "test:nuts:commands:reset-clear": "nyc mocha \"**/commands/resetClear.nut.ts\" --slow 4500 --timeout 600000",
+    "test:nuts:commands:ignore": "nyc mocha \"**/commands/forceIgnore.nut.ts\" --slow 4500 --timeout 600000",
     "prune:dead": "ts-prune | grep -v 'src/commands/' | grep -v 'source-deploy-retrieve'"
   },
   "keywords": [
@@ -69,6 +70,7 @@
     "@salesforce/plugin-command-reference": "^1.3.4",
     "@salesforce/prettier-config": "^0.0.2",
     "@salesforce/ts-sinon": "^1.3.21",
+    "@types/shelljs": "^0.8.9",
     "@types/sinon": "^10.0.2",
     "@typescript-eslint/eslint-plugin": "^4.29.0",
     "@typescript-eslint/parser": "^4.29.0",
@@ -88,6 +90,7 @@
     "nyc": "^15.1.0",
     "prettier": "^2.3.2",
     "pretty-quick": "^3.1.1",
+    "shelljs": "^0.8.4",
     "sinon": "^10.0.0",
     "ts-node": "^10.1.0",
     "ts-prune": "^0.10.0",
