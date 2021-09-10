@@ -6,17 +6,17 @@
  */
 /* eslint-disable no-console */
 
-import * as path from 'path';
-import * as fs from 'fs';
+import { join as pathJoin } from 'path';
+import { promises as fs, existsSync } from 'fs';
 import { AsyncCreatable } from '@salesforce/kit';
-import { NamedPackageDir, fs as fsCore, Logger } from '@salesforce/core';
+import { NamedPackageDir, Logger } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 
 /**
  * returns the full path to where we store the shadow repo
  */
 const getGitDir = (orgId: string, projectPath: string): string => {
-  return path.join(projectPath, '.sfdx', 'orgs', orgId);
+  return pathJoin(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
 };
 
 const toFilenames = (rows: StatusRow[]): string[] => rows.map((file) => file[FILE] as string);
@@ -48,7 +48,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
-
+  private stashed = false;
   private options: ShadowRepoOptions;
 
   public constructor(options: ShadowRepoOptions) {
@@ -63,7 +63,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     this.logger = await Logger.child('ShadowRepo');
     this.logger.debug('options for constructor are', this.options);
     // initialize the shadow repo if it doesn't exist
-    if (!fs.existsSync(this.gitDir)) {
+    if (!existsSync(this.gitDir)) {
       this.logger.debug('initializing git repo');
       await this.gitInit();
     }
@@ -74,10 +74,14 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
    *
    */
   public async gitInit(): Promise<void> {
-    await fsCore.mkdirp(this.gitDir);
+    await fs.mkdir(this.gitDir, { recursive: true });
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
   }
 
+  public async delete(): Promise<string> {
+    await fs.rm(this.gitDir, { recursive: true, force: true });
+    return this.gitDir;
+  }
   /**
    * If the status already exists, return it.  Otherwise, set the status before returning.
    * It's kinda like a cache
@@ -95,16 +99,24 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
         dir: this.projectPath,
         gitdir: this.gitDir,
         filepaths: this.packageDirs.map((dir) => dir.path),
+        // filter out hidden files and __tests__ patterns, regardless of gitignore
+        filter: (f) => !f.includes('/.') && !f.includes('__tests__'),
       });
       await this.unStashIgnoreFile();
     }
     return this.status;
   }
 
+  /**
+   * returns any change (add, modify, delete)
+   */
   public async getChangedRows(): Promise<StatusRow[]> {
     return (await this.getStatus()).filter((file) => file[HEAD] !== file[WORKDIR]);
   }
 
+  /**
+   * returns any change (add, modify, delete)
+   */
   public async getChangedFilenames(): Promise<string[]> {
     return toFilenames(await this.getChangedRows());
   }
@@ -117,12 +129,37 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     return toFilenames(await this.getDeletes());
   }
 
+  /**
+   * returns adds and modifies but not deletes
+   */
   public async getNonDeletes(): Promise<StatusRow[]> {
     return (await this.getStatus()).filter((file) => file[WORKDIR] === 2);
   }
 
+  /**
+   * returns adds and modifies but not deletes
+   */
   public async getNonDeleteFilenames(): Promise<string[]> {
     return toFilenames(await this.getNonDeletes());
+  }
+
+  public async getAdds(): Promise<StatusRow[]> {
+    return (await this.getStatus()).filter((file) => file[HEAD] === 0 && file[WORKDIR] === 2);
+  }
+
+  public async getAddFilenames(): Promise<string[]> {
+    return toFilenames(await this.getAdds());
+  }
+
+  /**
+   * returns files that were not added or deleted, but changed locally
+   */
+  public async getModifies(): Promise<StatusRow[]> {
+    return (await this.getStatus()).filter((file) => file[HEAD] === 1 && file[WORKDIR] === 2);
+  }
+
+  public async getModifyFilenames(): Promise<string[]> {
+    return toFilenames(await this.getModifies());
   }
 
   /**
@@ -170,10 +207,16 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   }
 
   private async stashIgnoreFile(): Promise<void> {
-    await fs.promises.rename(path.join(this.projectPath, '.gitignore'), path.join(this.projectPath, '.BAK.gitignore'));
+    if (!this.stashed) {
+      this.stashed = true;
+      await fs.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
+    }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
-    await fs.promises.rename(path.join(this.projectPath, '.BAK.gitignore'), path.join(this.projectPath, '.gitignore'));
+    if (this.stashed) {
+      this.stashed = false;
+      await fs.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
+    }
   }
 }

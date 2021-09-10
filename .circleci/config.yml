@@ -25,6 +25,7 @@ workflows:
             # - os: windows
             # node_version: maintenance
       - release-management/test-nut:
+          size: large
           matrix:
             parameters:
               os:
