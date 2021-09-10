@@ -72,8 +72,8 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
     it('sees a local delete in local status', async () => {
       const classDir = path.join(session.project.dir, 'force-app', 'main', 'default', 'classes');
       await Promise.all([
-        fs.promises.rm(path.join(classDir, 'TestOrderController.cls')),
-        fs.promises.rm(path.join(classDir, 'TestOrderController.cls-meta.xml')),
+        fs.promises.unlink(path.join(classDir, 'TestOrderController.cls')),
+        fs.promises.unlink(path.join(classDir, 'TestOrderController.cls-meta.xml')),
       ]);
       const result = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 }).jsonOutput
         .result;

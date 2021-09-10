@@ -133,7 +133,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId);
     // the file might not exist, in which case we don't need to delete it
     if (fs.existsSync(fileToDelete)) {
-      await fs.promises.rm(fileToDelete, { recursive: true });
+      await fs.promises.unlink(fileToDelete);
     }
     return path.isAbsolute(fileToDelete) ? fileToDelete : path.join(process.cwd(), fileToDelete);
   }

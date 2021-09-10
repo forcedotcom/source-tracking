@@ -79,7 +79,11 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   }
 
   public async delete(): Promise<string> {
-    await fs.promises.rm(this.gitDir, { recursive: true, force: true });
+    if (typeof fs.promises.rm === 'function') {
+      await fs.promises.rm(this.gitDir, { recursive: true, force: true });
+    } else {
+      fs.rmdirSync(this.gitDir, { recursive: true });
+    }
     return this.gitDir;
   }
   /**
