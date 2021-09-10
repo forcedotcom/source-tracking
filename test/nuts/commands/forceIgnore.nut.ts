@@ -17,6 +17,7 @@ import * as shell from 'shelljs';
 
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
+import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { PushPullResponse } from '../../../src/shared/types';
 import { StatusResult } from '../../../src/commands/force/source/status';
 
@@ -87,7 +88,10 @@ describe('forceignore changes', () => {
 
       // all 4 files should have been pushed
       expect(unIgnoredOutput).to.have.length(4);
-      unIgnoredOutput.map((result) => expect(result.type === 'ApexClass'));
+      unIgnoredOutput.map((result) => {
+        expect(result.type === 'ApexClass');
+        expect(result.state === ComponentStatus.Created);
+      });
     });
   });
 

@@ -42,18 +42,18 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
   describe('basic status and pull', () => {
     it('detects the initial metadata status', () => {
       const result = execCmd<StatusResult[]>('force:source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
-      expect(result, JSON.stringify(result)).to.be.an.instanceof(Array).with.length(234);
+      expect(result).to.be.an.instanceof(Array);
       // the fields should be populated
       expect(result.every((row) => row.type && row.fullName)).to.equal(true);
-      expect(
-        result.every((r) => r.state !== ComponentStatus.Failed),
-        JSON.stringify(result)
-      ).to.equal(true);
     });
     it('pushes the initial metadata to the org', () => {
       const result = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(result).to.be.an.instanceof(Array);
       expect(result, JSON.stringify(result)).to.have.lengthOf(234);
+      expect(
+        result.every((r) => r.state !== ComponentStatus.Failed),
+        JSON.stringify(result)
+      ).to.equal(true);
     });
     it('sees no local changes (all were committed from push), but profile updated in remote', () => {
       const localResult = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 })
