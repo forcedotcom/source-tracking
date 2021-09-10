@@ -9,11 +9,13 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
+import { expect } from 'chai';
 
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Env } from '@salesforce/kit';
 import { ensureString } from '@salesforce/ts-types';
-import { expect } from 'chai';
+import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
+
 import { PushPullResponse } from '../../../src/shared/types';
 import { StatusResult } from '../../../src/commands/force/source/status';
 
@@ -40,9 +42,13 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
   describe('basic status and pull', () => {
     it('detects the initial metadata status', () => {
       const result = execCmd<StatusResult[]>('force:source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
-      expect(result).to.be.an.instanceof(Array);
+      expect(result, JSON.stringify(result)).to.be.an.instanceof(Array).with.length(234);
       // the fields should be populated
       expect(result.every((row) => row.type && row.fullName)).to.equal(true);
+      expect(
+        result.every((r) => r.state !== ComponentStatus.Failed),
+        JSON.stringify(result)
+      ).to.equal(true);
     });
     it('pushes the initial metadata to the org', () => {
       const result = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;

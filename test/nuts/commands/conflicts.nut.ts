@@ -15,6 +15,7 @@ import { expect } from 'chai';
 
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
+import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { StatusResult } from '../../../src/commands/force/source/status';
 import { PushPullResponse } from '../../../src/shared/types';
 
@@ -39,6 +40,10 @@ describe('conflict detection and resolution', () => {
     // This would go in setupCommands but we want it to use the bin/run version
     const pushResult = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
     expect(pushResult, JSON.stringify(pushResult)).to.have.lengthOf(234);
+    expect(
+      pushResult.every((r) => r.state !== ComponentStatus.Failed),
+      JSON.stringify(pushResult)
+    ).to.equal(true);
   });
 
   it('edits a remote file', async () => {
