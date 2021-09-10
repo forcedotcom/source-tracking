@@ -16,6 +16,7 @@ import { expect } from 'chai';
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { StatusResult } from '../../../src/commands/force/source/status';
+import { PushPullResponse } from '../../../src/shared/types';
 
 let session: TestSession;
 
@@ -35,7 +36,9 @@ describe('conflict detection and resolution', () => {
   });
 
   it('pushes to initiate the remote', () => {
-    execCmd('force:source:push', { ensureExitCode: 0 });
+    // This would go in setupCommands but we want it to use the bin/run version
+    const pushResult = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+    console.log(pushResult.length);
   });
   it('edits a remote file', async () => {
     const conn = await Connection.create({
