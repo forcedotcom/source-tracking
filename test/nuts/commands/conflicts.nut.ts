@@ -68,7 +68,7 @@ describe('conflict detection and resolution', () => {
       'main',
       'default',
       'applications',
-      'Ebikes.app-meta.xml'
+      'EBikes.app-meta.xml'
     );
     await fs.promises.writeFile(
       filePath,
