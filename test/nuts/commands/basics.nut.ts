@@ -13,8 +13,8 @@ import * as fs from 'fs';
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Env } from '@salesforce/kit';
 import { ensureString } from '@salesforce/ts-types';
-import { FileResponse } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
+import { PushPullResponse } from '../../../src/shared/types';
 import { StatusResult } from '../../../src/commands/force/source/status';
 
 let session: TestSession;
@@ -45,8 +45,9 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
       expect(result.every((row) => row.type && row.fullName)).to.equal(true);
     });
     it('pushes the initial metadata to the org', () => {
-      const result = execCmd<FileResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(result).to.be.an.instanceof(Array);
+      expect(result, JSON.stringify(result)).to.have.lengthOf(234);
     });
     it('sees no local changes (all were committed from push), but profile updated in remote', () => {
       const localResult = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 })
@@ -60,7 +61,8 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
     });
 
     it('can pull the remote profile', () => {
-      const pullResult = execCmd<FileResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const pullResult = execCmd<PushPullResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput
+        .result;
       expect(pullResult.some((item) => item.type === 'Profile')).to.equal(true);
     });
 
@@ -99,7 +101,7 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
     });
 
     it('pushes the local delete to the org', () => {
-      const result = execCmd<FileResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(result).to.be.an.instanceof(Array).with.length(2);
     });
     it('sees no local changes', () => {

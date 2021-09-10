@@ -38,8 +38,9 @@ describe('conflict detection and resolution', () => {
   it('pushes to initiate the remote', () => {
     // This would go in setupCommands but we want it to use the bin/run version
     const pushResult = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
-    console.log(pushResult.length);
+    expect(pushResult, JSON.stringify(pushResult)).to.have.lengthOf(234);
   });
+
   it('edits a remote file', async () => {
     const conn = await Connection.create({
       authInfo: await AuthInfo.create({

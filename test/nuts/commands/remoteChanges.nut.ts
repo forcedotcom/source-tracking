@@ -16,6 +16,7 @@ import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { expect } from 'chai';
 import { StatusResult } from '../../../src/commands/force/source/status';
+import { PushPullResponse } from '../../../src/shared/types';
 
 let session: TestSession;
 let conn: Connection;
@@ -42,7 +43,9 @@ describe('remote changes', () => {
 
   describe('remote changes: delete', () => {
     it('pushes to initiate the remote', () => {
-      execCmd('force:source:push', { ensureExitCode: 0 });
+      const pushResult = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
+        .result;
+      expect(pushResult, JSON.stringify(pushResult)).to.have.lengthOf(234);
     });
 
     it('deletes on the server', async () => {
