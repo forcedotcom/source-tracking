@@ -8,7 +8,7 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 
 import * as path from 'path';
-import { promises as fs, existsSync } from 'fs';
+import * as fs from 'fs';
 import { retryDecorator } from 'ts-retry-promise';
 import { ConfigFile, Logger, Org, SfdxError, Messages } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
@@ -132,8 +132,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   public static async delete(orgId: string): Promise<string> {
     const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId);
     // the file might not exist, in which case we don't need to delete it
-    if (existsSync(fileToDelete)) {
-      await fs.rm(fileToDelete, { recursive: true });
+    if (fs.existsSync(fileToDelete)) {
+      await fs.promises.rm(fileToDelete, { recursive: true });
     }
     return path.isAbsolute(fileToDelete) ? fileToDelete : path.join(process.cwd(), fileToDelete);
   }

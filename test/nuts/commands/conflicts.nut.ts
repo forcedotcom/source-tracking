@@ -10,7 +10,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
 import * as path from 'path';
-import { promises as fs } from 'fs';
+import * as fs from 'fs';
 import { expect } from 'chai';
 
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
@@ -70,9 +70,9 @@ describe('conflict detection and resolution', () => {
       'applications',
       'Ebikes.app-meta.xml'
     );
-    await fs.writeFile(
+    await fs.promises.writeFile(
       filePath,
-      (await fs.readFile(filePath, { encoding: 'utf-8' })).replace('Lightning App Builder', 'App Builder')
+      (await fs.promises.readFile(filePath, { encoding: 'utf-8' })).replace('Lightning App Builder', 'App Builder')
     );
   });
   it('can see the conflict in status', () => {

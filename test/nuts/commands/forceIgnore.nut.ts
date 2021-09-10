@@ -11,7 +11,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
 import * as path from 'path';
-import { promises as fs } from 'fs';
+import * as fs from 'fs';
 import { expect } from 'chai';
 import * as shell from 'shelljs';
 
@@ -36,7 +36,7 @@ describe('forceignore changes', () => {
         `sfdx force:apex:class:create -n IgnoreTest --outputdir ${classdir}`,
       ],
     });
-    originalForceIgnore = await fs.readFile(path.join(session.project.dir, '.forceignore'), 'utf8');
+    originalForceIgnore = await fs.promises.readFile(path.join(session.project.dir, '.forceignore'), 'utf8');
     conn = await Connection.create({
       authInfo: await AuthInfo.create({
         username: (session.setup[0] as { result: { username: string } }).result?.username,
@@ -53,7 +53,7 @@ describe('forceignore changes', () => {
     it('will not push a file that was created, then ignored', async () => {
       // setup a forceIgnore with some file
       const newForceIgnore = originalForceIgnore + '\n' + `${classdir}/IgnoreTest.cls`;
-      await fs.writeFile(path.join(session.project.dir, '.forceignore'), newForceIgnore);
+      await fs.promises.writeFile(path.join(session.project.dir, '.forceignore'), newForceIgnore);
       // nothing should push
       const output = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(output).to.deep.equal([]);
@@ -63,7 +63,7 @@ describe('forceignore changes', () => {
       // setup a forceIgnore with some file
       const newForceIgnore =
         originalForceIgnore + '\n' + `${classdir}/UnIgnoreTest.cls` + '\n' + `${classdir}/IgnoreTest.cls`;
-      await fs.writeFile(path.join(session.project.dir, '.forceignore'), newForceIgnore);
+      await fs.promises.writeFile(path.join(session.project.dir, '.forceignore'), newForceIgnore);
 
       // add a file in the local source
       shell.exec(`sfdx force:apex:class:create -n UnIgnoreTest --outputdir ${classdir}`, {
@@ -79,7 +79,7 @@ describe('forceignore changes', () => {
 
     it('will push files that are now un-ignored', async () => {
       // un-ignore the file
-      await fs.writeFile(path.join(session.project.dir, '.forceignore'), originalForceIgnore);
+      await fs.promises.writeFile(path.join(session.project.dir, '.forceignore'), originalForceIgnore);
 
       // verify file pushed in results
       const unIgnoredOutput = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
@@ -105,7 +105,10 @@ describe('forceignore changes', () => {
 
     it('will not pull a remote file added to the ignore AFTER it is being tracked', async () => {
       // add that type to the forceignore
-      await fs.writeFile(path.join(session.project.dir, '.forceignore'), originalForceIgnore + '\n' + classdir);
+      await fs.promises.writeFile(
+        path.join(session.project.dir, '.forceignore'),
+        originalForceIgnore + '\n' + classdir
+      );
 
       // gets file into source tracking
       const statusOutput = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 })

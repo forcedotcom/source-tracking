@@ -7,8 +7,6 @@
 /* eslint-disable no-console */
 
 import { join as pathJoin } from 'path';
-// what's fsp?  well, we'd like to fs.promises but can't until we upgrade node beyond 12
-import { promises as fsp, existsSync } from 'fs';
 import * as fs from 'fs';
 import { AsyncCreatable } from '@salesforce/kit';
 import { NamedPackageDir, Logger } from '@salesforce/core';
@@ -65,7 +63,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     this.logger = await Logger.child('ShadowRepo');
     this.logger.debug('options for constructor are', this.options);
     // initialize the shadow repo if it doesn't exist
-    if (!existsSync(this.gitDir)) {
+    if (!fs.existsSync(this.gitDir)) {
       this.logger.debug('initializing git repo');
       await this.gitInit();
     }
@@ -76,12 +74,12 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
    *
    */
   public async gitInit(): Promise<void> {
-    await fsp.mkdir(this.gitDir, { recursive: true });
+    await fs.promises.mkdir(this.gitDir, { recursive: true });
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
   }
 
   public async delete(): Promise<string> {
-    await fsp.rm(this.gitDir, { recursive: true, force: true });
+    await fs.promises.rm(this.gitDir, { recursive: true, force: true });
     return this.gitDir;
   }
   /**
@@ -211,14 +209,14 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   private async stashIgnoreFile(): Promise<void> {
     if (!this.stashed) {
       this.stashed = true;
-      await fsp.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
+      await fs.promises.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
     }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
     if (this.stashed) {
       this.stashed = false;
-      await fsp.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
+      await fs.promises.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
     }
   }
 }
