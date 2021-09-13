@@ -7,24 +7,35 @@
 
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { Duration } from '@salesforce/kit';
-import { SfdxProject, Org } from '@salesforce/core';
+import { SfdxProject, Org, Messages } from '@salesforce/core';
 import { PushPullResponse } from '../../../shared/types';
 import { SourceTracking } from '../../../sourceTracking';
 import { writeConflictTable } from '../../../writeConflictTable';
+
+Messages.importMessagesDirectory(__dirname);
+const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_push');
+
 export default class SourcePush extends SfdxCommand {
-  public static description = 'get local changes';
+  public static description = messages.getMessage('commandDescription');
+  public static help = messages.getMessage('commandHelp');
   protected static readonly flagsConfig: FlagsConfig = {
-    forceoverwrite: flags.boolean({ char: 'f', description: 'overwrite files without prompting' }),
-    // TODO: use shared flags from plugin-source
+    forceoverwrite: flags.boolean({
+      char: 'f',
+      description: messages.getMessage('forceoverwriteFlagDescription'),
+      longDescription: messages.getMessage('forceoverwriteFlagDescriptionLong'),
+    }),
+    // TODO: use shared flags from plugin-source?
     wait: flags.minutes({
       char: 'w',
       default: Duration.minutes(33),
       min: Duration.minutes(0), // wait=0 means deploy is asynchronous
-      description: 'tbd',
+      description: messages.getMessage('waitFlagDescriptionLong'),
+      longDescription: messages.getMessage('waitFlagDescriptionLongLong'),
     }),
     ignorewarnings: flags.boolean({
       char: 'g',
-      description: 'tbd',
+      description: messages.getMessage('ignorewarningsFlagDescription'),
+      longDescription: messages.getMessage('ignorewarningsFlagDescriptionLong'),
     }),
   };
 
@@ -45,7 +56,7 @@ export default class SourcePush extends SfdxCommand {
       const conflicts = await tracking.getConflicts();
       if (conflicts.length > 0) {
         writeConflictTable(conflicts, this.ux);
-        throw new Error('conflicts detected');
+        throw new Error(messages.getMessage('pushCommandConflictMsg'));
       }
     }
     const deployResult = await tracking.deployLocalChanges({

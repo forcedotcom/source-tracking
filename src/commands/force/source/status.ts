@@ -5,8 +5,9 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
+import { EOL } from 'os';
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
-import { SfdxProject, Org } from '@salesforce/core';
+import { SfdxProject, Org, Messages } from '@salesforce/core';
 import { getKeyFromStrings } from '../../..';
 
 import { ChangeResult, SourceTracking, getKeyFromObject } from '../../../sourceTracking';
@@ -17,12 +18,28 @@ export interface StatusResult {
   filePath?: string;
 }
 
+Messages.importMessagesDirectory(__dirname);
+const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_push');
+
 export default class SourceStatus extends SfdxCommand {
-  public static description = 'get local changes';
+  public static description = messages.getMessage('statusCommandCliDescription');
+  public static readonly examples = messages.getMessage('examples').split(EOL);
   protected static flagsConfig: FlagsConfig = {
-    all: flags.boolean({ char: 'a', description: 'tbd' }),
-    local: flags.boolean({ char: 'l', description: 'tbd' }),
-    remote: flags.boolean({ char: 'r', description: 'tbd' }),
+    all: flags.boolean({
+      char: 'a',
+      description: messages.getMessage('statusCommandAllOptionDescription'),
+      longDescription: messages.getMessage('statusCommandAllOptionDescriptionLong'),
+    }),
+    local: flags.boolean({
+      char: 'l',
+      description: messages.getMessage('statusCommandLocalOptionDescription'),
+      longDescription: messages.getMessage('statusCommandLocalOptionDescriptionLong'),
+    }),
+    remote: flags.boolean({
+      char: 'r',
+      description: messages.getMessage('statusCommandRemoteOptionDescription'),
+      longDescription: messages.getMessage('statusCommandRemoteOptionDescriptionLong'),
+    }),
   };
   protected static requiresUsername = true;
   protected static requiresProject = true;
@@ -102,6 +119,7 @@ export default class SourceStatus extends SfdxCommand {
       }
       return a.state.toLowerCase() < b.state.toLowerCase() ? -1 : 1;
     });
+    this.ux.log(messages.getMessage('statusCommandHumanSuccess'));
     this.ux.table(outputRows, {
       columns: [
         { label: 'STATE', key: 'state' },

@@ -7,19 +7,28 @@
 
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { Duration } from '@salesforce/kit';
-import { SfdxProject, Org } from '@salesforce/core';
+import { SfdxProject, Org, Messages } from '@salesforce/core';
 import { writeConflictTable } from '../../../writeConflictTable';
 import { SourceTracking } from '../../../sourceTracking';
+
+Messages.importMessagesDirectory(__dirname);
+const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_pull');
+
 export default class SourcePull extends SfdxCommand {
-  public static description = 'get local changes';
+  public static description = messages.getMessage('commandDescription');
   protected static readonly flagsConfig: FlagsConfig = {
-    forceoverwrite: flags.boolean({ char: 'f', description: 'overwrite files without prompting' }),
+    forceoverwrite: flags.boolean({
+      char: 'f',
+      description: messages.getMessage('forceoverwriteFlagDescription'),
+      longDescription: messages.getMessage('forceoverwriteFlagDescriptionLong'),
+    }),
     // TODO: use shared flags from plugin-source
     wait: flags.minutes({
       char: 'w',
       default: Duration.minutes(33),
       min: Duration.minutes(0), // wait=0 means deploy is asynchronous
-      description: 'tbd',
+      description: messages.getMessage('waitFlagDescriptionLong'),
+      longDescription: messages.getMessage('waitFlagDescriptionLong'),
     }),
   };
   protected static requiresUsername = true;
