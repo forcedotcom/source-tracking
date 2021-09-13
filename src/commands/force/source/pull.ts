@@ -50,7 +50,7 @@ export default class SourcePull extends SfdxCommand {
       const conflicts = await tracking.getConflicts();
       if (conflicts.length > 0) {
         writeConflictTable(conflicts, this.ux);
-        throw new Error('conflicts detected');
+        throw new Error(messages.getMessage('sourceConflictDetected'));
       }
     }
 
