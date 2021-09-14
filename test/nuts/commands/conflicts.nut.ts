@@ -16,8 +16,9 @@ import { expect } from 'chai';
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
+import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/DeployResultFormatter';
 import { StatusResult } from '../../../src/commands/force/source/status';
-import { PushPullResponse } from '../../../src/shared/types';
+import { PullResponse } from '../../../src/shared/types';
 
 let session: TestSession;
 
@@ -38,10 +39,11 @@ describe('conflict detection and resolution', () => {
 
   it('pushes to initiate the remote', () => {
     // This would go in setupCommands but we want it to use the bin/run version
-    const pushResult = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
-    expect(pushResult, JSON.stringify(pushResult)).to.have.lengthOf(234);
+    const pushResult = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
+      .result;
+    expect(pushResult.deployedSource, JSON.stringify(pushResult)).to.have.lengthOf(234);
     expect(
-      pushResult.every((r) => r.state !== ComponentStatus.Failed),
+      pushResult.deployedSource.every((r) => r.state !== ComponentStatus.Failed),
       JSON.stringify(pushResult)
     ).to.equal(true);
   });
@@ -91,12 +93,12 @@ describe('conflict detection and resolution', () => {
   });
 
   it('gets conflict error on push', () => {
-    execCmd<StatusResult[]>('force:source:push --json', { ensureExitCode: 1 });
+    execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 1 });
   });
   it('gets conflict error on pull', () => {
-    execCmd<StatusResult[]>('force:source:pull --json', { ensureExitCode: 1 });
+    execCmd<PullResponse>('force:source:pull --json', { ensureExitCode: 1 });
   });
   it('can push with forceoverwrite', () => {
-    execCmd<StatusResult[]>('force:source:push --json --forceoverwrite', { ensureExitCode: 0 });
+    execCmd<DeployCommandResult[]>('force:source:push --json --forceoverwrite', { ensureExitCode: 0 });
   });
 });

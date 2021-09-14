@@ -16,8 +16,9 @@ import { Env } from '@salesforce/kit';
 import { ensureString } from '@salesforce/ts-types';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 
-import { PushPullResponse } from '../../../src/shared/types';
+import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/deployResultFormatter';
 import { StatusResult } from '../../../src/commands/force/source/status';
+import { PullResponse } from '../../../src/shared/types';
 
 let session: TestSession;
 let hubUsername: string;
@@ -47,11 +48,11 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
       expect(result.every((row) => row.type && row.fullName)).to.equal(true);
     });
     it('pushes the initial metadata to the org', () => {
-      const result = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
-      expect(result).to.be.an.instanceof(Array);
-      expect(result, JSON.stringify(result)).to.have.lengthOf(234);
+      const result = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      expect(result.deployedSource).to.be.an.instanceof(Array);
+      expect(result.deployedSource, JSON.stringify(result)).to.have.lengthOf(234);
       expect(
-        result.every((r) => r.state !== ComponentStatus.Failed),
+        result.deployedSource.every((r) => r.state !== ComponentStatus.Failed),
         JSON.stringify(result)
       ).to.equal(true);
     });
@@ -67,8 +68,7 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
     });
 
     it('can pull the remote profile', () => {
-      const pullResult = execCmd<PushPullResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const pullResult = execCmd<PullResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
       expect(pullResult.some((item) => item.type === 'Profile')).to.equal(true);
     });
 
@@ -107,8 +107,8 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
     });
 
     it('pushes the local delete to the org', () => {
-      const result = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
-      expect(result).to.be.an.instanceof(Array).with.length(2);
+      const result = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      expect(result.deployedSource).to.be.an.instanceof(Array).with.length(2);
     });
     it('sees no local changes', () => {
       const result = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 }).jsonOutput

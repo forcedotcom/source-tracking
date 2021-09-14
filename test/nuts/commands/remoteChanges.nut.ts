@@ -16,8 +16,9 @@ import { expect } from 'chai';
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
+import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/deployResultFormatter';
 import { StatusResult } from '../../../src/commands/force/source/status';
-import { PushPullResponse } from '../../../src/shared/types';
+import { PullResponse } from '../../../src/shared/types';
 
 let session: TestSession;
 let conn: Connection;
@@ -44,11 +45,11 @@ describe('remote changes', () => {
 
   describe('remote changes: delete', () => {
     it('pushes to initiate the remote', () => {
-      const pushResult = execCmd<PushPullResponse[]>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
+      const pushResult = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
         .result;
-      expect(pushResult, JSON.stringify(pushResult)).to.have.lengthOf(234);
+      expect(pushResult.deployedSource, JSON.stringify(pushResult)).to.have.lengthOf(234);
       expect(
-        pushResult.every((r) => r.state !== ComponentStatus.Failed),
+        pushResult.deployedSource.every((r) => r.state !== ComponentStatus.Failed),
         JSON.stringify(pushResult)
       ).to.equal(true);
     });
@@ -89,8 +90,10 @@ describe('remote changes', () => {
       expect(result).to.have.length(0);
     });
     it('can pull the delete', () => {
-      const result = execCmd<StatusResult[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
-      expect(result).to.have.length(3); // profile plus the 2 files for the apexClass
+      const result = execCmd<PullResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      // the 2 files for the apexClass, and possibly one for the Profile (depending on whether it got created in time)
+      expect(result).to.have.length.greaterThanOrEqual(2);
+      expect(result).to.have.length.lessThanOrEqual(3);
       result.filter((r) => r.fullName === 'TestOrderController').map((r) => expect(r.state).to.equal('Deleted'));
     });
     it('local file was deleted', () => {
