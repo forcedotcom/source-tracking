@@ -7,7 +7,7 @@
 
 import { FlagsConfig, flags } from '@salesforce/command';
 import { Duration, env } from '@salesforce/kit';
-import { SfdxProject, Org, Messages } from '@salesforce/core';
+import { SfdxProject, Org, Messages, SfdxError } from '@salesforce/core';
 import { RequestStatus, ComponentStatus } from '@salesforce/source-deploy-retrieve';
 
 // TODO: move to plugin-source
@@ -78,7 +78,7 @@ export default class SourcePush extends DeployCommand {
       const conflicts = await tracking.getConflicts();
       if (conflicts.length > 0) {
         writeConflictTable(conflicts, this.ux);
-        throw new Error(messages.getMessage('pushCommandConflictMsg'));
+        throw new SfdxError(messages.getMessage('pushCommandConflictMsg'));
       }
     }
     const componentSet = await tracking.localChangesAsComponentSet();

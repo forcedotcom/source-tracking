@@ -7,7 +7,7 @@
 
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { Duration } from '@salesforce/kit';
-import { SfdxProject, Org, Messages } from '@salesforce/core';
+import { SfdxProject, Org, Messages, SfdxError } from '@salesforce/core';
 import { writeConflictTable } from '../../../writeConflictTable';
 import { SourceTracking } from '../../../sourceTracking';
 
@@ -52,7 +52,7 @@ export default class SourcePull extends SfdxCommand {
       const conflicts = await tracking.getConflicts();
       if (conflicts.length > 0) {
         writeConflictTable(conflicts, this.ux);
-        throw new Error(messages.getMessage('sourceConflictDetected'));
+        throw new SfdxError(messages.getMessage('sourceConflictDetected'));
       }
     }
     this.ux.setSpinnerStatus('Retrieving metadata from the org');
