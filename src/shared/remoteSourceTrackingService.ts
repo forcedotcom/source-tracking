@@ -202,22 +202,20 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
     // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
     // so we de-dupe via a set
-    Array.from(new Set(elements.map((element) => getMetadataKeyFromFileResponse(element)).flat())).map(
-      (metadataKey) => {
-        const revision = revisions[metadataKey];
-        if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
-          if (!quiet) {
-            this.logger.debug(
-              `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
-            );
-          }
-          revision.lastRetrievedFromServer = revision.serverRevisionCounter;
-          this.setMemberRevision(metadataKey, revision);
-        } else {
-          this.logger.warn(`found no matching revision for ${metadataKey}`);
+    Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(element)))).map((metadataKey) => {
+      const revision = revisions[metadataKey];
+      if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
+        if (!quiet) {
+          this.logger.debug(
+            `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
+          );
         }
+        revision.lastRetrievedFromServer = revision.serverRevisionCounter;
+        this.setMemberRevision(metadataKey, revision);
+      } else {
+        this.logger.warn(`found no matching revision for ${metadataKey}`);
       }
-    );
+    });
 
     await this.write();
   }

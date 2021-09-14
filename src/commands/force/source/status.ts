@@ -80,11 +80,9 @@ export default class SourceStatus extends SfdxCommand {
         excludeUnresolvable: true,
       });
 
-      outputRows = outputRows.concat(localAdds.map((item) => this.statusResultToOutputRows(item, 'add')).flat());
-      outputRows = outputRows.concat(
-        localModifies.map((item) => this.statusResultToOutputRows(item, 'changed')).flat()
-      );
-      outputRows = outputRows.concat(localDeletes.map((item) => this.statusResultToOutputRows(item, 'delete')).flat());
+      outputRows = outputRows.concat(localAdds.flatMap((item) => this.statusResultToOutputRows(item, 'add')));
+      outputRows = outputRows.concat(localModifies.flatMap((item) => this.statusResultToOutputRows(item, 'changed')));
+      outputRows = outputRows.concat(localDeletes.flatMap((item) => this.statusResultToOutputRows(item, 'delete')));
     }
 
     if (this.flags.remote || this.flags.all || (!this.flags.local && !this.flags.all)) {
@@ -94,8 +92,8 @@ export default class SourceStatus extends SfdxCommand {
         tracking.getChanges<ChangeResult>({ origin: 'remote', state: 'delete', format: 'ChangeResult' }),
         tracking.getChanges<ChangeResult>({ origin: 'remote', state: 'nondelete', format: 'ChangeResult' }),
       ]);
-      outputRows = outputRows.concat(remoteDeletes.map((item) => this.statusResultToOutputRows(item)).flat());
-      outputRows = outputRows.concat(remoteModifies.map((item) => this.statusResultToOutputRows(item)).flat());
+      outputRows = outputRows.concat(remoteDeletes.flatMap((item) => this.statusResultToOutputRows(item)));
+      outputRows = outputRows.concat(remoteModifies.flatMap((item) => this.statusResultToOutputRows(item)));
     }
 
     if (!this.flags.local && !this.flags.remote) {

@@ -125,7 +125,7 @@ export class SourceTracking extends AsyncCreatable {
     const resolverForDeletes = new MetadataResolver(undefined, filenamesToVirtualTree(deletes));
 
     nonDeletes
-      .map((filename) => {
+      .flatMap((filename) => {
         try {
           return resolverForNonDeletes.getComponentsFromPath(filename);
         } catch (e) {
@@ -133,13 +133,11 @@ export class SourceTracking extends AsyncCreatable {
           return undefined;
         }
       })
-      .flat()
       .filter(sourceComponentGuard)
       .map((component) => componentSet.add(component));
 
     deletes
-      .map((filename) => resolverForDeletes.getComponentsFromPath(filename))
-      .flat()
+      .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
       .filter(sourceComponentGuard)
       .map((component) => componentSet.add(component, true));
 
@@ -189,26 +187,23 @@ export class SourceTracking extends AsyncCreatable {
     if (changesToDelete.length > 0) {
       // build a component set of the deleted types
       const changesToDeleteWithFilePaths = this.populateFilePaths(changesToDelete);
-      deletesAsFileResponse = changesToDeleteWithFilePaths
-        .map((changeResult) =>
-          changeResult && changeResult.filenames
-            ? changeResult.filenames.map(
-                (filename) =>
-                  ({
-                    type: changeResult.type,
-                    fullName: changeResult.name as string,
-                    filePath: filename,
-                    state: ComponentStatus.Deleted,
-                  } as FileResponse) // this assertion is because it matches the unexported Success flavor of FileResponse
-              )
-            : []
-        )
-        .flat();
+      deletesAsFileResponse = changesToDeleteWithFilePaths.flatMap((changeResult) =>
+        changeResult && changeResult.filenames
+          ? changeResult.filenames.map(
+              (filename) =>
+                ({
+                  type: changeResult.type,
+                  fullName: changeResult.name as string,
+                  filePath: filename,
+                  state: ComponentStatus.Deleted,
+                } as FileResponse) // this assertion is because it matches the unexported Success flavor of FileResponse
+            )
+          : []
+      );
       // delete the files
       const filenames = changesToDeleteWithFilePaths
         // TODO: test that this works for undefined, string and string[]
-        .map((change) => change.filenames as string[])
-        .flat()
+        .flatMap((change) => change.filenames as string[])
         .filter(Boolean);
       await Promise.all(filenames.map((filename) => fs.promises.unlink(filename)));
       await Promise.all([
@@ -303,7 +298,7 @@ export class SourceTracking extends AsyncCreatable {
             : new MetadataResolver();
 
         return filenames
-          .map((filename) => {
+          .flatMap((filename) => {
             try {
               return resolver.getComponentsFromPath(filename);
             } catch (e) {
@@ -311,7 +306,6 @@ export class SourceTracking extends AsyncCreatable {
               return undefined;
             }
           })
-          .flat()
           .filter(sourceComponentGuard) as T[];
       }
     }
@@ -471,15 +465,12 @@ export class SourceTracking extends AsyncCreatable {
     }
 
     this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-    const filenames = elements
-      .map((element) => element.filenames)
-      .flat()
-      .filter(stringGuard);
+    const filenames = elements.flatMap((element) => element.filenames).filter(stringGuard);
 
     // component set generated from the filenames on all local changes
     const resolver = new MetadataResolver(undefined, resolveDeleted ? filenamesToVirtualTree(filenames) : undefined);
     const sourceComponents = filenames
-      .map((filename) => {
+      .flatMap((filename) => {
         try {
           return resolver.getComponentsFromPath(filename);
         } catch (e) {
@@ -487,7 +478,6 @@ export class SourceTracking extends AsyncCreatable {
           return undefined;
         }
       })
-      .flat()
       .filter(sourceComponentGuard);
 
     this.logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
