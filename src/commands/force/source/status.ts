@@ -19,7 +19,7 @@ export interface StatusResult {
 }
 
 Messages.importMessagesDirectory(__dirname);
-const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_push');
+const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'status');
 
 export default class SourceStatus extends SfdxCommand {
   public static description = messages.getMessage('statusCommandCliDescription');
