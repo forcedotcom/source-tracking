@@ -38,6 +38,7 @@ export default class SourcePull extends SfdxCommand {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async run(): Promise<any> {
+    this.ux.startSpinner('Loading source tracking information');
     const tracking = await SourceTracking.create({
       org: this.org,
       project: this.project,
@@ -45,6 +46,7 @@ export default class SourcePull extends SfdxCommand {
     });
 
     await tracking.ensureRemoteTracking(true);
+    this.ux.setSpinnerStatus('Checking for conflicts');
 
     if (!this.flags.forceoverwrite) {
       const conflicts = await tracking.getConflicts();
@@ -53,11 +55,11 @@ export default class SourcePull extends SfdxCommand {
         throw new Error(messages.getMessage('sourceConflictDetected'));
       }
     }
+    this.ux.setSpinnerStatus('Retrieving metadata from the org');
 
     const retrieveResult = await tracking.retrieveRemoteChanges({ wait: this.flags.wait as Duration });
-
+    this.ux.stopSpinner();
     if (!this.flags.json) {
-      this.ux.logJson(retrieveResult);
       this.ux.table(retrieveResult, {
         columns: [
           { label: 'STATE', key: 'state' },
@@ -67,11 +69,6 @@ export default class SourcePull extends SfdxCommand {
         ],
       });
     }
-    return retrieveResult.map((fileResponse) => ({
-      state: fileResponse.state,
-      fullName: fileResponse.fullName,
-      type: fileResponse.type,
-      filePath: fileResponse.filePath,
-    }));
+    return retrieveResult.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath }));
   }
 }
