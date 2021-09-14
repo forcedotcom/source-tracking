@@ -58,6 +58,14 @@ export default class SourcePull extends SfdxCommand {
 
     if (!this.flags.json) {
       this.ux.logJson(retrieveResult);
+      this.ux.table(retrieveResult, {
+        columns: [
+          { label: 'STATE', key: 'state' },
+          { label: 'FULL NAME', key: 'fullName' },
+          { label: 'TYPE', key: 'type' },
+          { label: 'PROJECT PATH', key: 'filePath' },
+        ],
+      });
     }
     return retrieveResult.map((fileResponse) => ({
       state: fileResponse.state,

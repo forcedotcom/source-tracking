@@ -68,7 +68,6 @@ export default class SourcePush extends DeployCommand {
   protected async deploy(): Promise<void> {
     const waitDuration = this.getFlag<Duration>('wait');
     this.isRest = await this.isRestDeploy();
-    this.ux.log(`*** Deploying with ${this.isRest ? 'REST' : 'SOAP'} API ***`);
 
     const tracking = await SourceTracking.create({
       org: this.org,
@@ -87,11 +86,13 @@ export default class SourcePush extends DeployCommand {
     // there might have been components in local tracking, but they might be ignored by SDR or unresolvable.
     // SDR will throw when you try to resolve them, so don't
     if (componentSet.size === 0) {
+      this.logger.warn('There are no changes in to deploy');
       return;
     }
 
     // fire predeploy event for sync and async deploys
     await this.lifecycle.emit('predeploy', componentSet.toArray());
+    this.ux.log(`*** Deploying with ${this.isRest ? 'REST' : 'SOAP'} API ***`);
 
     const deploy = await componentSet.deploy({
       usernameOrConnection: this.org.getUsername() as string,
@@ -125,12 +126,16 @@ export default class SourcePush extends DeployCommand {
   }
 
   protected resolveSuccess(): void {
-    if (this.deployResult?.response.status !== RequestStatus.Succeeded) {
+    // there might not be a deployResult if we exited early with an empty componentSet
+    if (this.deployResult && this.deployResult.response.status !== RequestStatus.Succeeded) {
       this.setExitCode(1);
     }
   }
 
   protected formatResult(): DeployCommandResult {
+    if (!this.deployResult) {
+      this.ux.log('No results found');
+    }
     const formatterOptions = {
       verbose: this.getFlag<boolean>('verbose', false),
     };

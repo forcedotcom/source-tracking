@@ -49,6 +49,11 @@ export default class SourceStatus extends SfdxCommand {
   protected localAdds: ChangeResult[] = [];
 
   public async run(): Promise<StatusResult[]> {
+    const wantsLocal =
+      (this.flags.local as boolean) || (this.flags.all as boolean) || (!this.flags.remote && !this.flags.all);
+    const wantsRemote =
+      (this.flags.remote as boolean) || (this.flags.all as boolean) || (!this.flags.local && !this.flags.all);
+
     this.logger.debug(
       `project is ${this.project.getPath()} and pkgDirs are ${this.project
         .getPackageDirectories()
@@ -62,7 +67,7 @@ export default class SourceStatus extends SfdxCommand {
     });
     let outputRows: StatusResult[] = [];
 
-    if (this.flags.local || this.flags.all || (!this.flags.remote && !this.flags.all)) {
+    if (wantsLocal) {
       await tracking.ensureLocalTracking();
       const localDeletes = tracking.populateTypesAndNames({
         elements: await tracking.getChanges<ChangeResult>({ origin: 'local', state: 'delete', format: 'ChangeResult' }),
@@ -85,7 +90,7 @@ export default class SourceStatus extends SfdxCommand {
       outputRows = outputRows.concat(localDeletes.flatMap((item) => this.statusResultToOutputRows(item, 'delete')));
     }
 
-    if (this.flags.remote || this.flags.all || (!this.flags.local && !this.flags.all)) {
+    if (wantsRemote) {
       // by initializeWithQuery true, one query runs so that parallel getChanges aren't doing parallel queries
       await tracking.ensureRemoteTracking(true);
       const [remoteDeletes, remoteModifies] = await Promise.all([
@@ -96,7 +101,7 @@ export default class SourceStatus extends SfdxCommand {
       outputRows = outputRows.concat(remoteModifies.flatMap((item) => this.statusResultToOutputRows(item)));
     }
 
-    if (!this.flags.local && !this.flags.remote) {
+    if (wantsLocal && wantsRemote) {
       // keys like ApexClass__MyClass.cls
       const conflictKeys = (await tracking.getConflicts()).map((conflict) => getKeyFromObject(conflict));
       if (conflictKeys.length > 0) {
