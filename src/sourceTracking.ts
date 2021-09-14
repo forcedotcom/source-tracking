@@ -200,12 +200,7 @@ export class SourceTracking extends AsyncCreatable {
         files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
       }),
       this.updateRemoteTracking(
-        successes.map((success) => ({
-          filePath: success.filePath,
-          type: success.type,
-          fullName: success.fullName,
-          state: success.state,
-        })),
+        successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath })),
         true // skip polling because it's a pull
       ),
     ]);
