@@ -5,17 +5,28 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
-import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
-import { Duration } from '@salesforce/kit';
+import { FlagsConfig, flags } from '@salesforce/command';
+import { Duration, env } from '@salesforce/kit';
 import { SfdxProject, Org, Messages } from '@salesforce/core';
-import { PushPullResponse } from '../../../shared/types';
+import { RequestStatus, ComponentStatus } from '@salesforce/source-deploy-retrieve';
+
+// TODO: move to plugin-source
+import { DeployCommand } from '@salesforce/plugin-source/lib/deployCommand';
+import {
+  DeployResultFormatter,
+  DeployCommandResult,
+} from '@salesforce/plugin-source/lib/formatters/DeployResultFormatter';
+import { ProgressFormatter } from '@salesforce/plugin-source/lib/formatters/progressFormatter';
+import { DeployProgressBarFormatter } from '@salesforce/plugin-source/lib/formatters/deployProgressBarFormatter';
+import { DeployProgressStatusFormatter } from '@salesforce/plugin-source/lib/formatters/deployProgressStatusFormatter';
+
 import { SourceTracking } from '../../../sourceTracking';
 import { writeConflictTable } from '../../../writeConflictTable';
 
 Messages.importMessagesDirectory(__dirname);
 const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_push');
 
-export default class SourcePush extends SfdxCommand {
+export default class SourcePush extends DeployCommand {
   public static description = messages.getMessage('commandDescription');
   public static help = messages.getMessage('commandHelp');
   protected static readonly flagsConfig: FlagsConfig = {
@@ -28,9 +39,9 @@ export default class SourcePush extends SfdxCommand {
     wait: flags.minutes({
       char: 'w',
       default: Duration.minutes(33),
-      min: Duration.minutes(0), // wait=0 means deploy is asynchronous
+      min: Duration.minutes(1),
       description: messages.getMessage('waitFlagDescriptionLong'),
-      longDescription: messages.getMessage('waitFlagDescriptionLongLong'),
+      longDescription: messages.getMessage('waitFlagDescriptionLong'),
     }),
     ignorewarnings: flags.boolean({
       char: 'g',
@@ -38,15 +49,27 @@ export default class SourcePush extends SfdxCommand {
       longDescription: messages.getMessage('ignorewarningsFlagDescriptionLong'),
     }),
   };
-
   protected static requiresUsername = true;
   protected static requiresProject = true;
+  protected readonly lifecycleEventNames = ['predeploy', 'postdeploy'];
 
   protected project!: SfdxProject; // ok because requiresProject
   protected org!: Org; // ok because requiresUsername
 
+  private isRest = false;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public async run(): Promise<PushPullResponse[]> {
+  public async run(): Promise<DeployCommandResult> {
+    await this.deploy();
+    this.resolveSuccess();
+    return this.formatResult();
+  }
+
+  protected async deploy(): Promise<void> {
+    const waitDuration = this.getFlag<Duration>('wait');
+    this.isRest = await this.isRestDeploy();
+    this.ux.log(`*** Deploying with ${this.isRest ? 'REST' : 'SOAP'} API ***`);
+
     const tracking = await SourceTracking.create({
       org: this.org,
       project: this.project,
@@ -59,21 +82,66 @@ export default class SourcePush extends SfdxCommand {
         throw new Error(messages.getMessage('pushCommandConflictMsg'));
       }
     }
-    const deployResult = await tracking.deployLocalChanges({
-      ignoreWarnings: this.flags.ignorewarnings as boolean,
-      wait: this.flags.wait as Duration,
-    });
+    const componentSet = await tracking.localChangesAsComponentSet();
 
-    // TODO: catch the noChanges to deploy error
-    if (!this.flags.json) {
-      this.ux.logJson(deployResult);
+    // there might have been components in local tracking, but they might be ignored by SDR or unresolvable.
+    // SDR will throw when you try to resolve them, so don't
+    if (componentSet.size === 0) {
+      return;
     }
 
-    return deployResult.map((fileResponse) => ({
-      state: fileResponse.state,
-      fullName: fileResponse.fullName,
-      type: fileResponse.type,
-      filePath: fileResponse.filePath,
-    }));
+    // fire predeploy event for sync and async deploys
+    await this.lifecycle.emit('predeploy', componentSet.toArray());
+
+    const deploy = await componentSet.deploy({
+      usernameOrConnection: this.org.getUsername() as string,
+      apiOptions: { ignoreWarnings: (this.flags.ignoreWarnings as boolean) || false, rest: this.isRest },
+    });
+
+    // we're not print JSON output
+    if (!this.isJsonOutput()) {
+      const progressFormatter: ProgressFormatter = env.getBoolean('SFDX_USE_PROGRESS_BAR', true)
+        ? new DeployProgressBarFormatter(this.logger, this.ux)
+        : new DeployProgressStatusFormatter(this.logger, this.ux);
+      progressFormatter.progress(deploy);
+    }
+    this.deployResult = await deploy.pollStatus(500, waitDuration.seconds);
+
+    const successes = this.deployResult
+      .getFileResponses()
+      .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
+    const successNonDeletes = successes.filter((fileResponse) => fileResponse.state !== ComponentStatus.Deleted);
+    const successDeletes = successes.filter((fileResponse) => fileResponse.state === ComponentStatus.Deleted);
+
+    await Promise.all([
+      // Only fire the postdeploy event when we have results. I.e., not async.
+      this.deployResult ? this.lifecycle.emit('postdeploy', this.deployResult) : Promise.resolve(),
+      tracking.updateLocalTracking({
+        files: successNonDeletes.map((fileResponse) => fileResponse.filePath) as string[],
+        deletedFiles: successDeletes.map((fileResponse) => fileResponse.filePath) as string[],
+      }),
+      tracking.updateRemoteTracking(successes),
+    ]);
+  }
+
+  protected resolveSuccess(): void {
+    if (this.deployResult?.response.status !== RequestStatus.Succeeded) {
+      this.setExitCode(1);
+    }
+  }
+
+  protected formatResult(): DeployCommandResult {
+    const formatterOptions = {
+      verbose: this.getFlag<boolean>('verbose', false),
+    };
+
+    const formatter = new DeployResultFormatter(this.logger, this.ux, formatterOptions, this.deployResult);
+
+    // Only display results to console when JSON flag is unset.
+    if (!this.isJsonOutput()) {
+      formatter.display();
+    }
+
+    return formatter.getJson();
   }
 }

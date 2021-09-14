@@ -102,22 +102,17 @@ export class SourceTracking extends AsyncCreatable {
     this.apiVersion = this.options.apiVersion ?? (await this.getSourceApiVersion());
   }
 
-  public async deployLocalChanges({
-    ignoreWarnings = false,
-    wait = Duration.minutes(33),
-  }: {
-    ignoreWarnings?: boolean;
-    wait?: Duration;
-  }): Promise<FileResponse[]> {
+  public async localChangesAsComponentSet(): Promise<ComponentSet> {
     await this.ensureLocalTracking();
+    const componentSet = new ComponentSet();
+
     const [nonDeletes, deletes] = await Promise.all([
       this.localRepo.getNonDeleteFilenames(),
       this.localRepo.getDeleteFilenames(),
     ]);
     if (nonDeletes.length === 0 && deletes.length === 0) {
-      throw new Error('There are no changes to deploy');
+      return componentSet;
     }
-    const componentSet = new ComponentSet();
     // optimistic resolution...some files may not be possible to resolve
     const resolverForNonDeletes = new MetadataResolver();
     // we need virtual components for the deletes.
@@ -141,28 +136,7 @@ export class SourceTracking extends AsyncCreatable {
       .filter(sourceComponentGuard)
       .map((component) => componentSet.add(component, true));
 
-    // there might have been components in local tracking, but they might be ignored by SDR or unresolvable.
-    // SDR will throw when you try to resolve them, so don't
-    if (componentSet.size === 0) {
-      return [];
-    }
-    const deploy = await componentSet.deploy({ usernameOrConnection: this.username, apiOptions: { ignoreWarnings } });
-    const result = await deploy.pollStatus(30, wait.seconds);
-
-    const successes = result.getFileResponses().filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
-    const successNonDeletes = successes.filter((fileResponse) => fileResponse.state !== ComponentStatus.Deleted);
-    const successDeletes = successes.filter((fileResponse) => fileResponse.state === ComponentStatus.Deleted);
-
-    // then commit successes to local and remote tracking;
-    await Promise.all([
-      this.updateLocalTracking({
-        files: successNonDeletes.map((fileResponse) => fileResponse.filePath) as string[],
-        deletedFiles: successDeletes.map((fileResponse) => fileResponse.filePath) as string[],
-      }),
-      this.updateRemoteTracking(successes), // this should include polling for sourceMembers
-    ]);
-
-    return result.getFileResponses();
+    return componentSet;
   }
 
   public async retrieveRemoteChanges({ wait = Duration.minutes(33) }: { wait: Duration }): Promise<FileResponse[]> {
