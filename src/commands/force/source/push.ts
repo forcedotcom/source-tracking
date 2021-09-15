@@ -22,6 +22,7 @@ import { DeployProgressStatusFormatter } from '@salesforce/plugin-source/lib/for
 
 import { SourceTracking } from '../../../sourceTracking';
 import { writeConflictTable } from '../../../writeConflictTable';
+import { throwIfInvalid } from '../../../compatibility';
 
 Messages.importMessagesDirectory(__dirname);
 const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_push');
@@ -66,6 +67,12 @@ export default class SourcePush extends DeployCommand {
   }
 
   protected async deploy(): Promise<void> {
+    throwIfInvalid({
+      org: this.org,
+      projectPath: this.project.getPath(),
+      toValidate: 'plugin-source',
+      command: 'beta:source:push',
+    });
     const waitDuration = this.getFlag<Duration>('wait');
     this.isRest = await this.isRestDeploy();
 
@@ -86,7 +93,7 @@ export default class SourcePush extends DeployCommand {
     // there might have been components in local tracking, but they might be ignored by SDR or unresolvable.
     // SDR will throw when you try to resolve them, so don't
     if (componentSet.size === 0) {
-      this.logger.warn('There are no changes in to deploy');
+      this.logger.warn('There are no changes to deploy');
       return;
     }
 

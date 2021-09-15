@@ -10,6 +10,7 @@ import { Duration } from '@salesforce/kit';
 import { SfdxProject, Org, Messages, SfdxError } from '@salesforce/core';
 import { writeConflictTable } from '../../../writeConflictTable';
 import { SourceTracking } from '../../../sourceTracking';
+import { throwIfInvalid } from '../../../compatibility';
 
 Messages.importMessagesDirectory(__dirname);
 const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_pull');
@@ -38,6 +39,13 @@ export default class SourcePull extends SfdxCommand {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async run(): Promise<any> {
+    throwIfInvalid({
+      org: this.org,
+      projectPath: this.project.getPath(),
+      toValidate: 'plugin-source',
+      command: 'beta:source:pull',
+    });
+
     this.ux.startSpinner('Loading source tracking information');
     const tracking = await SourceTracking.create({
       org: this.org,

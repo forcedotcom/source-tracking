@@ -11,6 +11,8 @@ import { SfdxProject, Org, Messages } from '@salesforce/core';
 import { getKeyFromStrings } from '../../..';
 
 import { ChangeResult, SourceTracking, getKeyFromObject } from '../../../sourceTracking';
+import { throwIfInvalid } from '../../../compatibility';
+
 export interface StatusResult {
   state: string;
   fullName: string;
@@ -49,6 +51,12 @@ export default class SourceStatus extends SfdxCommand {
   protected localAdds: ChangeResult[] = [];
 
   public async run(): Promise<StatusResult[]> {
+    throwIfInvalid({
+      org: this.org,
+      projectPath: this.project.getPath(),
+      toValidate: 'plugin-source',
+      command: 'beta:source:status',
+    });
     const wantsLocal =
       (this.flags.local as boolean) || (this.flags.all as boolean) || (!this.flags.remote && !this.flags.all);
     const wantsRemote =

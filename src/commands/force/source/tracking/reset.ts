@@ -9,6 +9,7 @@ import { flags, FlagsConfig, SfdxCommand } from '@salesforce/command';
 import { Messages, Org, SfdxProject } from '@salesforce/core';
 import * as chalk from 'chalk';
 import { SourceTracking } from '../../../../sourceTracking';
+import { throwIfInvalid } from '../../../../compatibility';
 
 Messages.importMessagesDirectory(__dirname);
 const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_tracking');
@@ -41,6 +42,13 @@ export class SourceTrackingResetCommand extends SfdxCommand {
   protected project!: SfdxProject;
 
   public async run(): Promise<SourceTrackingResetResult> {
+    throwIfInvalid({
+      org: this.org,
+      projectPath: this.project.getPath(),
+      toValidate: 'plugin-source',
+      command: 'beta:source:tracking:reset',
+    });
+
     if (this.flags.noprompt || (await this.ux.confirm(chalk.dim(messages.getMessage('promptMessage'))))) {
       const sourceTracking = await SourceTracking.create({
         project: this.project,
