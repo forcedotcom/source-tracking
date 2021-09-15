@@ -1,0 +1,5 @@
+{
+  "sourceTrackingFileVersionMismatch": "This command uses the %s version of source tracking files.",
+  "clearSuggestion": "Clear the tracking files by running '%s'",
+  "useOtherVersion": "Use the %s version of the command %s (preserves the tracking files)"
+}

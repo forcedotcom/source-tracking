@@ -6,9 +6,12 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { Org, SfdxError } from '@salesforce/core';
+import { Org, SfdxError, Messages } from '@salesforce/core';
 
 const newTopic = 'beta';
+
+Messages.importMessagesDirectory(__dirname);
+const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'compatibility');
 
 type TrackingFileVersion = 'plugin-source' | 'toolbelt' | 'none';
 /**
@@ -61,33 +64,36 @@ export const throwIfInvalid = ({
   // We expected it to be the toolbelt version but it is using the new tracking files
   if (toValidate === 'toolbelt') {
     throw new SfdxError(
-      'This command uses a new version of source tracking files.',
+      messages.getMessage('sourceTrackingFileVersionMismatch', ['new']),
       'SourceTrackingFileVersionMismatch',
       [
-        `Use the new version of the command ${command.replace(
-          'source:',
-          `source:${newTopic}`
-        )} (preserves the tracking files)`,
-        'Clear the tracking files by running "sfdx force:source:tracking:clear"',
+        messages.getMessage('useOtherVersion', ['new', replaceRenamedCommands(command)]),
+        messages.getMessage('clearSuggestion', ['sfdx force:source:tracking:clear']),
       ]
     );
   }
   // We expected it to be the plugin-source version but it is using the old tracking files
   if (toValidate === 'plugin-source') {
     throw new SfdxError(
-      'This command uses the old version of source tracking files.',
+      messages.getMessage('sourceTrackingFileVersionMismatch', ['old']),
       'SourceTrackingFileVersionMismatch',
       [
-        `Use the old version of the command ${command.replace(`${newTopic}:`, '')} (preserves the tracking files)`,
-        `Clear the tracking files by running "sfdx force:source:tracking:${newTopic}:clear"`,
+        messages.getMessage('useOtherVersion', ['old', replaceRenamedCommands(command, true)]),
+        messages.getMessage('clearSuggestion', [replaceRenamedCommands('sfdx force:source:tracking:clear')]),
       ]
     );
   }
 };
 
-export const replaceRenamedCommands = (input: string): string => {
+/**
+ *
+ * @param input the string that might contain things that would be replaced
+ * @param reverse use the mappings backward
+ * @returns string
+ */
+export const replaceRenamedCommands = (input: string, reverse = false): string => {
   renames.forEach((value, key) => {
-    input = input.replace(key, value);
+    input = reverse ? input.replace(key, value) : input.replace(value, key);
   });
   return input;
 };
