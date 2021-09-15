@@ -8,8 +8,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Org, SfdxError, Messages } from '@salesforce/core';
 
-const newTopic = 'beta';
-
 Messages.importMessagesDirectory(__dirname);
 const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'compatibility');
 
@@ -68,7 +66,7 @@ export const throwIfInvalid = ({
       'SourceTrackingFileVersionMismatch',
       [
         messages.getMessage('useOtherVersion', ['new', replaceRenamedCommands(command)]),
-        messages.getMessage('clearSuggestion', ['sfdx force:source:tracking:clear']),
+        messages.getMessage('clearSuggestion', ['new', replaceRenamedCommands('sfdx force:source:tracking:clear')]),
       ]
     );
   }
@@ -79,7 +77,7 @@ export const throwIfInvalid = ({
       'SourceTrackingFileVersionMismatch',
       [
         messages.getMessage('useOtherVersion', ['old', replaceRenamedCommands(command, true)]),
-        messages.getMessage('clearSuggestion', [replaceRenamedCommands('sfdx force:source:tracking:clear')]),
+        messages.getMessage('clearSuggestion', ['old', 'sfdx force:source:tracking:clear']),
       ]
     );
   }
@@ -93,7 +91,7 @@ export const throwIfInvalid = ({
  */
 export const replaceRenamedCommands = (input: string, reverse = false): string => {
   renames.forEach((value, key) => {
-    input = reverse ? input.replace(key, value) : input.replace(value, key);
+    input = reverse ? input.replace(value, key) : input.replace(key, value);
   });
   return input;
 };
