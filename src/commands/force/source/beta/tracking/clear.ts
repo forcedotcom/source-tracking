@@ -8,8 +8,8 @@
 import { flags, FlagsConfig, SfdxCommand } from '@salesforce/command';
 import { Messages, Org, SfdxProject } from '@salesforce/core';
 import * as chalk from 'chalk';
-import { SourceTracking } from '../../../../../src/sourceTracking';
-import { throwIfInvalid } from '../../../../compatibility';
+import { SourceTracking } from '../../../../../sourceTracking';
+import { throwIfInvalid, replaceRenamedCommands } from '../../../../../compatibility';
 
 Messages.importMessagesDirectory(__dirname);
 const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_tracking');
@@ -19,7 +19,7 @@ export type SourceTrackingClearResult = {
 };
 
 export class SourceTrackingClearCommand extends SfdxCommand {
-  public static readonly description = messages.getMessage('clearDescription');
+  public static readonly description = replaceRenamedCommands(messages.getMessage('clearDescription'));
 
   public static readonly requiresProject = true;
   public static readonly requiresUsername = true;
@@ -41,10 +41,13 @@ export class SourceTrackingClearCommand extends SfdxCommand {
       org: this.org,
       projectPath: this.project.getPath(),
       toValidate: 'plugin-source',
-      command: 'beta:source:tracking:clear',
+      command: replaceRenamedCommands('force:source:tracking:clear'),
     });
     let clearedFiles: string[] = [];
-    if (this.flags.noprompt || (await this.ux.confirm(chalk.dim(messages.getMessage('promptMessage'))))) {
+    if (
+      this.flags.noprompt ||
+      (await this.ux.confirm(chalk.dim(replaceRenamedCommands(messages.getMessage('promptMessage')))))
+    ) {
       const sourceTracking = await SourceTracking.create({
         project: this.project,
         org: this.org,

@@ -8,8 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Org, SfdxError } from '@salesforce/core';
 
-const newTopic = 'beta'; // change to 'force' when plugin-source becomes default
-const oldTopic = 'force'; // change to 'legacy' when plugin-source becomes default
+const newTopic = 'beta';
 
 type TrackingFileVersion = 'plugin-source' | 'toolbelt' | 'none';
 /**
@@ -65,8 +64,11 @@ export const throwIfInvalid = ({
       'This command uses a new version of source tracking files.',
       'SourceTrackingFileVersionMismatch',
       [
-        `Use the new version of the command ${command.replace(oldTopic, newTopic)} (preserve the tracking files)`,
-        `Clear the tracking files by running "sfdx ${newTopic}:source:tracking:clear"`,
+        `Use the new version of the command ${command.replace(
+          'source:',
+          `source:${newTopic}`
+        )} (preserves the tracking files)`,
+        'Clear the tracking files by running "sfdx force:source:tracking:clear"',
       ]
     );
   }
@@ -76,9 +78,24 @@ export const throwIfInvalid = ({
       'This command uses the old version of source tracking files.',
       'SourceTrackingFileVersionMismatch',
       [
-        `Use the old version of the command ${command.replace(newTopic, oldTopic)} (preserve the tracking files)`,
-        `Clear the tracking files by running "sfdx ${oldTopic}:source:tracking:clear"`,
+        `Use the old version of the command ${command.replace(`${newTopic}:`, '')} (preserves the tracking files)`,
+        `Clear the tracking files by running "sfdx force:source:tracking:${newTopic}:clear"`,
       ]
     );
   }
 };
+
+export const replaceRenamedCommands = (input: string): string => {
+  renames.forEach((value, key) => {
+    input = input.replace(key, value);
+  });
+  return input;
+};
+
+export const renames = new Map([
+  ['force:source:status', 'force:source:beta:status'],
+  ['force:source:status', 'force:source:beta:status'],
+  ['force:source:pull', 'force:source:beta:pull'],
+  ['force:source:tracking:reset', 'force:source:beta:tracking:reset'],
+  ['force:source:tracking:clear', 'force:source:beta:tracking:clear'],
+]);

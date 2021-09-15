@@ -17,11 +17,11 @@ import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/DeployResultFormatter';
-import { StatusResult } from '../../../src/commands/force/source/status';
+import { StatusResult } from '../../../src/commands/force/source/beta/status';
 import { PullResponse } from '../../../src/shared/types';
+import { replaceRenamedCommands } from '../../../src/compatibility';
 
 let session: TestSession;
-
 describe('conflict detection and resolution', () => {
   before(async () => {
     session = await TestSession.create({
@@ -39,8 +39,9 @@ describe('conflict detection and resolution', () => {
 
   it('pushes to initiate the remote', () => {
     // This would go in setupCommands but we want it to use the bin/run version
-    const pushResult = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
-      .result;
+    const pushResult = execCmd<DeployCommandResult>(replaceRenamedCommands('force:source:push --json'), {
+      ensureExitCode: 0,
+    }).jsonOutput.result;
     expect(pushResult.deployedSource, JSON.stringify(pushResult)).to.have.lengthOf(234);
     expect(
       pushResult.deployedSource.every((r) => r.state !== ComponentStatus.Failed),
@@ -67,8 +68,9 @@ describe('conflict detection and resolution', () => {
         description: 'modified',
       },
     });
-    const result = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
-      .result;
+    const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --remote'), {
+      ensureExitCode: 0,
+    }).jsonOutput.result;
     // profile and customApplication
     expect(result).to.have.lengthOf(2);
   });
@@ -87,18 +89,21 @@ describe('conflict detection and resolution', () => {
     );
   });
   it('can see the conflict in status', () => {
-    const result = execCmd<StatusResult[]>('force:source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
+    const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json'), { ensureExitCode: 0 })
+      .jsonOutput.result;
     expect(result).to.have.lengthOf(3);
     result.filter((app) => app.type === 'CustomApplication').map((app) => expect(app.state).to.include('(Conflict)'));
   });
 
   it('gets conflict error on push', () => {
-    execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 1 });
+    execCmd<DeployCommandResult>(replaceRenamedCommands('force:source:push --json'), { ensureExitCode: 1 });
   });
   it('gets conflict error on pull', () => {
-    execCmd<PullResponse>('force:source:pull --json', { ensureExitCode: 1 });
+    execCmd<PullResponse>(replaceRenamedCommands('force:source:pull --json'), { ensureExitCode: 1 });
   });
   it('can push with forceoverwrite', () => {
-    execCmd<DeployCommandResult[]>('force:source:push --json --forceoverwrite', { ensureExitCode: 0 });
+    execCmd<DeployCommandResult[]>(replaceRenamedCommands('force:source:push --json --forceoverwrite'), {
+      ensureExitCode: 0,
+    });
   });
 });

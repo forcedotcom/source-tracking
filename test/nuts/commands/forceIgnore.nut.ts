@@ -20,7 +20,8 @@ import { Connection, AuthInfo } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/deployResultFormatter';
 import { PullResponse } from '../../../src/shared/types';
-import { StatusResult } from '../../../src/commands/force/source/status';
+import { StatusResult } from '../../../src/commands/force/source/beta/status';
+import { replaceRenamedCommands } from '../../../src/compatibility';
 
 let session: TestSession;
 const classdir = 'force-app/main/default/classes';
@@ -57,7 +58,9 @@ describe('forceignore changes', () => {
       const newForceIgnore = originalForceIgnore + '\n' + `${classdir}/IgnoreTest.cls`;
       await fs.promises.writeFile(path.join(session.project.dir, '.forceignore'), newForceIgnore);
       // nothing should push
-      const output = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const output = execCmd<DeployCommandResult>(replaceRenamedCommands('force:source:push --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(output.deployedSource).to.deep.equal([]);
     });
 
@@ -73,8 +76,9 @@ describe('forceignore changes', () => {
         silent: true,
       });
       // pushes with no results
-      const ignoredOutput = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const ignoredOutput = execCmd<DeployCommandResult>(replaceRenamedCommands('force:source:push --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       // nothing should have been pushed
       expect(ignoredOutput.deployedSource).to.deep.equal([]);
     });
@@ -84,8 +88,9 @@ describe('forceignore changes', () => {
       await fs.promises.writeFile(path.join(session.project.dir, '.forceignore'), originalForceIgnore);
 
       // verify file pushed in results
-      const unIgnoredOutput = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const unIgnoredOutput = execCmd<DeployCommandResult>(replaceRenamedCommands('force:source:push --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
 
       // all 4 files should have been pushed
       expect(unIgnoredOutput.deployedSource).to.have.length(4);
@@ -116,12 +121,15 @@ describe('forceignore changes', () => {
       );
 
       // gets file into source tracking
-      const statusOutput = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 })
-        .jsonOutput.result;
+      const statusOutput = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --remote'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(statusOutput.some((result) => result.fullName === 'CreatedClass')).to.equal(true);
 
       // pull doesn't retrieve that change
-      const pullOutput = execCmd<PullResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const pullOutput = execCmd<PullResponse[]>(replaceRenamedCommands('force:source:pull --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(pullOutput.some((result) => result.fullName === 'CreatedClass')).to.equal(false);
     });
   });

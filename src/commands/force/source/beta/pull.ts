@@ -8,9 +8,9 @@
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { Duration } from '@salesforce/kit';
 import { SfdxProject, Org, Messages, SfdxError } from '@salesforce/core';
-import { writeConflictTable } from '../../../writeConflictTable';
-import { SourceTracking } from '../../../sourceTracking';
-import { throwIfInvalid } from '../../../compatibility';
+import { writeConflictTable } from '../../../../writeConflictTable';
+import { SourceTracking } from '../../../../sourceTracking';
+import { throwIfInvalid, replaceRenamedCommands } from '../../../../compatibility';
 
 Messages.importMessagesDirectory(__dirname);
 const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_pull');
@@ -43,7 +43,7 @@ export default class SourcePull extends SfdxCommand {
       org: this.org,
       projectPath: this.project.getPath(),
       toValidate: 'plugin-source',
-      command: 'beta:source:pull',
+      command: replaceRenamedCommands('force:source:pull'),
     });
 
     this.ux.startSpinner('Loading source tracking information');

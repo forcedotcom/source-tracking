@@ -17,8 +17,9 @@ import { ensureString } from '@salesforce/ts-types';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 
 import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/deployResultFormatter';
-import { StatusResult } from '../../../src/commands/force/source/status';
+import { StatusResult } from '../../../src/commands/force/source/beta/status';
 import { PullResponse } from '../../../src/shared/types';
+import { replaceRenamedCommands } from '../../../src/compatibility';
 
 let session: TestSession;
 let hubUsername: string;
@@ -42,13 +43,17 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
 
   describe('basic status and pull', () => {
     it('detects the initial metadata status', () => {
-      const result = execCmd<StatusResult[]>('force:source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(result).to.be.an.instanceof(Array);
       // the fields should be populated
       expect(result.every((row) => row.type && row.fullName)).to.equal(true);
     });
     it('pushes the initial metadata to the org', () => {
-      const result = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<DeployCommandResult>(replaceRenamedCommands('force:source:push --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(result.deployedSource).to.be.an.instanceof(Array);
       expect(result.deployedSource, JSON.stringify(result)).to.have.lengthOf(234);
       expect(
@@ -57,23 +62,29 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
       ).to.equal(true);
     });
     it('sees no local changes (all were committed from push), but profile updated in remote', () => {
-      const localResult = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 })
-        .jsonOutput.result;
+      const localResult = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --local'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(localResult).to.deep.equal([]);
 
-      const remoteResult = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 })
-        .jsonOutput.result;
+      const remoteResult = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --remote'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(remoteResult.length).to.equal(1);
       expect(remoteResult.some((item) => item.type === 'Profile')).to.equal(true);
     });
 
     it('can pull the remote profile', () => {
-      const pullResult = execCmd<PullResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const pullResult = execCmd<PullResponse[]>(replaceRenamedCommands('force:source:pull --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(pullResult.some((item) => item.type === 'Profile')).to.equal(true);
     });
 
     it('sees no local or remote changes', () => {
-      const result = execCmd<StatusResult[]>('force:source:status --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(result).to.have.length(0);
     });
 
@@ -83,8 +94,9 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
         fs.promises.unlink(path.join(classDir, 'TestOrderController.cls')),
         fs.promises.unlink(path.join(classDir, 'TestOrderController.cls-meta.xml')),
       ]);
-      const result = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --local'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(result).to.deep.equal([
         {
           type: 'ApexClass',
@@ -101,18 +113,22 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
       ]);
     });
     it('does not see any change in remote status', () => {
-      const result = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --remote'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(result).to.have.length(0);
     });
 
     it('pushes the local delete to the org', () => {
-      const result = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<DeployCommandResult>(replaceRenamedCommands('force:source:push --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(result.deployedSource).to.be.an.instanceof(Array).with.length(2);
     });
     it('sees no local changes', () => {
-      const result = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --local'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(result).to.be.an.instanceof(Array).with.length(0);
     });
   });
@@ -120,7 +136,7 @@ describe('end-to-end-test for tracking with an org (single packageDir)', () => {
   describe('non-successes', () => {
     it('should throw an err when attempting to pull from a non scratch-org', () => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      const failure = execCmd(`force:source:status -u ${hubUsername} --remote --json`, {
+      const failure = execCmd(replaceRenamedCommands(`force:source:status -u ${hubUsername} --remote --json`), {
         ensureExitCode: 1,
       }).jsonOutput;
       expect(failure.name).to.equal('NonSourceTrackedOrgError');

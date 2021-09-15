@@ -8,10 +8,9 @@
 import { EOL } from 'os';
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { SfdxProject, Org, Messages } from '@salesforce/core';
-import { getKeyFromStrings } from '../../..';
 
-import { ChangeResult, SourceTracking, getKeyFromObject } from '../../../sourceTracking';
-import { throwIfInvalid } from '../../../compatibility';
+import { ChangeResult, SourceTracking, getKeyFromObject, getKeyFromStrings } from '../../../../sourceTracking';
+import { throwIfInvalid, replaceRenamedCommands } from '../../../../compatibility';
 
 export interface StatusResult {
   state: string;
@@ -25,7 +24,7 @@ const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 
 
 export default class SourceStatus extends SfdxCommand {
   public static description = messages.getMessage('statusCommandCliDescription');
-  public static readonly examples = messages.getMessage('examples').split(EOL);
+  public static readonly examples = replaceRenamedCommands(messages.getMessage('examples')).split(EOL);
   protected static flagsConfig: FlagsConfig = {
     all: flags.boolean({
       char: 'a',
@@ -55,7 +54,7 @@ export default class SourceStatus extends SfdxCommand {
       org: this.org,
       projectPath: this.project.getPath(),
       toValidate: 'plugin-source',
-      command: 'beta:source:status',
+      command: replaceRenamedCommands('force:source:status'),
     });
     const wantsLocal =
       (this.flags.local as boolean) || (this.flags.all as boolean) || (!this.flags.remote && !this.flags.all);

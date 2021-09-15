@@ -20,9 +20,9 @@ import { ProgressFormatter } from '@salesforce/plugin-source/lib/formatters/prog
 import { DeployProgressBarFormatter } from '@salesforce/plugin-source/lib/formatters/deployProgressBarFormatter';
 import { DeployProgressStatusFormatter } from '@salesforce/plugin-source/lib/formatters/deployProgressStatusFormatter';
 
-import { SourceTracking } from '../../../sourceTracking';
-import { writeConflictTable } from '../../../writeConflictTable';
-import { throwIfInvalid } from '../../../compatibility';
+import { SourceTracking } from '../../../../sourceTracking';
+import { writeConflictTable } from '../../../../writeConflictTable';
+import { throwIfInvalid, replaceRenamedCommands } from '../../../../compatibility';
 
 Messages.importMessagesDirectory(__dirname);
 const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'source_push');
@@ -71,7 +71,7 @@ export default class SourcePush extends DeployCommand {
       org: this.org,
       projectPath: this.project.getPath(),
       toValidate: 'plugin-source',
-      command: 'beta:source:push',
+      command: replaceRenamedCommands('force:source:push'),
     });
     const waitDuration = this.getFlag<Duration>('wait');
     this.isRest = await this.isRestDeploy();

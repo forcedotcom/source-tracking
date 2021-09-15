@@ -17,8 +17,9 @@ import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/deployResultFormatter';
-import { StatusResult } from '../../../src/commands/force/source/status';
+import { StatusResult } from '../../../src/commands/force/source/beta/status';
 import { PullResponse } from '../../../src/shared/types';
+import { replaceRenamedCommands } from '../../../src/compatibility';
 
 let session: TestSession;
 let conn: Connection;
@@ -45,8 +46,9 @@ describe('remote changes', () => {
 
   describe('remote changes: delete', () => {
     it('pushes to initiate the remote', () => {
-      const pushResult = execCmd<DeployCommandResult>('force:source:push --json', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const pushResult = execCmd<DeployCommandResult>(replaceRenamedCommands('force:source:push --json'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(pushResult.deployedSource, JSON.stringify(pushResult)).to.have.lengthOf(234);
       expect(
         pushResult.deployedSource.every((r) => r.state !== ComponentStatus.Failed),
@@ -79,18 +81,21 @@ describe('remote changes', () => {
       ).to.equal(true);
     });
     it('can see the delete in status', () => {
-      const result = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --remote'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       // it shows up as one class on the server, but 2 files when pulled
       expect(result.filter((r) => r.state.includes('Delete'))).to.have.length(1);
     });
     it('does not see any change in local status', () => {
-      const result = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --local'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(result).to.have.length(0);
     });
     it('can pull the delete', () => {
-      const result = execCmd<PullResponse[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<PullResponse[]>(replaceRenamedCommands('force:source:pull --json'), { ensureExitCode: 0 })
+        .jsonOutput.result;
       // the 2 files for the apexClass, and possibly one for the Profile (depending on whether it got created in time)
       expect(result).to.have.length.greaterThanOrEqual(2);
       expect(result).to.have.length.lessThanOrEqual(3);
@@ -109,12 +114,14 @@ describe('remote changes', () => {
       ).to.equal(false);
     });
     it('sees correct local and remote status', () => {
-      const remoteResult = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 })
-        .jsonOutput.result;
+      const remoteResult = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --remote'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(remoteResult.filter((r) => r.state.includes('Remote Deleted'))).to.have.length(0);
 
-      const localStatus = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 })
-        .jsonOutput.result;
+      const localStatus = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --local'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(localStatus).to.have.length(0);
     });
   });
@@ -131,25 +138,29 @@ describe('remote changes', () => {
       }
     });
     it('can see the add in status', () => {
-      const result = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 }).jsonOutput
-        .result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --remote'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       // it shows up as one class on the server, plus Admin Profile
       expect(result.filter((r) => r.state.includes('Add'))).to.have.length(2);
       expect(result.some((r) => r.fullName === 'CreatedClass')).to.equal(true);
     });
     it('can pull the add', () => {
-      const result = execCmd<StatusResult[]>('force:source:pull --json', { ensureExitCode: 0 }).jsonOutput.result;
+      const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:pull --json'), { ensureExitCode: 0 })
+        .jsonOutput.result;
       expect(result).to.have.length(3); // 2 files for the apexClass, plus AdminProfile
       // SDR marks all retrieves as 'Changed' even if it creates new local files.  This is different from toolbelt, which marked those as 'Created'
       result.filter((r) => r.fullName === 'CreatedClass').map((r) => expect(r.state).to.equal('Changed'));
     });
     it('sees correct local and remote status', () => {
-      const remoteResult = execCmd<StatusResult[]>('force:source:status --json --remote', { ensureExitCode: 0 })
-        .jsonOutput.result;
+      const remoteResult = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --remote'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(remoteResult).to.have.length(0);
 
-      const localStatus = execCmd<StatusResult[]>('force:source:status --json --local', { ensureExitCode: 0 })
-        .jsonOutput.result;
+      const localStatus = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json --local'), {
+        ensureExitCode: 0,
+      }).jsonOutput.result;
       expect(localStatus).to.have.length(0);
     });
   });
