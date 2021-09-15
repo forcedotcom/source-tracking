@@ -24,8 +24,8 @@ export const getTrackingFileVersion = (org: Org, projectPath: string): TrackingF
   const username = org.getUsername();
   if (typeof username === 'string') {
     if (
-      // has one of the old files
-      fs.existsSync(path.join(orgsDir, username, 'sourcePathInfos.json')) ||
+      // has both of the old files (org:create puts maxRevision.json in the username dir)
+      fs.existsSync(path.join(orgsDir, username, 'sourcePathInfos.json')) &&
       fs.existsSync(path.join(orgsDir, username, 'maxRevision.json'))
     ) {
       return 'toolbelt';
@@ -94,7 +94,7 @@ export const replaceRenamedCommands = (input: string): string => {
 
 export const renames = new Map([
   ['force:source:status', 'force:source:beta:status'],
-  ['force:source:status', 'force:source:beta:status'],
+  ['force:source:push', 'force:source:beta:push'],
   ['force:source:pull', 'force:source:beta:pull'],
   ['force:source:tracking:reset', 'force:source:beta:tracking:reset'],
   ['force:source:tracking:clear', 'force:source:beta:tracking:clear'],
