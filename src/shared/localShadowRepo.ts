@@ -6,7 +6,8 @@
  */
 /* eslint-disable no-console */
 
-import { join as pathJoin } from 'path';
+import { join as pathJoin, normalize } from 'path';
+import * as os from 'os';
 import * as fs from 'fs';
 import { AsyncCreatable } from '@salesforce/kit';
 import { NamedPackageDir, Logger } from '@salesforce/core';
@@ -19,7 +20,10 @@ const getGitDir = (orgId: string, projectPath: string): string => {
   return pathJoin(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
 };
 
-const toFilenames = (rows: StatusRow[]): string[] => rows.map((file) => file[FILE] as string);
+const toFilenames = (rows: StatusRow[]): string[] =>
+  os.type() === 'Windows_NT'
+    ? rows.map((file) => normalize(file[FILE] as string))
+    : rows.map((file) => file[FILE] as string);
 
 interface ShadowRepoOptions {
   orgId: string;

@@ -6,9 +6,8 @@
  */
 
 import * as os from 'os';
-import { normalize } from 'path';
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
-import { SfdxProject, Org, Messages, OrgUsersConfig } from '@salesforce/core';
+import { SfdxProject, Org, Messages } from '@salesforce/core';
 
 import { ChangeResult, SourceTracking, getKeyFromObject, getKeyFromStrings } from '../../../../sourceTracking';
 import { throwIfInvalid, replaceRenamedCommands } from '../../../../compatibility';
@@ -119,11 +118,6 @@ export default class SourceStatus extends SfdxCommand {
             : row
         );
       }
-    }
-
-    // normalize paths in case of windows
-    if (os.type() === 'Windows_NT') {
-      outputRows = outputRows.map((row) => ({ ...row, filePath: row.filePath ? normalize(row.filePath) : undefined }));
     }
 
     // sort order is state, type, fullname
