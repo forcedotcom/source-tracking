@@ -5,9 +5,10 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import { UX } from '@salesforce/command';
+import { SfdxError } from '@salesforce/core';
 import { ChangeResult } from './sourceTracking';
 
-export const writeConflictTable = (conflicts: ChangeResult[], ux: UX): void => {
+const writeConflictTable = (conflicts: ChangeResult[], ux: UX): void => {
   ux.table(
     conflicts.map((conflict) => ({ ...conflict, state: 'Conflict' })),
     {
@@ -19,4 +20,20 @@ export const writeConflictTable = (conflicts: ChangeResult[], ux: UX): void => {
       ],
     }
   );
+};
+
+/**
+ *
+ * @param conflicts
+ * @param ux
+ * @param message
+ */
+export const processConflicts = (conflicts: ChangeResult[], ux: UX, message: string): void => {
+  if (conflicts.length === 0) {
+    return;
+  }
+  writeConflictTable(conflicts, ux);
+  const err = new SfdxError(message);
+  err.setData(conflicts);
+  throw err;
 };

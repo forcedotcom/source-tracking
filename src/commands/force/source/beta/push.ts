@@ -7,7 +7,7 @@
 
 import { FlagsConfig, flags } from '@salesforce/command';
 import { Duration, env } from '@salesforce/kit';
-import { SfdxProject, Org, Messages, SfdxError } from '@salesforce/core';
+import { SfdxProject, Org, Messages } from '@salesforce/core';
 import { RequestStatus, ComponentStatus } from '@salesforce/source-deploy-retrieve';
 
 // TODO: move to plugin-source
@@ -21,7 +21,7 @@ import { DeployProgressBarFormatter } from '@salesforce/plugin-source/lib/format
 import { DeployProgressStatusFormatter } from '@salesforce/plugin-source/lib/formatters/deployProgressStatusFormatter';
 
 import { SourceTracking } from '../../../../sourceTracking';
-import { writeConflictTable } from '../../../../writeConflictTable';
+import { processConflicts } from '../../../../conflicts';
 import { throwIfInvalid, replaceRenamedCommands } from '../../../../compatibility';
 
 Messages.importMessagesDirectory(__dirname);
@@ -82,11 +82,7 @@ export default class SourcePush extends DeployCommand {
       apiVersion: this.flags.apiversion as string,
     });
     if (!this.flags.forceoverwrite) {
-      const conflicts = await tracking.getConflicts();
-      if (conflicts.length > 0) {
-        writeConflictTable(conflicts, this.ux);
-        throw new SfdxError(messages.getMessage('pushCommandConflictMsg'));
-      }
+      processConflicts(await tracking.getConflicts(), this.ux, messages.getMessage('pushCommandConflictMsg'));
     }
     const componentSet = await tracking.localChangesAsComponentSet();
 

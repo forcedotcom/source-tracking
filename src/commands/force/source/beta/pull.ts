@@ -7,8 +7,8 @@
 
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
 import { Duration } from '@salesforce/kit';
-import { SfdxProject, Org, Messages, SfdxError } from '@salesforce/core';
-import { writeConflictTable } from '../../../../writeConflictTable';
+import { SfdxProject, Org, Messages } from '@salesforce/core';
+import { processConflicts } from '../../../../conflicts';
 import { SourceTracking } from '../../../../sourceTracking';
 import { throwIfInvalid, replaceRenamedCommands } from '../../../../compatibility';
 
@@ -57,12 +57,9 @@ export default class SourcePull extends SfdxCommand {
     this.ux.setSpinnerStatus('Checking for conflicts');
 
     if (!this.flags.forceoverwrite) {
-      const conflicts = await tracking.getConflicts();
-      if (conflicts.length > 0) {
-        writeConflictTable(conflicts, this.ux);
-        throw new SfdxError(messages.getMessage('sourceConflictDetected'));
-      }
+      processConflicts(await tracking.getConflicts(), this.ux, messages.getMessage('sourceConflictDetected'));
     }
+
     this.ux.setSpinnerStatus('Retrieving metadata from the org');
 
     const retrieveResult = await tracking.retrieveRemoteChanges({ wait: this.flags.wait as Duration });
