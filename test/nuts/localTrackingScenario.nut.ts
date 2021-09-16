@@ -5,6 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import { EOL } from 'os';
+import * as path from 'path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { fs } from '@salesforce/core';
 import { expect } from 'chai';
@@ -18,7 +19,7 @@ describe('end-to-end-test for local tracking', () => {
   before(async () => {
     session = await TestSession.create({
       project: {
-        sourceDir: 'test/nuts/ebikes-lwc',
+        sourceDir: path.join('test', 'nuts', 'ebikes-lwc'),
       },
       authStrategy: 'NONE',
     });
@@ -69,36 +70,36 @@ describe('end-to-end-test for local tracking', () => {
 
   it('should see modified file in changes', async () => {
     const filename = 'force-app/main/default/permissionsets/ebikes.permissionset-meta.xml';
-    const filePath = `${session.project.dir}/${filename}`;
+    const filePath = path.join(session.project.dir, filename);
     const newContent = `${await fs.readFile(filePath, 'utf8')}${EOL}<!--testcode-->`;
     await fs.writeFile(filePath, newContent);
     await repo.getStatus(true);
     expect(await repo.getChangedRows()).to.have.lengthOf(1);
-    expect(await repo.getChangedFilenames()).to.deep.equal([filename]);
+    expect(await repo.getChangedFilenames()).to.deep.equal([path.normalize(filename)]);
     expect(await repo.getNonDeletes()).to.have.lengthOf(1);
-    expect(await repo.getNonDeleteFilenames()).to.deep.equal([filename]);
+    expect(await repo.getNonDeleteFilenames()).to.deep.equal([path.normalize(filename)]);
     expect(await repo.getDeletes()).to.have.lengthOf(0);
   });
 
   it('should also see deleted file in changes', async () => {
     // yep, that typo is in the real repo!
     const filename = 'force-app/main/default/objects/Account/listViews/All_Acounts.listView-meta.xml';
-    const filePath = `${session.project.dir}/${filename}`;
+    const filePath = path.join(session.project.dir, filename);
     await fs.unlink(filePath);
     await repo.getStatus(true);
     expect(await repo.getChangedRows()).to.have.lengthOf(2);
     expect(await repo.getDeletes()).to.have.lengthOf(1);
-    expect(await repo.getDeleteFilenames()).to.deep.equal([filename]);
+    expect(await repo.getDeleteFilenames()).to.deep.equal([path.normalize(filename)]);
   });
 
   it('should also see added file in changes', async () => {
     const filename = 'force-app/main/default/objects/Account/listViews/Test.listView-meta.xml';
-    const filePath = `${session.project.dir}/${filename}`;
+    const filePath = path.join(session.project.dir, filename);
     const newContent = '<!--testcode-->';
     await fs.writeFile(filePath, newContent);
     await repo.getStatus(true);
     expect(await repo.getChangedRows()).to.have.lengthOf(3);
-    expect(await repo.getChangedFilenames()).to.include(filename);
+    expect(await repo.getChangedFilenames()).to.include(path.normalize(filename));
     expect(await repo.getDeletes()).to.have.lengthOf(1);
   });
 
