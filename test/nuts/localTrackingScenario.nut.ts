@@ -70,7 +70,7 @@ describe('end-to-end-test for local tracking', () => {
 
   it('should see modified file in changes', async () => {
     const filename = 'force-app/main/default/permissionsets/ebikes.permissionset-meta.xml';
-    const filePath = path.join(session.project.dir, filename);
+    const filePath = path.normalize(path.join(session.project.dir, filename));
     const newContent = `${await fs.readFile(filePath, 'utf8')}${EOL}<!--testcode-->`;
     await fs.writeFile(filePath, newContent);
     await repo.getStatus(true);
@@ -84,7 +84,7 @@ describe('end-to-end-test for local tracking', () => {
   it('should also see deleted file in changes', async () => {
     // yep, that typo is in the real repo!
     const filename = 'force-app/main/default/objects/Account/listViews/All_Acounts.listView-meta.xml';
-    const filePath = path.join(session.project.dir, filename);
+    const filePath = path.normalize(path.join(session.project.dir, filename));
     await fs.unlink(filePath);
     await repo.getStatus(true);
     expect(await repo.getChangedRows()).to.have.lengthOf(2);
@@ -94,7 +94,7 @@ describe('end-to-end-test for local tracking', () => {
 
   it('should also see added file in changes', async () => {
     const filename = 'force-app/main/default/objects/Account/listViews/Test.listView-meta.xml';
-    const filePath = path.join(session.project.dir, filename);
+    const filePath = path.normalize(path.join(session.project.dir, filename));
     const newContent = '<!--testcode-->';
     await fs.writeFile(filePath, newContent);
     await repo.getStatus(true);
