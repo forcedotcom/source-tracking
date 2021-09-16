@@ -16,7 +16,7 @@ import { expect } from 'chai';
 import { TestSession, execCmd } from '@salesforce/cli-plugins-testkit';
 import { Connection, AuthInfo } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/DeployResultFormatter';
+import { DeployCommandResult } from '@salesforce/plugin-source/lib/formatters/deployResultFormatter';
 import { StatusResult } from '../../../src/commands/force/source/beta/status';
 import { PullResponse } from '../../../src/shared/types';
 import { replaceRenamedCommands } from '../../../src/compatibility';
