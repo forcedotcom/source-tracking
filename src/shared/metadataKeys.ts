@@ -15,7 +15,7 @@ const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
     : '';
 
 // handle all "weird" type/name translation between SourceMember and SDR FileResponse
-// These get de-duplicated in a set later
+// These get de-duplicated in a set later, so it's ok to have one per file
 export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): string[] => {
   // also create an element for the parent object
   if (fileResponse.type === 'CustomField' && fileResponse.filePath) {
