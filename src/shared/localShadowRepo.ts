@@ -6,7 +6,7 @@
  */
 /* eslint-disable no-console */
 
-import { join as pathJoin, normalize } from 'path';
+import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { AsyncCreatable } from '@salesforce/kit';
@@ -17,11 +17,11 @@ import * as git from 'isomorphic-git';
  * returns the full path to where we store the shadow repo
  */
 const getGitDir = (orgId: string, projectPath: string): string => {
-  return pathJoin(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
+  return path.join(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
 };
 
-const toFilenames = (rows: StatusRow[]): string[] =>
-  os.type() === 'Windows_NT' ? rows.map((row) => normalize(row[FILE])) : rows.map((row) => row[FILE]);
+// filenames were normalized when read from isogit
+const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
 
 interface ShadowRepoOptions {
   orgId: string;
@@ -106,8 +106,11 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
         gitdir: this.gitDir,
         filepaths: this.packageDirs.map((dir) => dir.path),
         // filter out hidden files and __tests__ patterns, regardless of gitignore
-        filter: (f) => !f.includes('/.') && !f.includes('__tests__'),
+        filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
       });
+      if (os.type() === 'Windows_NT') {
+        this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+      }
       await this.unStashIgnoreFile();
     }
     return this.status;
@@ -192,9 +195,10 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
 
     await this.stashIgnoreFile();
 
+    // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
     if (os.type() === 'Windows_NT') {
-      deployedFiles = deployedFiles.map((filepath) => normalize(filepath));
-      deployedFiles = deletedFiles.map((filepath) => normalize(filepath));
+      deployedFiles = deployedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
+      deployedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
     }
 
     try {
@@ -220,14 +224,20 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   private async stashIgnoreFile(): Promise<void> {
     if (!this.stashed) {
       this.stashed = true;
-      await fs.promises.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
+      await fs.promises.rename(
+        path.join(this.projectPath, '.gitignore'),
+        path.join(this.projectPath, '.BAK.gitignore')
+      );
     }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
     if (this.stashed) {
       this.stashed = false;
-      await fs.promises.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
+      await fs.promises.rename(
+        path.join(this.projectPath, '.BAK.gitignore'),
+        path.join(this.projectPath, '.gitignore')
+      );
     }
   }
 }
