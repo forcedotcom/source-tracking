@@ -192,6 +192,11 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
 
     await this.stashIgnoreFile();
 
+    if (os.type() === 'Windows_NT') {
+      deployedFiles = deployedFiles.map((filepath) => normalize(filepath));
+      deployedFiles = deletedFiles.map((filepath) => normalize(filepath));
+    }
+
     try {
       // stage changes
       await Promise.all([
