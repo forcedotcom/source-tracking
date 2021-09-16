@@ -5,9 +5,10 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
-import { EOL } from 'os';
+import * as os from 'os';
+import { normalize } from 'path';
 import { FlagsConfig, flags, SfdxCommand } from '@salesforce/command';
-import { SfdxProject, Org, Messages } from '@salesforce/core';
+import { SfdxProject, Org, Messages, OrgUsersConfig } from '@salesforce/core';
 
 import { ChangeResult, SourceTracking, getKeyFromObject, getKeyFromStrings } from '../../../../sourceTracking';
 import { throwIfInvalid, replaceRenamedCommands } from '../../../../compatibility';
@@ -24,7 +25,7 @@ const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 
 
 export default class SourceStatus extends SfdxCommand {
   public static description = messages.getMessage('statusCommandCliDescription');
-  public static readonly examples = replaceRenamedCommands(messages.getMessage('examples')).split(EOL);
+  public static readonly examples = replaceRenamedCommands(messages.getMessage('examples')).split(os.EOL);
   protected static flagsConfig: FlagsConfig = {
     all: flags.boolean({
       char: 'a',
@@ -119,6 +120,12 @@ export default class SourceStatus extends SfdxCommand {
         );
       }
     }
+
+    // normalize paths in case of windows
+    if (os.type() === 'Windows_NT') {
+      outputRows = outputRows.map((row) => ({ ...row, filePath: row.filePath ? normalize(row.filePath) : undefined }));
+    }
+
     // sort order is state, type, fullname
     outputRows.sort((a, b) => {
       if (a.state.toLowerCase() === b.state.toLowerCase()) {
