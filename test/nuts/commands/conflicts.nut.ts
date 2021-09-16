@@ -72,7 +72,7 @@ describe('conflict detection and resolution', () => {
       ensureExitCode: 0,
     }).jsonOutput.result;
     // profile and customApplication
-    expect(result).to.have.lengthOf(2);
+    expect(result, JSON.stringify(result)).to.have.lengthOf(2);
   });
   it('edits a local file', async () => {
     const filePath = path.join(
@@ -91,7 +91,7 @@ describe('conflict detection and resolution', () => {
   it('can see the conflict in status', () => {
     const result = execCmd<StatusResult[]>(replaceRenamedCommands('force:source:status --json'), { ensureExitCode: 0 })
       .jsonOutput.result;
-    expect(result).to.have.lengthOf(3);
+    expect(result, JSON.stringify(result)).to.have.lengthOf(3);
     result.filter((app) => app.type === 'CustomApplication').map((app) => expect(app.state).to.include('(Conflict)'));
   });
 
