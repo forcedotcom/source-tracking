@@ -10,7 +10,7 @@ import { getMetadataKey } from './remoteSourceTrackingService';
 // LWC can have child folders (ex: dynamic templates like /templates/noDataIllustration.html
 const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
   fileResponse && fileResponse.filePath
-    ? fileResponse.filePath.substr(fileResponse.filePath.indexOf(fileResponse.fullName))
+    ? fileResponse.filePath.substr(fileResponse.filePath.indexOf(fileResponse.fullName)).replace('\\', '/')
     : '';
 
 // handle all "weird" type/name translation between SourceMember and SDR FileResponse
