@@ -15,7 +15,7 @@ import { DeployCommand } from '@salesforce/plugin-source/lib/deployCommand';
 import {
   DeployResultFormatter,
   DeployCommandResult,
-} from '@salesforce/plugin-source/lib/formatters/DeployResultFormatter';
+} from '@salesforce/plugin-source/lib/formatters/deployResultFormatter';
 import { ProgressFormatter } from '@salesforce/plugin-source/lib/formatters/progressFormatter';
 import { DeployProgressBarFormatter } from '@salesforce/plugin-source/lib/formatters/deployProgressBarFormatter';
 import { DeployProgressStatusFormatter } from '@salesforce/plugin-source/lib/formatters/deployProgressStatusFormatter';
