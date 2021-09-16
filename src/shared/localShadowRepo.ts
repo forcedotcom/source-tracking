@@ -198,7 +198,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
     if (os.type() === 'Windows_NT') {
       deployedFiles = deployedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
-      deployedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
+      deletedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
     }
 
     try {
