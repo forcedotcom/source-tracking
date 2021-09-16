@@ -7,6 +7,7 @@
 import * as path from 'path';
 import { RemoteSyncInput } from './types';
 import { getMetadataKey } from './remoteSourceTrackingService';
+
 // LWC can have child folders (ex: dynamic templates like /templates/noDataIllustration.html
 const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
   fileResponse && fileResponse.filePath
