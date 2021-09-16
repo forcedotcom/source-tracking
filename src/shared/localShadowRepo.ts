@@ -21,9 +21,7 @@ const getGitDir = (orgId: string, projectPath: string): string => {
 };
 
 const toFilenames = (rows: StatusRow[]): string[] =>
-  os.type() === 'Windows_NT'
-    ? rows.map((file) => normalize(file[FILE] as string))
-    : rows.map((file) => file[FILE] as string);
+  os.type() === 'Windows_NT' ? rows.map((row) => normalize(row[FILE])) : rows.map((row) => row[FILE]);
 
 interface ShadowRepoOptions {
   orgId: string;
@@ -31,10 +29,10 @@ interface ShadowRepoOptions {
   packageDirs: NamedPackageDir[];
 }
 
-type StatusRow = Array<string | number>;
+// https://isomorphic-git.org/docs/en/statusMatrix#docsNav
+type StatusRow = [file: string, head: number, workdir: number, stage: number];
 
 // array members for status results
-// https://isomorphic-git.org/docs/en/statusMatrix#docsNav
 const FILE = 0;
 const HEAD = 1;
 const WORKDIR = 2;
