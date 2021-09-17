@@ -6,3 +6,4 @@
  */
 
 export * from './sourceTracking';
+export { RemoteSyncInput } from './shared/types';
