@@ -86,6 +86,7 @@
     "prettier": "^2.3.2",
     "pretty-quick": "^3.1.1",
     "shelljs": "^0.8.4",
+    "shx": "^0.3.3",
     "sinon": "^10.0.0",
     "ts-node": "^10.1.0",
     "ts-prune": "^0.10.0",
