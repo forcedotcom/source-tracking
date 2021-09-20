@@ -49,10 +49,8 @@
   },
   "dependencies": {
     "@oclif/config": "^1.17.0",
-    "@salesforce/command": "^4.0.4",
     "@salesforce/core": "^2.27.0",
     "@salesforce/kit": "^1.5.17",
-    "@salesforce/plugin-source": "^1.0.16",
     "@salesforce/source-deploy-retrieve": "^4.4.1",
     "isomorphic-git": "^1.9.2",
     "ts-retry-promise": "^0.6.0"
