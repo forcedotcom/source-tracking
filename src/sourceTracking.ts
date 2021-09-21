@@ -301,6 +301,50 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   /**
+   *
+   * returns immediately if there are no changesToDelete
+   *
+   * @param changesToDelete array of SourceComponent
+   */
+  public async deleteFilesAndUpdateTracking(changesToDelete: SourceComponent[]): Promise<FileResponse[]> {
+    if (changesToDelete.length === 0) {
+      return [];
+    }
+
+    const sourceComponentByFileName = new Map<string, SourceComponent>();
+    changesToDelete.flatMap((component) =>
+      [component.xml as string, ...component.walkContent()]
+        .filter((filename) => filename)
+        .map((filename) => sourceComponentByFileName.set(filename, component))
+    );
+    const filenames = Array.from(sourceComponentByFileName.keys());
+    // delete the files
+    await Promise.all(filenames.map((filename) => fs.promises.unlink(filename)));
+
+    // update the tracking files.  We're simulating SDR-style fileResponse
+    await Promise.all([
+      this.updateLocalTracking({ deletedFiles: filenames }),
+      this.updateRemoteTracking(
+        changesToDelete.map((component) => ({
+          type: component.type.name,
+          fullName: component.fullName,
+          state: ComponentStatus.Deleted,
+        })),
+        true // skip polling because it's a pull
+      ),
+    ]);
+    return filenames.map(
+      (filename) =>
+        ({
+          state: 'Deleted',
+          filename,
+          type: sourceComponentByFileName.get(filename)?.type.name,
+          fullName: sourceComponentByFileName.get(filename)?.fullName,
+        } as unknown as FileResponse)
+    );
+  }
+
+  /**
    * Update tracking for the options passed.
    *
    * @param options the files to update
@@ -577,50 +621,6 @@ export class SourceTracking extends AsyncCreatable {
   private async getSourceApiVersion(): Promise<string | undefined> {
     const projectConfig = await this.project.resolveProjectConfig();
     return getString(projectConfig, 'sourceApiVersion') ?? undefined;
-  }
-
-  /**
-   *
-   * returns immediately if there are no changesToDelete
-   *
-   * @param changesToDelete array of SourceComponent
-   */
-  private async deleteFilesAndUpdateTracking(changesToDelete: SourceComponent[]): Promise<FileResponse[]> {
-    if (changesToDelete.length === 0) {
-      return [];
-    }
-
-    const sourceComponentByFileName = new Map<string, SourceComponent>();
-    changesToDelete.flatMap((component) =>
-      [component.xml as string, ...component.walkContent()]
-        .filter((filename) => filename)
-        .map((filename) => sourceComponentByFileName.set(filename, component))
-    );
-    const filenames = Array.from(sourceComponentByFileName.keys());
-    // delete the files
-    await Promise.all(filenames.map((filename) => fs.promises.unlink(filename)));
-
-    // update the tracking files.  We're simulating SDR-style fileResponse
-    await Promise.all([
-      this.updateLocalTracking({ deletedFiles: filenames }),
-      this.updateRemoteTracking(
-        changesToDelete.map((component) => ({
-          type: component.type.name,
-          fullName: component.fullName,
-          state: ComponentStatus.Deleted,
-        })),
-        true // skip polling because it's a pull
-      ),
-    ]);
-    return filenames.map(
-      (filename) =>
-        ({
-          state: 'Deleted',
-          filename,
-          type: sourceComponentByFileName.get(filename)?.type.name,
-          fullName: sourceComponentByFileName.get(filename)?.fullName,
-        } as unknown as FileResponse)
-    );
   }
 }
 
