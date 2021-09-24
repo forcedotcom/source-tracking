@@ -4,7 +4,7 @@ JavaScript library for tracking local and remote Salesforce metadata changes.
 
 **_ UNDER DEVELOPMENT _**
 
-You should use the class named sourceTracking.
+You should use the class named SourceTracking.
 
 Start like this:
 
@@ -18,17 +18,20 @@ const tracking = await SourceTracking.create({
 });
 ```
 
-Any calls to methods on your instance of `tracking` will check to make sure that the appropriate remote/local files are ready.
+Any calls to methods on your instance of `tracking` will check to make sure that the appropriate remote/local files are up to date and loaded.
+
 If you know you need to access remote or local, you can `ensure` them so that the FS and API operations don't happen multiple time (useful before calling operations in that run parallel)
 
 ```ts
-await tracking.ensureRemoteTracking(); // pass true if you know you need to force a re-query.  Example: you updated Remote Changes from the server, but have done a deploy and know you need to get the updated SourceMembers.
+await tracking.ensureRemoteTracking(); // pass `true` if you know you need to force a re-query.
+// Example: the library got Remote Changes from the server, but you just did a deploy and know you need to get the updated SourceMembers.
+
 await tracking.ensureLocalTracking();
 ```
 
 ### Use cases:
 
-1. push,pull,status: `getConflicts()`, `getChanges`
+1. push,pull,status: `getConflicts()`, `getChanges()`
 1. deploy/retrieve: `updateLocalTracking()`,`updateRemoteTracking`
 
 ## Deploy:
@@ -42,7 +45,7 @@ await tracking.updateLocalTracking({
   deletedFiles: [],
 });
 
-// Pass an array of objects.  The shape comes from SDR's FileResponse type, Success variant
+// Pass an array of objects.  The type comes from SDR's FileResponse type, Success variant
 // By default, it'll poll the server to get your SourceMembers before committing all the changes to the tracking files
 await tracking.updateRemoteTracking([
   {
@@ -62,7 +65,7 @@ await tracking.updateRemoteTracking([
 
 ## Retrieve:
 
-Once your retrieve finishes, call the same methods as you did for deploy to commit the file changes to local and remote changes.
+Once your retrieve finishes, use the same updateLocalTracking as you did for deploy to commit the file changes to local and remote changes.
 
 ```ts
 // By default, it'll poll the server to get your SourceMembers before committing all the changes to the tracking files.  If you already queried sourceMembers as part of conflict check, etc you can pass `false` to prevent polling the server again for SourceMembers
