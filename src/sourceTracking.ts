@@ -7,8 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
-import { getString } from '@salesforce/ts-types';
-import { Duration, AsyncCreatable } from '@salesforce/kit';
+import { AsyncCreatable } from '@salesforce/kit';
 import {
   ComponentSet,
   MetadataResolver,
@@ -75,31 +74,24 @@ export interface SourceTrackingOptions {
 export class SourceTracking extends AsyncCreatable {
   private orgId: string;
   private projectPath: string;
-  private defaultPackagePath: string;
   private packagesDirs: NamedPackageDir[];
   private username: string;
   private logger: Logger;
-  private project: SfdxProject;
-  private options: SourceTrackingOptions;
-  private apiVersion: string | undefined;
   // remote and local tracking may not exist if not initialized
   private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
-    this.options = options;
     this.orgId = options.org.getOrgId();
     this.username = options.org.getUsername() as string;
     this.projectPath = options.project.getPath();
     this.packagesDirs = options.project.getPackageDirectories();
-    this.defaultPackagePath = options.project.getDefaultPackage().fullPath;
-    this.project = options.project;
     this.logger = Logger.childFromRoot('SourceTracking');
   }
 
   public async init(): Promise<void> {
-    this.apiVersion = this.options.apiVersion ?? (await this.getSourceApiVersion());
+    // reserved for future use.  If not, can remove asyncCreatable
   }
 
   public async localChangesAsComponentSet(): Promise<ComponentSet> {
@@ -138,73 +130,6 @@ export class SourceTracking extends AsyncCreatable {
       .map((component) => componentSet.add(component, true));
 
     return componentSet;
-  }
-
-  /**
-   * retrieves changes based on the remote tracking files.  Intended for use by Pull
-   * Side effects:
-   * * locally deletes any files that were deleted on the server
-   * * updates local and remote tracking files
-   */
-  public async retrieveRemoteChanges({ wait = Duration.minutes(33) }: { wait: Duration }): Promise<FileResponse[]> {
-    await this.ensureRemoteTracking(); // don't force a query because the command already did for checking Conflicts?
-    const componentSetToRetrieve = new ComponentSet();
-    const changesToDelete = await this.getChanges<SourceComponent>({
-      origin: 'remote',
-      state: 'delete',
-      format: 'SourceComponent',
-    });
-    const changesToRetrieve = await this.getChanges<ChangeResult>({
-      origin: 'remote',
-      state: 'nondelete',
-      format: 'ChangeResult',
-    });
-
-    const deletesAsFileResponse = await this.deleteFilesAndUpdateTracking(changesToDelete);
-    changesToRetrieve.map((component) => {
-      if (component.type && component.name) {
-        componentSetToRetrieve.add({
-          type: component.type,
-          fullName: component.name,
-        });
-      }
-    });
-    // we might skip this and do only local deletes!
-    if (componentSetToRetrieve.size === 0) {
-      return deletesAsFileResponse;
-    }
-
-    const mdapiRetrieve = await componentSetToRetrieve.retrieve({
-      usernameOrConnection: this.username,
-      merge: true,
-      output: this.defaultPackagePath,
-      apiVersion: this.apiVersion,
-    });
-
-    const retrieveResult = await mdapiRetrieve.pollStatus(1000, wait.seconds);
-    this.logger.debug(
-      'files received from the server are',
-      retrieveResult
-        .getFileResponses()
-        .map((fileResponse) => fileResponse.filePath as string)
-        .filter(Boolean)
-    );
-
-    const successes = retrieveResult
-      .getFileResponses()
-      .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
-
-    await Promise.all([
-      // commit the local file successes that the retrieve modified
-      this.updateLocalTracking({
-        files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
-      }),
-      this.updateRemoteTracking(
-        successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath })),
-        true // skip polling because it's a pull
-      ),
-    ]);
-    return [...deletesAsFileResponse, ...retrieveResult.getFileResponses()];
   }
 
   /**
@@ -616,11 +541,6 @@ export class SourceTracking extends AsyncCreatable {
 
   private ensureRelative(filePath: string): string {
     return path.isAbsolute(filePath) ? path.relative(this.projectPath, filePath) : filePath;
-  }
-
-  private async getSourceApiVersion(): Promise<string | undefined> {
-    const projectConfig = await this.project.resolveProjectConfig();
-    return getString(projectConfig, 'sourceApiVersion') ?? undefined;
   }
 }
 
