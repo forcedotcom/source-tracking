@@ -643,9 +643,9 @@
     cli-ux "^4.9.3"
 
 "@salesforce/command@^4.0.0":
-  version "4.0.4"
-  resolved "https://registry.yarnpkg.com/@salesforce/command/-/command-4.0.4.tgz#27de1e63fa491c2ac871558756383db9171db278"
-  integrity sha512-3m9qM7si0FR2EpOWMj9mNqUiwa3TDwbcmuK06fCea/JuY5O1ZydPto4U4SaAf1pk5oIs62MVqEaVBQ47biPxGw==
+  version "4.1.2"
+  resolved "https://registry.yarnpkg.com/@salesforce/command/-/command-4.1.2.tgz#8f758c89f56e074a7db7a3c71549872c337f0d15"
+  integrity sha512-LA7oWEfAnDaGPR4ab2XHBEH0UJqelUlvmFBK71KmSt3gkE502Ntvuco8AGiL8on49H8ZQM/qyQAYJ9CyvURMUA==
   dependencies:
     "@oclif/command" "^1.5.17"
     "@oclif/errors" "^1.2.2"
