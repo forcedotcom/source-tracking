@@ -18,8 +18,9 @@ type TrackingFileVersion = 'plugin-source' | 'toolbelt' | 'none';
  */
 export const getTrackingFileVersion = (org: Org, projectPath: string): TrackingFileVersion => {
   const orgsDir = path.join(projectPath, '.sfdx', 'orgs');
+  const newFilesDir = path.join(orgsDir, org.getOrgId());
   // has new tracking files based on orgId
-  if (fs.existsSync(path.join(orgsDir, org.getOrgId()))) {
+  if (fs.existsSync(newFilesDir) && fs.readdirSync(newFilesDir).length > 0) {
     return 'plugin-source';
   }
   const username = org.getUsername();
