@@ -8,9 +8,8 @@
 
 import * as path from 'path';
 import * as os from 'os';
-import * as fs from 'fs';
 import { AsyncCreatable } from '@salesforce/kit';
-import { NamedPackageDir, Logger } from '@salesforce/core';
+import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 
 /**
