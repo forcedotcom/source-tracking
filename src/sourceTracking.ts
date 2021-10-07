@@ -36,7 +36,7 @@ export type ChangeOptionType = ChangeResult | SourceComponent | string;
 export interface ChangeOptions {
   origin: 'local' | 'remote';
   state: 'add' | 'delete' | 'modify' | 'nondelete';
-  format: 'ChangeResult' | 'SourceComponent' | 'string';
+  format: 'ChangeResult' | 'SourceComponent' | 'string' | 'ChangeResultWithPaths';
 }
 
 export interface LocalUpdateOptions {
@@ -139,24 +139,12 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async getChanges<T extends ChangeOptionType>(options?: ChangeOptions): Promise<T[]> {
     if (options?.origin === 'local') {
-      let filenames: string[] = [];
       await this.ensureLocalTracking();
-      if (options.state === 'modify') {
-        filenames = await this.localRepo.getModifyFilenames();
-      }
-      if (options.state === 'nondelete') {
-        filenames = await this.localRepo.getNonDeleteFilenames();
-      }
-      if (options.state === 'delete') {
-        filenames = await this.localRepo.getDeleteFilenames();
-      }
-      if (options.state === 'add') {
-        filenames = await this.localRepo.getAddFilenames();
-      }
+      const filenames: string[] = await this.getLocalChangesAsFilenames(options.state);
       if (options.format === 'string') {
         return filenames as T[];
       }
-      if (options.format === 'ChangeResult') {
+      if (options.format === 'ChangeResult' || options.format === 'ChangeResultWithPaths') {
         return filenames.map((filename) => ({
           filenames: [filename],
           origin: 'local',
@@ -197,6 +185,9 @@ export class SourceTracking extends AsyncCreatable {
       if (options.format === 'ChangeResult') {
         return filteredChanges.map((change) => ({ ...change, origin: 'remote' })) as T[];
       }
+      if (options.format === 'ChangeResultWithPaths') {
+        return this.populateFilePaths(filteredChanges.map((change) => ({ ...change, origin: 'remote' }))) as T[];
+      }
       // turn it into a componentSet to resolve filenames
       const remoteChangesAsComponentLike = filteredChanges.map((element) => ({
         type: element?.type,
@@ -218,11 +209,7 @@ export class SourceTracking extends AsyncCreatable {
         return matchingLocalSourceComponentsSet.getSourceComponents().toArray() as T[];
       }
     }
-
-    // by default return all local and remote changes
-    // eslint-disable-next-line no-console
-    this.logger.debug(options);
-    return [];
+    throw new Error(`unsupported options: ${JSON.stringify(options)}`);
   }
 
   /**
@@ -452,10 +439,12 @@ export class SourceTracking extends AsyncCreatable {
       format: 'ChangeResult',
     });
 
-    // remote adds won't have a filename
-    const remoteChanges = this.populateFilePaths(
-      await this.getChanges<ChangeResult>({ origin: 'remote', state: 'nondelete', format: 'ChangeResult' })
-    );
+    const remoteChanges = await this.getChanges<ChangeResult>({
+      origin: 'remote',
+      state: 'nondelete',
+      // remote adds won't have a filename, so we ask for it to be resolved
+      format: 'ChangeResultWithPaths',
+    });
 
     // index them by filename
     const fileNameIndex = new Map<string, ChangeResult>();
@@ -541,6 +530,22 @@ export class SourceTracking extends AsyncCreatable {
 
   private ensureRelative(filePath: string): string {
     return path.isAbsolute(filePath) ? path.relative(this.projectPath, filePath) : filePath;
+  }
+
+  private async getLocalChangesAsFilenames(state: ChangeOptions['state']): Promise<string[]> {
+    if (state === 'modify') {
+      return this.localRepo.getModifyFilenames();
+    }
+    if (state === 'nondelete') {
+      return this.localRepo.getNonDeleteFilenames();
+    }
+    if (state === 'delete') {
+      return this.localRepo.getDeleteFilenames();
+    }
+    if (state === 'add') {
+      return this.localRepo.getAddFilenames();
+    }
+    throw new Error(`unable to get local changes for state ${state as string}`);
   }
 }
 
