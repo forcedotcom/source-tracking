@@ -16,10 +16,14 @@ import {
   FileResponse,
 } from '@salesforce/source-deploy-retrieve';
 
-import { RemoteSourceTrackingService, RemoteChangeElement, getMetadataKey } from './shared/remoteSourceTrackingService';
+import {
+  RemoteSourceTrackingService,
+  getMetadataKey,
+  remoteChangeElementToChangeResult,
+} from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { filenamesToVirtualTree } from './shared/filenamesToVirtualTree';
-import { RemoteSyncInput } from './shared/types';
+import { RemoteSyncInput, ChangeResult, RemoteChangeElement } from './shared/types';
 
 export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): string => {
   if (element.type && element.name) {
@@ -42,20 +46,6 @@ export interface ChangeOptions {
 export interface LocalUpdateOptions {
   files?: string[];
   deletedFiles?: string[];
-}
-
-/**
- * Summary type that supports both local and remote change types
- */
-export type ChangeResult = Partial<RemoteChangeElement> & {
-  origin: 'local' | 'remote';
-  filenames?: string[];
-};
-
-export interface ConflictError {
-  message: string;
-  name: 'conflict';
-  conflicts: ChangeResult[];
 }
 
 export interface SourceTrackingOptions {
@@ -183,10 +173,12 @@ export class SourceTracking extends AsyncCreatable {
         filteredChanges = remoteChanges.filter((change) => !change.deleted);
       }
       if (options.format === 'ChangeResult') {
-        return filteredChanges.map((change) => ({ ...change, origin: 'remote' })) as T[];
+        return filteredChanges.map((change) => remoteChangeElementToChangeResult(change)) as T[];
       }
       if (options.format === 'ChangeResultWithPaths') {
-        return this.populateFilePaths(filteredChanges.map((change) => ({ ...change, origin: 'remote' }))) as T[];
+        return this.populateFilePaths(
+          filteredChanges.map((change) => remoteChangeElementToChangeResult(change))
+        ) as T[];
       }
       // turn it into a componentSet to resolve filenames
       const remoteChangesAsComponentLike = filteredChanges.map((element) => ({
