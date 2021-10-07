@@ -7,4 +7,4 @@
 
 export * from './sourceTracking';
 export * from './compatibility';
-export { RemoteSyncInput } from './shared/types';
+export { RemoteSyncInput, ChangeResult } from './shared/types';
