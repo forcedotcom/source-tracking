@@ -8,9 +8,8 @@
 
 import * as path from 'path';
 import * as os from 'os';
-import * as fs from 'fs';
 import { AsyncCreatable } from '@salesforce/kit';
-import { NamedPackageDir, Logger } from '@salesforce/core';
+import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 
 /**
@@ -50,7 +49,6 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
-  private stashed = false;
   private options: ShadowRepoOptions;
 
   public constructor(options: ShadowRepoOptions) {
@@ -80,10 +78,16 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
   }
 
+  /**
+   * Delete the local tracking files
+   *
+   * @returns the deleted directory
+   */
   public async delete(): Promise<string> {
     if (typeof fs.promises.rm === 'function') {
       await fs.promises.rm(this.gitDir, { recursive: true, force: true });
     } else {
+      // when node 12 support is over, switch to promise version
       fs.rmdirSync(this.gitDir, { recursive: true });
     }
     return this.gitDir;
@@ -108,6 +112,7 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
         // filter out hidden files and __tests__ patterns, regardless of gitignore
         filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
       });
+      // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
       if (os.type() === 'Windows_NT') {
         this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
       }
@@ -222,22 +227,18 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   }
 
   private async stashIgnoreFile(): Promise<void> {
-    if (!this.stashed) {
-      this.stashed = true;
-      await fs.promises.rename(
-        path.join(this.projectPath, '.gitignore'),
-        path.join(this.projectPath, '.BAK.gitignore')
-      );
+    const originalLocation = path.join(this.projectPath, '.gitignore');
+    // another process may have already stashed the file
+    if (fs.existsSync(originalLocation)) {
+      await fs.promises.rename(originalLocation, path.join(this.projectPath, '.BAK.gitignore'));
     }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
-    if (this.stashed) {
-      this.stashed = false;
-      await fs.promises.rename(
-        path.join(this.projectPath, '.BAK.gitignore'),
-        path.join(this.projectPath, '.gitignore')
-      );
+    const stashedLocation = path.join(this.projectPath, '.gitignore');
+    // another process may have already un-stashed the file
+    if (fs.existsSync(stashedLocation)) {
+      await fs.promises.rename(stashedLocation, path.join(this.projectPath, '.gitignore'));
     }
   }
 }
