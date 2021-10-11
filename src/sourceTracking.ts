@@ -7,8 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
-import { getString } from '@salesforce/ts-types';
-import { Duration, AsyncCreatable } from '@salesforce/kit';
+import { AsyncCreatable } from '@salesforce/kit';
 import {
   ComponentSet,
   MetadataResolver,
@@ -37,7 +36,7 @@ export type ChangeOptionType = ChangeResult | SourceComponent | string;
 export interface ChangeOptions {
   origin: 'local' | 'remote';
   state: 'add' | 'delete' | 'modify' | 'nondelete';
-  format: 'ChangeResult' | 'SourceComponent' | 'string';
+  format: 'ChangeResult' | 'SourceComponent' | 'string' | 'ChangeResultWithPaths';
 }
 
 export interface LocalUpdateOptions {
@@ -75,49 +74,38 @@ export interface SourceTrackingOptions {
 export class SourceTracking extends AsyncCreatable {
   private orgId: string;
   private projectPath: string;
-  private defaultPackagePath: string;
   private packagesDirs: NamedPackageDir[];
   private username: string;
   private logger: Logger;
-  private project: SfdxProject;
-  private options: SourceTrackingOptions;
-  private apiVersion: string | undefined;
   // remote and local tracking may not exist if not initialized
   private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
-    this.options = options;
     this.orgId = options.org.getOrgId();
     this.username = options.org.getUsername() as string;
     this.projectPath = options.project.getPath();
     this.packagesDirs = options.project.getPackageDirectories();
-    this.defaultPackagePath = options.project.getDefaultPackage().fullPath;
-    this.project = options.project;
     this.logger = Logger.childFromRoot('SourceTracking');
   }
 
   public async init(): Promise<void> {
-    this.apiVersion = this.options.apiVersion ?? (await this.getSourceApiVersion());
+    // reserved for future use.  If not, can remove asyncCreatable
   }
 
-  public async deployLocalChanges({
-    ignoreWarnings = false,
-    wait = Duration.minutes(33),
-  }: {
-    ignoreWarnings?: boolean;
-    wait?: Duration;
-  }): Promise<FileResponse[]> {
+  public async localChangesAsComponentSet(): Promise<ComponentSet> {
     await this.ensureLocalTracking();
+    const componentSet = new ComponentSet();
+
     const [nonDeletes, deletes] = await Promise.all([
       this.localRepo.getNonDeleteFilenames(),
       this.localRepo.getDeleteFilenames(),
     ]);
     if (nonDeletes.length === 0 && deletes.length === 0) {
-      throw new Error('There are no changes to deploy');
+      this.logger.debug('no local changes found in source tracking files');
+      return componentSet;
     }
-    const componentSet = new ComponentSet();
     // optimistic resolution...some files may not be possible to resolve
     const resolverForNonDeletes = new MetadataResolver();
     // we need virtual components for the deletes.
@@ -125,7 +113,7 @@ export class SourceTracking extends AsyncCreatable {
     const resolverForDeletes = new MetadataResolver(undefined, filenamesToVirtualTree(deletes));
 
     nonDeletes
-      .map((filename) => {
+      .flatMap((filename) => {
         try {
           return resolverForNonDeletes.getComponentsFromPath(filename);
         } catch (e) {
@@ -133,137 +121,15 @@ export class SourceTracking extends AsyncCreatable {
           return undefined;
         }
       })
-      .flat()
       .filter(sourceComponentGuard)
       .map((component) => componentSet.add(component));
 
     deletes
-      .map((filename) => resolverForDeletes.getComponentsFromPath(filename))
-      .flat()
+      .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
       .filter(sourceComponentGuard)
       .map((component) => componentSet.add(component, true));
 
-    // there might have been components in local tracking, but they might be ignored by SDR or unresolvable.
-    // SDR will throw when you try to resolve them, so don't
-    if (componentSet.size === 0) {
-      return [];
-    }
-    const deploy = await componentSet.deploy({ usernameOrConnection: this.username, apiOptions: { ignoreWarnings } });
-    const result = await deploy.pollStatus(30, wait.seconds);
-
-    const successes = result.getFileResponses().filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
-    const successNonDeletes = successes.filter((fileResponse) => fileResponse.state !== ComponentStatus.Deleted);
-    const successDeletes = successes.filter((fileResponse) => fileResponse.state === ComponentStatus.Deleted);
-
-    // then commit successes to local and remote tracking;
-    await Promise.all([
-      this.updateLocalTracking({
-        files: successNonDeletes.map((fileResponse) => fileResponse.filePath) as string[],
-        deletedFiles: successDeletes.map((fileResponse) => fileResponse.filePath) as string[],
-      }),
-      this.updateRemoteTracking(successes), // this should include polling for sourceMembers
-    ]);
-
-    return result.getFileResponses();
-  }
-
-  public async retrieveRemoteChanges({ wait = Duration.minutes(33) }: { wait: Duration }): Promise<FileResponse[]> {
-    await this.ensureRemoteTracking();
-    const changesToDelete: ChangeResult[] = [];
-    const remoteChangesToPull = await this.getRemoteChanges();
-    if (remoteChangesToPull.length === 0) {
-      return [];
-    }
-
-    const componentSetFromRemoteChanges = new ComponentSet();
-
-    remoteChangesToPull.map((component) => {
-      this.logger.debug(`adding ${component.type} ${component.name} to component set`);
-      if (component.deleted) {
-        changesToDelete.push({ ...component, origin: 'remote' });
-      } else {
-        componentSetFromRemoteChanges.add({ type: component.type, fullName: component.name });
-      }
-    });
-    let deletesAsFileResponse: FileResponse[] = [];
-    if (changesToDelete.length > 0) {
-      // build a component set of the deleted types
-      const changesToDeleteWithFilePaths = this.populateFilePaths(changesToDelete);
-      deletesAsFileResponse = changesToDeleteWithFilePaths
-        .map((changeResult) =>
-          changeResult && changeResult.filenames
-            ? changeResult.filenames.map(
-                (filename) =>
-                  ({
-                    type: changeResult.type,
-                    fullName: changeResult.name as string,
-                    filePath: filename,
-                    state: ComponentStatus.Deleted,
-                  } as FileResponse) // this assertion is because it matches the unexported Success flavor of FileResponse
-              )
-            : []
-        )
-        .flat();
-      // delete the files
-      const filenames = changesToDeleteWithFilePaths
-        // TODO: test that this works for undefined, string and string[]
-        .map((change) => change.filenames as string[])
-        .flat()
-        .filter(Boolean);
-      await Promise.all(filenames.map((filename) => fs.promises.unlink(filename)));
-      await Promise.all([
-        this.updateLocalTracking({ deletedFiles: filenames }),
-        this.updateRemoteTracking(
-          deletesAsFileResponse.map((fileResponse) => ({
-            type: fileResponse.type,
-            fullName: fileResponse.fullName,
-            filePath: fileResponse.filePath,
-            state: ComponentStatus.Deleted,
-          }))
-        ),
-      ]);
-    }
-    // we might skip this and do only local deletes!
-    if (componentSetFromRemoteChanges.size === 0) {
-      // TODO: return the correct types
-      return deletesAsFileResponse;
-    }
-
-    const mdapiRetrieve = await componentSetFromRemoteChanges.retrieve({
-      usernameOrConnection: this.username,
-      merge: true,
-      output: this.defaultPackagePath,
-      apiVersion: this.apiVersion,
-    });
-
-    const retrieveResult = await mdapiRetrieve.pollStatus(1000, wait.seconds);
-    this.logger.debug(
-      'files received from the server are',
-      retrieveResult
-        .getFileResponses()
-        .map((fileResponse) => fileResponse.filePath as string)
-        .filter(Boolean)
-    );
-
-    const successes = retrieveResult
-      .getFileResponses()
-      .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
-
-    await Promise.all([
-      // commit the local file successes that the retrieve modified
-      this.updateLocalTracking({
-        files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
-      }),
-      this.updateRemoteTracking(
-        successes.map((success) => ({
-          filePath: success.filePath,
-          type: success.type,
-          fullName: success.fullName,
-          state: success.state,
-        }))
-      ),
-    ]);
-    return [...deletesAsFileResponse, ...retrieveResult.getFileResponses()];
+    return componentSet;
   }
 
   /**
@@ -273,24 +139,12 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async getChanges<T extends ChangeOptionType>(options?: ChangeOptions): Promise<T[]> {
     if (options?.origin === 'local') {
-      let filenames: string[] = [];
       await this.ensureLocalTracking();
-      if (options.state === 'modify') {
-        filenames = await this.localRepo.getModifyFilenames();
-      }
-      if (options.state === 'nondelete') {
-        filenames = await this.localRepo.getNonDeleteFilenames();
-      }
-      if (options.state === 'delete') {
-        filenames = await this.localRepo.getDeleteFilenames();
-      }
-      if (options.state === 'add') {
-        filenames = await this.localRepo.getAddFilenames();
-      }
+      const filenames: string[] = await this.getLocalChangesAsFilenames(options.state);
       if (options.format === 'string') {
         return filenames as T[];
       }
-      if (options.format === 'ChangeResult') {
+      if (options.format === 'ChangeResult' || options.format === 'ChangeResultWithPaths') {
         return filenames.map((filename) => ({
           filenames: [filename],
           origin: 'local',
@@ -303,7 +157,7 @@ export class SourceTracking extends AsyncCreatable {
             : new MetadataResolver();
 
         return filenames
-          .map((filename) => {
+          .flatMap((filename) => {
             try {
               return resolver.getComponentsFromPath(filename);
             } catch (e) {
@@ -311,7 +165,6 @@ export class SourceTracking extends AsyncCreatable {
               return undefined;
             }
           })
-          .flat()
           .filter(sourceComponentGuard) as T[];
       }
     }
@@ -331,17 +184,76 @@ export class SourceTracking extends AsyncCreatable {
       }
       if (options.format === 'ChangeResult') {
         return filteredChanges.map((change) => ({ ...change, origin: 'remote' })) as T[];
-      } else if (options.format === 'string') {
-        throw new Error('not implemented');
+      }
+      if (options.format === 'ChangeResultWithPaths') {
+        return this.populateFilePaths(filteredChanges.map((change) => ({ ...change, origin: 'remote' }))) as T[];
+      }
+      // turn it into a componentSet to resolve filenames
+      const remoteChangesAsComponentLike = filteredChanges.map((element) => ({
+        type: element?.type,
+        fullName: element?.name,
+      }));
+      const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
+      const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
+        fsPaths: this.packagesDirs.map((dir) => dir.path),
+        include: remoteChangesAsComponentSet,
+      });
+      if (options.format === 'string') {
+        return matchingLocalSourceComponentsSet
+          .getSourceComponents()
+          .toArray()
+          .flatMap((component) =>
+            [component.xml as string, ...component.walkContent()].filter((filename) => filename)
+          ) as T[];
       } else if (options.format === 'SourceComponent') {
-        throw new Error('not implemented');
+        return matchingLocalSourceComponentsSet.getSourceComponents().toArray() as T[];
       }
     }
+    throw new Error(`unsupported options: ${JSON.stringify(options)}`);
+  }
 
-    // by default return all local and remote changes
-    // eslint-disable-next-line no-console
-    this.logger.debug(options);
-    return [];
+  /**
+   *
+   * returns immediately if there are no changesToDelete
+   *
+   * @param changesToDelete array of SourceComponent
+   */
+  public async deleteFilesAndUpdateTracking(changesToDelete: SourceComponent[]): Promise<FileResponse[]> {
+    if (changesToDelete.length === 0) {
+      return [];
+    }
+
+    const sourceComponentByFileName = new Map<string, SourceComponent>();
+    changesToDelete.flatMap((component) =>
+      [component.xml as string, ...component.walkContent()]
+        .filter((filename) => filename)
+        .map((filename) => sourceComponentByFileName.set(filename, component))
+    );
+    const filenames = Array.from(sourceComponentByFileName.keys());
+    // delete the files
+    await Promise.all(filenames.map((filename) => fs.promises.unlink(filename)));
+
+    // update the tracking files.  We're simulating SDR-style fileResponse
+    await Promise.all([
+      this.updateLocalTracking({ deletedFiles: filenames }),
+      this.updateRemoteTracking(
+        changesToDelete.map((component) => ({
+          type: component.type.name,
+          fullName: component.fullName,
+          state: ComponentStatus.Deleted,
+        })),
+        true // skip polling because it's a pull
+      ),
+    ]);
+    return filenames.map(
+      (filename) =>
+        ({
+          state: 'Deleted',
+          filename,
+          type: sourceComponentByFileName.get(filename)?.type.name,
+          fullName: sourceComponentByFileName.get(filename)?.fullName,
+        } as unknown as FileResponse)
+    );
   }
 
   /**
@@ -471,15 +383,12 @@ export class SourceTracking extends AsyncCreatable {
     }
 
     this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-    const filenames = elements
-      .map((element) => element.filenames)
-      .flat()
-      .filter(stringGuard);
+    const filenames = elements.flatMap((element) => element.filenames).filter(stringGuard);
 
     // component set generated from the filenames on all local changes
     const resolver = new MetadataResolver(undefined, resolveDeleted ? filenamesToVirtualTree(filenames) : undefined);
     const sourceComponents = filenames
-      .map((filename) => {
+      .flatMap((filename) => {
         try {
           return resolver.getComponentsFromPath(filename);
         } catch (e) {
@@ -487,7 +396,6 @@ export class SourceTracking extends AsyncCreatable {
           return undefined;
         }
       })
-      .flat()
       .filter(sourceComponentGuard);
 
     this.logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
@@ -531,10 +439,12 @@ export class SourceTracking extends AsyncCreatable {
       format: 'ChangeResult',
     });
 
-    // remote adds won't have a filename
-    const remoteChanges = this.populateFilePaths(
-      await this.getChanges<ChangeResult>({ origin: 'remote', state: 'nondelete', format: 'ChangeResult' })
-    );
+    const remoteChanges = await this.getChanges<ChangeResult>({
+      origin: 'remote',
+      state: 'nondelete',
+      // remote adds won't have a filename, so we ask for it to be resolved
+      format: 'ChangeResultWithPaths',
+    });
 
     // index them by filename
     const fileNameIndex = new Map<string, ChangeResult>();
@@ -618,23 +528,24 @@ export class SourceTracking extends AsyncCreatable {
     return Array.from(elementMap.values());
   }
 
-  /**
-   * Calls the server to get all RemoteChangeElements directly
-   *
-   * @returns Promise<RemoteChangeElement[]
-   */
-  private async getRemoteChanges(): Promise<RemoteChangeElement[]> {
-    await this.ensureRemoteTracking();
-    return this.remoteSourceTrackingService.retrieveUpdates();
-  }
-
   private ensureRelative(filePath: string): string {
     return path.isAbsolute(filePath) ? path.relative(this.projectPath, filePath) : filePath;
   }
 
-  private async getSourceApiVersion(): Promise<string | undefined> {
-    const projectConfig = await this.project.resolveProjectConfig();
-    return getString(projectConfig, 'sourceApiVersion') ?? undefined;
+  private async getLocalChangesAsFilenames(state: ChangeOptions['state']): Promise<string[]> {
+    if (state === 'modify') {
+      return this.localRepo.getModifyFilenames();
+    }
+    if (state === 'nondelete') {
+      return this.localRepo.getNonDeleteFilenames();
+    }
+    if (state === 'delete') {
+      return this.localRepo.getDeleteFilenames();
+    }
+    if (state === 'add') {
+      return this.localRepo.getAddFilenames();
+    }
+    throw new Error(`unable to get local changes for state ${state as string}`);
   }
 }
 

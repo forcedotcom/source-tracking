@@ -4,116 +4,105 @@ JavaScript library for tracking local and remote Salesforce metadata changes.
 
 **_ UNDER DEVELOPMENT _**
 
-You should use the class named sourceTracking.
+You should use the class named SourceTracking.
+
+Start like this:
+
+```ts
+import { SourceTracking } from '@salesforce/source-tracking';
+
+const tracking = await SourceTracking.create({
+  org: this.org, // Org from sfdx-core
+  project: this.project, // Project from sfdx-core
+  apiVersion: this.flags.apiversion as string, // can be undefined, will figure it out if you don't allow users to override
+});
+```
+
+Any calls to methods on your instance of `tracking` will check to make sure that the appropriate remote/local files are up to date and loaded.
+
+If you know you need to access remote or local, you can `ensure` them so that the FS and API operations don't happen multiple time (useful before calling operations in that run parallel)
+
+```ts
+await tracking.ensureRemoteTracking(); // pass `true` if you know you need to force a re-query.
+// Example: the library got Remote Changes from the server, but you just did a deploy and know you need to get the updated SourceMembers.
+
+await tracking.ensureLocalTracking();
+```
 
 ### Use cases:
 
-1. push => `deployLocalChanges()`
-1. pull => `retrieveRemoteChanges()`
-1. push,pull,status: `getConflicts()`
-1. retrieve/retrieve: `updateLocalTracking()`,`updateRemoteTracking`
+1. push,pull,status: `getConflicts()`, `getChanges()`
+1. deploy/retrieve: `updateLocalTracking()`,`updateRemoteTracking`
+
+## Deploy:
+
+1. Once your SDR-based deploy finishes, you need to update the client's tracking files for both local (because local files went to the server) AND remote (because your deployment will result in new SourceMembers that need to be synced to the client).
+
+```ts
+// send it an two arrays of Files (nonDeletes and Deletes)
+await tracking.updateLocalTracking({
+  deployedFiles: ['force-app/main/default/classes/MyClass.cls', 'force-app/main/default/classes/MyClass.cls-meta.xml'],
+  deletedFiles: [],
+});
+
+// Pass an array of objects.  The type comes from SDR's FileResponse type, Success variant
+// By default, it'll poll the server to get your SourceMembers before committing all the changes to the tracking files
+await tracking.updateRemoteTracking([
+  {
+    fullName: 'MyClass',
+    type: 'ApexClass',
+    state: 'Changed',
+    filePath: 'force-app/main/default/classes/MyClass.cls',
+  },
+  {
+    fullName: 'MyClass',
+    type: 'ApexClass',
+    state: 'Changed',
+    filePath: 'force-app/main/default/classes/MyClass.cls-meta.xml',
+  },
+]);
+```
+
+## Retrieve:
+
+Once your retrieve finishes, use the same updateLocalTracking as you did for deploy to commit the file changes to local and remote changes.
+
+```ts
+// By default, it'll poll the server to get your SourceMembers before committing all the changes to the tracking files.  If you already queried sourceMembers as part of conflict check, etc you can pass `false` to prevent polling the server again for SourceMembers
+await tracking.updateRemoteTracking(
+  [
+    {
+      fullName: 'MyClass',
+      type: 'ApexClass',
+      state: 'Changed',
+      filePath: 'force-app/main/default/classes/MyClass.cls',
+    },
+    {
+      fullName: 'MyClass',
+      type: 'ApexClass',
+      state: 'Changed',
+      filePath: 'force-app/main/default/classes/MyClass.cls-meta.xml',
+    },
+  ],
+  false
+);
+```
 
 ## TODO
 
-Push can have partial successes but rolls back. Filter those out, except if they deployed, then we need to commit only the successes. It's...complicated
+NUT for tracking file compatibility check logic
+pollSourceMembers should better handle aggregated types. ex:
 
-```json
-{
-  "checkOnly": false,
-  "completedDate": "2021-08-14T18:03:37.000Z",
-  "createdBy": "005R0000009HFrL",
-  "createdByName": "User User",
-  "createdDate": "2021-08-14T18:03:34.000Z",
-  "details": {
-    "componentFailures": {
-      "changed": "false",
-      "componentType": "Profile",
-      "created": "false",
-      "createdDate": "2021-08-14T18:03:36.000Z",
-      "deleted": "false",
-      "fileName": "profiles/Admin.profile",
-      "fullName": "Admin",
-      "problem": "In field: field - no CustomField named Account.test__c found",
-      "problemType": "Error",
-      "success": "false"
-    },
-    "componentSuccesses": [
-      {
-        "changed": "true",
-        "componentType": "ApexClass",
-        "created": "true",
-        "createdDate": "2021-08-14T18:03:35.000Z",
-        "deleted": "false",
-        "fileName": "classes/test2.cls",
-        "fullName": "test2",
-        "id": "01pR000000DVwPqIAL",
-        "success": "true"
-      },
-      {
-        "changed": "true",
-        "componentType": "ApexClass",
-        "created": "true",
-        "createdDate": "2021-08-14T18:03:35.000Z",
-        "deleted": "false",
-        "fileName": "classes/test.cls",
-        "fullName": "test",
-        "id": "01pR000000DVwPpIAL",
-        "success": "true"
-      },
-      {
-        "changed": "true",
-        "componentType": "",
-        "created": "false",
-        "createdDate": "2021-08-14T18:03:36.000Z",
-        "deleted": "false",
-        "fileName": "package.xml",
-        "fullName": "package.xml",
-        "success": "true"
-      }
-    ],
-    "runTestResult": {
-      "numFailures": "0",
-      "numTestsRun": "0",
-      "totalTime": "0.0"
-    }
-  },
-  "done": true,
-  "id": "0AfR000001SjwjQKAR",
-  "ignoreWarnings": false,
-  "lastModifiedDate": "2021-08-14T18:03:37.000Z",
-  "numberComponentErrors": 1,
-  "numberComponentsDeployed": 2,
-  "numberComponentsTotal": 3,
-  "numberTestErrors": 0,
-  "numberTestsCompleted": 0,
-  "numberTestsTotal": 0,
-  "rollbackOnError": true,
-  "runTestsEnabled": false,
-  "startDate": "2021-08-14T18:03:34.000Z",
-  "status": "Failed",
-  "success": false
-}
 ```
-
-- pull throw proper error for conflicts (with label!)
-- push/pull proper table output (exists over in plugin-source so why redo it here?)
-
-- SDR sets all retrieve FileResponse as `Changed` even if it didn't exist locally. That's going to yield slightly different json output on a `pull` than toolbelt did. See `remoteChanges.nut.ts > remote changes:add > can pull the add`. Fixing in pull is less optimal than fixing in SDR (because source:retrieve is also currently reporting those as `Changed` instead of `Created`)
-
-### Test
-
-- create a NUT For non-ST org (ex: the dev hub)
-- failing UT on remoteTrackingService for non-ST orgs
-
-### Migration
-
-- can migrate maxRevision.json to its new home
+DEBUG Could not find 2 SourceMembers (using ebikes): AuraDefinition__pageTemplate_2_7_3/pageTemplate_2_7_3.cmp-meta.xml,[object Object],CustomObject__Account,[object Object]
+```
 
 ### Enhancements
 
-- status can "mark ignores"
-- why does push take so long?
 - for updating ST after deploy/retrieve, we need a quick way for those commands to ask, "is this an ST org?" OR a graceful "ifSupported" wrapper for those methods.
+- ensureRemoteTracking could have 2 options in an object
+  1. `ensureQueryHasReturned` which will make sure the query has run at least once
+  2. `forceQuery` will re-query even if the query already ran (cache-buster typically)
 
 ### Cleanup
 
