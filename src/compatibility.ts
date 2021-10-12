@@ -97,7 +97,7 @@ export const replaceRenamedCommands = (input: string, reverse = false): string =
   return input;
 };
 
-export const renames = new Map([
+const renames = new Map([
   ['force:source:status', 'force:source:beta:status'],
   ['force:source:push', 'force:source:beta:push'],
   ['force:source:pull', 'force:source:beta:pull'],
