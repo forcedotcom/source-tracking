@@ -14,16 +14,16 @@ workflows:
             parameters:
               os:
                 - linux
-                # - windows
+                - windows
               node_version:
                 - latest
                 - lts
                 - maintenance
-            # exclude:
-            # - os: windows
-            # node_version: lts
-            # - os: windows
-            # node_version: maintenance
+            exclude:
+              - os: windows
+                node_version: lts
+              - os: windows
+                node_version: maintenance
       - release-management/test-nut:
           size: large
           matrix:
