@@ -102,21 +102,24 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     if (!this.status || noCache) {
-      await this.stashIgnoreFile();
-      // status hasn't been initalized yet
-      this.status = await git.statusMatrix({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        filepaths: this.packageDirs.map((dir) => dir.path),
-        // filter out hidden files and __tests__ patterns, regardless of gitignore
-        filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
-      });
-      // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-      if (os.type() === 'Windows_NT') {
-        this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+      try {
+        await this.stashIgnoreFile();
+        // status hasn't been initalized yet
+        this.status = await git.statusMatrix({
+          fs,
+          dir: this.projectPath,
+          gitdir: this.gitDir,
+          filepaths: this.packageDirs.map((dir) => dir.path),
+          // filter out hidden files and __tests__ patterns, regardless of gitignore
+          filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
+        });
+        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+        if (os.type() === 'Windows_NT') {
+          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+        }
+      } finally {
+        await this.unStashIgnoreFile();
       }
-      await this.unStashIgnoreFile();
     }
     return this.status;
   }
