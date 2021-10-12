@@ -191,8 +191,8 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   }: CommitRequest = {}): Promise<string> {
     // if no files are specified, commit all changes
     if (deployedFiles.length === 0 && deletedFiles.length === 0) {
-      deployedFiles = await this.getNonDeleteFilenames();
-      deletedFiles = await this.getDeleteFilenames();
+      // this is valid, might not be an error
+      return 'no files to commit';
     }
 
     this.logger.debug('changes are', deployedFiles);
