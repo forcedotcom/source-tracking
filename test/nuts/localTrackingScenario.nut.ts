@@ -30,7 +30,7 @@ describe('end-to-end-test for local tracking', () => {
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.create({
+    repo = await ShadowRepo.getInstance({
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: undefined, fullPath: undefined }],
@@ -55,12 +55,6 @@ describe('end-to-end-test for local tracking', () => {
   });
 
   it('should see no changes after commit (and reconnect to repo)', async () => {
-    // recreate the repo because we want it to not use cached status
-    repo = await ShadowRepo.create({
-      orgId: 'fakeOrgId',
-      projectPath: session.project.dir,
-      packageDirs: [{ path: 'force-app', name: undefined, fullPath: undefined }],
-    });
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));
     expect(await repo.getChangedFilenames())

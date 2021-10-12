@@ -292,7 +292,7 @@ export class SourceTracking extends AsyncCreatable {
     if (this.localRepo) {
       return;
     }
-    this.localRepo = await ShadowRepo.create({
+    this.localRepo = await ShadowRepo.getInstance({
       orgId: this.orgId,
       projectPath: this.projectPath,
       packageDirs: this.packagesDirs,
