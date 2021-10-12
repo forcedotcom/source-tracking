@@ -8,9 +8,8 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 
 import * as path from 'path';
-import * as fs from 'fs';
 import { retryDecorator } from 'ts-retry-promise';
-import { ConfigFile, Logger, Org, SfdxError, Messages } from '@salesforce/core';
+import { ConfigFile, Logger, Org, SfdxError, Messages, fs } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, toNumber } from '@salesforce/kit';
