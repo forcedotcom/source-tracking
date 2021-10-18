@@ -168,20 +168,12 @@ export class SourceTracking extends AsyncCreatable {
           .filter(sourceComponentGuard) as T[];
       }
     }
-    if (options && options.origin === 'remote') {
+
+    if (options?.origin === 'remote') {
       await this.ensureRemoteTracking();
       const remoteChanges = await this.remoteSourceTrackingService.retrieveUpdates();
       this.logger.debug('remoteChanges', remoteChanges);
-      let filteredChanges: RemoteChangeElement[] = [];
-      if (options.state === 'add') {
-        filteredChanges = remoteChanges.filter((change) => !change.deleted && !change.modified);
-      } else if (options.state === 'modify') {
-        filteredChanges = remoteChanges.filter((change) => change.modified);
-      } else if (options.state === 'delete') {
-        filteredChanges = remoteChanges.filter((change) => change.deleted);
-      } else if (options.state === 'nondelete') {
-        filteredChanges = remoteChanges.filter((change) => !change.deleted);
-      }
+      const filteredChanges = remoteChanges.filter(remoteFilterByState[options.state]);
       if (options.format === 'ChangeResult') {
         return filteredChanges.map((change) => ({ ...change, origin: 'remote' })) as T[];
       }
@@ -189,11 +181,12 @@ export class SourceTracking extends AsyncCreatable {
         return this.populateFilePaths(filteredChanges.map((change) => ({ ...change, origin: 'remote' }))) as T[];
       }
       // turn it into a componentSet to resolve filenames
-      const remoteChangesAsComponentLike = filteredChanges.map((element) => ({
-        type: element?.type,
-        fullName: element?.name,
-      }));
-      const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
+      const remoteChangesAsComponentSet = new ComponentSet(
+        filteredChanges.map((element) => ({
+          type: element?.type,
+          fullName: element?.name,
+        }))
+      );
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
         fsPaths: this.packagesDirs.map((dir) => dir.path),
         include: remoteChangesAsComponentSet,
@@ -555,4 +548,11 @@ export const stringGuard = (input: string | undefined): input is string => {
 
 const sourceComponentGuard = (input: SourceComponent | undefined): input is SourceComponent => {
   return input instanceof SourceComponent;
+};
+
+const remoteFilterByState = {
+  add: (change: RemoteChangeElement): boolean => !change.deleted && !change.modified,
+  modify: (change: RemoteChangeElement): boolean => change.modified === true,
+  delete: (change: RemoteChangeElement): boolean => change.deleted === true,
+  nondelete: (change: RemoteChangeElement): boolean => !change.deleted,
 };
