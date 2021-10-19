@@ -6,7 +6,6 @@
  */
 
 import { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
-import { getMetadataKey } from '../shared/functions';
 
 export interface ChangeOptions {
   origin: 'local' | 'remote';
