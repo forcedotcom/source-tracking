@@ -13,8 +13,9 @@ import { ConfigFile, Logger, Org, SfdxError, Messages, fs } from '@salesforce/co
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, toNumber } from '@salesforce/kit';
-import { RemoteSyncInput } from '../shared/types';
+import { RemoteSyncInput, RemoteChangeElement } from '../shared/types';
 import { getMetadataKeyFromFileResponse } from './metadataKeys';
+import { getMetadataKey } from './functions';
 
 export type MemberRevision = {
   serverRevisionCounter: number;
@@ -28,13 +29,6 @@ export type SourceMember = {
   MemberName: string;
   IsNameObsolete: boolean;
   RevisionCounter: number;
-};
-
-export type RemoteChangeElement = {
-  name: string;
-  type: string;
-  deleted?: boolean;
-  modified?: boolean;
 };
 
 // represents the contents of the config file stored in 'maxRevision.json'
@@ -51,10 +45,6 @@ export namespace RemoteSourceTrackingService {
     username: string;
   }
 }
-
-export const getMetadataKey = (metadataType: string, metadataName: string): string => {
-  return `${metadataType}__${metadataName}`;
-};
 
 /**
  * This service handles source tracking of metadata between a local project and an org.

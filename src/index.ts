@@ -7,4 +7,12 @@
 
 export * from './sourceTracking';
 export * from './compatibility';
-export { RemoteSyncInput } from './shared/types';
+export {
+  RemoteSyncInput,
+  ChangeOptionType,
+  ChangeOptions,
+  LocalUpdateOptions,
+  ChangeResult,
+  ConflictError,
+} from './shared/types';
+export { getKeyFromObject } from './shared/functions';

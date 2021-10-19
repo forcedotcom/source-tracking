@@ -14,49 +14,26 @@ import {
   ComponentStatus,
   SourceComponent,
   FileResponse,
+  ForceIgnore,
+  RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
+import { MetadataTransformerFactory } from '@salesforce/source-deploy-retrieve/lib/src/convert/transformers/metadataTransformerFactory';
+import { ConvertContext } from '@salesforce/source-deploy-retrieve/lib/src/convert/convertContext';
 
-import { RemoteSourceTrackingService, RemoteChangeElement, getMetadataKey } from './shared/remoteSourceTrackingService';
+import { RemoteSourceTrackingService } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { filenamesToVirtualTree } from './shared/filenamesToVirtualTree';
-import { RemoteSyncInput } from './shared/types';
-
-export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): string => {
-  if (element.type && element.name) {
-    return getMetadataKey(element.type, element.name);
-  }
-  throw new Error(`unable to complete key from ${JSON.stringify(element)}`);
-};
-
-// external users of SDR might need to convert a fileResponse to a key
-export const getKeyFromStrings = getMetadataKey;
-
-export type ChangeOptionType = ChangeResult | SourceComponent | string;
-
-export interface ChangeOptions {
-  origin: 'local' | 'remote';
-  state: 'add' | 'delete' | 'modify' | 'nondelete';
-  format: 'ChangeResult' | 'SourceComponent' | 'string' | 'ChangeResultWithPaths';
-}
-
-export interface LocalUpdateOptions {
-  files?: string[];
-  deletedFiles?: string[];
-}
-
-/**
- * Summary type that supports both local and remote change types
- */
-export type ChangeResult = Partial<RemoteChangeElement> & {
-  origin: 'local' | 'remote';
-  filenames?: string[];
-};
-
-export interface ConflictError {
-  message: string;
-  name: 'conflict';
-  conflicts: ChangeResult[];
-}
+import {
+  RemoteSyncInput,
+  StatusOutputRow,
+  ChangeOptions,
+  ChangeResult,
+  ChangeOptionType,
+  LocalUpdateOptions,
+  RemoteChangeElement,
+} from './shared/types';
+import { stringGuard, sourceComponentGuard } from './shared/guards';
+import { getKeyFromObject, getMetadataKey } from './shared/functions';
 
 export interface SourceTrackingOptions {
   org: Org;
@@ -80,6 +57,9 @@ export class SourceTracking extends AsyncCreatable {
   // remote and local tracking may not exist if not initialized
   private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
+  private forceIgnore!: ForceIgnore;
+  private registry!: RegistryAccess;
+  private transformerFactory!: MetadataTransformerFactory;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
@@ -133,9 +113,47 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   /**
+   * Does most of the work for the force:source:status command.
+   * Outputs need a bit of massage since this aims to provide nice json.
+   *
+   * @param local you want local status
+   * @param remote you want remote status
+   * @returns StatusOutputRow[]
+   */
+
+  public async getStatus({ local, remote }: { local: boolean; remote: boolean }): Promise<StatusOutputRow[]> {
+    let results: StatusOutputRow[] = [];
+    if (local) {
+      results = results.concat(await this.getLocalStatusRows());
+    }
+    if (remote) {
+      await this.ensureRemoteTracking(true);
+      const [remoteDeletes, remoteModifies] = await Promise.all([
+        this.getChanges<ChangeResult>({ origin: 'remote', state: 'delete', format: 'ChangeResult' }),
+        this.getChanges<ChangeResult>({ origin: 'remote', state: 'nondelete', format: 'ChangeResultWithPaths' }),
+      ]);
+      results = results.concat(
+        (
+          await Promise.all(remoteDeletes.concat(remoteModifies).map((item) => this.remoteChangesToOutputRows(item)))
+        ).flat(1)
+      );
+    }
+    if (local && remote) {
+      // keys like ApexClass__MyClass.cls
+      const conflictFiles = (await this.getConflicts()).flatMap((conflict) => conflict.filenames).filter(stringGuard);
+      results = results.map((row) => ({
+        ...row,
+        conflict: !!row.filePath && conflictFiles.includes(row.filePath),
+      }));
+    }
+    return results;
+  }
+
+  /**
    * Get metadata changes made locally and in the org.
    *
    * @returns local and remote changed metadata
+   *
    */
   public async getChanges<T extends ChangeOptionType>(options?: ChangeOptions): Promise<T[]> {
     if (options?.origin === 'local') {
@@ -409,7 +427,8 @@ export class SourceTracking extends AsyncCreatable {
           if (filename && elementMap.has(filename)) {
             // add the type/name from the componentSet onto the element
             elementMap.set(filename, {
-              ...(elementMap.get(filename) as ChangeResult),
+              origin: 'remote',
+              ...elementMap.get(filename),
               type: matchingComponent.type.name,
               name: matchingComponent.fullName,
             });
@@ -422,23 +441,32 @@ export class SourceTracking extends AsyncCreatable {
       : Array.from(new Set(elementMap.values()));
   }
 
+  /**
+   * Compares local and remote changes to detect conflicts
+   */
   public async getConflicts(): Promise<ChangeResult[]> {
     // we're going to need have both initialized
     await Promise.all([this.ensureRemoteTracking(), this.ensureLocalTracking()]);
 
+    // Strategy: check local changes first (since it'll be faster) to avoid callout
+    // early return if either local or remote is empty
     const localChanges = await this.getChanges<ChangeResult>({
       state: 'nondelete',
       origin: 'local',
       format: 'ChangeResult',
     });
-
+    if (localChanges.length === 0) {
+      return [];
+    }
     const remoteChanges = await this.getChanges<ChangeResult>({
       origin: 'remote',
       state: 'nondelete',
       // remote adds won't have a filename, so we ask for it to be resolved
       format: 'ChangeResultWithPaths',
     });
-
+    if (remoteChanges.length === 0) {
+      return [];
+    }
     // index them by filename
     const fileNameIndex = new Map<string, ChangeResult>();
     remoteChanges.map((change) => {
@@ -458,6 +486,33 @@ export class SourceTracking extends AsyncCreatable {
     });
     // deeply de-dupe
     return Array.from(conflicts);
+  }
+
+  private async getLocalStatusRows(): Promise<StatusOutputRow[]> {
+    await this.ensureLocalTracking();
+    let results: StatusOutputRow[] = [];
+    const localDeletes = this.populateTypesAndNames({
+      elements: await this.getChanges<ChangeResult>({ origin: 'local', state: 'delete', format: 'ChangeResult' }),
+      excludeUnresolvable: true,
+      resolveDeleted: true,
+    });
+
+    const localAdds = this.populateTypesAndNames({
+      elements: await this.getChanges<ChangeResult>({ origin: 'local', state: 'add', format: 'ChangeResult' }),
+      excludeUnresolvable: true,
+    });
+
+    const localModifies = this.populateTypesAndNames({
+      elements: await this.getChanges<ChangeResult>({ origin: 'local', state: 'modify', format: 'ChangeResult' }),
+      excludeUnresolvable: true,
+    });
+
+    results = results.concat(
+      localAdds.flatMap((item) => this.localChangesToOutputRow(item, 'add')),
+      localModifies.flatMap((item) => this.localChangesToOutputRow(item, 'modify')),
+      localDeletes.flatMap((item) => this.localChangesToOutputRow(item, 'delete'))
+    );
+    return results;
   }
 
   /**
@@ -507,10 +562,11 @@ export class SourceTracking extends AsyncCreatable {
             matchingComponent.xml
           } and maybe ${matchingComponent.walkContent().toString()}`
         );
-        const key = getKeyFromStrings(matchingComponent.type.name, matchingComponent.fullName);
+        const key = getMetadataKey(matchingComponent.type.name, matchingComponent.fullName);
         elementMap.set(key, {
-          ...(elementMap.get(key) as ChangeResult),
+          ...elementMap.get(key),
           modified: true,
+          origin: 'remote',
           filenames: [matchingComponent.xml as string, ...matchingComponent.walkContent()].filter(
             (filename) => filename
           ),
@@ -540,19 +596,88 @@ export class SourceTracking extends AsyncCreatable {
     }
     throw new Error(`unable to get local changes for state ${state as string}`);
   }
+
+  private localChangesToOutputRow(input: ChangeResult, localType: 'delete' | 'modify' | 'add'): StatusOutputRow[] {
+    this.logger.debug('converting ChangeResult to a row', input);
+    this.forceIgnore = this.forceIgnore ?? new ForceIgnore();
+
+    const baseObject = {
+      type: input.type ?? '',
+      origin: 'local',
+      state: localType,
+      fullName: input.name ?? '',
+    };
+
+    if (input.filenames) {
+      return input.filenames.map((filename) => ({
+        ...baseObject,
+        filePath: filename,
+        ignored: this.forceIgnore.denies(filename),
+        origin: 'local',
+      }));
+    }
+    throw new Error('no filenames found for local ChangeResult');
+  }
+
+  private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
+    this.logger.debug('converting ChangeResult to a row', input);
+    this.forceIgnore = this.forceIgnore ?? new ForceIgnore();
+    const baseObject: StatusOutputRow = {
+      type: input.type ?? '',
+      origin: input.origin,
+      state: stateFromChangeResult(input),
+      fullName: input.name ?? '',
+    };
+    // it's easy to check ignores if the filePaths exist locally
+    if (input.filenames?.length) {
+      return input.filenames.map((filename) => ({
+        ...baseObject,
+        filePath: filename,
+        ignored: this.forceIgnore.denies(filename),
+      }));
+    }
+    // when the file doesn't exist locally, there are no filePaths.
+    // we can determine where the filePath *would* go using SDR's transformers stuff
+    const fakeFilePaths = await this.filesPathFromNonLocalSourceComponent({
+      fullName: baseObject.fullName,
+      typeName: baseObject.type,
+    });
+    return [{ ...baseObject, ignored: fakeFilePaths.some((filePath) => this.forceIgnore.denies(filePath)) }];
+  }
+
+  // TODO: This goes in SDR on SourceComponent
+  // we don't have a local copy of the component
+  // this uses SDR's approach to determine what the filePath would be if the component were written locally
+  private async filesPathFromNonLocalSourceComponent({
+    fullName,
+    typeName,
+  }: {
+    fullName: string;
+    typeName: string;
+  }): Promise<string[]> {
+    this.registry = this.registry ?? new RegistryAccess();
+    const component = new SourceComponent({ name: fullName, type: this.registry.getTypeByName(typeName) });
+    this.transformerFactory =
+      this.transformerFactory ?? new MetadataTransformerFactory(this.registry, new ConvertContext());
+    const transformer = this.transformerFactory.getTransformer(component);
+    const writePaths = await transformer.toSourceFormat(component);
+    return writePaths.map((writePath) => writePath.output);
+  }
 }
-
-export const stringGuard = (input: string | undefined): input is string => {
-  return typeof input === 'string';
-};
-
-const sourceComponentGuard = (input: SourceComponent | undefined): input is SourceComponent => {
-  return input instanceof SourceComponent;
-};
 
 const remoteFilterByState = {
   add: (change: RemoteChangeElement): boolean => !change.deleted && !change.modified,
   modify: (change: RemoteChangeElement): boolean => change.modified === true,
   delete: (change: RemoteChangeElement): boolean => change.deleted === true,
   nondelete: (change: RemoteChangeElement): boolean => !change.deleted,
+};
+
+const stateFromChangeResult = (input: ChangeResult): 'add' | 'delete' | 'modify' => {
+  if (input.deleted) {
+    return 'delete';
+  }
+  if (input.modified) {
+    return 'modify';
+  }
+  return 'add';
 };

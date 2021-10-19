@@ -54,6 +54,15 @@ describe('end-to-end-test for local tracking', () => {
     ).to.be.a('string');
   });
 
+  it('commits no changes when there are none to commit', async () => {
+    expect(
+      await repo.commitChanges({
+        deployedFiles: await repo.getChangedFilenames(),
+        message: 'test commit message',
+      })
+    ).to.equal('no files to commit');
+  });
+
   it('should see no changes after commit (and reconnect to repo)', async () => {
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));
@@ -69,6 +78,7 @@ describe('end-to-end-test for local tracking', () => {
     await fs.writeFile(filePath, newContent);
     await repo.getStatus(true);
     expect(await repo.getChangedRows()).to.have.lengthOf(1);
+    expect(await repo.getModifyFilenames()).to.deep.equal([filename]);
     expect(await repo.getChangedFilenames()).to.deep.equal([path.normalize(filename)]);
     expect(await repo.getNonDeletes()).to.have.lengthOf(1);
     expect(await repo.getNonDeleteFilenames()).to.deep.equal([path.normalize(filename)]);
@@ -95,6 +105,8 @@ describe('end-to-end-test for local tracking', () => {
     expect(await repo.getChangedRows()).to.have.lengthOf(3);
     expect(await repo.getChangedFilenames()).to.include(path.normalize(filename));
     expect(await repo.getDeletes()).to.have.lengthOf(1);
+    expect(await repo.getAdds()).to.have.lengthOf(1);
+    expect(await repo.getAddFilenames()).to.deep.equals([filename]);
   });
 
   it('changes remain after bad commit (simulate a failed deploy)', async () => {
@@ -119,5 +131,11 @@ describe('end-to-end-test for local tracking', () => {
     await repo.getStatus(true);
 
     expect(await repo.getChangedRows()).to.have.lengthOf(0);
+  });
+
+  it('can delete the local change files', async () => {
+    const deleteResult = await repo.delete();
+    expect(deleteResult).to.equal(repo.gitDir);
+    expect(fs.existsSync(repo.gitDir)).to.equal(false);
   });
 });
