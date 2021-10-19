@@ -14,5 +14,6 @@ export {
   LocalUpdateOptions,
   ChangeResult,
   ConflictError,
+  StatusOutputRow,
 } from './shared/types';
 export { getKeyFromObject } from './shared/functions';
