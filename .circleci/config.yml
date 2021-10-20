@@ -32,9 +32,9 @@ workflows:
                 - linux
                 - windows
               sfdx_version:
-                - latest
+                - lts
               node_version:
-                - latest
+                - lts
           requires:
             - release-management/test-package
       - release-management/release-package:
