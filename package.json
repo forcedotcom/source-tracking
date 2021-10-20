@@ -8,6 +8,9 @@
   "types": "lib/index.d.ts",
   "homepage": "https://github.com/forcedotcom/source-tracking#readme",
   "repository": "forcedotcom/source-tracking.git",
+  "engines": {
+    "node": ">=12.11.0 <17"
+  },
   "scripts": {
     "build": "sf-build",
     "ci-docs": "yarn sf-ci-docs",
