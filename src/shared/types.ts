@@ -38,6 +38,7 @@ export type RemoteChangeElement = {
 export type ChangeResult = Partial<RemoteChangeElement> & {
   origin: 'local' | 'remote';
   filenames?: string[];
+  ignored?: boolean;
 };
 
 export interface ConflictError {

@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
+import { getString } from '@salesforce/ts-types';
 import {
   ComponentSet,
   MetadataResolver,
@@ -38,7 +39,7 @@ import { getKeyFromObject, getMetadataKey } from './shared/functions';
 export interface SourceTrackingOptions {
   org: Org;
   project: SfdxProject;
-  /** defaults to sfdxProject sourceApiVersion unless provided */
+  /** @deprecated not used defaults to sfdxProject sourceApiVersion unless provided */
   apiVersion?: string;
 }
 
@@ -50,6 +51,7 @@ export interface SourceTrackingOptions {
  */
 export class SourceTracking extends AsyncCreatable {
   private orgId: string;
+  private project: SfdxProject;
   private projectPath: string;
   private packagesDirs: NamedPackageDir[];
   private username: string;
@@ -68,15 +70,21 @@ export class SourceTracking extends AsyncCreatable {
     this.projectPath = options.project.getPath();
     this.packagesDirs = options.project.getPackageDirectories();
     this.logger = Logger.childFromRoot('SourceTracking');
+    this.project = options.project;
   }
 
   public async init(): Promise<void> {
-    // reserved for future use.  If not, can remove asyncCreatable
+    // reserved for future use
   }
 
   public async localChangesAsComponentSet(): Promise<ComponentSet> {
-    await this.ensureLocalTracking();
+    const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
+    const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');
+
     const componentSet = new ComponentSet();
+    if (sourceApiVersion) {
+      componentSet.sourceApiVersion = sourceApiVersion;
+    }
 
     const [nonDeletes, deletes] = await Promise.all([
       this.localRepo.getNonDeleteFilenames(),
@@ -375,73 +383,6 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   /**
-   * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
-   *
-   * @input elements: ChangeResult[]
-   * @input excludeUnresolvables: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
-   */
-  public populateTypesAndNames({
-    elements,
-    excludeUnresolvable = false,
-    resolveDeleted = false,
-  }: {
-    elements: ChangeResult[];
-    excludeUnresolvable?: boolean;
-    resolveDeleted?: boolean;
-  }): ChangeResult[] {
-    if (elements.length === 0) {
-      return [];
-    }
-
-    this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-    const filenames = elements.flatMap((element) => element.filenames).filter(stringGuard);
-
-    // component set generated from the filenames on all local changes
-    const resolver = new MetadataResolver(undefined, resolveDeleted ? filenamesToVirtualTree(filenames) : undefined);
-    const sourceComponents = filenames
-      .flatMap((filename) => {
-        try {
-          return resolver.getComponentsFromPath(filename);
-        } catch (e) {
-          this.logger.warn(`unable to resolve ${filename}`);
-          return undefined;
-        }
-      })
-      .filter(sourceComponentGuard);
-
-    this.logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
-
-    // make it simpler to find things later
-    const elementMap = new Map<string, ChangeResult>();
-    elements.map((element) => {
-      element.filenames?.map((filename) => {
-        elementMap.set(this.ensureRelative(filename), element);
-      });
-    });
-
-    // iterates the local components and sets their filenames
-    sourceComponents.map((matchingComponent) => {
-      if (matchingComponent?.fullName && matchingComponent?.type.name) {
-        const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
-        filenamesFromMatchingComponent.map((filename) => {
-          if (filename && elementMap.has(filename)) {
-            // add the type/name from the componentSet onto the element
-            elementMap.set(filename, {
-              origin: 'remote',
-              ...elementMap.get(filename),
-              type: matchingComponent.type.name,
-              name: matchingComponent.fullName,
-            });
-          }
-        });
-      }
-    });
-    return excludeUnresolvable
-      ? Array.from(new Set(elementMap.values())).filter((changeResult) => changeResult.name && changeResult.type)
-      : Array.from(new Set(elementMap.values()));
-  }
-
-  /**
    * Compares local and remote changes to detect conflicts
    */
   public async getConflicts(): Promise<ChangeResult[]> {
@@ -488,6 +429,87 @@ export class SourceTracking extends AsyncCreatable {
     return Array.from(conflicts);
   }
 
+  /**
+   * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
+   *
+   * @input elements: ChangeResult[]
+   * @input excludeUnresolvables: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
+   * @input resolveDeleted: constructs a virtualTree instead of the actual filesystem--useful when the files no longer exist
+   * @input useFsForceIgnore: (default behavior) use forceIgnore from the filesystem.  If false, uses the base forceIgnore from SDR
+   */
+  private populateTypesAndNames({
+    elements,
+    excludeUnresolvable = false,
+    resolveDeleted = false,
+    useFsForceIgnore = true,
+  }: {
+    elements: ChangeResult[];
+    excludeUnresolvable?: boolean;
+    resolveDeleted?: boolean;
+    useFsForceIgnore?: boolean;
+  }): ChangeResult[] {
+    if (elements.length === 0) {
+      return [];
+    }
+
+    this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
+    const filenames = elements.flatMap((element) => element.filenames).filter(stringGuard);
+
+    // component set generated from the filenames on all local changes
+    const resolver = new MetadataResolver(
+      undefined,
+      resolveDeleted ? filenamesToVirtualTree(filenames) : undefined,
+      useFsForceIgnore
+    );
+    const sourceComponents = filenames
+      .flatMap((filename) => {
+        try {
+          return resolver.getComponentsFromPath(filename);
+        } catch (e) {
+          this.logger.warn(`unable to resolve ${filename}`);
+          return undefined;
+        }
+      })
+      .filter(sourceComponentGuard);
+
+    this.logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
+
+    // make it simpler to find things later
+    const elementMap = new Map<string, ChangeResult>();
+    elements.map((element) => {
+      element.filenames?.map((filename) => {
+        elementMap.set(this.ensureRelative(filename), element);
+      });
+    });
+
+    // iterates the local components and sets their filenames
+    sourceComponents.map((matchingComponent) => {
+      if (matchingComponent?.fullName && matchingComponent?.type.name) {
+        const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
+        // Set the ignored status at the component level so it can apply to all its files, some of which may not match the ignoreFile (ex: ApexClass)
+        this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.projectPath);
+        const ignored = filenamesFromMatchingComponent
+          .filter(stringGuard)
+          .some((filename) => this.forceIgnore.denies(filename));
+        filenamesFromMatchingComponent.map((filename) => {
+          if (filename && elementMap.has(filename)) {
+            // add the type/name from the componentSet onto the element
+            elementMap.set(filename, {
+              origin: 'remote',
+              ...elementMap.get(filename),
+              type: matchingComponent.type.name,
+              name: matchingComponent.fullName,
+              ignored,
+            });
+          }
+        });
+      }
+    });
+    return excludeUnresolvable
+      ? Array.from(new Set(elementMap.values())).filter((changeResult) => changeResult.name && changeResult.type)
+      : Array.from(new Set(elementMap.values()));
+  }
+
   private async getLocalStatusRows(): Promise<StatusOutputRow[]> {
     await this.ensureLocalTracking();
     let results: StatusOutputRow[] = [];
@@ -495,16 +517,19 @@ export class SourceTracking extends AsyncCreatable {
       elements: await this.getChanges<ChangeResult>({ origin: 'local', state: 'delete', format: 'ChangeResult' }),
       excludeUnresolvable: true,
       resolveDeleted: true,
+      useFsForceIgnore: false,
     });
 
     const localAdds = this.populateTypesAndNames({
       elements: await this.getChanges<ChangeResult>({ origin: 'local', state: 'add', format: 'ChangeResult' }),
       excludeUnresolvable: true,
+      useFsForceIgnore: false,
     });
 
     const localModifies = this.populateTypesAndNames({
       elements: await this.getChanges<ChangeResult>({ origin: 'local', state: 'modify', format: 'ChangeResult' }),
       excludeUnresolvable: true,
+      useFsForceIgnore: false,
     });
 
     results = results.concat(
@@ -599,20 +624,20 @@ export class SourceTracking extends AsyncCreatable {
 
   private localChangesToOutputRow(input: ChangeResult, localType: 'delete' | 'modify' | 'add'): StatusOutputRow[] {
     this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore = this.forceIgnore ?? new ForceIgnore();
 
     const baseObject = {
       type: input.type ?? '',
       origin: 'local',
       state: localType,
       fullName: input.name ?? '',
+      // ignored property will be set in populateTypesAndNames
+      ignored: input.ignored ?? false,
     };
 
     if (input.filenames) {
       return input.filenames.map((filename) => ({
         ...baseObject,
         filePath: filename,
-        ignored: this.forceIgnore.denies(filename),
         origin: 'local',
       }));
     }
@@ -621,7 +646,7 @@ export class SourceTracking extends AsyncCreatable {
 
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore = this.forceIgnore ?? new ForceIgnore();
+    this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.projectPath);
     const baseObject: StatusOutputRow = {
       type: input.type ?? '',
       origin: input.origin,
