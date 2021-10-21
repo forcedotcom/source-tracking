@@ -32,7 +32,7 @@ workflows:
                 - linux
                 - windows
               sfdx_version:
-                - lts
+                - latest
               node_version:
                 - lts
           requires:
