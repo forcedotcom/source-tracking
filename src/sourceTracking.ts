@@ -17,6 +17,7 @@ import {
   FileResponse,
   ForceIgnore,
   RegistryAccess,
+  DestructiveChangesType,
 } from '@salesforce/source-deploy-retrieve';
 import { MetadataTransformerFactory } from '@salesforce/source-deploy-retrieve/lib/src/convert/transformers/metadataTransformerFactory';
 import { ConvertContext } from '@salesforce/source-deploy-retrieve/lib/src/convert/convertContext';
@@ -115,7 +116,7 @@ export class SourceTracking extends AsyncCreatable {
     deletes
       .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
       .filter(sourceComponentGuard)
-      .map((component) => componentSet.add(component, true));
+      .map((component) => componentSet.add(component, DestructiveChangesType.POST));
 
     return componentSet;
   }
