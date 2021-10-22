@@ -8,7 +8,6 @@
 
 import * as path from 'path';
 import * as os from 'os';
-import { AsyncCreatable } from '@salesforce/kit';
 import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 
@@ -42,26 +41,33 @@ interface CommitRequest {
   message?: string;
 }
 
-export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
-  // next 5 props get set in init() from asyncCreatable
+export class ShadowRepo {
+  private static instance: ShadowRepo;
+
   public gitDir: string;
   public projectPath: string;
+
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
-  private options: ShadowRepoOptions;
 
-  public constructor(options: ShadowRepoOptions) {
-    super(options);
-    this.options = options;
+  private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
   }
 
+  public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
+    if (!ShadowRepo.instance) {
+      ShadowRepo.instance = new ShadowRepo(options);
+      await ShadowRepo.instance.init();
+    }
+    return ShadowRepo.instance;
+  }
+
   public async init(): Promise<void> {
     this.logger = await Logger.child('ShadowRepo');
-    this.logger.debug('options for constructor are', this.options);
+
     // initialize the shadow repo if it doesn't exist
     if (!fs.existsSync(this.gitDir)) {
       this.logger.debug('initializing git repo');
@@ -102,21 +108,24 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     if (!this.status || noCache) {
-      await this.stashIgnoreFile();
-      // status hasn't been initalized yet
-      this.status = await git.statusMatrix({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        filepaths: this.packageDirs.map((dir) => dir.path),
-        // filter out hidden files and __tests__ patterns, regardless of gitignore
-        filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
-      });
-      // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-      if (os.type() === 'Windows_NT') {
-        this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+      try {
+        await this.stashIgnoreFile();
+        // status hasn't been initalized yet
+        this.status = await git.statusMatrix({
+          fs,
+          dir: this.projectPath,
+          gitdir: this.gitDir,
+          filepaths: this.packageDirs.map((dir) => dir.path),
+          // filter out hidden files and __tests__ patterns, regardless of gitignore
+          filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
+        });
+        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+        if (os.type() === 'Windows_NT') {
+          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+        }
+      } finally {
+        await this.unStashIgnoreFile();
       }
-      await this.unStashIgnoreFile();
     }
     return this.status;
   }
@@ -191,8 +200,8 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   }: CommitRequest = {}): Promise<string> {
     // if no files are specified, commit all changes
     if (deployedFiles.length === 0 && deletedFiles.length === 0) {
-      deployedFiles = await this.getNonDeleteFilenames();
-      deletedFiles = await this.getDeleteFilenames();
+      // this is valid, might not be an error
+      return 'no files to commit';
     }
 
     this.logger.debug('changes are', deployedFiles);
@@ -220,6 +229,8 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
         message,
         author: { name: 'sfdx source tracking' },
       });
+      // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
+      await this.getStatus(true);
       return sha;
     } finally {
       await this.unStashIgnoreFile();

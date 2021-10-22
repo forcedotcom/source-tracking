@@ -5,9 +5,25 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
-import { FileResponse } from '@salesforce/source-deploy-retrieve';
+import { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
+
+export interface ChangeOptions {
+  origin: 'local' | 'remote';
+  state: 'add' | 'delete' | 'modify' | 'nondelete';
+  format: 'ChangeResult' | 'SourceComponent' | 'string' | 'ChangeResultWithPaths';
+}
 
 export type RemoteSyncInput = Pick<FileResponse, 'fullName' | 'filePath' | 'type' | 'state'>;
+
+export type StatusOutputRow = Pick<FileResponse, 'fullName' | 'filePath' | 'type'> & {
+  conflict?: boolean;
+  ignored?: boolean;
+} & Pick<ChangeOptions, 'origin' | 'state'>;
+
+export interface LocalUpdateOptions {
+  files?: string[];
+  deletedFiles?: string[];
+}
 
 export type RemoteChangeElement = {
   name: string;
@@ -36,4 +52,13 @@ export type SourceMember = {
   MemberName: string;
   IsNameObsolete: boolean;
   RevisionCounter: number;
+  ignored?: boolean;
 };
+
+export interface ConflictError {
+  message: string;
+  name: 'conflict';
+  conflicts: ChangeResult[];
+}
+
+export type ChangeOptionType = ChangeResult | SourceComponent | string;

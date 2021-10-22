@@ -51,7 +51,7 @@
     "@oclif/config": "^1.17.0",
     "@salesforce/core": "^2.28.0",
     "@salesforce/kit": "^1.5.17",
-    "@salesforce/source-deploy-retrieve": "^4.5.2",
+    "@salesforce/source-deploy-retrieve": "^5.0.1",
     "isomorphic-git": "^1.9.2",
     "ts-retry-promise": "^0.6.0"
   },

@@ -8,15 +8,14 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 
 import * as path from 'path';
-import * as fs from 'fs';
 import { retryDecorator } from 'ts-retry-promise';
-import { ConfigFile, Logger, Org, SfdxError, Messages } from '@salesforce/core';
+import { ConfigFile, Logger, Org, SfdxError, Messages, fs } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, toNumber } from '@salesforce/kit';
-import { RemoteSyncInput } from '../shared/types';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember } from './types';
 import { getMetadataKeyFromFileResponse } from './metadataKeys';
+import { getMetadataKey } from './functions';
 
 // represents the contents of the config file stored in 'maxRevision.json'
 interface Contents {
@@ -32,10 +31,6 @@ export namespace RemoteSourceTrackingService {
     username: string;
   }
 }
-
-export const getMetadataKey = (metadataType: string, metadataName: string): string => {
-  return `${metadataType}__${metadataName}`;
-};
 
 /**
  * This service handles source tracking of metadata between a local project and an org.

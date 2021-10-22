@@ -15,6 +15,7 @@ type TrackingFileVersion = 'plugin-source' | 'toolbelt' | 'none';
 /**
  * A project can have "old" (toolbelt), "new" (plugin-source) or "none" tracking files
  *
+ * @deprecated use only during transition to new source-tracking commands
  */
 export const getTrackingFileVersion = (org: Org, projectPath: string): TrackingFileVersion => {
   const orgsDir = path.join(projectPath, '.sfdx', 'orgs');
@@ -38,6 +39,8 @@ export const getTrackingFileVersion = (org: Org, projectPath: string): TrackingF
 
 /**
  * Convenient wrapper for throwing errors with helpful messages so commands don't have to
+ *
+ * @deprecated use only during transition to new source-tracking commands
  *
  * @param org: an Org, typically from a command's this.org
  * @param project: the project path, typically from this.project.
@@ -85,7 +88,7 @@ export const throwIfInvalid = ({
 };
 
 /**
- *
+ * @deprecated use only during transition to new source-tracking commands
  * @param input the string that might contain things that would be replaced
  * @param reverse use the mappings backward
  * @returns string
@@ -97,7 +100,7 @@ export const replaceRenamedCommands = (input: string, reverse = false): string =
   return input;
 };
 
-export const renames = new Map([
+const renames = new Map([
   ['force:source:status', 'force:source:beta:status'],
   ['force:source:push', 'force:source:beta:push'],
   ['force:source:pull', 'force:source:beta:pull'],
