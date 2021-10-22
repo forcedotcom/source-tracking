@@ -8,6 +8,7 @@ import * as path from 'path';
 import { VirtualTreeContainer, VirtualDirectory } from '@salesforce/source-deploy-retrieve';
 
 /**
+ * @deprecated this is moving to SDR
  * Designed for recreating virtual files from deleted files where the only information we have is the file's former location
  * Any use of MetadataResolver was trying to access the non-existent files and throwing
  *

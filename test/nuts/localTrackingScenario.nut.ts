@@ -54,6 +54,15 @@ describe('end-to-end-test for local tracking', () => {
     ).to.be.a('string');
   });
 
+  it('commits no changes when there are none to commit', async () => {
+    expect(
+      await repo.commitChanges({
+        deployedFiles: await repo.getChangedFilenames(),
+        message: 'test commit message',
+      })
+    ).to.equal('no files to commit');
+  });
+
   it('should see no changes after commit (and reconnect to repo)', async () => {
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));
@@ -63,12 +72,13 @@ describe('end-to-end-test for local tracking', () => {
   });
 
   it('should see modified file in changes', async () => {
-    const filename = 'force-app/main/default/permissionsets/ebikes.permissionset-meta.xml';
+    const filename = path.normalize('force-app/main/default/permissionsets/ebikes.permissionset-meta.xml');
     const filePath = path.normalize(path.join(session.project.dir, filename));
     const newContent = `${await fs.readFile(filePath, 'utf8')}${EOL}<!--testcode-->`;
     await fs.writeFile(filePath, newContent);
     await repo.getStatus(true);
     expect(await repo.getChangedRows()).to.have.lengthOf(1);
+    expect(await repo.getModifyFilenames()).to.deep.equal([filename]);
     expect(await repo.getChangedFilenames()).to.deep.equal([path.normalize(filename)]);
     expect(await repo.getNonDeletes()).to.have.lengthOf(1);
     expect(await repo.getNonDeleteFilenames()).to.deep.equal([path.normalize(filename)]);
@@ -87,7 +97,7 @@ describe('end-to-end-test for local tracking', () => {
   });
 
   it('should also see added file in changes', async () => {
-    const filename = 'force-app/main/default/objects/Account/listViews/Test.listView-meta.xml';
+    const filename = path.normalize('force-app/main/default/objects/Account/listViews/Test.listView-meta.xml');
     const filePath = path.normalize(path.join(session.project.dir, filename));
     const newContent = '<!--testcode-->';
     await fs.writeFile(filePath, newContent);
@@ -95,6 +105,8 @@ describe('end-to-end-test for local tracking', () => {
     expect(await repo.getChangedRows()).to.have.lengthOf(3);
     expect(await repo.getChangedFilenames()).to.include(path.normalize(filename));
     expect(await repo.getDeletes()).to.have.lengthOf(1);
+    expect(await repo.getAdds()).to.have.lengthOf(1);
+    expect(await repo.getAddFilenames()).to.deep.equals([filename]);
   });
 
   it('changes remain after bad commit (simulate a failed deploy)', async () => {
@@ -119,5 +131,11 @@ describe('end-to-end-test for local tracking', () => {
     await repo.getStatus(true);
 
     expect(await repo.getChangedRows()).to.have.lengthOf(0);
+  });
+
+  it('can delete the local change files', async () => {
+    const deleteResult = await repo.delete();
+    expect(deleteResult).to.equal(repo.gitDir);
+    expect(fs.existsSync(repo.gitDir)).to.equal(false);
   });
 });
