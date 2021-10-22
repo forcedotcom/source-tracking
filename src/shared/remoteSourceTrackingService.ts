@@ -8,14 +8,14 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 
 import * as path from 'path';
-import * as fs from 'fs';
 import { retryDecorator } from 'ts-retry-promise';
-import { ConfigFile, Logger, Org, SfdxError, Messages } from '@salesforce/core';
+import { ConfigFile, Logger, Org, SfdxError, Messages, fs } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, toNumber } from '@salesforce/kit';
-import { RemoteSyncInput } from '../shared/types';
+import { RemoteSyncInput, RemoteChangeElement } from '../shared/types';
 import { getMetadataKeyFromFileResponse } from './metadataKeys';
+import { getMetadataKey } from './functions';
 
 export type MemberRevision = {
   serverRevisionCounter: number;
@@ -29,13 +29,6 @@ export type SourceMember = {
   MemberName: string;
   IsNameObsolete: boolean;
   RevisionCounter: number;
-};
-
-export type RemoteChangeElement = {
-  name: string;
-  type: string;
-  deleted?: boolean;
-  modified?: boolean;
 };
 
 // represents the contents of the config file stored in 'maxRevision.json'
@@ -52,10 +45,6 @@ export namespace RemoteSourceTrackingService {
     username: string;
   }
 }
-
-export const getMetadataKey = (metadataType: string, metadataName: string): string => {
-  return `${metadataType}__${metadataName}`;
-};
 
 /**
  * This service handles source tracking of metadata between a local project and an org.
@@ -202,22 +191,20 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
     // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
     // so we de-dupe via a set
-    Array.from(new Set(elements.map((element) => getMetadataKeyFromFileResponse(element)).flat())).map(
-      (metadataKey) => {
-        const revision = revisions[metadataKey];
-        if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
-          if (!quiet) {
-            this.logger.debug(
-              `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
-            );
-          }
-          revision.lastRetrievedFromServer = revision.serverRevisionCounter;
-          this.setMemberRevision(metadataKey, revision);
-        } else {
-          this.logger.warn(`found no matching revision for ${metadataKey}`);
+    Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(element)))).map((metadataKey) => {
+      const revision = revisions[metadataKey];
+      if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
+        if (!quiet) {
+          this.logger.debug(
+            `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
+          );
         }
+        revision.lastRetrievedFromServer = revision.serverRevisionCounter;
+        this.setMemberRevision(metadataKey, revision);
+      } else {
+        this.logger.warn(`found no matching revision for ${metadataKey}`);
       }
-    );
+    });
 
     await this.write();
   }
@@ -431,30 +418,29 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       // Don't bother polling if we're not matching SourceMembers
       return;
     }
-    const adjustedExpectedMembers = expectedMembers.filter(
-      (fileResponse) =>
-        // unchanged files will never be in the sourceMembers.  Not really sure why SDR returns them.
-        fileResponse.state !== ComponentStatus.Unchanged &&
-        // aura meta.xml aren't tracked as SourceMembers
-        !(
-          fileResponse.filePath?.startsWith('AuraDefinition') &&
-          fileResponse.filePath?.endsWith('.cmp-meta.xml') &&
-          // if a listView is the only change inside an object, the object won't have a sourceMember change.  We won't wait for those to be found
-          fileResponse.type !== 'CustomObject'
-        )
-    );
-    const fromRevision = this.getServerMaxRevision();
-    const pollingTimeout = this.calculateTimeout(adjustedExpectedMembers.length);
-    this.logger.debug(
-      `Polling for ${adjustedExpectedMembers.length} SourceMembers from revision ${fromRevision} with timeout of ${pollingTimeout}s`
-    );
 
     const outstandingSourceMembers = new Map();
 
     // filter known Source tracking issues
-    adjustedExpectedMembers.map((member) => {
-      getMetadataKeyFromFileResponse(member).map((key) => outstandingSourceMembers.set(key, member));
-    });
+    expectedMembers
+      .filter(
+        (fileResponse) =>
+          // unchanged files will never be in the sourceMembers.  Not really sure why SDR returns them.
+          fileResponse.state !== ComponentStatus.Unchanged &&
+          // if a listView is the only change inside an object, the object won't have a sourceMember change.  We won't wait for those to be found
+          fileResponse.type !== 'CustomObject' &&
+          // aura meta.xml aren't tracked as SourceMembers
+          !(fileResponse.filePath?.includes('AuraDefinition') && fileResponse.filePath?.endsWith('.cmp-meta.xml'))
+      )
+      .map((member) => {
+        getMetadataKeyFromFileResponse(member).map((key) => outstandingSourceMembers.set(key, member));
+      });
+    const originalSize = outstandingSourceMembers.size;
+    const fromRevision = this.getServerMaxRevision();
+    const pollingTimeout = this.calculateTimeout(outstandingSourceMembers.size);
+    this.logger.debug(
+      `Polling for ${outstandingSourceMembers.size} SourceMembers from revision ${fromRevision} with timeout of ${pollingTimeout}s`
+    );
 
     let pollAttempts = 0;
     const poll = async (): Promise<void> => {
@@ -473,9 +459,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       });
 
       this.logger.debug(
-        `[${pollAttempts}] Found ${adjustedExpectedMembers.length - outstandingSourceMembers.size} of ${
-          adjustedExpectedMembers.length
-        } SourceMembers`
+        `[${pollAttempts}] Found ${originalSize - outstandingSourceMembers.size} of ${originalSize} SourceMembers`
       );
 
       // update but don't sync

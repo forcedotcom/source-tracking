@@ -4,21 +4,22 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
+import * as path from 'path';
 import { RemoteSyncInput } from './types';
-import { getMetadataKey } from './remoteSourceTrackingService';
+import { getMetadataKey } from './functions';
 
 // LWC can have child folders (ex: dynamic templates like /templates/noDataIllustration.html
 const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
   fileResponse && fileResponse.filePath
-    ? fileResponse.filePath.substr(fileResponse.filePath.indexOf(fileResponse.fullName))
+    ? fileResponse.filePath.substr(fileResponse.filePath.indexOf(fileResponse.fullName)).replace(/\\/gi, '/')
     : '';
 
 // handle all "weird" type/name translation between SourceMember and SDR FileResponse
-// These get de-duplicated in a set later
+// These get de-duplicated in a set later, so it's ok to have one per file
 export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): string[] => {
   // also create an element for the parent object
   if (fileResponse.type === 'CustomField' && fileResponse.filePath) {
-    const splits = fileResponse.filePath.split('/');
+    const splits = path.normalize(fileResponse.filePath).split(path.sep);
     const objectFolderIndex = splits.indexOf('objects');
     return [
       getMetadataKey('CustomObject', splits[objectFolderIndex + 1]),

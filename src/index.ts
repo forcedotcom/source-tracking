@@ -6,3 +6,14 @@
  */
 
 export * from './sourceTracking';
+export * from './compatibility';
+export {
+  RemoteSyncInput,
+  ChangeOptionType,
+  ChangeOptions,
+  LocalUpdateOptions,
+  ChangeResult,
+  ConflictError,
+  StatusOutputRow,
+} from './shared/types';
+export { getKeyFromObject } from './shared/functions';

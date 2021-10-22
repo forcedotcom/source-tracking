@@ -6,20 +6,20 @@
  */
 /* eslint-disable no-console */
 
-import { join as pathJoin } from 'path';
-import * as fs from 'fs';
-import { AsyncCreatable } from '@salesforce/kit';
-import { NamedPackageDir, Logger } from '@salesforce/core';
+import * as path from 'path';
+import * as os from 'os';
+import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 
 /**
  * returns the full path to where we store the shadow repo
  */
 const getGitDir = (orgId: string, projectPath: string): string => {
-  return pathJoin(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
+  return path.join(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
 };
 
-const toFilenames = (rows: StatusRow[]): string[] => rows.map((file) => file[FILE] as string);
+// filenames were normalized when read from isogit
+const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
 
 interface ShadowRepoOptions {
   orgId: string;
@@ -27,10 +27,10 @@ interface ShadowRepoOptions {
   packageDirs: NamedPackageDir[];
 }
 
-type StatusRow = Array<string | number>;
+// https://isomorphic-git.org/docs/en/statusMatrix#docsNav
+type StatusRow = [file: string, head: number, workdir: number, stage: number];
 
 // array members for status results
-// https://isomorphic-git.org/docs/en/statusMatrix#docsNav
 const FILE = 0;
 const HEAD = 1;
 const WORKDIR = 2;
@@ -41,27 +41,33 @@ interface CommitRequest {
   message?: string;
 }
 
-export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
-  // next 5 props get set in init() from asyncCreatable
+export class ShadowRepo {
+  private static instance: ShadowRepo;
+
   public gitDir: string;
   public projectPath: string;
+
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
-  private stashed = false;
-  private options: ShadowRepoOptions;
 
-  public constructor(options: ShadowRepoOptions) {
-    super(options);
-    this.options = options;
+  private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
   }
 
+  public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
+    if (!ShadowRepo.instance) {
+      ShadowRepo.instance = new ShadowRepo(options);
+      await ShadowRepo.instance.init();
+    }
+    return ShadowRepo.instance;
+  }
+
   public async init(): Promise<void> {
     this.logger = await Logger.child('ShadowRepo');
-    this.logger.debug('options for constructor are', this.options);
+
     // initialize the shadow repo if it doesn't exist
     if (!fs.existsSync(this.gitDir)) {
       this.logger.debug('initializing git repo');
@@ -78,10 +84,16 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
   }
 
+  /**
+   * Delete the local tracking files
+   *
+   * @returns the deleted directory
+   */
   public async delete(): Promise<string> {
     if (typeof fs.promises.rm === 'function') {
       await fs.promises.rm(this.gitDir, { recursive: true, force: true });
     } else {
+      // when node 12 support is over, switch to promise version
       fs.rmdirSync(this.gitDir, { recursive: true });
     }
     return this.gitDir;
@@ -96,17 +108,24 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     if (!this.status || noCache) {
-      await this.stashIgnoreFile();
-      // status hasn't been initalized yet
-      this.status = await git.statusMatrix({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        filepaths: this.packageDirs.map((dir) => dir.path),
-        // filter out hidden files and __tests__ patterns, regardless of gitignore
-        filter: (f) => !f.includes('/.') && !f.includes('__tests__'),
-      });
-      await this.unStashIgnoreFile();
+      try {
+        await this.stashIgnoreFile();
+        // status hasn't been initalized yet
+        this.status = await git.statusMatrix({
+          fs,
+          dir: this.projectPath,
+          gitdir: this.gitDir,
+          filepaths: this.packageDirs.map((dir) => dir.path),
+          // filter out hidden files and __tests__ patterns, regardless of gitignore
+          filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
+        });
+        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+        if (os.type() === 'Windows_NT') {
+          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+        }
+      } finally {
+        await this.unStashIgnoreFile();
+      }
     }
     return this.status;
   }
@@ -181,14 +200,20 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   }: CommitRequest = {}): Promise<string> {
     // if no files are specified, commit all changes
     if (deployedFiles.length === 0 && deletedFiles.length === 0) {
-      deployedFiles = await this.getNonDeleteFilenames();
-      deletedFiles = await this.getDeleteFilenames();
+      // this is valid, might not be an error
+      return 'no files to commit';
     }
 
     this.logger.debug('changes are', deployedFiles);
     this.logger.debug('deletes are', deletedFiles);
 
     await this.stashIgnoreFile();
+
+    // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
+    if (os.type() === 'Windows_NT') {
+      deployedFiles = deployedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
+      deletedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
+    }
 
     try {
       // stage changes
@@ -204,6 +229,8 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
         message,
         author: { name: 'sfdx source tracking' },
       });
+      // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
+      await this.getStatus(true);
       return sha;
     } finally {
       await this.unStashIgnoreFile();
@@ -211,16 +238,18 @@ export class ShadowRepo extends AsyncCreatable<ShadowRepoOptions> {
   }
 
   private async stashIgnoreFile(): Promise<void> {
-    if (!this.stashed) {
-      this.stashed = true;
-      await fs.promises.rename(pathJoin(this.projectPath, '.gitignore'), pathJoin(this.projectPath, '.BAK.gitignore'));
+    const originalLocation = path.join(this.projectPath, '.gitignore');
+    // another process may have already stashed the file
+    if (fs.existsSync(originalLocation)) {
+      await fs.promises.rename(originalLocation, path.join(this.projectPath, '.BAK.gitignore'));
     }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
-    if (this.stashed) {
-      this.stashed = false;
-      await fs.promises.rename(pathJoin(this.projectPath, '.BAK.gitignore'), pathJoin(this.projectPath, '.gitignore'));
+    const stashedLocation = path.join(this.projectPath, '.gitignore');
+    // another process may have already un-stashed the file
+    if (fs.existsSync(stashedLocation)) {
+      await fs.promises.rename(stashedLocation, path.join(this.projectPath, '.gitignore'));
     }
   }
 }
