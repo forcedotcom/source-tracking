@@ -13,7 +13,7 @@ import { ConfigFile, Logger, Org, SfdxError, Messages, fs } from '@salesforce/co
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, toNumber } from '@salesforce/kit';
-import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember } from './types';
+import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse } from './metadataKeys';
 import { getMetadataKey } from './functions';
 
