@@ -72,7 +72,7 @@ describe('end-to-end-test for local tracking', () => {
   });
 
   it('should see modified file in changes', async () => {
-    const filename = 'force-app/main/default/permissionsets/ebikes.permissionset-meta.xml';
+    const filename = path.normalize('force-app/main/default/permissionsets/ebikes.permissionset-meta.xml');
     const filePath = path.normalize(path.join(session.project.dir, filename));
     const newContent = `${await fs.readFile(filePath, 'utf8')}${EOL}<!--testcode-->`;
     await fs.writeFile(filePath, newContent);
@@ -97,7 +97,7 @@ describe('end-to-end-test for local tracking', () => {
   });
 
   it('should also see added file in changes', async () => {
-    const filename = 'force-app/main/default/objects/Account/listViews/Test.listView-meta.xml';
+    const filename = path.normalize('force-app/main/default/objects/Account/listViews/Test.listView-meta.xml');
     const filePath = path.normalize(path.join(session.project.dir, filename));
     const newContent = '<!--testcode-->';
     await fs.writeFile(filePath, newContent);
