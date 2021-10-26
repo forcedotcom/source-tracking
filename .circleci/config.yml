@@ -60,11 +60,24 @@ jobs:
       - run:
           name: Install dependencies
           command: yarn
-      - run:
-          name: swap dependencies
-          command: |
-            yarn remove @salesforce/source-tracking
-            yarn add $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME#$CIRCLE_SHA1
+      - when:
+          condition:
+            equal: ['linux', <<parameters.os>>]
+          steps:
+            - run:
+                name: swap dependencies (linux)
+                command: |
+                  yarn remove @salesforce/source-tracking
+                  yarn add $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME#$CIRCLE_SHA1
+      - when:
+          condition:
+            equal: ['windows', <<parameters.os>>]
+          steps:
+            - run:
+                name: swap dependencies (windows)
+                command: |
+                  yarn remove @salesforce/source-tracking
+                  yarn add $env:CIRCLE_PROJECT_USERNAME/$env:CIRCLE_PROJECT_REPONAME#$env:CIRCLE_SHA1
       - run:
           name: install/build <<parameters.external_project_git_url>> in node_modules
           # prevent dependency conflicts between plugin's top-level imports and imported library's dependencies by deleting them
