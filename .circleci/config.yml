@@ -73,6 +73,7 @@ jobs:
             npx shx rm -rf node_modules/@salesforce/source-deploy-retrieve
             npx shx rm -rf node_modules/@salesforce/core
             npx shx rm -rf node_modules/eslint-plugin-header
+            npx shx rm -rf node_modules/@typescript-eslint/eslint-plugin
             yarn build
           working_directory: node_modules/@salesforce/source-tracking
       - run:
