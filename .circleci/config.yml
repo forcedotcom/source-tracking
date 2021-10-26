@@ -69,17 +69,7 @@ jobs:
           # If there are real conflicts, we'll catch them when bumping a version in the plugin (same nuts)
           command: |
             yarn install
-            npx shx rm -rf node_modules/@salesforce/kit
-            npx shx rm -rf node_modules/@salesforce/source-deploy-retrieve
-            npx shx rm -rf node_modules/@salesforce/core
-            npx shx rm -rf node_modules/eslint-plugin-header
-            npx shx rm -rf node_modules/@typescript-eslint/eslint-plugin
-            npx shx rm -rf node_modules/@typescript-eslint/eslint-parser
-            npx shx rm -rf node_modules/eslint-plugin-import
-            npx shx rm -rf node_modules/eslint
-            npx shx rm -rf node_modules/eslint-plugin-prettier
-            npx shx rm -rf node_modules/eslint-config-prettier
-            npx shx rm -rf node_modules/eslint-config-salesforce-license
+            npx shx rm -rf node_modules/@salesforce/kit node_modules/@salesforce/source-deploy-retrieve node_modules/@salesforce/core node_modules/eslint-plugin-header node_modules/@typescript-eslint/eslint-plugin node_modules/@typescript-eslint/eslint-parser node_modules/eslint-plugin-import node_modules/eslint node_modules/eslint-plugin-prettier node_modules/eslint-config-prettier node_modules/eslint-config-salesforce-license
             yarn clean
             yarn compile
           working_directory: node_modules/@salesforce/source-tracking
@@ -144,7 +134,7 @@ workflows:
           size: large
           matrix:
             parameters:
-              os: [linux]
+              os: [linux, windows]
               node_version: [lts]
               external_project_git_url: ['https://github.com/salesforcecli/plugin-source']
       # - release-management/release-package:
