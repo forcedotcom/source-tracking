@@ -13,23 +13,9 @@ import { ConfigFile, Logger, Org, SfdxError, Messages, fs } from '@salesforce/co
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, toNumber } from '@salesforce/kit';
-import { RemoteSyncInput, RemoteChangeElement } from '../shared/types';
+import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse } from './metadataKeys';
 import { getMetadataKey } from './functions';
-
-export type MemberRevision = {
-  serverRevisionCounter: number;
-  lastRetrievedFromServer: number | null;
-  memberType: string;
-  isNameObsolete: boolean;
-};
-
-export type SourceMember = {
-  MemberType: string;
-  MemberName: string;
-  IsNameObsolete: boolean;
-  RevisionCounter: number;
-};
 
 // represents the contents of the config file stored in 'maxRevision.json'
 interface Contents {
@@ -563,3 +549,25 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
   }
 }
+
+/**
+ * pass in an RCE, and this will return a pullable ChangeResult.
+ * Useful for correcing bundle types where the files show change results with types but aren't resolvable
+ */
+export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): ChangeResult => {
+  return {
+    ...rce,
+    ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
+      ? {
+          name: rce.name.split('/')[0],
+          type: mappingsForSourceMemberTypesToMetadataType.get(rce.type),
+        }
+      : {}),
+    origin: 'remote', // we know they're remote
+  };
+};
+
+const mappingsForSourceMemberTypesToMetadataType = new Map<string, string>([
+  ['AuraDefinition', 'AuraDefinitionBundle'],
+  ['LightningComponentResource', 'LightningComponentBundle'],
+]);

@@ -41,6 +41,21 @@ export type ChangeResult = Partial<RemoteChangeElement> & {
   ignored?: boolean;
 };
 
+export type MemberRevision = {
+  serverRevisionCounter: number;
+  lastRetrievedFromServer: number | null;
+  memberType: string;
+  isNameObsolete: boolean;
+};
+
+export type SourceMember = {
+  MemberType: string;
+  MemberName: string;
+  IsNameObsolete: boolean;
+  RevisionCounter: number;
+  ignored?: boolean;
+};
+
 export interface ConflictError {
   message: string;
   name: 'conflict';

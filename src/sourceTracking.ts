@@ -17,13 +17,14 @@ import {
   FileResponse,
   ForceIgnore,
   RegistryAccess,
+  DestructiveChangesType,
 } from '@salesforce/source-deploy-retrieve';
 import { MetadataTransformerFactory } from '@salesforce/source-deploy-retrieve/lib/src/convert/transformers/metadataTransformerFactory';
 import { ConvertContext } from '@salesforce/source-deploy-retrieve/lib/src/convert/convertContext';
-
-import { RemoteSourceTrackingService } from './shared/remoteSourceTrackingService';
+import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { filenamesToVirtualTree } from './shared/filenamesToVirtualTree';
+
 import {
   RemoteSyncInput,
   StatusOutputRow,
@@ -115,7 +116,7 @@ export class SourceTracking extends AsyncCreatable {
     deletes
       .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
       .filter(sourceComponentGuard)
-      .map((component) => componentSet.add(component, true));
+      .map((component) => componentSet.add(component, DestructiveChangesType.POST));
 
     return componentSet;
   }
@@ -201,10 +202,12 @@ export class SourceTracking extends AsyncCreatable {
       this.logger.debug('remoteChanges', remoteChanges);
       const filteredChanges = remoteChanges.filter(remoteFilterByState[options.state]);
       if (options.format === 'ChangeResult') {
-        return filteredChanges.map((change) => ({ ...change, origin: 'remote' })) as T[];
+        return filteredChanges.map((change) => remoteChangeElementToChangeResult(change)) as T[];
       }
       if (options.format === 'ChangeResultWithPaths') {
-        return this.populateFilePaths(filteredChanges.map((change) => ({ ...change, origin: 'remote' }))) as T[];
+        return this.populateFilePaths(
+          filteredChanges.map((change) => remoteChangeElementToChangeResult(change))
+        ) as T[];
       }
       // turn it into a componentSet to resolve filenames
       const remoteChangesAsComponentSet = new ComponentSet(

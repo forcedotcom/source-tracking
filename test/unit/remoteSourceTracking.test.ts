@@ -15,12 +15,8 @@ import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { SinonStub } from 'sinon';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import {
-  RemoteSourceTrackingService,
-  SourceMember,
-  MemberRevision,
-} from '../../src/shared/remoteSourceTrackingService';
-import { RemoteSyncInput } from '../../src/shared/types';
+import { RemoteSourceTrackingService } from '../../src/shared/remoteSourceTrackingService';
+import { RemoteSyncInput, SourceMember, MemberRevision } from '../../src/shared/types';
 Messages.importMessagesDirectory(__dirname);
 
 const getSourceMember = (revision: number, deleted = false): SourceMember => ({
