@@ -103,7 +103,7 @@ jobs:
           command: |
             yarn clean
             yarn compile
-      - release-management/verify-installed-plugin
+      # - release-management/verify-installed-plugin
       - run:
           name: Nuts
           command: |
