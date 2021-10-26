@@ -55,6 +55,9 @@ jobs:
           os: <<parameters.os>>
       - run: git clone <<parameters.external_project_git_url>> $(pwd)
       - run:
+          name: temporary! change branch
+          command: git checkout -b sm/source-tracking-beta
+      - run:
           name: Install dependencies
           command: yarn
       - run:
@@ -77,14 +80,8 @@ jobs:
             yarn build
       - release-management/verify-installed-plugin
       - run:
-          name: set TESTKIT_ENABLE_ZIP for artifacts on linux
-          command: echo "export TESTKIT_ENABLE_ZIP=true" >> $BASH_ENV
-      - run:
           name: Nuts
           command: |
-            echo "Using node: $(node --version)"
-            echo "Environment Variables:"
-            env
             yarn test:nuts:tracking
 
 workflows:
