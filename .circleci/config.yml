@@ -69,9 +69,9 @@ jobs:
           # If there are real conflicts, we'll catch them when bumping a version in the plugin (same nuts)
           command: |
             yarn install
-            shx rm -rf node_modules/@salesforce/kit
-            shx rm -rf node_modules/@salesforce/source-deploy-retrieve
-            shx rm -rf node_modules/@salesforce/core
+            npx shx rm -rf node_modules/@salesforce/kit
+            npx shx rm -rf node_modules/@salesforce/source-deploy-retrieve
+            npx shx rm -rf node_modules/@salesforce/core
             yarn build
           working_directory: node_modules/@salesforce/source-tracking
       - run:
