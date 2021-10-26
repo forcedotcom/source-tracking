@@ -80,12 +80,14 @@ jobs:
             npx shx rm -rf node_modules/eslint-plugin-prettier
             npx shx rm -rf node_modules/eslint-config-prettier
             npx shx rm -rf node_modules/eslint-config-salesforce-license
-            yarn build
+            yarn clean
+            yarn compile
           working_directory: node_modules/@salesforce/source-tracking
       - run:
           name: Build the external project
           command: |
-            yarn build
+            yarn clean
+            yarn compile
       - release-management/verify-installed-plugin
       - run:
           name: Nuts
