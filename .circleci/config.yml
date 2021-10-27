@@ -112,38 +112,38 @@ workflows:
   version: 2
   test-and-release:
     jobs:
-      # - release-management/validate-pr:
-      #     filters:
-      #       branches:
-      #         ignore: main
-      # - release-management/test-package:
-      #     matrix:
-      #       parameters:
-      #         os:
-      #           - linux
-      #           - windows
-      #         node_version:
-      #           # - latest
-      #           - lts
-      #           - maintenance
-      #       exclude:
-      #         - os: windows
-      #           node_version: maintenance
-      #         - os: windows
-      #           node_version: latest
-      # - release-management/test-nut:
-      #     size: large
-      #     matrix:
-      #       parameters:
-      #         os:
-      #           - linux
-      #           - windows
-      #         sfdx_version:
-      #           - latest
-      #         node_version:
-      #           - lts
-      #     requires:
-      #       - release-management/test-package
+      - release-management/validate-pr:
+          filters:
+            branches:
+              ignore: main
+      - release-management/test-package:
+          matrix:
+            parameters:
+              os:
+                - linux
+                - windows
+              node_version:
+                # - latest
+                - lts
+                - maintenance
+            exclude:
+              - os: windows
+                node_version: maintenance
+              - os: windows
+                node_version: latest
+      - release-management/test-nut:
+          size: large
+          matrix:
+            parameters:
+              os:
+                - linux
+                - windows
+              sfdx_version:
+                - latest
+              node_version:
+                - lts
+          requires:
+            - release-management/test-package
       - external-nut:
           filters:
             branches:
@@ -151,9 +151,9 @@ workflows:
               # 1) we already ran on a branch
               # 2) they aren't required and would run in parallel to release job
               ignore: main
-          # requires:
-          #   - release-management/test-package
-          #   - release-management/test-nut
+          requires:
+            - release-management/test-package
+            - release-management/test-nut
           sfdx_version: latest
           size: large
           matrix:
@@ -161,13 +161,13 @@ workflows:
               os: [linux, windows]
               node_version: [lts]
               external_project_git_url: ['https://github.com/salesforcecli/plugin-source']
-      # - release-management/release-package:
-      #     github-release: true
-      #     requires:
-      #       - release-management/test-package
-      #     filters:
-      #       branches:
-      #         only: main
+      - release-management/release-package:
+          github-release: true
+          requires:
+            - release-management/test-package
+          filters:
+            branches:
+              only: main
   test-ts-update:
     triggers:
       - schedule:
