@@ -416,7 +416,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
           // if a listView is the only change inside an object, the object won't have a sourceMember change.  We won't wait for those to be found
           fileResponse.type !== 'CustomObject' &&
           // aura meta.xml aren't tracked as SourceMembers
-          !(fileResponse.filePath?.includes('AuraDefinition') && fileResponse.filePath?.endsWith('.cmp-meta.xml'))
+          !fileResponse.filePath?.endsWith('.cmp-meta.xml')
       )
       .map((member) => {
         getMetadataKeyFromFileResponse(member).map((key) => outstandingSourceMembers.set(key, member));
