@@ -407,9 +407,13 @@ export class SourceTracking extends AsyncCreatable {
     if (remoteChanges.length === 0) {
       return [];
     }
-    // index them by filename
+    // index the remoteChanges by filename
     const fileNameIndex = new Map<string, ChangeResult>();
+    const metadataKeyIndex = new Map<string, ChangeResult>();
     remoteChanges.map((change) => {
+      if (change.name && change.type) {
+        metadataKeyIndex.set(getMetadataKey(change.name, change.type), change);
+      }
       change.filenames?.map((filename) => {
         fileNameIndex.set(filename, change);
       });
@@ -417,12 +421,19 @@ export class SourceTracking extends AsyncCreatable {
 
     const conflicts = new Set<ChangeResult>();
 
-    localChanges.map((change) => {
-      change.filenames?.map((filename) => {
-        if (fileNameIndex.has(filename)) {
-          conflicts.add({ ...(fileNameIndex.get(filename) as ChangeResult) });
-        }
-      });
+    this.populateTypesAndNames({ elements: localChanges, excludeUnresolvable: true }).map((change) => {
+      const metadataKey = getMetadataKey(change.name as string, change.type as string);
+      // option 1: name and type match
+      if (metadataKeyIndex.has(metadataKey)) {
+        conflicts.add({ ...(metadataKeyIndex.get(metadataKey) as ChangeResult) });
+      } else {
+        // option 2: some of the filenames match
+        change.filenames?.map((filename) => {
+          if (fileNameIndex.has(filename)) {
+            conflicts.add({ ...(fileNameIndex.get(filename) as ChangeResult) });
+          }
+        });
+      }
     });
     // deeply de-dupe
     return Array.from(conflicts);
@@ -489,6 +500,7 @@ export class SourceTracking extends AsyncCreatable {
         this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
         const ignored = filenamesFromMatchingComponent
           .filter(stringGuard)
+          .filter((filename) => !filename.includes('__tests__'))
           .some((filename) => this.forceIgnore.denies(filename));
         filenamesFromMatchingComponent.map((filename) => {
           if (filename && elementMap.has(filename)) {
