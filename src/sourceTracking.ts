@@ -6,6 +6,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { getString } from '@salesforce/ts-types';
@@ -561,10 +562,15 @@ export class SourceTracking extends AsyncCreatable {
 
     this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
     if (remoteChangesAsComponentSet.size < elements.length) {
+      // iterate the elements to see which ones didn't make it into the component set
       throw new Error(
         `unable to generate complete component set for ${elements
-          .map((element) => `${element.name}(${element.type})`)
-          .join(',')}`
+          .filter(
+            (element) =>
+              !remoteChangesAsComponentSet.has({ type: element?.type as string, fullName: element?.name as string })
+          )
+          .map((element) => `${element.name} (${element.type})`)
+          .join(EOL)}`
       );
     }
 
