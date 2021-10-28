@@ -55,9 +55,6 @@ jobs:
           os: <<parameters.os>>
       - run: git clone <<parameters.external_project_git_url>> $(pwd)
       - run:
-          name: temporary! change branch
-          command: git checkout sm/source-tracking-beta
-      - run:
           name: Install dependencies
           command: yarn
       - when:
