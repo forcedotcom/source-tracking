@@ -1,6 +1,110 @@
 version: 2.1
 orbs:
   release-management: salesforce/npm-release-management@4
+
+jobs:
+  external-nut:
+    description: Runs NUTs from other (external) repos by cloning them.  Substitutes a dependency for the current pull request.  For example, you're testing a PR to a library and want to test a plugin in another repo that uses the library.
+
+    parameters:
+      node_version:
+        description: version of node to run tests against
+        type: string
+        default: 'lts'
+      os:
+        description: operating system to run tests on
+        type: enum
+        enum: ['linux', 'windows']
+        default: 'linux'
+      sfdx_version:
+        description: 'By default, the latest version of the standalone CLI will be installed. To install via npm, supply a version tag such as "latest" or "6".'
+        default: ''
+        type: string
+      sfdx_executable_path:
+        description: "Path to sfdx executable to be used by NUTs, defaults to ''"
+        default: ''
+        type: string
+      external_project_git_url:
+        description: 'The url that will be cloned.  This contains the NUTs you want to run.  Ex: https://github.com/salesforcecli/plugin-user'
+        type: string
+        default: ''
+      size:
+        type: enum
+        description: |
+          The size of machine resource to use. Defaults to medium.
+        default: medium
+        enum:
+          - medium
+          - large
+          - xlarge
+          - 2xlarge
+
+    executor:
+      name: release-management/<< parameters.os >>
+      size: << parameters.size >>
+
+    environment:
+      TESTKIT_EXECUTABLE_PATH: <<parameters.sfdx_executable_path>>
+
+    steps:
+      - release-management/install-node:
+          version: <<parameters.node_version>>
+          os: <<parameters.os>>
+      - release-management/install-sfdx:
+          version: <<parameters.sfdx_version>>
+          os: <<parameters.os>>
+      - run: git clone <<parameters.external_project_git_url>> $(pwd)
+      - run:
+          name: Install dependencies
+          command: yarn
+      - when:
+          condition:
+            equal: ['linux', <<parameters.os>>]
+          steps:
+            - run:
+                name: swap dependencies (linux)
+                command: |
+                  yarn remove @salesforce/source-tracking
+                  yarn add $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME#$CIRCLE_SHA1
+      - when:
+          condition:
+            equal: ['windows', <<parameters.os>>]
+          steps:
+            - run:
+                name: swap dependencies (windows)
+                command: |
+                  yarn remove @salesforce/source-tracking
+                  yarn add $env:CIRCLE_PROJECT_USERNAME/$env:CIRCLE_PROJECT_REPONAME#$env:CIRCLE_SHA1
+      - run:
+          name: install/build <<parameters.external_project_git_url>> in node_modules
+          # prevent dependency conflicts between plugin's top-level imports and imported library's dependencies by deleting them
+          # If there are real conflicts, we'll catch them when bumping a version in the plugin (same nuts)
+          command: |
+            yarn install
+            npx shx rm -rf node_modules/@salesforce/kit
+            npx shx rm -rf node_modules/@salesforce/source-deploy-retrieve
+            npx shx rm -rf node_modules/@salesforce/core
+            npx shx rm -rf node_modules/eslint-plugin-header
+            npx shx rm -rf node_modules/@typescript-eslint/eslint-plugin
+            npx shx rm -rf node_modules/@typescript-eslint/eslint-parser
+            npx shx rm -rf node_modules/eslint-plugin-import
+            npx shx rm -rf node_modules/eslint
+            npx shx rm -rf node_modules/eslint-plugin-prettier
+            npx shx rm -rf node_modules/eslint-config-prettier
+            npx shx rm -rf node_modules/eslint-config-salesforce-license
+            yarn clean
+            yarn compile
+          working_directory: node_modules/@salesforce/source-tracking
+      - run:
+          name: Build the external project
+          command: |
+            yarn clean
+            yarn compile
+      - run:
+          name: Nuts
+          command: |
+            yarn test:nuts:tracking
+
 workflows:
   version: 2
   test-and-release:
@@ -37,6 +141,23 @@ workflows:
                 - lts
           requires:
             - release-management/test-package
+      - external-nut:
+          filters:
+            branches:
+              # we don't run again on main because
+              # 1) we already ran on a branch
+              # 2) they aren't required and would run in parallel to release job
+              ignore: main
+          requires:
+            - release-management/test-package
+            - release-management/test-nut
+          sfdx_version: latest
+          size: large
+          matrix:
+            parameters:
+              os: [linux, windows]
+              node_version: [lts]
+              external_project_git_url: ['https://github.com/salesforcecli/plugin-source']
       - release-management/release-package:
           github-release: true
           requires:
