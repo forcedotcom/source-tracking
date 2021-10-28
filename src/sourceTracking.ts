@@ -18,6 +18,7 @@ import {
   FileResponse,
   ForceIgnore,
   DestructiveChangesType,
+  RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
@@ -55,6 +56,7 @@ export class SourceTracking extends AsyncCreatable {
   private packagesDirs: NamedPackageDir[];
   private username: string;
   private logger: Logger;
+  private registry = new RegistryAccess();
   // remote and local tracking may not exist if not initialized
   private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
@@ -561,10 +563,13 @@ export class SourceTracking extends AsyncCreatable {
 
     this.logger.debug('populateFilePaths for change elements', elements);
     // component set generated from an array of ComponentLike from all the remote changes
-    const remoteChangesAsComponentLike = elements.map((element) => ({
-      type: element?.type as string,
-      fullName: element?.name as string,
-    }));
+    // but exclude the ones that aren't in the registry
+    const remoteChangesAsComponentLike = elements
+      .filter((element) => element?.type && element.name && this.registry.getTypeByName(element.type))
+      .map((element) => ({
+        type: element.type as string,
+        fullName: element?.name as string,
+      }));
     const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
 
     this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
