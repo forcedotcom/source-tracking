@@ -6,6 +6,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { getString } from '@salesforce/ts-types';
@@ -16,11 +17,8 @@ import {
   SourceComponent,
   FileResponse,
   ForceIgnore,
-  RegistryAccess,
   DestructiveChangesType,
 } from '@salesforce/source-deploy-retrieve';
-import { MetadataTransformerFactory } from '@salesforce/source-deploy-retrieve/lib/src/convert/transformers/metadataTransformerFactory';
-import { ConvertContext } from '@salesforce/source-deploy-retrieve/lib/src/convert/convertContext';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { filenamesToVirtualTree } from './shared/filenamesToVirtualTree';
@@ -61,8 +59,6 @@ export class SourceTracking extends AsyncCreatable {
   private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
   private forceIgnore!: ForceIgnore;
-  private registry!: RegistryAccess;
-  private transformerFactory!: MetadataTransformerFactory;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
@@ -411,9 +407,13 @@ export class SourceTracking extends AsyncCreatable {
     if (remoteChanges.length === 0) {
       return [];
     }
-    // index them by filename
+    // index the remoteChanges by filename
     const fileNameIndex = new Map<string, ChangeResult>();
+    const metadataKeyIndex = new Map<string, ChangeResult>();
     remoteChanges.map((change) => {
+      if (change.name && change.type) {
+        metadataKeyIndex.set(getMetadataKey(change.name, change.type), change);
+      }
       change.filenames?.map((filename) => {
         fileNameIndex.set(filename, change);
       });
@@ -421,12 +421,19 @@ export class SourceTracking extends AsyncCreatable {
 
     const conflicts = new Set<ChangeResult>();
 
-    localChanges.map((change) => {
-      change.filenames?.map((filename) => {
-        if (fileNameIndex.has(filename)) {
-          conflicts.add({ ...(fileNameIndex.get(filename) as ChangeResult) });
-        }
-      });
+    this.populateTypesAndNames({ elements: localChanges, excludeUnresolvable: true }).map((change) => {
+      const metadataKey = getMetadataKey(change.name as string, change.type as string);
+      // option 1: name and type match
+      if (metadataKeyIndex.has(metadataKey)) {
+        conflicts.add({ ...(metadataKeyIndex.get(metadataKey) as ChangeResult) });
+      } else {
+        // option 2: some of the filenames match
+        change.filenames?.map((filename) => {
+          if (fileNameIndex.has(filename)) {
+            conflicts.add({ ...(fileNameIndex.get(filename) as ChangeResult) });
+          }
+        });
+      }
     });
     // deeply de-dupe
     return Array.from(conflicts);
@@ -490,9 +497,10 @@ export class SourceTracking extends AsyncCreatable {
       if (matchingComponent?.fullName && matchingComponent?.type.name) {
         const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
         // Set the ignored status at the component level so it can apply to all its files, some of which may not match the ignoreFile (ex: ApexClass)
-        this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.projectPath);
+        this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
         const ignored = filenamesFromMatchingComponent
           .filter(stringGuard)
+          .filter((filename) => !filename.includes('__tests__'))
           .some((filename) => this.forceIgnore.denies(filename));
         filenamesFromMatchingComponent.map((filename) => {
           if (filename && elementMap.has(filename)) {
@@ -561,10 +569,15 @@ export class SourceTracking extends AsyncCreatable {
 
     this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
     if (remoteChangesAsComponentSet.size < elements.length) {
+      // iterate the elements to see which ones didn't make it into the component set
       throw new Error(
         `unable to generate complete component set for ${elements
-          .map((element) => `${element.name}(${element.type})`)
-          .join(',')}`
+          .filter(
+            (element) =>
+              !remoteChangesAsComponentSet.has({ type: element?.type as string, fullName: element?.name as string })
+          )
+          .map((element) => `${element.name} (${element.type})`)
+          .join(EOL)}`
       );
     }
 
@@ -647,9 +660,11 @@ export class SourceTracking extends AsyncCreatable {
     throw new Error('no filenames found for local ChangeResult');
   }
 
+  // this will eventually have async call to figure out the target file locations for remote changes
+  // eslint-disable-next-line @typescript-eslint/require-await
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.projectPath);
+    this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     const baseObject: StatusOutputRow = {
       type: input.type ?? '',
       origin: input.origin,
@@ -664,32 +679,9 @@ export class SourceTracking extends AsyncCreatable {
         ignored: this.forceIgnore.denies(filename),
       }));
     }
-    // when the file doesn't exist locally, there are no filePaths.
-    // we can determine where the filePath *would* go using SDR's transformers stuff
-    const fakeFilePaths = await this.filesPathFromNonLocalSourceComponent({
-      fullName: baseObject.fullName,
-      typeName: baseObject.type,
-    });
-    return [{ ...baseObject, ignored: fakeFilePaths.some((filePath) => this.forceIgnore.denies(filePath)) }];
-  }
-
-  // TODO: This goes in SDR on SourceComponent
-  // we don't have a local copy of the component
-  // this uses SDR's approach to determine what the filePath would be if the component were written locally
-  private async filesPathFromNonLocalSourceComponent({
-    fullName,
-    typeName,
-  }: {
-    fullName: string;
-    typeName: string;
-  }): Promise<string[]> {
-    this.registry = this.registry ?? new RegistryAccess();
-    const component = new SourceComponent({ name: fullName, type: this.registry.getTypeByName(typeName) });
-    this.transformerFactory =
-      this.transformerFactory ?? new MetadataTransformerFactory(this.registry, new ConvertContext());
-    const transformer = this.transformerFactory.getTransformer(component);
-    const writePaths = await transformer.toSourceFormat(component);
-    return writePaths.map((writePath) => writePath.output);
+    // when the file doesn't exist locally, there are no filePaths
+    // So we can't say whether it's ignored or not
+    return [baseObject];
   }
 }
 

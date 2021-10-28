@@ -11,6 +11,8 @@ import * as os from 'os';
 import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 
+const gitIgnoreFileName = '.gitignore';
+const stashedGitIgnoreFileName = '.BAK.gitignore';
 /**
  * returns the full path to where we store the shadow repo
  */
@@ -238,18 +240,18 @@ export class ShadowRepo {
   }
 
   private async stashIgnoreFile(): Promise<void> {
-    const originalLocation = path.join(this.projectPath, '.gitignore');
+    const originalLocation = path.join(this.projectPath, gitIgnoreFileName);
     // another process may have already stashed the file
     if (fs.existsSync(originalLocation)) {
-      await fs.promises.rename(originalLocation, path.join(this.projectPath, '.BAK.gitignore'));
+      await fs.promises.rename(originalLocation, path.join(this.projectPath, stashedGitIgnoreFileName));
     }
   }
 
   private async unStashIgnoreFile(): Promise<void> {
-    const stashedLocation = path.join(this.projectPath, '.gitignore');
+    const stashedLocation = path.join(this.projectPath, stashedGitIgnoreFileName);
     // another process may have already un-stashed the file
     if (fs.existsSync(stashedLocation)) {
-      await fs.promises.rename(stashedLocation, path.join(this.projectPath, '.gitignore'));
+      await fs.promises.rename(stashedLocation, path.join(this.projectPath, gitIgnoreFileName));
     }
   }
 }

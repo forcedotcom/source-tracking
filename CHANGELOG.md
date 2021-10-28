@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.4.1](https://github.com/forcedotcom/source-tracking/compare/v0.4.0...v0.4.1) (2021-10-28)
+
+
+### Bug Fixes
+
+* better conflict handling (can match filenames or type/name) ([4441a0a](https://github.com/forcedotcom/source-tracking/commit/4441a0abd70c7f8f315e1c638b4cef7fcf3e2e68))
+* gitignore stashing location ([5145545](https://github.com/forcedotcom/source-tracking/commit/5145545eeee6c800986014327479d20e943143e5))
+* polling exclusion logic for aura meta.xml was wrong ([2d40b2e](https://github.com/forcedotcom/source-tracking/commit/2d40b2ef65ef9a3145d0c75cd4943e4325d5745c))
+
 ## 0.4.0 (2021-10-22)
 
 
