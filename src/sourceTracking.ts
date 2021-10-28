@@ -17,6 +17,7 @@ import {
   SourceComponent,
   FileResponse,
   ForceIgnore,
+  ComponentLike,
   DestructiveChangesType,
   RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
@@ -33,7 +34,7 @@ import {
   LocalUpdateOptions,
   RemoteChangeElement,
 } from './shared/types';
-import { stringGuard, sourceComponentGuard } from './shared/guards';
+import { stringGuard, sourceComponentGuard, componentLikeGuard } from './shared/guards';
 import { getKeyFromObject, getMetadataKey } from './shared/functions';
 
 export interface SourceTrackingOptions {
@@ -565,11 +566,21 @@ export class SourceTracking extends AsyncCreatable {
     // component set generated from an array of ComponentLike from all the remote changes
     // but exclude the ones that aren't in the registry
     const remoteChangesAsComponentLike = elements
-      .filter((element) => element?.type && element.name && this.registry.getTypeByName(element.type))
-      .map((element) => ({
-        type: element.type as string,
-        fullName: element?.name as string,
-      }));
+      .map((element) => {
+        if (
+          typeof element.type === 'string' &&
+          typeof element.name === 'string' &&
+          this.registry.getTypeByName(element.type)
+        ) {
+          return {
+            type: element.type,
+            fullName: element?.name,
+          };
+        }
+        process.emitWarning(`Not present in registry: ${element.type}`);
+      })
+      .filter(componentLikeGuard) as ComponentLike[];
+
     const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
 
     this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
