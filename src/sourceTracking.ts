@@ -575,7 +575,6 @@ export class SourceTracking extends AsyncCreatable {
     this.logger.debug('populateFilePaths for change elements', elements);
     // component set generated from an array of ComponentLike from all the remote changes
     // but exclude the ones that aren't in the registry
-    const expectedSkippedElements: ChangeResult[] = [];
     const remoteChangesAsComponentLike = elements
       .map((element) => {
         if (typeof element.type === 'string' && typeof element.name === 'string') {
@@ -584,15 +583,13 @@ export class SourceTracking extends AsyncCreatable {
             fullName: element.name,
           };
         }
-        process.emitWarning(`Not present in registry: ${element.type}`);
-        expectedSkippedElements.push(element);
       })
       .filter(componentLikeGuard) as ComponentLike[];
 
     const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
 
     this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
-    if (remoteChangesAsComponentSet.size < elements.length - expectedSkippedElements.length) {
+    if (remoteChangesAsComponentSet.size < elements.length) {
       // iterate the elements to see which ones didn't make it into the component set
       throw new Error(
         `unable to generate complete component set for ${elements
