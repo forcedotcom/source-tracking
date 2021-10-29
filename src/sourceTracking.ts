@@ -199,7 +199,10 @@ export class SourceTracking extends AsyncCreatable {
       await this.ensureRemoteTracking();
       const remoteChanges = await this.remoteSourceTrackingService.retrieveUpdates();
       this.logger.debug('remoteChanges', remoteChanges);
-      const filteredChanges = remoteChanges.filter(remoteFilterByState[options.state]);
+      const filteredChanges = remoteChanges
+        .filter(remoteFilterByState[options.state])
+        // skip any remote types not in the registry.  Will emit node warnings
+        .filter((rce) => this.registrySupportsType(rce.type));
       if (options.format === 'ChangeResult') {
         return filteredChanges.map((change) => remoteChangeElementToChangeResult(change)) as T[];
       }
@@ -554,6 +557,13 @@ export class SourceTracking extends AsyncCreatable {
     return results;
   }
 
+  private registrySupportsType(type: string): boolean {
+    if (this.registry.findType((metadataType) => metadataType.name === type)) {
+      return true;
+    }
+    process.emitWarning(`Unable to find type ${type} in registry`);
+    return false;
+  }
   /**
    * uses SDR to translate remote metadata records into local file paths
    */
@@ -565,26 +575,24 @@ export class SourceTracking extends AsyncCreatable {
     this.logger.debug('populateFilePaths for change elements', elements);
     // component set generated from an array of ComponentLike from all the remote changes
     // but exclude the ones that aren't in the registry
+    const expectedSkippedElements: ChangeResult[] = [];
     const remoteChangesAsComponentLike = elements
       .map((element) => {
-        if (
-          typeof element.type === 'string' &&
-          typeof element.name === 'string' &&
-          this.registry.getTypeByName(element.type)
-        ) {
+        if (typeof element.type === 'string' && typeof element.name === 'string') {
           return {
             type: element.type,
-            fullName: element?.name,
+            fullName: element.name,
           };
         }
         process.emitWarning(`Not present in registry: ${element.type}`);
+        expectedSkippedElements.push(element);
       })
       .filter(componentLikeGuard) as ComponentLike[];
 
     const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
 
     this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
-    if (remoteChangesAsComponentSet.size < elements.length) {
+    if (remoteChangesAsComponentSet.size < elements.length - expectedSkippedElements.length) {
       // iterate the elements to see which ones didn't make it into the component set
       throw new Error(
         `unable to generate complete component set for ${elements
