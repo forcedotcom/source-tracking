@@ -572,7 +572,7 @@ export class SourceTracking extends AsyncCreatable {
     }
 
     this.logger.debug('populateFilePaths for change elements', elements);
-    // component set generated from an array of ComponentLike from all the remote changes
+    // component set generated from an array of MetadataMember from all the remote changes
     // but exclude the ones that aren't in the registry
     const remoteChangesAsMetadataMember = elements
       .map((element) => {
