@@ -18,6 +18,7 @@ import {
   FileResponse,
   ForceIgnore,
   DestructiveChangesType,
+  RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
@@ -32,7 +33,7 @@ import {
   LocalUpdateOptions,
   RemoteChangeElement,
 } from './shared/types';
-import { stringGuard, sourceComponentGuard } from './shared/guards';
+import { stringGuard, sourceComponentGuard, metadataMemberGuard } from './shared/guards';
 import { getKeyFromObject, getMetadataKey } from './shared/functions';
 
 export interface SourceTrackingOptions {
@@ -55,6 +56,7 @@ export class SourceTracking extends AsyncCreatable {
   private packagesDirs: NamedPackageDir[];
   private username: string;
   private logger: Logger;
+  private registry = new RegistryAccess();
   // remote and local tracking may not exist if not initialized
   private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
@@ -196,7 +198,10 @@ export class SourceTracking extends AsyncCreatable {
       await this.ensureRemoteTracking();
       const remoteChanges = await this.remoteSourceTrackingService.retrieveUpdates();
       this.logger.debug('remoteChanges', remoteChanges);
-      const filteredChanges = remoteChanges.filter(remoteFilterByState[options.state]);
+      const filteredChanges = remoteChanges
+        .filter(remoteFilterByState[options.state])
+        // skip any remote types not in the registry.  Will emit node warnings
+        .filter((rce) => this.registrySupportsType(rce.type));
       if (options.format === 'ChangeResult') {
         return filteredChanges.map((change) => remoteChangeElementToChangeResult(change)) as T[];
       }
@@ -551,6 +556,13 @@ export class SourceTracking extends AsyncCreatable {
     return results;
   }
 
+  private registrySupportsType(type: string): boolean {
+    if (this.registry.findType((metadataType) => metadataType.name === type)) {
+      return true;
+    }
+    process.emitWarning(`Unable to find type ${type} in registry`);
+    return false;
+  }
   /**
    * uses SDR to translate remote metadata records into local file paths
    */
@@ -560,12 +572,20 @@ export class SourceTracking extends AsyncCreatable {
     }
 
     this.logger.debug('populateFilePaths for change elements', elements);
-    // component set generated from an array of ComponentLike from all the remote changes
-    const remoteChangesAsComponentLike = elements.map((element) => ({
-      type: element?.type as string,
-      fullName: element?.name as string,
-    }));
-    const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsComponentLike);
+    // component set generated from an array of MetadataMember from all the remote changes
+    // but exclude the ones that aren't in the registry
+    const remoteChangesAsMetadataMember = elements
+      .map((element) => {
+        if (typeof element.type === 'string' && typeof element.name === 'string') {
+          return {
+            type: element.type,
+            fullName: element.name,
+          };
+        }
+      })
+      .filter(metadataMemberGuard);
+
+    const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsMetadataMember);
 
     this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
     if (remoteChangesAsComponentSet.size < elements.length) {
