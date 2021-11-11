@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.4.3](https://github.com/forcedotcom/source-tracking/compare/v0.4.2...v0.4.3) (2021-11-11)
+
+
+### Features
+
+* emit warnings for types not pulled ([fdeabbf](https://github.com/forcedotcom/source-tracking/commit/fdeabbfb11bb4ba1fd17931adedc49f9cb5ae658))
+
+
+### Bug Fixes
+
+* don't pull remote changes where type isn't in SDR registry ([46250ee](https://github.com/forcedotcom/source-tracking/commit/46250eef09e29dfa0d06af984bbfcc3e88765968))
+* don't pull things not in the registry ([38136bb](https://github.com/forcedotcom/source-tracking/commit/38136bbbf1e44c8e58bc06621957819913273b4e))
+
 ### [0.4.2](https://github.com/forcedotcom/source-tracking/compare/v0.4.1...v0.4.2) (2021-10-28)
 
 ### [0.4.1](https://github.com/forcedotcom/source-tracking/compare/v0.4.0...v0.4.1) (2021-10-28)
