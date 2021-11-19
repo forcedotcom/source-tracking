@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as fs from 'fs';
-import * as path from 'path';
+import { isAbsolute, relative } from 'path';
 import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
@@ -19,10 +19,10 @@ import {
   ForceIgnore,
   DestructiveChangesType,
   RegistryAccess,
+  VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
-import { filenamesToVirtualTree } from './shared/filenamesToVirtualTree';
 
 import {
   RemoteSyncInput,
@@ -76,47 +76,66 @@ export class SourceTracking extends AsyncCreatable {
     // reserved for future use
   }
 
-  public async localChangesAsComponentSet(): Promise<ComponentSet> {
+  /**
+   *
+   * @param byPackageDir if true, returns one ComponentSet for each packageDir with changes
+   * @returns ComponentSet[]
+   */
+  public async localChangesAsComponentSet(byPackageDir = false): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
     const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');
 
-    const componentSet = new ComponentSet();
-    if (sourceApiVersion) {
-      componentSet.sourceApiVersion = sourceApiVersion;
-    }
-
-    const [nonDeletes, deletes] = await Promise.all([
-      this.localRepo.getNonDeleteFilenames(),
-      this.localRepo.getDeleteFilenames(),
-    ]);
-    if (nonDeletes.length === 0 && deletes.length === 0) {
-      this.logger.debug('no local changes found in source tracking files');
-      return componentSet;
-    }
     // optimistic resolution...some files may not be possible to resolve
     const resolverForNonDeletes = new MetadataResolver();
     // we need virtual components for the deletes.
     // TODO: could we use the same for the non-deletes?
-    const resolverForDeletes = new MetadataResolver(undefined, filenamesToVirtualTree(deletes));
+    const [allNonDeletes, allDeletes] = await Promise.all([
+      this.localRepo.getNonDeleteFilenames(),
+      this.localRepo.getDeleteFilenames(),
+    ]);
+    // it'll be easier to filter filenames and work with smaller component sets than to filter SourceComponents
+    const groupings = (
+      byPackageDir
+        ? this.packagesDirs
+            .map((dir) => dir.path)
+            .map((path) => ({
+              path,
+              nonDeletes: allNonDeletes.filter((f) => this.ensureRelative(f).startsWith(path)),
+              deletes: allDeletes.filter((f) => this.ensureRelative(f).startsWith(path)),
+            }))
+        : [{ nonDeletes: allNonDeletes, deletes: allDeletes, path: this.packagesDirs.map((dir) => dir.path).join(';') }]
+    ).filter((group) => group.deletes.length || group.nonDeletes.length);
+    this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
 
-    nonDeletes
-      .flatMap((filename) => {
-        try {
-          return resolverForNonDeletes.getComponentsFromPath(filename);
-        } catch (e) {
-          this.logger.warn(`unable to resolve ${filename}`);
-          return undefined;
-        }
-      })
-      .filter(sourceComponentGuard)
-      .map((component) => componentSet.add(component));
+    return groupings.map((grouping) => {
+      this.logger.debug(
+        `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
+      );
 
-    deletes
-      .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-      .filter(sourceComponentGuard)
-      .map((component) => componentSet.add(component, DestructiveChangesType.POST));
+      const componentSet = new ComponentSet();
+      if (sourceApiVersion) {
+        componentSet.sourceApiVersion = sourceApiVersion;
+      }
 
-    return componentSet;
+      const resolverForDeletes = new MetadataResolver(undefined, VirtualTreeContainer.fromFilePaths(grouping.deletes));
+      allNonDeletes
+        .flatMap((filename) => {
+          try {
+            return resolverForNonDeletes.getComponentsFromPath(filename);
+          } catch (e) {
+            this.logger.warn(`unable to resolve ${filename}`);
+            return undefined;
+          }
+        })
+        .filter(sourceComponentGuard)
+        .map((component) => componentSet.add(component));
+
+      allDeletes
+        .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
+        .filter(sourceComponentGuard)
+        .map((component) => componentSet.add(component, DestructiveChangesType.POST));
+      return componentSet;
+    });
   }
 
   /**
@@ -178,7 +197,7 @@ export class SourceTracking extends AsyncCreatable {
       if (options.format === 'SourceComponent') {
         const resolver =
           options.state === 'delete'
-            ? new MetadataResolver(undefined, filenamesToVirtualTree(filenames))
+            ? new MetadataResolver(undefined, VirtualTreeContainer.fromFilePaths(filenames))
             : new MetadataResolver();
 
         return filenames
@@ -473,7 +492,7 @@ export class SourceTracking extends AsyncCreatable {
     // component set generated from the filenames on all local changes
     const resolver = new MetadataResolver(
       undefined,
-      resolveDeleted ? filenamesToVirtualTree(filenames) : undefined,
+      resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : undefined,
       useFsForceIgnore
     );
     const sourceComponents = filenames
@@ -639,7 +658,7 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   private ensureRelative(filePath: string): string {
-    return path.isAbsolute(filePath) ? path.relative(this.projectPath, filePath) : filePath;
+    return isAbsolute(filePath) ? relative(this.projectPath, filePath) : filePath;
   }
 
   private async getLocalChangesAsFilenames(state: ChangeOptions['state']): Promise<string[]> {
