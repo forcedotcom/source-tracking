@@ -467,7 +467,7 @@ export class SourceTracking extends AsyncCreatable {
    * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
    *
    * @input elements: ChangeResult[]
-   * @input excludeUnresolvables: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
+   * @input excludeUnresolvable: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
    * @input resolveDeleted: constructs a virtualTree instead of the actual filesystem--useful when the files no longer exist
    * @input useFsForceIgnore: (default behavior) use forceIgnore from the filesystem.  If false, uses the base forceIgnore from SDR
    */
