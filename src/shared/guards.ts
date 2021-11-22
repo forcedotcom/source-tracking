@@ -6,10 +6,6 @@
  */
 import { SourceComponent, MetadataMember } from '@salesforce/source-deploy-retrieve';
 
-export const stringGuard = (input: string | undefined): input is string => {
-  return typeof input === 'string';
-};
-
 export const sourceComponentGuard = (input: SourceComponent | undefined): input is SourceComponent => {
   return input instanceof SourceComponent;
 };

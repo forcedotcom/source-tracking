@@ -9,7 +9,7 @@ import { isAbsolute, relative } from 'path';
 import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
-import { getString } from '@salesforce/ts-types';
+import { getString, isString } from '@salesforce/ts-types';
 import {
   ComponentSet,
   MetadataResolver,
@@ -33,7 +33,7 @@ import {
   LocalUpdateOptions,
   RemoteChangeElement,
 } from './shared/types';
-import { stringGuard, sourceComponentGuard, metadataMemberGuard } from './shared/guards';
+import { sourceComponentGuard, metadataMemberGuard } from './shared/guards';
 import { getKeyFromObject, getMetadataKey } from './shared/functions';
 
 export interface SourceTrackingOptions {
@@ -166,7 +166,7 @@ export class SourceTracking extends AsyncCreatable {
     }
     if (local && remote) {
       // keys like ApexClass__MyClass.cls
-      const conflictFiles = (await this.getConflicts()).flatMap((conflict) => conflict.filenames).filter(stringGuard);
+      const conflictFiles = (await this.getConflicts()).flatMap((conflict) => conflict.filenames).filter(isString);
       results = results.map((row) => ({
         ...row,
         conflict: !!row.filePath && conflictFiles.includes(row.filePath),
@@ -487,7 +487,7 @@ export class SourceTracking extends AsyncCreatable {
     }
 
     this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-    const filenames = elements.flatMap((element) => element.filenames).filter(stringGuard);
+    const filenames = elements.flatMap((element) => element.filenames).filter(isString);
 
     // component set generated from the filenames on all local changes
     const resolver = new MetadataResolver(
@@ -523,7 +523,7 @@ export class SourceTracking extends AsyncCreatable {
         // Set the ignored status at the component level so it can apply to all its files, some of which may not match the ignoreFile (ex: ApexClass)
         this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
         const ignored = filenamesFromMatchingComponent
-          .filter(stringGuard)
+          .filter(isString)
           .filter((filename) => !filename.includes('__tests__'))
           .some((filename) => this.forceIgnore.denies(filename));
         filenamesFromMatchingComponent.map((filename) => {
