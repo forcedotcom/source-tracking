@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as fs from 'fs';
-import { isAbsolute, relative } from 'path';
+import { isAbsolute, relative, resolve } from 'path';
 import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
@@ -83,16 +83,22 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async localChangesAsComponentSet(byPackageDir = false): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
+    // we don't "cache" this one in a member property since w
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+
     const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');
 
     // optimistic resolution...some files may not be possible to resolve
     const resolverForNonDeletes = new MetadataResolver();
     // we need virtual components for the deletes.
     // TODO: could we use the same for the non-deletes?
-    const [allNonDeletes, allDeletes] = await Promise.all([
-      this.localRepo.getNonDeleteFilenames(),
-      this.localRepo.getDeleteFilenames(),
-    ]);
+
+    const [allNonDeletes, allDeletes] = (
+      await Promise.all([this.localRepo.getNonDeleteFilenames(), this.localRepo.getDeleteFilenames()])
+    )
+      // remove the forceIgnored items early
+      .map((group) => group.filter((item) => this.forceIgnore.accepts(item)));
+
     // it'll be easier to filter filenames and work with smaller component sets than to filter SourceComponents
     const groupings = (
       byPackageDir
@@ -100,42 +106,47 @@ export class SourceTracking extends AsyncCreatable {
             .map((dir) => dir.path)
             .map((path) => ({
               path,
-              nonDeletes: allNonDeletes.filter((f) => this.ensureRelative(f).startsWith(path)),
-              deletes: allDeletes.filter((f) => this.ensureRelative(f).startsWith(path)),
+              nonDeletes: allNonDeletes.filter((f) => f.startsWith(path)),
+              deletes: allDeletes.filter((f) => f.startsWith(path)),
             }))
         : [{ nonDeletes: allNonDeletes, deletes: allDeletes, path: this.packagesDirs.map((dir) => dir.path).join(';') }]
     ).filter((group) => group.deletes.length || group.nonDeletes.length);
     this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
 
-    return groupings.map((grouping) => {
-      this.logger.debug(
-        `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
-      );
+    return groupings
+      .map((grouping) => {
+        this.logger.debug(
+          `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
+        );
 
-      const componentSet = new ComponentSet();
-      if (sourceApiVersion) {
-        componentSet.sourceApiVersion = sourceApiVersion;
-      }
+        const componentSet = new ComponentSet();
+        if (sourceApiVersion) {
+          componentSet.sourceApiVersion = sourceApiVersion;
+        }
 
-      const resolverForDeletes = new MetadataResolver(undefined, VirtualTreeContainer.fromFilePaths(grouping.deletes));
-      allNonDeletes
-        .flatMap((filename) => {
-          try {
-            return resolverForNonDeletes.getComponentsFromPath(filename);
-          } catch (e) {
-            this.logger.warn(`unable to resolve ${filename}`);
-            return undefined;
-          }
-        })
-        .filter(sourceComponentGuard)
-        .map((component) => componentSet.add(component));
+        const resolverForDeletes = new MetadataResolver(
+          undefined,
+          VirtualTreeContainer.fromFilePaths(grouping.deletes)
+        );
+        allNonDeletes
+          .flatMap((filename) => {
+            try {
+              return resolverForNonDeletes.getComponentsFromPath(resolve(filename));
+            } catch (e) {
+              this.logger.warn(`unable to resolve ${filename}`);
+              return undefined;
+            }
+          })
+          .filter(sourceComponentGuard)
+          .map((component) => componentSet.add(component));
 
-      allDeletes
-        .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-        .filter(sourceComponentGuard)
-        .map((component) => componentSet.add(component, DestructiveChangesType.POST));
-      return componentSet;
-    });
+        allDeletes
+          .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
+          .filter(sourceComponentGuard)
+          .map((component) => componentSet.add(component, DestructiveChangesType.POST));
+        return componentSet;
+      })
+      .filter((componentSet) => componentSet.size > 0);
   }
 
   /**
@@ -521,7 +532,7 @@ export class SourceTracking extends AsyncCreatable {
       if (matchingComponent?.fullName && matchingComponent?.type.name) {
         const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
         // Set the ignored status at the component level so it can apply to all its files, some of which may not match the ignoreFile (ex: ApexClass)
-        this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+        this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
         const ignored = filenamesFromMatchingComponent
           .filter(isString)
           .filter((filename) => !filename.includes('__tests__'))
@@ -703,7 +714,7 @@ export class SourceTracking extends AsyncCreatable {
   // eslint-disable-next-line @typescript-eslint/require-await
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     const baseObject: StatusOutputRow = {
       type: input.type ?? '',
       origin: input.origin,
