@@ -117,7 +117,7 @@ export class ShadowRepo {
           fs,
           dir: this.projectPath,
           gitdir: this.gitDir,
-          filepaths: this.packageDirs.map((dir) => dir.name),
+          filepaths: this.packageDirs.map((dir) => dir.path),
           // filter out hidden files and __tests__ patterns, regardless of gitignore
           filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
         });
