@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as fs from 'fs';
-import { isAbsolute, relative, resolve } from 'path';
+import { isAbsolute, relative, resolve, normalize } from 'path';
 import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
@@ -83,7 +83,8 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async localChangesAsComponentSet(byPackageDir = false): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    // path may have been cloned from the other OS
+    this.forceIgnore ??= ForceIgnore.findAndCreate(normalize(this.project.getDefaultPackage().path));
 
     const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');
 
@@ -102,13 +103,19 @@ export class SourceTracking extends AsyncCreatable {
     const groupings = (
       byPackageDir
         ? this.packagesDirs
-            .map((dir) => dir.path)
+            .map((dir) => normalize(dir.path))
             .map((path) => ({
               path,
               nonDeletes: allNonDeletes.filter((f) => f.startsWith(path)),
               deletes: allDeletes.filter((f) => f.startsWith(path)),
             }))
-        : [{ nonDeletes: allNonDeletes, deletes: allDeletes, path: this.packagesDirs.map((dir) => dir.path).join(';') }]
+        : [
+            {
+              nonDeletes: allNonDeletes,
+              deletes: allDeletes,
+              path: this.packagesDirs.map((dir) => normalize(dir.path)).join(';'),
+            },
+          ]
     ).filter((group) => group.deletes.length || group.nonDeletes.length);
     this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
 
@@ -247,7 +254,7 @@ export class SourceTracking extends AsyncCreatable {
         }))
       );
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-        fsPaths: this.packagesDirs.map((dir) => dir.path),
+        fsPaths: this.packagesDirs.map((dir) => normalize(dir.path)),
         include: remoteChangesAsComponentSet,
       });
       if (options.format === 'string') {
@@ -531,7 +538,7 @@ export class SourceTracking extends AsyncCreatable {
       if (matchingComponent?.fullName && matchingComponent?.type.name) {
         const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
         // Set the ignored status at the component level so it can apply to all its files, some of which may not match the ignoreFile (ex: ApexClass)
-        this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+        this.forceIgnore ??= ForceIgnore.findAndCreate(normalize(this.project.getDefaultPackage().path));
         const ignored = filenamesFromMatchingComponent
           .filter(isString)
           .filter((filename) => !filename.includes('__tests__'))
@@ -631,7 +638,7 @@ export class SourceTracking extends AsyncCreatable {
     }
 
     const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-      fsPaths: this.packagesDirs.map((dir) => dir.path),
+      fsPaths: this.packagesDirs.map((dir) => normalize(dir.path)),
       include: remoteChangesAsComponentSet,
     });
     this.logger.debug(
@@ -713,7 +720,7 @@ export class SourceTracking extends AsyncCreatable {
   // eslint-disable-next-line @typescript-eslint/require-await
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    this.forceIgnore ??= ForceIgnore.findAndCreate(normalize(this.project.getDefaultPackage().path));
     const baseObject: StatusOutputRow = {
       type: input.type ?? '',
       origin: input.origin,
