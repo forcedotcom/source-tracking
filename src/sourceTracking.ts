@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as fs from 'fs';
-import { isAbsolute, relative, resolve } from 'path';
+import { isAbsolute, relative, resolve, normalize } from 'path';
 import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
@@ -102,13 +102,11 @@ export class SourceTracking extends AsyncCreatable {
     // it'll be easier to filter filenames and work with smaller component sets than to filter SourceComponents
     const groupings = (
       byPackageDir
-        ? this.packagesDirs
-            .map((dir) => dir.name)
-            .map((path) => ({
-              path,
-              nonDeletes: allNonDeletes.filter((f) => f.startsWith(path)),
-              deletes: allDeletes.filter((f) => f.startsWith(path)),
-            }))
+        ? this.packagesDirs.map((pkgDir) => ({
+            path: pkgDir.name,
+            nonDeletes: allNonDeletes.filter((f) => f.startsWith(pkgDir.name)),
+            deletes: allDeletes.filter((f) => f.startsWith(pkgDir.name)),
+          }))
         : [
             {
               nonDeletes: allNonDeletes,
@@ -254,7 +252,7 @@ export class SourceTracking extends AsyncCreatable {
         }))
       );
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-        fsPaths: this.packagesDirs.map((dir) => dir.name),
+        fsPaths: this.packagesDirs.map((dir) => dir.path),
         include: remoteChangesAsComponentSet,
       });
       if (options.format === 'string') {
@@ -353,7 +351,7 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.localRepo = await ShadowRepo.getInstance({
       orgId: this.orgId,
-      projectPath: this.projectPath,
+      projectPath: normalize(this.projectPath),
       packageDirs: this.packagesDirs,
     });
     // loads the status from file so that it's cached
@@ -538,7 +536,7 @@ export class SourceTracking extends AsyncCreatable {
       if (matchingComponent?.fullName && matchingComponent?.type.name) {
         const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
         // Set the ignored status at the component level so it can apply to all its files, some of which may not match the ignoreFile (ex: ApexClass)
-        this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().name);
+        this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
         const ignored = filenamesFromMatchingComponent
           .filter(isString)
           .filter((filename) => !filename.includes('__tests__'))
@@ -638,7 +636,7 @@ export class SourceTracking extends AsyncCreatable {
     }
 
     const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-      fsPaths: this.packagesDirs.map((dir) => dir.name),
+      fsPaths: this.packagesDirs.map((dir) => dir.path),
       include: remoteChangesAsComponentSet,
     });
     this.logger.debug(
@@ -720,7 +718,7 @@ export class SourceTracking extends AsyncCreatable {
   // eslint-disable-next-line @typescript-eslint/require-await
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().name);
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     const baseObject: StatusOutputRow = {
       type: input.type ?? '',
       origin: input.origin,
