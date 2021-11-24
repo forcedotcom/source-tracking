@@ -6,7 +6,7 @@
  */
 
 import * as path from 'path';
-
+import * as os from 'os';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { fs, Org, SfdxProject } from '@salesforce/core';
@@ -31,6 +31,12 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
       // creating an org because a default org/id is required for source tracking files
       setupCommands: [`sfdx force:org:create -d 1 -s -f ${path.join('config', 'project-scratch-def.json')}`],
     });
+    // convert the pkgDir path that has foo-bar/app to use the OS's separator
+    if (os.type() === 'Windows_NT') {
+      const target = path.join(session.project.dir, 'sfdx-project.json');
+      await fs.writeFile(target, (await fs.readFile(target, 'utf8')).replace('foo-bar/app', `foo-bar${path.sep}app`));
+    }
+
     stl = await getSTLInstance(session);
   });
 
