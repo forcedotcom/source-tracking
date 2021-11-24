@@ -21,6 +21,7 @@ import {
   RegistryAccess,
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
+import { trimUntil } from '@salesforce/source-deploy-retrieve/lib/src/utils/path';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 
@@ -128,6 +129,30 @@ export class SourceTracking extends AsyncCreatable {
           undefined,
           VirtualTreeContainer.fromFilePaths(grouping.deletes)
         );
+
+        allDeletes
+          .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
+          .filter(sourceComponentGuard)
+          .map((component) => {
+            // if the component is a file in a bundle type AND there are files from the bundle that are not deleted, set the bundle for deploy, not for delete
+            if (component.type.strategies?.adapter === 'bundle') {
+              const filename = component.xml ?? component.content ?? component.walkContent()?.[0];
+              // all bundle types have a directory name
+              if (fs.existsSync(trimUntil(filename, component.type.directoryName as string))) {
+                try {
+                  resolverForNonDeletes
+                    .getComponentsFromPath(resolve(filename))
+                    .filter(sourceComponentGuard)
+                    .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
+                } catch (e) {
+                  this.logger.warn(`unable to resolve ${filename}`);
+                }
+              }
+            } else {
+              componentSet.add(component, DestructiveChangesType.POST);
+            }
+          });
+
         allNonDeletes
           .flatMap((filename) => {
             try {
@@ -140,10 +165,6 @@ export class SourceTracking extends AsyncCreatable {
           .filter(sourceComponentGuard)
           .map((component) => componentSet.add(component));
 
-        allDeletes
-          .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-          .filter(sourceComponentGuard)
-          .map((component) => componentSet.add(component, DestructiveChangesType.POST));
         return componentSet;
       })
       .filter((componentSet) => componentSet.size > 0);
