@@ -83,7 +83,6 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async localChangesAsComponentSet(byPackageDir = false): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
-    // we don't "cache" this one in a member property since w
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
 
     const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');

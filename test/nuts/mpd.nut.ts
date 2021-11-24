@@ -53,7 +53,6 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
     // new instance of STL since we changed the forceignore (it'd be cached from previous tests)
     stl = await getSTLInstance(session);
     const cs = await stl.localChangesAsComponentSet(true);
-    // eslint-disable-next-line no-console
     expect(cs.length).to.equal(2);
   });
 
