@@ -34,7 +34,10 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
     // convert the pkgDir path that has foo-bar/app to use the OS's separator
     if (os.type() === 'Windows_NT') {
       const target = path.join(session.project.dir, 'sfdx-project.json');
-      await fs.writeFile(target, (await fs.readFile(target, 'utf8')).replace('foo-bar/app', `foo-bar${path.sep}app`));
+      await fs.writeFile(
+        target,
+        (await fs.readFile(target, 'utf8')).replace('foo-bar/app', path.join('foo-bar', 'app'))
+      );
     }
 
     stl = await getSTLInstance(session);
