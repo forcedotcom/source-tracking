@@ -112,12 +112,17 @@ export class ShadowRepo {
     if (!this.status || noCache) {
       try {
         await this.stashIgnoreFile();
+        const filepaths =
+          os.type() === 'Windows_NT'
+            ? // iso-git uses posix paths, but packageDirs has already normalized them so we need to convert if windows
+              this.packageDirs.map((dir) => dir.path.split(path.sep).join(path.posix.sep))
+            : this.packageDirs.map((dir) => dir.path);
         // status hasn't been initalized yet
         this.status = await git.statusMatrix({
           fs,
           dir: this.projectPath,
           gitdir: this.gitDir,
-          filepaths: this.packageDirs.map((dir) => dir.path),
+          filepaths,
           // filter out hidden files and __tests__ patterns, regardless of gitignore
           filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
         });
