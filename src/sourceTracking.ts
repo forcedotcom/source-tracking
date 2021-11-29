@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as fs from 'fs';
-import { isAbsolute, relative, resolve } from 'path';
+import { isAbsolute, relative, resolve, normalize } from 'path';
 import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
@@ -84,8 +84,8 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async localChangesAsComponentSet(byPackageDir = false): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
-    // we don't "cache" this one in a member property since w
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    // path may have been cloned from the other OS
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().name);
 
     const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');
 
@@ -103,14 +103,18 @@ export class SourceTracking extends AsyncCreatable {
     // it'll be easier to filter filenames and work with smaller component sets than to filter SourceComponents
     const groupings = (
       byPackageDir
-        ? this.packagesDirs
-            .map((dir) => dir.path)
-            .map((path) => ({
-              path,
-              nonDeletes: allNonDeletes.filter((f) => f.startsWith(path)),
-              deletes: allDeletes.filter((f) => f.startsWith(path)),
-            }))
-        : [{ nonDeletes: allNonDeletes, deletes: allDeletes, path: this.packagesDirs.map((dir) => dir.path).join(';') }]
+        ? this.packagesDirs.map((pkgDir) => ({
+            path: pkgDir.name,
+            nonDeletes: allNonDeletes.filter((f) => f.startsWith(pkgDir.name)),
+            deletes: allDeletes.filter((f) => f.startsWith(pkgDir.name)),
+          }))
+        : [
+            {
+              nonDeletes: allNonDeletes,
+              deletes: allDeletes,
+              path: this.packagesDirs.map((dir) => dir.name).join(';'),
+            },
+          ]
     ).filter((group) => group.deletes.length || group.nonDeletes.length);
     this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
 
@@ -368,7 +372,7 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.localRepo = await ShadowRepo.getInstance({
       orgId: this.orgId,
-      projectPath: this.projectPath,
+      projectPath: normalize(this.projectPath),
       packageDirs: this.packagesDirs,
     });
     // loads the status from file so that it's cached
