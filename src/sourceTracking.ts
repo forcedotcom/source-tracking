@@ -21,7 +21,6 @@ import {
   RegistryAccess,
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
-import { trimUntil } from '@salesforce/source-deploy-retrieve/lib/src/utils/path';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 
@@ -139,18 +138,21 @@ export class SourceTracking extends AsyncCreatable {
           .filter(sourceComponentGuard)
           .map((component) => {
             // if the component is a file in a bundle type AND there are files from the bundle that are not deleted, set the bundle for deploy, not for delete
-            if (component.type.strategies?.adapter === 'bundle') {
-              const filename = component.xml ?? component.content ?? component.walkContent()?.[0];
+            if (
+              component.type.strategies?.adapter === 'bundle' &&
+              component.content &&
+              fs.existsSync(component.content)
+            ) {
               // all bundle types have a directory name
-              if (fs.existsSync(trimUntil(filename, component.type.directoryName as string))) {
-                try {
-                  resolverForNonDeletes
-                    .getComponentsFromPath(resolve(filename))
-                    .filter(sourceComponentGuard)
-                    .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
-                } catch (e) {
-                  this.logger.warn(`unable to resolve ${filename}`);
-                }
+              try {
+                resolverForNonDeletes
+                  .getComponentsFromPath(resolve(component.content))
+                  .filter(sourceComponentGuard)
+                  .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
+              } catch (e) {
+                this.logger.warn(
+                  `unable to find component at ${component.content}.  That's ok if it was supposed to be deleted`
+                );
               }
             } else {
               componentSet.add(component, DestructiveChangesType.POST);
