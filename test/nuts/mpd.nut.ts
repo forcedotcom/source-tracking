@@ -42,6 +42,9 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
   it('byPkgDir => 3 componentSet', async () => {
     const cs = await stl.localChangesAsComponentSet(true);
     expect(cs.length).to.equal(3);
+    expect(cs[0].getSourceComponents().toArray()).to.have.length(6);
+    expect(cs[1].getSourceComponents().toArray()).to.have.length(5);
+    expect(cs[2].getSourceComponents().toArray()).to.have.length(3);
   });
 
   it('byPkgDir => 2 component when one pkgDir has no non-ignored files', async () => {

@@ -132,7 +132,7 @@ export class SourceTracking extends AsyncCreatable {
           VirtualTreeContainer.fromFilePaths(grouping.deletes)
         );
 
-        allDeletes
+        grouping.deletes
           .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
           .filter(sourceComponentGuard)
           .map((component) => {
@@ -154,7 +154,7 @@ export class SourceTracking extends AsyncCreatable {
             }
           });
 
-        allNonDeletes
+        grouping.nonDeletes
           .flatMap((filename) => {
             try {
               return resolverForNonDeletes.getComponentsFromPath(resolve(filename));
