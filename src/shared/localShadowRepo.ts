@@ -111,18 +111,24 @@ export class ShadowRepo {
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     if (!this.status || noCache) {
       try {
+        // only ask about OS once but use twice
+        const isWindows = os.type() === 'Windows_NT';
         await this.stashIgnoreFile();
+        const filepaths = isWindows
+          ? // iso-git uses posix paths, but packageDirs has already normalized them so we need to convert if windows
+            this.packageDirs.map((dir) => dir.path.split(path.sep).join(path.posix.sep))
+          : this.packageDirs.map((dir) => dir.path);
         // status hasn't been initalized yet
         this.status = await git.statusMatrix({
           fs,
           dir: this.projectPath,
           gitdir: this.gitDir,
-          filepaths: this.packageDirs.map((dir) => dir.path),
+          filepaths,
           // filter out hidden files and __tests__ patterns, regardless of gitignore
           filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
         });
         // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-        if (os.type() === 'Windows_NT') {
+        if (isWindows) {
           this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
         }
       } finally {

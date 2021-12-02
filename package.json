@@ -80,33 +80,6 @@
     "ts-prune": "^0.10.0",
     "typescript": "^4.4.4"
   },
-  "oclif": {
-    "commands": "./lib/commands",
-    "bin": "sfdx",
-    "devPlugins": [
-      "@oclif/plugin-help",
-      "@oclif/plugin-command-snapshot",
-      "@salesforce/plugin-command-reference"
-    ],
-    "topics": {
-      "force": {
-        "external": true,
-        "subtopics": {
-          "user": {
-            "description": "commands that perform user-related admin tasks",
-            "subtopics": {
-              "permset": {
-                "description": "Use to interact with permission sets assigned to a user"
-              },
-              "password": {
-                "description": "Used to generate and set passwords for users"
-              }
-            }
-          }
-        }
-      }
-    }
-  },
   "config": {
     "commitizen": {
       "path": "cz-conventional-changelog"

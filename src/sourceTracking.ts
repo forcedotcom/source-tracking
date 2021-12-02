@@ -5,11 +5,11 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as fs from 'fs';
-import * as path from 'path';
+import { isAbsolute, relative, resolve, sep, normalize } from 'path';
 import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
-import { getString } from '@salesforce/ts-types';
+import { getString, isString } from '@salesforce/ts-types';
 import {
   ComponentSet,
   MetadataResolver,
@@ -19,10 +19,10 @@ import {
   ForceIgnore,
   DestructiveChangesType,
   RegistryAccess,
+  VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
-import { filenamesToVirtualTree } from './shared/filenamesToVirtualTree';
 
 import {
   RemoteSyncInput,
@@ -33,8 +33,8 @@ import {
   LocalUpdateOptions,
   RemoteChangeElement,
 } from './shared/types';
-import { stringGuard, sourceComponentGuard, metadataMemberGuard } from './shared/guards';
-import { getKeyFromObject, getMetadataKey } from './shared/functions';
+import { sourceComponentGuard, metadataMemberGuard } from './shared/guards';
+import { getKeyFromObject, getMetadataKey, isBundle } from './shared/functions';
 
 export interface SourceTrackingOptions {
   org: Org;
@@ -76,47 +76,99 @@ export class SourceTracking extends AsyncCreatable {
     // reserved for future use
   }
 
-  public async localChangesAsComponentSet(): Promise<ComponentSet> {
+  /**
+   *
+   * @param byPackageDir if true, returns one ComponentSet for each packageDir with changes
+   * @returns ComponentSet[]
+   */
+  public async localChangesAsComponentSet(byPackageDir = false): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().name);
+
     const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');
 
-    const componentSet = new ComponentSet();
-    if (sourceApiVersion) {
-      componentSet.sourceApiVersion = sourceApiVersion;
-    }
-
-    const [nonDeletes, deletes] = await Promise.all([
-      this.localRepo.getNonDeleteFilenames(),
-      this.localRepo.getDeleteFilenames(),
-    ]);
-    if (nonDeletes.length === 0 && deletes.length === 0) {
-      this.logger.debug('no local changes found in source tracking files');
-      return componentSet;
-    }
     // optimistic resolution...some files may not be possible to resolve
     const resolverForNonDeletes = new MetadataResolver();
     // we need virtual components for the deletes.
     // TODO: could we use the same for the non-deletes?
-    const resolverForDeletes = new MetadataResolver(undefined, filenamesToVirtualTree(deletes));
 
-    nonDeletes
-      .flatMap((filename) => {
-        try {
-          return resolverForNonDeletes.getComponentsFromPath(filename);
-        } catch (e) {
-          this.logger.warn(`unable to resolve ${filename}`);
-          return undefined;
+    const [allNonDeletes, allDeletes] = (
+      await Promise.all([this.localRepo.getNonDeleteFilenames(), this.localRepo.getDeleteFilenames()])
+    )
+      // remove the forceIgnored items early
+      .map((group) => group.filter((item) => this.forceIgnore.accepts(item)));
+
+    // it'll be easier to filter filenames and work with smaller component sets than to filter SourceComponents
+    const groupings = (
+      byPackageDir
+        ? this.packagesDirs.map((pkgDir) => ({
+            path: pkgDir.name,
+            nonDeletes: allNonDeletes.filter((f) => f.startsWith(pkgDir.name)),
+            deletes: allDeletes.filter((f) => f.startsWith(pkgDir.name)),
+          }))
+        : [
+            {
+              nonDeletes: allNonDeletes,
+              deletes: allDeletes,
+              path: this.packagesDirs.map((dir) => dir.name).join(';'),
+            },
+          ]
+    ).filter((group) => group.deletes.length || group.nonDeletes.length);
+    this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
+
+    return groupings
+      .map((grouping) => {
+        this.logger.debug(
+          `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
+        );
+
+        const componentSet = new ComponentSet();
+        if (sourceApiVersion) {
+          componentSet.sourceApiVersion = sourceApiVersion;
         }
+
+        const resolverForDeletes = new MetadataResolver(
+          undefined,
+          VirtualTreeContainer.fromFilePaths(grouping.deletes)
+        );
+
+        grouping.deletes
+          .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
+          .filter(sourceComponentGuard)
+          .map((component) => {
+            // if the component is a file in a bundle type AND there are files from the bundle that are not deleted, set the bundle for deploy, not for delete
+            if (isBundle(component) && component.content && fs.existsSync(component.content)) {
+              // all bundle types have a directory name
+              try {
+                resolverForNonDeletes
+                  .getComponentsFromPath(resolve(component.content))
+                  .filter(sourceComponentGuard)
+                  .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
+              } catch (e) {
+                this.logger.warn(
+                  `unable to find component at ${component.content}.  That's ok if it was supposed to be deleted`
+                );
+              }
+            } else {
+              componentSet.add(component, DestructiveChangesType.POST);
+            }
+          });
+
+        grouping.nonDeletes
+          .flatMap((filename) => {
+            try {
+              return resolverForNonDeletes.getComponentsFromPath(resolve(filename));
+            } catch (e) {
+              this.logger.warn(`unable to resolve ${filename}`);
+              return undefined;
+            }
+          })
+          .filter(sourceComponentGuard)
+          .map((component) => componentSet.add(component));
+
+        return componentSet;
       })
-      .filter(sourceComponentGuard)
-      .map((component) => componentSet.add(component));
-
-    deletes
-      .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-      .filter(sourceComponentGuard)
-      .map((component) => componentSet.add(component, DestructiveChangesType.POST));
-
-    return componentSet;
+      .filter((componentSet) => componentSet.size > 0);
   }
 
   /**
@@ -147,7 +199,7 @@ export class SourceTracking extends AsyncCreatable {
     }
     if (local && remote) {
       // keys like ApexClass__MyClass.cls
-      const conflictFiles = (await this.getConflicts()).flatMap((conflict) => conflict.filenames).filter(stringGuard);
+      const conflictFiles = (await this.getConflicts()).flatMap((conflict) => conflict.filenames).filter(isString);
       results = results.map((row) => ({
         ...row,
         conflict: !!row.filePath && conflictFiles.includes(row.filePath),
@@ -178,7 +230,7 @@ export class SourceTracking extends AsyncCreatable {
       if (options.format === 'SourceComponent') {
         const resolver =
           options.state === 'delete'
-            ? new MetadataResolver(undefined, filenamesToVirtualTree(filenames))
+            ? new MetadataResolver(undefined, VirtualTreeContainer.fromFilePaths(filenames))
             : new MetadataResolver();
 
         return filenames
@@ -286,9 +338,39 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async updateLocalTracking(options: LocalUpdateOptions): Promise<void> {
     await this.ensureLocalTracking();
+
+    // relative paths make smaller trees AND isogit wants them relative
+    const relativeOptions = {
+      files: (options.files ?? []).map((file) => this.ensureRelative(file)),
+      deletedFiles: (options.deletedFiles ?? []).map((file) => this.ensureRelative(file)),
+    };
+    // plot twist: if you delete a member of a bundle (ex: lwc/foo/foo.css) and push, it'll not be in the fileResponses (deployedFiles) or deletedFiles
+    // what got deleted?  Any local changes NOT in the fileResponses but part of a successfully deployed bundle
+    const deployedFilesAsVirtualComponentSet = ComponentSet.fromSource({
+      // resolve from highest possible level.  TODO: can we use [.]
+      fsPaths: relativeOptions.files.length ? [relativeOptions.files[0].split(sep)[0]] : [],
+      tree: VirtualTreeContainer.fromFilePaths(relativeOptions.files),
+    });
+    // these are top-level bundle paths like lwc/foo
+    const bundlesWithDeletedFiles = (
+      await this.getChanges<SourceComponent>({ origin: 'local', state: 'delete', format: 'SourceComponent' })
+    )
+      .filter(isBundle)
+      .filter((cmp) => deployedFilesAsVirtualComponentSet.has({ type: cmp.type, fullName: cmp.fullName }))
+      .map((cmp) => cmp.content)
+      .filter(isString);
+
     await this.localRepo.commitChanges({
-      deployedFiles: options.files?.map((file) => this.ensureRelative(file)),
-      deletedFiles: options.deletedFiles?.map((file) => this.ensureRelative(file)),
+      deployedFiles: relativeOptions.files,
+      deletedFiles: relativeOptions.deletedFiles.concat(
+        (
+          await this.localRepo.getDeleteFilenames()
+        ).filter(
+          (deployedFile) =>
+            bundlesWithDeletedFiles.some((bundlePath) => deployedFile.startsWith(bundlePath)) &&
+            !relativeOptions.files.includes(deployedFile)
+        )
+      ),
     });
   }
 
@@ -317,7 +399,7 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.localRepo = await ShadowRepo.getInstance({
       orgId: this.orgId,
-      projectPath: this.projectPath,
+      projectPath: normalize(this.projectPath),
       packageDirs: this.packagesDirs,
     });
     // loads the status from file so that it's cached
@@ -448,7 +530,7 @@ export class SourceTracking extends AsyncCreatable {
    * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
    *
    * @input elements: ChangeResult[]
-   * @input excludeUnresolvables: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
+   * @input excludeUnresolvable: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
    * @input resolveDeleted: constructs a virtualTree instead of the actual filesystem--useful when the files no longer exist
    * @input useFsForceIgnore: (default behavior) use forceIgnore from the filesystem.  If false, uses the base forceIgnore from SDR
    */
@@ -468,12 +550,12 @@ export class SourceTracking extends AsyncCreatable {
     }
 
     this.logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-    const filenames = elements.flatMap((element) => element.filenames).filter(stringGuard);
+    const filenames = elements.flatMap((element) => element.filenames).filter(isString);
 
     // component set generated from the filenames on all local changes
     const resolver = new MetadataResolver(
       undefined,
-      resolveDeleted ? filenamesToVirtualTree(filenames) : undefined,
+      resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : undefined,
       useFsForceIgnore
     );
     const sourceComponents = filenames
@@ -502,9 +584,9 @@ export class SourceTracking extends AsyncCreatable {
       if (matchingComponent?.fullName && matchingComponent?.type.name) {
         const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
         // Set the ignored status at the component level so it can apply to all its files, some of which may not match the ignoreFile (ex: ApexClass)
-        this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+        this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
         const ignored = filenamesFromMatchingComponent
-          .filter(stringGuard)
+          .filter(isString)
           .filter((filename) => !filename.includes('__tests__'))
           .some((filename) => this.forceIgnore.denies(filename));
         filenamesFromMatchingComponent.map((filename) => {
@@ -639,7 +721,7 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   private ensureRelative(filePath: string): string {
-    return path.isAbsolute(filePath) ? path.relative(this.projectPath, filePath) : filePath;
+    return isAbsolute(filePath) ? relative(this.projectPath, filePath) : filePath;
   }
 
   private async getLocalChangesAsFilenames(state: ChangeOptions['state']): Promise<string[]> {
@@ -684,7 +766,7 @@ export class SourceTracking extends AsyncCreatable {
   // eslint-disable-next-line @typescript-eslint/require-await
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore = this.forceIgnore ?? ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     const baseObject: StatusOutputRow = {
       type: input.type ?? '',
       origin: input.origin,

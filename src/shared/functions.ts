@@ -5,6 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
+import { SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { RemoteChangeElement, ChangeResult } from './types';
 
 export const getMetadataKey = (metadataType: string, metadataName: string): string => {
@@ -17,3 +18,5 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
   }
   throw new Error(`unable to complete key from ${JSON.stringify(element)}`);
 };
+
+export const isBundle = (cmp: SourceComponent): boolean => cmp.type.strategies?.adapter === 'bundle';
