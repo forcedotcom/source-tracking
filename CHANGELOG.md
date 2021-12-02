@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.5.0](https://github.com/forcedotcom/source-tracking/compare/v0.4.4...v0.5.0) (2021-12-02)
+
+### ⚠ BREAKING CHANGES
+
+- mpd suport (array of componentSets for localChanges)
+
+### Features
+
+- delete bundle member but not the bundle ([fbb81f2](https://github.com/forcedotcom/source-tracking/commit/fbb81f25af4cb9e81e3bbee93a08b072318eca10))
+- delete bundle members instead of bundle ([0aedbd5](https://github.com/forcedotcom/source-tracking/commit/0aedbd56b3bf34ce9e344ec03bb258c9db2098aa))
+- mpd suport (array of componentSets for localChanges) ([dd072bb](https://github.com/forcedotcom/source-tracking/commit/dd072bb86450a2e071dca3aece3cba6a2339b05a))
+- trackingFiles handle deleted bundle members ([137cd39](https://github.com/forcedotcom/source-tracking/commit/137cd391f0ea8ae60b3351d7b3361ae97b890d45))
+
+### Bug Fixes
+
+- deploy by pkgDir groupings, not all ([7f1262e](https://github.com/forcedotcom/source-tracking/commit/7f1262e1d05a57d3094849d052376b13dd7a5ec7))
+- windows paths when pkgDir path has separators in it ([b0ab346](https://github.com/forcedotcom/source-tracking/commit/b0ab3468d9c54722f832fb7d27a84525d593d4f7))
+
 ### [0.4.4](https://github.com/forcedotcom/source-tracking/compare/v0.4.3...v0.4.4) (2021-12-01)
 
 ### Features
