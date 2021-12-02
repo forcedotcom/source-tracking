@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as fs from 'fs';
-import { isAbsolute, relative, resolve, normalize } from 'path';
+import { isAbsolute, relative, resolve, sep, normalize } from 'path';
 import { EOL } from 'os';
 import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
@@ -34,7 +34,7 @@ import {
   RemoteChangeElement,
 } from './shared/types';
 import { sourceComponentGuard, metadataMemberGuard } from './shared/guards';
-import { getKeyFromObject, getMetadataKey } from './shared/functions';
+import { getKeyFromObject, getMetadataKey, isBundle } from './shared/functions';
 
 export interface SourceTrackingOptions {
   org: Org;
@@ -83,7 +83,6 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async localChangesAsComponentSet(byPackageDir = false): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
-    // path may have been cloned from the other OS
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().name);
 
     const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');
@@ -132,7 +131,30 @@ export class SourceTracking extends AsyncCreatable {
           undefined,
           VirtualTreeContainer.fromFilePaths(grouping.deletes)
         );
-        allNonDeletes
+
+        grouping.deletes
+          .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
+          .filter(sourceComponentGuard)
+          .map((component) => {
+            // if the component is a file in a bundle type AND there are files from the bundle that are not deleted, set the bundle for deploy, not for delete
+            if (isBundle(component) && component.content && fs.existsSync(component.content)) {
+              // all bundle types have a directory name
+              try {
+                resolverForNonDeletes
+                  .getComponentsFromPath(resolve(component.content))
+                  .filter(sourceComponentGuard)
+                  .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
+              } catch (e) {
+                this.logger.warn(
+                  `unable to find component at ${component.content}.  That's ok if it was supposed to be deleted`
+                );
+              }
+            } else {
+              componentSet.add(component, DestructiveChangesType.POST);
+            }
+          });
+
+        grouping.nonDeletes
           .flatMap((filename) => {
             try {
               return resolverForNonDeletes.getComponentsFromPath(resolve(filename));
@@ -144,10 +166,6 @@ export class SourceTracking extends AsyncCreatable {
           .filter(sourceComponentGuard)
           .map((component) => componentSet.add(component));
 
-        allDeletes
-          .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-          .filter(sourceComponentGuard)
-          .map((component) => componentSet.add(component, DestructiveChangesType.POST));
         return componentSet;
       })
       .filter((componentSet) => componentSet.size > 0);
@@ -320,9 +338,39 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async updateLocalTracking(options: LocalUpdateOptions): Promise<void> {
     await this.ensureLocalTracking();
+
+    // relative paths make smaller trees AND isogit wants them relative
+    const relativeOptions = {
+      files: (options.files ?? []).map((file) => this.ensureRelative(file)),
+      deletedFiles: (options.deletedFiles ?? []).map((file) => this.ensureRelative(file)),
+    };
+    // plot twist: if you delete a member of a bundle (ex: lwc/foo/foo.css) and push, it'll not be in the fileResponses (deployedFiles) or deletedFiles
+    // what got deleted?  Any local changes NOT in the fileResponses but part of a successfully deployed bundle
+    const deployedFilesAsVirtualComponentSet = ComponentSet.fromSource({
+      // resolve from highest possible level.  TODO: can we use [.]
+      fsPaths: relativeOptions.files.length ? [relativeOptions.files[0].split(sep)[0]] : [],
+      tree: VirtualTreeContainer.fromFilePaths(relativeOptions.files),
+    });
+    // these are top-level bundle paths like lwc/foo
+    const bundlesWithDeletedFiles = (
+      await this.getChanges<SourceComponent>({ origin: 'local', state: 'delete', format: 'SourceComponent' })
+    )
+      .filter(isBundle)
+      .filter((cmp) => deployedFilesAsVirtualComponentSet.has({ type: cmp.type, fullName: cmp.fullName }))
+      .map((cmp) => cmp.content)
+      .filter(isString);
+
     await this.localRepo.commitChanges({
-      deployedFiles: options.files?.map((file) => this.ensureRelative(file)),
-      deletedFiles: options.deletedFiles?.map((file) => this.ensureRelative(file)),
+      deployedFiles: relativeOptions.files,
+      deletedFiles: relativeOptions.deletedFiles.concat(
+        (
+          await this.localRepo.getDeleteFilenames()
+        ).filter(
+          (deployedFile) =>
+            bundlesWithDeletedFiles.some((bundlePath) => deployedFile.startsWith(bundlePath)) &&
+            !relativeOptions.files.includes(deployedFile)
+        )
+      ),
     });
   }
 
