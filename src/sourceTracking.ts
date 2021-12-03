@@ -639,11 +639,14 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   private registrySupportsType(type: string): boolean {
-    if (this.registry.findType((metadataType) => metadataType.name === type)) {
+    try {
+      // this must use getTypeByName because findType doesn't support addressable child types (ex: customField!)
+      this.registry.getTypeByName(type);
       return true;
+    } catch (e) {
+      process.emitWarning(`Unable to find type ${type} in registry`);
+      return false;
     }
-    process.emitWarning(`Unable to find type ${type} in registry`);
-    return false;
   }
   /**
    * uses SDR to translate remote metadata records into local file paths
