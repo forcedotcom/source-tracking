@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.5.1](https://github.com/forcedotcom/source-tracking/compare/v0.5.0...v0.5.1) (2021-12-03)
+
+### Bug Fixes
+
+- support addressable child types ([8251095](https://github.com/forcedotcom/source-tracking/commit/82510955ba8ffe4a2e7e5411973795da3671d01e))
+
 ## [0.5.0](https://github.com/forcedotcom/source-tracking/compare/v0.4.4...v0.5.0) (2021-12-02)
 
 ### ⚠ BREAKING CHANGES
