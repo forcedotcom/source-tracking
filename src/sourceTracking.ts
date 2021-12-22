@@ -34,7 +34,7 @@ import {
   RemoteChangeElement,
 } from './shared/types';
 import { sourceComponentGuard, metadataMemberGuard } from './shared/guards';
-import { getKeyFromObject, getMetadataKey, isBundle } from './shared/functions';
+import { getKeyFromObject, getMetadataKey, isBundle, pathIsInFolder } from './shared/functions';
 
 export interface SourceTrackingOptions {
   org: Org;
@@ -103,8 +103,8 @@ export class SourceTracking extends AsyncCreatable {
       byPackageDir
         ? this.packagesDirs.map((pkgDir) => ({
             path: pkgDir.name,
-            nonDeletes: allNonDeletes.filter((f) => f.startsWith(pkgDir.name)),
-            deletes: allDeletes.filter((f) => f.startsWith(pkgDir.name)),
+            nonDeletes: allNonDeletes.filter((f) => pathIsInFolder(f, pkgDir.name)),
+            deletes: allDeletes.filter((f) => pathIsInFolder(f, pkgDir.name)),
           }))
         : [
             {
@@ -367,7 +367,7 @@ export class SourceTracking extends AsyncCreatable {
           await this.localRepo.getDeleteFilenames()
         ).filter(
           (deployedFile) =>
-            bundlesWithDeletedFiles.some((bundlePath) => deployedFile.startsWith(bundlePath)) &&
+            bundlesWithDeletedFiles.some((bundlePath) => pathIsInFolder(deployedFile, bundlePath)) &&
             !relativeOptions.files.includes(deployedFile)
         )
       ),
