@@ -17,7 +17,7 @@ describe('verifies exact match of pkgDirs', () => {
   before(async () => {
     session = await TestSession.create({
       project: {
-        sourceDir: path.join('test', 'nuts', 'ignoreInSubfolder', 'extra-classes'),
+        sourceDir: path.join('test', 'nuts', 'repros', 'extra-classes'),
       },
       authStrategy: 'NONE',
     });

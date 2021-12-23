@@ -17,7 +17,7 @@ describe('handles non-top-level ignore', () => {
   before(async () => {
     session = await TestSession.create({
       project: {
-        sourceDir: path.join('test', 'nuts', 'ignoreInSubfolder', 'nested-classes'),
+        sourceDir: path.join('test', 'nuts', 'repros', 'nested-classes'),
       },
       authStrategy: 'NONE',
     });
