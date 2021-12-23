@@ -8,7 +8,7 @@ import { normalize } from 'path';
 import { expect } from 'chai';
 import { pathIsInFolder } from '../../src/shared/functions';
 
-describe('stringStartsWithString', () => {
+describe('pathIsInFolder', () => {
   it('does not misidentify partial strings', () => {
     expect(pathIsInFolder(normalize('/foo/bar-extra/baz'), normalize('/foo/bar'))).to.equal(false);
   });
@@ -26,7 +26,7 @@ describe('stringStartsWithString', () => {
   });
 
   it('no initial separator on 2nd arg is ok', () => {
-    expect(pathIsInFolder(normalize('foo/bar-extra/baz'), '/foo')).to.equal(true);
+    expect(pathIsInFolder(normalize('foo/bar-extra/baz'), normalize('/foo'))).to.equal(true);
   });
 
   it('works for deep children', () => {
