@@ -106,7 +106,7 @@ export class ShadowRepo {
         (filepath) =>
           filepath.includes(gitIgnoreFileName) &&
           // can be top-level like '.' (no sep) OR must be in one of the package dirs
-          (!filepath.includes(path.sep) || this.packageDirs.some((dir) => pathIsInFolder(filepath, dir.path)))
+          (!filepath.includes(path.sep) || this.packageDirs.some((dir) => pathIsInFolder(filepath, dir.name)))
       )
       .map((ignoreFile) => path.join(this.projectPath, ignoreFile));
   }
