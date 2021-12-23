@@ -157,8 +157,7 @@ export class ShadowRepo {
             // no gitignore files
             ![gitIgnoreFileName, stashedGitIgnoreFileName].includes(path.basename(f)) &&
             // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-            // we specify the separator since the filtered items are in unix-style paths
-            filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir, path.posix.sep)),
+            filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir)),
         });
         // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
         if (isWindows) {
