@@ -89,8 +89,7 @@ export class ShadowRepo {
   public async gitInit(): Promise<void> {
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
-    // set the forceIgnoreLocations so we only have to do it once
-    // this looks through
+    // set the gitIgnoreLocations so we only have to do it once
     this.gitIgnoreLocations = (
       (await git.walk({
         fs,
