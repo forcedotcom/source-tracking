@@ -44,9 +44,6 @@ interface CommitRequest {
   message?: string;
 }
 
-// const gitIgnoreLocator = async (filepath: string) => {
-//   ( return filepath.endsWith(gitIgnoreFileName) ? filepath : null).filter(isString);
-// }
 export class ShadowRepo {
   private static instance: ShadowRepo;
 
@@ -65,11 +62,14 @@ export class ShadowRepo {
   }
 
   public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
-    if (!ShadowRepo.instance) {
-      ShadowRepo.instance = new ShadowRepo(options);
-      await ShadowRepo.instance.init();
-    }
-    return ShadowRepo.instance;
+    // if (!ShadowRepo.instance) {
+    //   ShadowRepo.instance = new ShadowRepo(options);
+    //   await ShadowRepo.instance.init();
+    // }
+    // return ShadowRepo.instance;
+    const instance = new ShadowRepo(options);
+    await instance.init();
+    return instance;
   }
 
   public async init(): Promise<void> {
