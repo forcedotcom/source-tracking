@@ -35,8 +35,7 @@ describe('verifies exact match of pkgDirs', () => {
 
   it('should not include files from force-app-extra', async () => {
     const changedFilenames = await repo.getChangedFilenames();
-
-    // expect(changedFilenames).to.be.an('array').with.length(2);
+    expect(changedFilenames).to.be.an('array').with.length.greaterThan(0);
     changedFilenames.map((f) => {
       expect(f).to.not.contain('force-app-extra');
     });
