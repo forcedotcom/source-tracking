@@ -31,9 +31,9 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
       setupCommands: [`sfdx force:org:create -d 1 -s -f ${path.join('config', 'project-scratch-def.json')}`],
     });
     stl = await getSTLInstance(session);
-    expect(
-      await stl.getChanges<string>({ origin: 'local', format: 'string', state: 'nondelete' })
-    ).to.have.length.greaterThan(10);
+    // these 2 lines help debug path issues in
+    const stlChanges = await stl.getChanges<string>({ origin: 'local', format: 'string', state: 'nondelete' });
+    expect(stlChanges, stlChanges.join(',')).to.have.length.greaterThan(10);
   });
 
   it('!byPkgDir => 1 componentSet', async () => {
