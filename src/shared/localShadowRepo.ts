@@ -45,7 +45,7 @@ interface CommitRequest {
 }
 
 export class ShadowRepo {
-  private static instance: ShadowRepo;
+  // private static instance: ShadowRepo;
 
   public gitDir: string;
   public projectPath: string;
