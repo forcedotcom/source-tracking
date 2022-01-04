@@ -45,6 +45,8 @@ interface CommitRequest {
 }
 
 export class ShadowRepo {
+  private static instanceMap = new Map<string, ShadowRepo>();
+
   public gitDir: string;
   public projectPath: string;
 
@@ -59,11 +61,14 @@ export class ShadowRepo {
     this.packageDirs = options.packageDirs;
   }
 
-  // this is NOT a singleton but it was at one point, so its public method still sounds like it would be
+  // think of singleton behavior but unique to the projectPath
   public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
-    const instance = new ShadowRepo(options);
-    await instance.init();
-    return instance;
+    if (!ShadowRepo.instanceMap.has(options.projectPath)) {
+      const newInstance = new ShadowRepo(options);
+      await newInstance.init();
+      ShadowRepo.instanceMap.set(options.projectPath, newInstance);
+    }
+    return ShadowRepo.instanceMap.get(options.projectPath) as ShadowRepo;
   }
 
   public async init(): Promise<void> {
