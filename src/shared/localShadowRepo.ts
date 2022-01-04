@@ -88,25 +88,7 @@ export class ShadowRepo {
   public async gitInit(): Promise<void> {
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
-    // set the gitIgnoreLocations so we only have to do it once
-    this.gitIgnoreLocations = (
-      (await git.walk({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        trees: [git.WORKDIR()],
-        // TODO: this can be marginally faster if we limit it to pkgDirs and toplevel project files
-        // eslint-disable-next-line @typescript-eslint/require-await
-        map: async (filepath: string) => filepath,
-      })) as string[]
-    )
-      .filter(
-        (filepath) =>
-          filepath.includes(gitIgnoreFileName) &&
-          // can be top-level like '.' (no sep) OR must be in one of the package dirs
-          (!filepath.includes(path.sep) || this.packageDirs.some((dir) => pathIsInFolder(filepath, dir.name)))
-      )
-      .map((ignoreFile) => path.join(this.projectPath, ignoreFile));
+    await this.locateIgnoreFiles();
   }
 
   /**
@@ -273,6 +255,28 @@ export class ShadowRepo {
     } finally {
       await this.unStashIgnoreFile();
     }
+  }
+
+  private async locateIgnoreFiles(): Promise<void> {
+    // set the gitIgnoreLocations so we only have to do it once
+    this.gitIgnoreLocations = (
+      (await git.walk({
+        fs,
+        dir: this.projectPath,
+        gitdir: this.gitDir,
+        trees: [git.WORKDIR()],
+        // TODO: this can be marginally faster if we limit it to pkgDirs and toplevel project files
+        // eslint-disable-next-line @typescript-eslint/require-await
+        map: async (filepath: string) => filepath,
+      })) as string[]
+    )
+      .filter(
+        (filepath) =>
+          filepath.includes(gitIgnoreFileName) &&
+          // can be top-level like '.' (no sep) OR must be in one of the package dirs
+          (!filepath.includes(path.sep) || this.packageDirs.some((dir) => pathIsInFolder(filepath, dir.name)))
+      )
+      .map((ignoreFile) => path.join(this.projectPath, ignoreFile));
   }
 
   private async stashIgnoreFile(): Promise<void> {
