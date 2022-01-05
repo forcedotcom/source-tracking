@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import * as git from 'isomorphic-git';
+import { pathIsInFolder } from './functions';
 
 const gitIgnoreFileName = '.gitignore';
 const stashedGitIgnoreFileName = '.BAK.gitignore';
@@ -44,7 +45,7 @@ interface CommitRequest {
 }
 
 export class ShadowRepo {
-  private static instance: ShadowRepo;
+  private static instanceMap = new Map<string, ShadowRepo>();
 
   public gitDir: string;
   public projectPath: string;
@@ -52,6 +53,7 @@ export class ShadowRepo {
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
+  private gitIgnoreLocations: string[] = [];
 
   private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
@@ -59,12 +61,14 @@ export class ShadowRepo {
     this.packageDirs = options.packageDirs;
   }
 
+  // think of singleton behavior but unique to the projectPath
   public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
-    if (!ShadowRepo.instance) {
-      ShadowRepo.instance = new ShadowRepo(options);
-      await ShadowRepo.instance.init();
+    if (!ShadowRepo.instanceMap.has(options.projectPath)) {
+      const newInstance = new ShadowRepo(options);
+      await newInstance.init();
+      ShadowRepo.instanceMap.set(options.projectPath, newInstance);
     }
-    return ShadowRepo.instance;
+    return ShadowRepo.instanceMap.get(options.projectPath) as ShadowRepo;
   }
 
   public async init(): Promise<void> {
@@ -84,6 +88,7 @@ export class ShadowRepo {
   public async gitInit(): Promise<void> {
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
+    await this.locateIgnoreFiles();
   }
 
   /**
@@ -124,8 +129,15 @@ export class ShadowRepo {
           dir: this.projectPath,
           gitdir: this.gitDir,
           filepaths,
-          // filter out hidden files and __tests__ patterns, regardless of gitignore
-          filter: (f) => !f.includes(`${path.sep}.`) && !f.includes('__tests__'),
+          filter: (f) =>
+            // no hidden files
+            !f.includes(`${path.sep}.`) &&
+            // no lwc tests
+            !f.includes('__tests__') &&
+            // no gitignore files
+            ![gitIgnoreFileName, stashedGitIgnoreFileName].includes(path.basename(f)) &&
+            // isogit uses `startsWith` for filepaths so it's possible to get a false positive
+            filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir)),
         });
         // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
         if (isWindows) {
@@ -245,19 +257,43 @@ export class ShadowRepo {
     }
   }
 
+  private async locateIgnoreFiles(): Promise<void> {
+    // set the gitIgnoreLocations so we only have to do it once
+    this.gitIgnoreLocations = (
+      (await git.walk({
+        fs,
+        dir: this.projectPath,
+        gitdir: this.gitDir,
+        trees: [git.WORKDIR()],
+        // TODO: this can be marginally faster if we limit it to pkgDirs and toplevel project files
+        // eslint-disable-next-line @typescript-eslint/require-await
+        map: async (filepath: string) => filepath,
+      })) as string[]
+    )
+      .filter(
+        (filepath) =>
+          filepath.includes(gitIgnoreFileName) &&
+          // can be top-level like '.' (no sep) OR must be in one of the package dirs
+          (!filepath.includes(path.sep) || this.packageDirs.some((dir) => pathIsInFolder(filepath, dir.name)))
+      )
+      .map((ignoreFile) => path.join(this.projectPath, ignoreFile));
+  }
+
   private async stashIgnoreFile(): Promise<void> {
-    const originalLocation = path.join(this.projectPath, gitIgnoreFileName);
-    // another process may have already stashed the file
-    if (fs.existsSync(originalLocation)) {
-      await fs.promises.rename(originalLocation, path.join(this.projectPath, stashedGitIgnoreFileName));
-    }
+    // allSettled allows them to fail (example, the file wasn't where it was expected).
+    await Promise.allSettled(
+      this.gitIgnoreLocations.map((originalLocation) =>
+        fs.promises.rename(originalLocation, originalLocation.replace(gitIgnoreFileName, stashedGitIgnoreFileName))
+      )
+    );
   }
 
   private async unStashIgnoreFile(): Promise<void> {
-    const stashedLocation = path.join(this.projectPath, stashedGitIgnoreFileName);
-    // another process may have already un-stashed the file
-    if (fs.existsSync(stashedLocation)) {
-      await fs.promises.rename(stashedLocation, path.join(this.projectPath, gitIgnoreFileName));
-    }
+    // allSettled allows them to fail (example, the file wasn't where it was expected).
+    await Promise.allSettled(
+      this.gitIgnoreLocations.map((originalLocation) =>
+        fs.promises.rename(originalLocation.replace(gitIgnoreFileName, stashedGitIgnoreFileName), originalLocation)
+      )
+    );
   }
 }

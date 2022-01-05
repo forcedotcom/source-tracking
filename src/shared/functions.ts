@@ -5,6 +5,8 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
+import { sep, normalize } from 'path';
+import { isString } from '@salesforce/ts-types';
 import { SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { RemoteChangeElement, ChangeResult } from './types';
 
@@ -20,3 +22,19 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
 };
 
 export const isBundle = (cmp: SourceComponent): boolean => cmp.type.strategies?.adapter === 'bundle';
+
+/**
+ * Verify that a filepath starts exactly with a complete parent path
+ * ex: '/foo/bar-extra/baz'.startsWith('foo/bar') would be true, but this function understands that they are not in the same folder
+ */
+export const pathIsInFolder = (filePath: string, folder: string): boolean => {
+  const biggerStringParts = normalize(filePath).split(sep).filter(nonEmptyStringFilter);
+  return normalize(folder)
+    .split(sep)
+    .filter(nonEmptyStringFilter)
+    .every((part, index) => part === biggerStringParts[index]);
+};
+
+const nonEmptyStringFilter = (value: string): boolean => {
+  return isString(value) && value.length > 0;
+};
