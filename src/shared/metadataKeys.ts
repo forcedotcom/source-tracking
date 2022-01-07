@@ -42,3 +42,9 @@ export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): s
   // standard key
   return [getMetadataKey(fileResponse.type, fileResponse.fullName)];
 };
+
+export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string>([
+  ['AuraDefinition', 'AuraDefinitionBundle'],
+  ['LightningComponentResource', 'LightningComponentBundle'],
+  ['EmailTemplateFolder', 'EmailFolder'],
+]);

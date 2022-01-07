@@ -35,6 +35,7 @@ import {
 } from './shared/types';
 import { sourceComponentGuard, metadataMemberGuard } from './shared/guards';
 import { getKeyFromObject, getMetadataKey, isBundle, pathIsInFolder } from './shared/functions';
+import { mappingsForSourceMemberTypesToMetadataType } from './shared/metadataKeys';
 
 export interface SourceTrackingOptions {
   org: Org;
@@ -640,6 +641,9 @@ export class SourceTracking extends AsyncCreatable {
 
   private registrySupportsType(type: string): boolean {
     try {
+      if (mappingsForSourceMemberTypesToMetadataType.has(type)) {
+        return true;
+      }
       // this must use getTypeByName because findType doesn't support addressable child types (ex: customField!)
       this.registry.getTypeByName(type);
       return true;

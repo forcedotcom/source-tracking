@@ -14,7 +14,7 @@ import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, toNumber } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
-import { getMetadataKeyFromFileResponse } from './metadataKeys';
+import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
 
 // represents the contents of the config file stored in 'maxRevision.json'
@@ -566,8 +566,3 @@ export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): Cha
     origin: 'remote', // we know they're remote
   };
 };
-
-const mappingsForSourceMemberTypesToMetadataType = new Map<string, string>([
-  ['AuraDefinition', 'AuraDefinitionBundle'],
-  ['LightningComponentResource', 'LightningComponentBundle'],
-]);
