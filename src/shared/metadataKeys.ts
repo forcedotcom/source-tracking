@@ -39,6 +39,13 @@ export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): s
       getMetadataKey(fileResponse.type, fileResponse.fullName),
     ];
   }
+  // these might have been emailFolder or emailTemplateFolder on the server, and we can't tell from the file path/name/type, so we'll set BOTH in source tracking
+  if (fileResponse.type === 'EmailFolder' && fileResponse.filePath) {
+    return [
+      getMetadataKey('EmailFolder', fileResponse.fullName),
+      getMetadataKey('EmailTemplateFolder', fileResponse.fullName),
+    ];
+  }
   // standard key
   return [getMetadataKey(fileResponse.type, fileResponse.fullName)];
 };
