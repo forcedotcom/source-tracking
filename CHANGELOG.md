@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.5.2](https://github.com/forcedotcom/source-tracking/compare/v0.5.1...v0.5.2) (2022-01-05)
+
+### Features
+
+- path-scoped singleton ([de46db4](https://github.com/forcedotcom/source-tracking/commit/de46db4b08a3fe087a2931936655c75b3b7cc32c))
+
+### Bug Fixes
+
+- distributed .gitignore and loose pkgDir matching ([a148a36](https://github.com/forcedotcom/source-tracking/commit/a148a366739b6941f3f479b375147897103316bb))
+- remove singleton behavior for localShadowRepo ([887bb68](https://github.com/forcedotcom/source-tracking/commit/887bb684528df8df07fe9b4edf1bd2f4165fe3e2))
+
 ### [0.5.1](https://github.com/forcedotcom/source-tracking/compare/v0.5.0...v0.5.1) (2021-12-03)
 
 ### Bug Fixes
