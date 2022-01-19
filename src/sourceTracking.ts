@@ -678,16 +678,21 @@ export class SourceTracking extends AsyncCreatable {
 
     this.logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
     if (remoteChangesAsComponentSet.size < elements.length) {
+      // there *could* be something missing
+      // some types (ex: LWC) show up as multiple files in the remote changes, but only one in the component set
       // iterate the elements to see which ones didn't make it into the component set
-      throw new Error(
-        `unable to generate complete component set for ${elements
-          .filter(
-            (element) =>
-              !remoteChangesAsComponentSet.has({ type: element?.type as string, fullName: element?.name as string })
-          )
-          .map((element) => `${element.name} (${element.type})`)
-          .join(EOL)}`
+      const missingComponents = elements.filter(
+        (element) =>
+          !remoteChangesAsComponentSet.has({ type: element?.type as string, fullName: element?.name as string })
       );
+      // Throw if anything was actually missing
+      if (missingComponents.length > 0) {
+        throw new Error(
+          `unable to generate complete component set for ${elements
+            .map((element) => `${element.name} (${element.type})`)
+            .join(EOL)}`
+        );
+      }
     }
 
     const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
