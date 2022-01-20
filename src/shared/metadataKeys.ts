@@ -5,6 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as path from 'path';
+import { ComponentSet } from '@salesforce/source-deploy-retrieve';
 import { RemoteSyncInput } from './types';
 import { getMetadataKey } from './functions';
 
@@ -39,6 +40,18 @@ export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): s
       getMetadataKey(fileResponse.type, fileResponse.fullName),
     ];
   }
-  // standard key
+  // CustomLabels (file) => CustomLabel[] (how they're storedin SourceMembers)
+  if (fileResponse.type === 'CustomLabels' && fileResponse.filePath) {
+    return ComponentSet.fromSource(fileResponse.filePath)
+      .getSourceComponents()
+      .toArray()
+      .flatMap((component) => component.getChildren().map((child) => getMetadataKey('CustomLabel', child.fullName)));
+  }
+  // standard key for everything else
   return [getMetadataKey(fileResponse.type, fileResponse.fullName)];
 };
+
+export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string>([
+  ['AuraDefinition', 'AuraDefinitionBundle'],
+  ['LightningComponentResource', 'LightningComponentBundle'],
+]);

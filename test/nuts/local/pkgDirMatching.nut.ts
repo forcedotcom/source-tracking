@@ -8,16 +8,16 @@ import * as path from 'path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { fs } from '@salesforce/core';
 import { expect } from 'chai';
-import { ShadowRepo } from '../../src/shared/localShadowRepo';
+import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
-describe('handles non-top-level ignore', () => {
+describe('verifies exact match of pkgDirs', () => {
   let session: TestSession;
   let repo: ShadowRepo;
 
   before(async () => {
     session = await TestSession.create({
       project: {
-        sourceDir: path.join('test', 'nuts', 'repros', 'nested-classes'),
+        sourceDir: path.join('test', 'nuts', 'repros', 'extra-classes'),
       },
       authStrategy: 'NONE',
     });
@@ -25,18 +25,20 @@ describe('handles non-top-level ignore', () => {
 
   it('initialize the local tracking', async () => {
     repo = await ShadowRepo.getInstance({
-      orgId: 'fakeOrgId2',
+      orgId: 'fakeOrgId3',
       projectPath: session.project.dir,
-      packageDirs: [{ path: 'classes', name: 'classes', fullPath: path.join(session.project.dir, 'classes') }],
+      packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
     });
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));
   });
 
-  it('should not be influenced by gitignore', async () => {
-    expect(await repo.getChangedFilenames())
-      .to.be.an('array')
-      .with.length(2);
+  it('should not include files from force-app-extra', async () => {
+    const changedFilenames = await repo.getChangedFilenames();
+    expect(changedFilenames).to.be.an('array').with.length.greaterThan(0);
+    changedFilenames.map((f) => {
+      expect(f).to.not.contain('force-app-extra');
+    });
   });
 
   after(async () => {
