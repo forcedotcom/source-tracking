@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.0.0](https://github.com/forcedotcom/source-tracking/compare/v0.5.2...v1.0.0) (2022-01-20)
+
+### Bug Fixes
+
+- handle element count errors ([8817329](https://github.com/forcedotcom/source-tracking/commit/8817329f8198ce701aba22c7a4476ef31a4d73a4))
+- lightning EmailTemplateFolder ([554c766](https://github.com/forcedotcom/source-tracking/commit/554c76676a85c7a4b673879116912cde51dd1498))
+- remove emailtf attempt ([262839d](https://github.com/forcedotcom/source-tracking/commit/262839dc025c7094d8868d3ae9d769dd39ad5324))
+- sourceMember excepton for nondecomposed children ([05db59e](https://github.com/forcedotcom/source-tracking/commit/05db59e7a6e070224a45f5fbf08013565c9f2131))
+
 ### [0.5.2](https://github.com/forcedotcom/source-tracking/compare/v0.5.1...v0.5.2) (2022-01-05)
 
 ### Features
