@@ -10,7 +10,7 @@ import { fs } from '@salesforce/core';
 import { expect } from 'chai';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
-describe('handles non-top-level ignore', () => {
+describe('handles non-top-level ignore inside project dir', () => {
   let session: TestSession;
   let repo: ShadowRepo;
 
@@ -18,6 +18,40 @@ describe('handles non-top-level ignore', () => {
     session = await TestSession.create({
       project: {
         sourceDir: path.join('test', 'nuts', 'repros', 'nested-classes'),
+      },
+      authStrategy: 'NONE',
+    });
+  });
+
+  it('initialize the local tracking', async () => {
+    repo = await ShadowRepo.getInstance({
+      orgId: 'fakeOrgId2',
+      projectPath: session.project.dir,
+      packageDirs: [{ path: 'classes', name: 'classes', fullPath: path.join(session.project.dir, 'classes') }],
+    });
+    // verify the local tracking files/directories
+    expect(fs.existsSync(repo.gitDir));
+  });
+
+  it('should not be influenced by gitignore', async () => {
+    expect(await repo.getChangedFilenames())
+      .to.be.an('array')
+      .with.length(2);
+  });
+
+  after(async () => {
+    await session?.clean();
+  });
+});
+
+describe('handles non-top-level ignore outside project dir', () => {
+  let session: TestSession;
+  let repo: ShadowRepo;
+
+  before(async () => {
+    session = await TestSession.create({
+      project: {
+        sourceDir: path.join('test', 'nuts', 'repros', 'nested-classes2'),
       },
       authStrategy: 'NONE',
     });
