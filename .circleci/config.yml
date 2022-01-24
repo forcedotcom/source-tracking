@@ -99,6 +99,8 @@ jobs:
           name: Build the external project
           command: |
             yarn clean
+            yarn upgrade @salesforce/source-deploy-retrieve@latest
+            yarn upgrade @salesforce/core@latest
             yarn compile
       - run:
           name: Nuts
