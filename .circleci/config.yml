@@ -7,7 +7,7 @@ jobs:
     description: Runs NUTs from other (external) repos by cloning them.  Substitutes a dependency for the current pull request.  For example, you're testing a PR to a library and want to test a plugin in another repo that uses the library.
 
     parameters:
-      command:
+      test_command:
         type: string
         description: 'command to execute (ex: yarn test:nuts)'
         default: 'yarn test:nuts'
@@ -165,7 +165,7 @@ workflows:
               os: [linux, windows]
               node_version: [lts]
               external_project_git_url: ['https://github.com/salesforcecli/plugin-source']
-              command:
+              test_command:
                 [
                   'yarn test:nuts:tracking:basics',
                   'yarn test:nuts:tracking:conflicts',
