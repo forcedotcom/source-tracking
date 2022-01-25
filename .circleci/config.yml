@@ -173,7 +173,7 @@ workflows:
                   'yarn test:nuts:tracking:remote',
                   'yarn test:nuts:tracking:resetClear',
                   'yarn test:nuts:tracking:lwc',
-                  'yarn mocha \"test/nuts/mpd-*.nut.ts\" --slow 3000 --timeout 600000 --parallel',
+                  'yarn mocha \"test/nuts/trackingCommands/mpd-*.nut.ts\" --slow 3000 --timeout 600000 --parallel',
                 ]
       - release-management/release-package:
           github-release: true
