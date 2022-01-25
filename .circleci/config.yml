@@ -110,7 +110,7 @@ jobs:
       - run:
           name: Nuts
           command: |
-            <<paremeters.command>>
+            <<parameters.test_command>>
 
 workflows:
   version: 2
