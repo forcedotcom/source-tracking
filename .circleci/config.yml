@@ -162,19 +162,17 @@ workflows:
           size: medium
           matrix:
             parameters:
-              os: [
-                  # linux,
-                  windows,
-                ]
+              os: [linux, windows]
               node_version: [lts]
               external_project_git_url: ['https://github.com/salesforcecli/plugin-source']
-              test_command: [
-                  # 'yarn test:nuts:tracking:basics',
-                  # 'yarn test:nuts:tracking:conflicts',
-                  # 'yarn test:nuts:tracking:forceignore',
-                  # 'yarn test:nuts:tracking:remote',
-                  # 'yarn test:nuts:tracking:resetClear',
-                  # 'yarn test:nuts:tracking:lwc',
+              test_command:
+                [
+                  'yarn test:nuts:tracking:basics',
+                  'yarn test:nuts:tracking:conflicts',
+                  'yarn test:nuts:tracking:forceignore',
+                  'yarn test:nuts:tracking:remote',
+                  'yarn test:nuts:tracking:resetClear',
+                  'yarn test:nuts:tracking:lwc',
                   'yarn mocha "test/nuts/trackingCommands/mpd-*.nut.ts" --slow 3000 --timeout 600000 --parallel',
                 ]
       - release-management/release-package:
