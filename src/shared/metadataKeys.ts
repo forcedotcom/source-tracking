@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import * as path from 'path';
-import { ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { RemoteSyncInput } from './types';
 import { getMetadataKey } from './functions';
 
@@ -14,6 +14,15 @@ const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
   fileResponse && fileResponse.filePath
     ? fileResponse.filePath.substr(fileResponse.filePath.indexOf(fileResponse.fullName)).replace(/\\/gi, '/')
     : '';
+
+const registry = new RegistryAccess();
+
+// only compute once
+const aliasTypes: Array<[string, string]> = registry
+  .getAliasTypes()
+  .map((aliasType) => [aliasType.name, registry.getTypeByName(aliasType.aliasFor as string).name]);
+
+const reverseAliasTypes = new Map(aliasTypes.map(([alias, type]) => [type, alias]));
 
 // handle all "weird" type/name translation between SourceMember and SDR FileResponse
 // These get de-duplicated in a set later, so it's ok to have one per file
@@ -47,11 +56,19 @@ export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): s
       .toArray()
       .flatMap((component) => component.getChildren().map((child) => getMetadataKey('CustomLabel', child.fullName)));
   }
+  // if we've aliased a type, we'll have to possibly sync both types--you can't tell from the sourceComponent retrieved which way it was stored on the server
+  if (reverseAliasTypes.has(fileResponse.type)) {
+    return [
+      getMetadataKey(fileResponse.type, fileResponse.fullName),
+      getMetadataKey(reverseAliasTypes.get(fileResponse.type) as string, fileResponse.fullName),
+    ];
+  }
   // standard key for everything else
   return [getMetadataKey(fileResponse.type, fileResponse.fullName)];
 };
 
 export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string>([
+  ...aliasTypes,
   ['AuraDefinition', 'AuraDefinitionBundle'],
   ['LightningComponentResource', 'LightningComponentBundle'],
 ]);

@@ -78,4 +78,19 @@ describe('metadataKeys', () => {
       ]);
     });
   });
+
+  describe('alias types', () => {
+    it('creates a key for the type and one for its alias', () => {
+      const fileResponse = {
+        fullName: 'ETF_WTF',
+        type: 'EmailFolder',
+        state: ComponentStatus.Created,
+        filePath: 'force-app/main/default/email/ETF_WTF.emailFolder-meta.xml',
+      };
+      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
+        'EmailFolder__ETF_WTF',
+        'EmailTemplateFolder__ETF_WTF',
+      ]);
+    });
+  });
 });

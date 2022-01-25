@@ -45,7 +45,7 @@
   "dependencies": {
     "@salesforce/core": "^2.33.1",
     "@salesforce/kit": "^1.5.17",
-    "@salesforce/source-deploy-retrieve": "^5.9.3",
+    "@salesforce/source-deploy-retrieve": "^5.9.4",
     "isomorphic-git": "^1.9.2",
     "ts-retry-promise": "^0.6.0"
   },
