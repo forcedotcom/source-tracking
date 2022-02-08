@@ -542,7 +542,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
 
     try {
-      const results = await this.org.getConnection().tooling.autoFetchQuery<T>(query);
+      const results = await this.org.getConnection().tooling.autoFetchQuery<T>(query, { maxFetch: 50000 });
       return results.records;
     } catch (error) {
       throw SfdxError.wrap(error as Error);
