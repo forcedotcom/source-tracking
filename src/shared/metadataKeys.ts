@@ -12,7 +12,7 @@ import { getMetadataKey } from './functions';
 // LWC can have child folders (ex: dynamic templates like /templates/noDataIllustration.html
 const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
   fileResponse && fileResponse.filePath
-    ? fileResponse.filePath.substr(fileResponse.filePath.indexOf(fileResponse.fullName)).replace(/\\/gi, '/')
+    ? fileResponse.filePath.substr(fileResponse.filePath.lastIndexOf(fileResponse.fullName)).replace(/\\/gi, '/')
     : '';
 
 const registry = new RegistryAccess();
@@ -30,7 +30,7 @@ export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): s
   // also create an element for the parent object
   if (fileResponse.type === 'CustomField' && fileResponse.filePath) {
     const splits = path.normalize(fileResponse.filePath).split(path.sep);
-    const objectFolderIndex = splits.indexOf('objects');
+    const objectFolderIndex = splits.lastIndexOf('objects');
     return [
       getMetadataKey('CustomObject', splits[objectFolderIndex + 1]),
       getMetadataKey(fileResponse.type, fileResponse.fullName),
