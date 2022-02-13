@@ -12,7 +12,7 @@ import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { ConfigFile, Logger, Org, SfdxError, Messages, fs, Lifecycle } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
-import { env, toNumber, Duration } from '@salesforce/kit';
+import { env, Duration } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
@@ -27,7 +27,8 @@ interface Contents {
  * after some results have returned, how many times should we poll for missing sourcemembers
  * even when there is a longer timeout remaining (because the deployment is very large)
  */
-const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT = 120;
+const POLLING_DELAY_MS = 1000;
+const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120;
 export namespace RemoteSourceTrackingService {
   // Constructor Options for RemoteSourceTrackingService.
   export interface Options extends ConfigFile.Options {
@@ -475,7 +476,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     };
     const pollingFunction = retryDecorator(poll, {
       timeout: pollingTimeout.milliseconds,
-      delay: 1000,
+      delay: POLLING_DELAY_MS,
       retries: 'INFINITELY',
     });
     try {
@@ -527,10 +528,12 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
           ) &&
           // don't wait on workflow children
           !fileResponse.type.startsWith('Workflow') &&
-          // aura meta.xml aren't tracked as SourceMembers
+          // aura xml aren't tracked as SourceMembers
           !fileResponse.filePath?.endsWith('.cmp-meta.xml') &&
           !fileResponse.filePath?.endsWith('.tokens-meta.xml') &&
-          !fileResponse.filePath?.endsWith('.evt-meta.xml')
+          !fileResponse.filePath?.endsWith('.evt-meta.xml') &&
+          !fileResponse.filePath?.endsWith('.app-meta.xml') &&
+          !fileResponse.filePath?.endsWith('.intf-meta.xml')
       )
       .map((member) => {
         getMetadataKeyFromFileResponse(member)
@@ -547,7 +550,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private calculateTimeout(memberCount: number): Duration {
-    const overriddenTimeout = toNumber(env.getString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '0'));
+    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0) ?? 0;
     if (overriddenTimeout > 0) {
       this.logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
       return Duration.seconds(overriddenTimeout);
