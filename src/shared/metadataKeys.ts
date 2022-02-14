@@ -14,11 +14,9 @@ import { getMetadataKey } from './functions';
 const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
   fileResponse && fileResponse.filePath
     ? join(
-        dirname(fileResponse.filePath)
-          .substring(dirname(fileResponse.filePath).lastIndexOf(fileResponse.fullName))
-          .replace(/\\/gi, '/'),
+        dirname(fileResponse.filePath).substring(dirname(fileResponse.filePath).lastIndexOf(fileResponse.fullName)),
         basename(fileResponse.filePath)
-      )
+      ).replace(/\\/gi, '/')
     : '';
 
 const registry = new RegistryAccess();
