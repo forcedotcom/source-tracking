@@ -22,6 +22,19 @@ describe('metadataKeys', () => {
   });
 
   describe('lwc', () => {
+    it('lwc in folder of the same name', () => {
+      const fileResponse = {
+        fullName: 'productTileList',
+        type: 'LightningComponentBundle',
+        state: ComponentStatus.Created,
+        filePath: 'force-app/main/productTileList/lwc/productTileList/productTileList.css',
+      };
+      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
+        'LightningComponentResource__productTileList/productTileList.css',
+        'LightningComponentBundle__productTileList',
+      ]);
+    });
+
     it('lwc returns the bundle and the resource pointing to the file', () => {
       const fileResponse = {
         fullName: 'productTileList',
