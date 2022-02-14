@@ -306,7 +306,7 @@ describe('remoteSourceTrackingService', () => {
         expect(trackSpy.callCount).to.equal(6);
         expect(warnSpy.called).to.equal(true);
         const expectedMsg = 'Polling for SourceMembers timed out after 6 attempts';
-        expect(warnSpy.calledOnceWith(expectedMsg)).to.equal(true);
+        expect(warnSpy.calledWithMatch(expectedMsg)).to.equal(true);
         expect(queryStub.called).to.equal(true);
         expect(getServerMaxRevisionStub.calledOnce).to.equal(true);
       }).timeout(10000);
@@ -329,15 +329,11 @@ describe('remoteSourceTrackingService', () => {
         await remoteSourceTrackingService.pollForSourceTracking(memberNames);
         expect(trackSpy.called).to.equal(true);
 
-        // expect(trackSpy.calledOnceWith([], true)).to.equal(true);
         expect(warnSpy.called).to.equal(true);
         const expectedMsg = 'Polling for SourceMembers timed out after 3 attempts';
-        expect(warnSpy.calledOnceWith(expectedMsg)).to.equal(true);
+        expect(warnSpy.calledWithMatch(expectedMsg)).to.equal(true);
         expect(warnSpy.calledOnce).to.equal(true);
-
         expect(queryStub.called).to.equal(true);
-        // expect(queryStub.calledWith(maxRev)).to.equal(true);
-
         expect(getServerMaxRevisionStub.calledOnce).to.equal(true);
       });
     });
