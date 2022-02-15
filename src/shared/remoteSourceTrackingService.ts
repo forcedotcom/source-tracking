@@ -28,7 +28,8 @@ interface Contents {
  * even when there is a longer timeout remaining (because the deployment is very large)
  */
 const POLLING_DELAY_MS = 1000;
-const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120;
+const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
+  (env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
 export namespace RemoteSourceTrackingService {
   // Constructor Options for RemoteSourceTrackingService.
   export interface Options extends ConfigFile.Options {
