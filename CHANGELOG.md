@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0](https://github.com/forcedotcom/source-tracking/compare/v1.0.2...v1.1.0) (2022-02-16)
+
+### Features
+
+- smarter polling ([3d5bb05](https://github.com/forcedotcom/source-tracking/commit/3d5bb05ccf05127304037ec6085660be5da8fe24))
+
+### Bug Fixes
+
+- handle lwc in a pkgDir of the same name ([621d8cf](https://github.com/forcedotcom/source-tracking/commit/621d8cfc00f2eb4ded160802b2076e140d0a2d06))
+- increase max-fetch default ([9854ed8](https://github.com/forcedotcom/source-tracking/commit/9854ed8677c13d0b2d818355660ab71c144e6a3e))
+- lastIndexOf handles foo/lwc/foo ([8632ee6](https://github.com/forcedotcom/source-tracking/commit/8632ee61f88faf32024e99f1c5590f6b134a3b08))
+- smarter polling and excluded files ([6df02a7](https://github.com/forcedotcom/source-tracking/commit/6df02a716e238e38b699b98f638ef42ed8cedeca))
+
 ### [1.0.2](https://github.com/forcedotcom/source-tracking/compare/v1.0.1...v1.0.2) (2022-01-25)
 
 ### Bug Fixes
