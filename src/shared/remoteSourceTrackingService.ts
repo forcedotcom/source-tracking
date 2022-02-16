@@ -8,11 +8,11 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 
 import * as path from 'path';
-import { retryDecorator } from 'ts-retry-promise';
-import { ConfigFile, Logger, Org, SfdxError, Messages, fs } from '@salesforce/core';
+import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
+import { ConfigFile, Logger, Org, SfdxError, Messages, fs, Lifecycle } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
-import { env, toNumber } from '@salesforce/kit';
+import { env, Duration } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
@@ -23,6 +23,13 @@ interface Contents {
   sourceMembers: Dictionary<MemberRevision>;
 }
 
+/*
+ * after some results have returned, how many times should we poll for missing sourcemembers
+ * even when there is a longer timeout remaining (because the deployment is very large)
+ */
+const POLLING_DELAY_MS = 1000;
+const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
+  (env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
 export namespace RemoteSourceTrackingService {
   // Constructor Options for RemoteSourceTrackingService.
   export interface Options extends ConfigFile.Options {
@@ -104,6 +111,12 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     return path.join('.sfdx', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
   }
 
+  /**
+   * Delete the RemoteSourceTracking for a given org.
+   *
+   * @param orgId
+   * @returns the path of the deleted source tracking file
+   */
   public static async delete(orgId: string): Promise<string> {
     const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId);
     // the file might not exist, in which case we don't need to delete it
@@ -233,12 +246,10 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     this.setServerMaxRevision(0);
     this.initSourceMembers();
 
-    let members: SourceMember[];
-    if (toRevision != null) {
-      members = await this.querySourceMembersTo(toRevision);
-    } else {
-      members = await this.querySourceMembersFrom({ fromRevision: 0 });
-    }
+    const members =
+      toRevision != null
+        ? await this.querySourceMembersTo(toRevision)
+        : await this.querySourceMembersFrom({ fromRevision: 0 });
 
     await this.trackSourceMembers(members, true);
     return members.map((member) => getMetadataKey(member.MemberType, member.MemberName));
@@ -284,6 +295,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   private getTypedContents(): Contents {
     return this.getContents() as unknown as Contents;
   }
+
   // Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
   // the lastRetrievedFromServer field (sync), and persists the changes to maxRevision.json.
   public async trackSourceMembers(sourceMembers: SourceMember[], sync = false): Promise<void> {
@@ -300,33 +312,28 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       // try accessing the sourceMembers object at the index of the change's name
       // if it exists, we'll update the fields - if it doesn't, we'll create and insert it
       const key = getMetadataKey(change.MemberType, change.MemberName);
-      let sourceMember = this.getSourceMember(key);
-      if (sourceMember) {
+      const sourceMember = this.getSourceMember(key) ?? {
+        serverRevisionCounter: change.RevisionCounter,
+        lastRetrievedFromServer: null,
+        memberType: change.MemberType,
+        isNameObsolete: change.IsNameObsolete,
+      };
+      if (sourceMember.lastRetrievedFromServer) {
         // We are already tracking this element so we'll update it
         if (!quiet) {
-          let msg = `Updating ${key} to RevisionCounter: ${change.RevisionCounter}`;
-          if (sync) {
-            msg += ' and syncing';
-          }
-          this.logger.debug(msg);
+          this.logger.debug(
+            `Updating ${key} to RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
+          );
         }
         sourceMember.serverRevisionCounter = change.RevisionCounter;
         sourceMember.isNameObsolete = change.IsNameObsolete;
       } else {
         // We are not yet tracking it so we'll insert a new record
         if (!quiet) {
-          let msg = `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}`;
-          if (sync) {
-            msg += ' and syncing';
-          }
-          this.logger.debug(msg);
+          this.logger.debug(
+            `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
+          );
         }
-        sourceMember = {
-          serverRevisionCounter: change.RevisionCounter,
-          lastRetrievedFromServer: null,
-          memberType: change.MemberType,
-          isNameObsolete: change.IsNameObsolete,
-        };
       }
 
       // If we are syncing changes then we need to update the lastRetrievedFromServer field to
@@ -400,52 +407,52 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       return;
     }
 
-    if (expectedMembers.length === 0) {
+    const outstandingSourceMembers = this.calculateExpectedSourceMembers(expectedMembers);
+    if (expectedMembers.length === 0 || outstandingSourceMembers.size === 0) {
       // Don't bother polling if we're not matching SourceMembers
       return;
     }
 
-    const outstandingSourceMembers = new Map();
-
-    // filter known Source tracking issues
-    expectedMembers
-      .filter(
-        (fileResponse) =>
-          // unchanged files will never be in the sourceMembers.  Not really sure why SDR returns them.
-          fileResponse.state !== ComponentStatus.Unchanged &&
-          // if a listView is the only change inside an object, the object won't have a sourceMember change.  We won't wait for those to be found
-          fileResponse.type !== 'CustomObject' &&
-          // aura meta.xml aren't tracked as SourceMembers
-          !fileResponse.filePath?.endsWith('.cmp-meta.xml')
-      )
-      .map((member) => {
-        getMetadataKeyFromFileResponse(member).map((key) => outstandingSourceMembers.set(key, member));
-      });
-    const originalSize = outstandingSourceMembers.size;
-    const fromRevision = this.getServerMaxRevision();
+    const originalOutstandingSize = outstandingSourceMembers.size;
+    // this will be the absolute timeout from the start of the poll.  We can also exit early if it doesn't look like more results are coming in
     const pollingTimeout = this.calculateTimeout(outstandingSourceMembers.size);
+    let highestRevisionSoFar = this.getServerMaxRevision();
+    let pollAttempts = 0;
+    let consecutiveEmptyResults = 0;
+    let someResultsReturned = false;
+
     this.logger.debug(
-      `Polling for ${outstandingSourceMembers.size} SourceMembers from revision ${fromRevision} with timeout of ${pollingTimeout}s`
+      `Polling for ${outstandingSourceMembers.size} SourceMembers from revision ${highestRevisionSoFar} with timeout of ${pollingTimeout.seconds}s`
     );
 
-    let pollAttempts = 0;
     const poll = async (): Promise<void> => {
       pollAttempts += 1; // not used to stop polling, but for debug logging
 
-      // get sourceMembers since maxRevision
+      // get sourceMembers added since our most recent max
+      // use the "new highest" revision from the last poll that returned results
       const queriedMembers = await this.querySourceMembersFrom({
-        fromRevision,
+        fromRevision: highestRevisionSoFar,
         quiet: pollAttempts !== 1,
         useCache: false,
       });
 
-      // remove anything returned from the query list
-      queriedMembers.map((member) => {
-        outstandingSourceMembers.delete(getMetadataKey(member.MemberType, member.MemberName));
-      });
+      if (queriedMembers.length) {
+        queriedMembers.map((member) => {
+          // remove anything returned from the query list
+          outstandingSourceMembers.delete(getMetadataKey(member.MemberType, member.MemberName));
+          highestRevisionSoFar = Math.max(highestRevisionSoFar, member.RevisionCounter);
+        });
+        consecutiveEmptyResults = 0;
+        // flips on the first batch of results
+        someResultsReturned = true;
+      } else {
+        consecutiveEmptyResults++;
+      }
 
       this.logger.debug(
-        `[${pollAttempts}] Found ${originalSize - outstandingSourceMembers.size} of ${originalSize} SourceMembers`
+        `[${pollAttempts}] Found ${
+          originalOutstandingSize - outstandingSourceMembers.size
+        } of ${originalOutstandingSize} expected SourceMembers`
       );
 
       // update but don't sync
@@ -456,25 +463,30 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         return;
       }
 
-      if (outstandingSourceMembers.size < 20) {
-        this.logger.debug(
-          outstandingSourceMembers.size < 20
-            ? `Still looking for SourceMembers: ${Array.from(outstandingSourceMembers.keys()).join(',')}`
-            : `Still looking for ${outstandingSourceMembers.size} Source Members`
-        );
+      if (someResultsReturned && consecutiveEmptyResults >= CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT) {
+        throw new NotRetryableError(`Polling found no results for ${consecutiveEmptyResults} consecutive attempts`);
       }
+
+      this.logger.debug(
+        outstandingSourceMembers.size < 20
+          ? `Still looking for SourceMembers: ${Array.from(outstandingSourceMembers.keys()).join(',')}`
+          : `Still looking for ${outstandingSourceMembers.size} Source Members`
+      );
+
       throw new Error();
     };
     const pollingFunction = retryDecorator(poll, {
-      timeout: pollingTimeout * 1000,
-      delay: 1000,
+      timeout: pollingTimeout.milliseconds,
+      delay: POLLING_DELAY_MS,
       retries: 'INFINITELY',
     });
     try {
       await pollingFunction();
       this.logger.debug(`Retrieved all SourceMember data after ${pollAttempts} attempts`);
     } catch {
-      this.logger.warn(`Polling for SourceMembers timed out after ${pollAttempts} attempts`);
+      this.logger.warn(
+        `Polling for SourceMembers timed out after ${pollAttempts} attempts (last ${consecutiveEmptyResults} were empty) )`
+      );
       if (outstandingSourceMembers.size < 51) {
         this.logger.debug(
           `Could not find ${outstandingSourceMembers.size} SourceMembers: ${Array.from(outstandingSourceMembers).join(
@@ -484,14 +496,65 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       } else {
         this.logger.debug(`Could not find SourceMembers for ${outstandingSourceMembers.size} components`);
       }
+      void Lifecycle.getInstance().emitTelemetry({
+        eventName: 'sourceMemberPollingTimeout',
+        library: 'SourceTracking',
+        timeoutSeconds: pollingTimeout.seconds,
+        attempts: pollAttempts,
+        consecutiveEmptyResults,
+        missingQuantity: outstandingSourceMembers.size,
+        deploymentSize: expectedMembers.length,
+        types: [...new Set(Array.from(outstandingSourceMembers.values()).map((member) => member.type))]
+          .sort()
+          .join(','),
+        members: Array.from(outstandingSourceMembers.keys()).join(','),
+      });
     }
   }
 
-  private calculateTimeout(memberCount: number): number {
-    const overriddenTimeout = toNumber(env.getString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '0'));
+  private calculateExpectedSourceMembers(expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> {
+    const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
+
+    // filter known Source tracking issues
+    expectedMembers
+      .filter(
+        (fileResponse) =>
+          // unchanged files will never be in the sourceMembers.  Not really sure why SDR returns them.
+          fileResponse.state !== ComponentStatus.Unchanged &&
+          // if a listView is the only change inside an object, the object won't have a sourceMember change.  We won't wait for those to be found
+          // we don't know which email folder type might be there, so don't require either
+          // Portal doesn't support source tracking, according to the coverage report
+          !['CustomObject', 'EmailFolder', 'EmailTemplateFolder', 'StandardValueSet', 'Portal'].includes(
+            fileResponse.type
+          ) &&
+          // don't wait on workflow children
+          !fileResponse.type.startsWith('Workflow') &&
+          // aura xml aren't tracked as SourceMembers
+          !fileResponse.filePath?.endsWith('.cmp-meta.xml') &&
+          !fileResponse.filePath?.endsWith('.tokens-meta.xml') &&
+          !fileResponse.filePath?.endsWith('.evt-meta.xml') &&
+          !fileResponse.filePath?.endsWith('.app-meta.xml') &&
+          !fileResponse.filePath?.endsWith('.intf-meta.xml')
+      )
+      .map((member) => {
+        getMetadataKeyFromFileResponse(member)
+          // CustomObject could have been added by the key generator
+          // remove some individual members known to not work with tracking even when their type does
+          .filter(
+            (key) =>
+              !key.startsWith('CustomObject') && key !== 'Profile__Standard' && key !== 'CustomTab__standard-home'
+          )
+          .map((key) => outstandingSourceMembers.set(key, member));
+      });
+
+    return outstandingSourceMembers;
+  }
+
+  private calculateTimeout(memberCount: number): Duration {
+    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0) ?? 0;
     if (overriddenTimeout > 0) {
       this.logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
-      return overriddenTimeout;
+      return Duration.seconds(overriddenTimeout);
     }
 
     // Calculate a polling timeout for SourceMembers based on the number of
@@ -499,7 +562,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     // wait 50s for each 1000 components, plus 5s.
     const pollingTimeout = Math.ceil(memberCount * 0.05) + 5;
     this.logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
-    return pollingTimeout;
+    return Duration.seconds(pollingTimeout);
   }
 
   private async querySourceMembersFrom({
@@ -542,7 +605,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
 
     try {
-      const results = await this.org.getConnection().tooling.autoFetchQuery<T>(query);
+      const results = await this.org.getConnection().tooling.autoFetchQuery<T>(query, { maxFetch: 50000 });
       return results.records;
     } catch (error) {
       throw SfdxError.wrap(error as Error);
