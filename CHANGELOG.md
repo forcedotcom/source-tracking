@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.1.1](https://github.com/forcedotcom/source-tracking/compare/v1.1.0...v1.1.1) (2022-02-23)
+
+### Bug Fixes
+
+- message formatting for GA ([194ba4b](https://github.com/forcedotcom/source-tracking/commit/194ba4b4bd08a26e7f7c5c6ef28dc1fb20acc1de))
+
 ## [1.1.0](https://github.com/forcedotcom/source-tracking/compare/v1.0.2...v1.1.0) (2022-02-16)
 
 ### Features
