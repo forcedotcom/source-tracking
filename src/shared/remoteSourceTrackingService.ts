@@ -524,9 +524,29 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
           // if a listView is the only change inside an object, the object won't have a sourceMember change.  We won't wait for those to be found
           // we don't know which email folder type might be there, so don't require either
           // Portal doesn't support source tracking, according to the coverage report
-          !['CustomObject', 'EmailFolder', 'EmailTemplateFolder', 'StandardValueSet', 'Portal'].includes(
-            fileResponse.type
+          ![
+            'CustomObject',
+            'EmailFolder',
+            'EmailTemplateFolder',
+            'StandardValueSet',
+            'Portal',
+            'StandardValueSetTranslation',
+            'SharingRules',
+            'SharingCriteriaRule',
+            'GlobalValueSetTranslation',
+            'AssignmentRules',
+          ].includes(fileResponse.type) &&
+          // don't wait for standard fields on standard objects
+          !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('__c')) &&
+          // they're settings to mdapi, and FooSettings in sourceMembers
+          !fileResponse.type.includes('Settings') &&
+          // mdapi encodes these, sourceMembers don't have encoding
+          !(
+            (fileResponse.type === 'Layout' || fileResponse.type === 'BusinessProcess') &&
+            fileResponse.filePath?.includes('%')
           ) &&
+          // namespaced labels and CMDT don't resolve correctly
+          !(['CustomLabels', 'CustomMetadata'].includes(fileResponse.type) && fileResponse.filePath?.includes('__')) &&
           // don't wait on workflow children
           !fileResponse.type.startsWith('Workflow') &&
           // aura xml aren't tracked as SourceMembers
@@ -538,11 +558,15 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       )
       .map((member) => {
         getMetadataKeyFromFileResponse(member)
-          // CustomObject could have been added by the key generator
           // remove some individual members known to not work with tracking even when their type does
           .filter(
             (key) =>
-              !key.startsWith('CustomObject') && key !== 'Profile__Standard' && key !== 'CustomTab__standard-home'
+              // CustomObject could have been re-added by the key generator from one of its fields
+              !key.startsWith('CustomObject') &&
+              key !== 'Profile__Standard' &&
+              key !== 'CustomTab__standard-home' &&
+              key !== 'AssignmentRules__Case' &&
+              key !== 'ListView__CollaborationGroup.All_ChatterGroups'
           )
           .map((key) => outstandingSourceMembers.set(key, member));
       });
