@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.1.2](https://github.com/forcedotcom/source-tracking/compare/v1.1.1...v1.1.2) (2022-03-02)
+
+### Bug Fixes
+
+- more metadata polling exclusions based on telemetry ([ae5adf3](https://github.com/forcedotcom/source-tracking/commit/ae5adf34600676f54c0e5efa2f5e7c96e2fd10f6))
+
 ### [1.1.1](https://github.com/forcedotcom/source-tracking/compare/v1.1.0...v1.1.1) (2022-02-23)
 
 ### Bug Fixes
