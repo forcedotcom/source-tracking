@@ -8,6 +8,7 @@
 
 import * as path from 'path';
 import * as os from 'os';
+import * as nodefs from 'fs';
 import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 import { pathIsInFolder } from './functions';
@@ -236,11 +237,16 @@ export class ShadowRepo {
     }
 
     try {
-      // stage changes
-      await Promise.all([
-        ...deployedFiles.map((filepath) => git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })),
-        ...deletedFiles.map((filepath) => git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })),
-      ]);
+      // stage de-duplicated files, looped handling to limit lock contention in isomorphic-git
+      const deployedFileSet = new Set(deployedFiles);
+      for (const filepath of Array.from(deployedFileSet.values())) {
+        await git.add({ fs: nodefs, dir: this.projectPath, gitdir: this.gitDir, filepath });
+      }
+
+      const deletedFileSet = new Set(deletedFiles);
+      for (const filepath of Array.from(deletedFileSet.values())) {
+        await git.remove({ fs: nodefs, dir: this.projectPath, gitdir: this.gitDir, filepath });
+      }
 
       const sha = await git.commit({
         fs,
