@@ -83,8 +83,8 @@ export const throwIfInvalid = ({
       messages.getMessage('sourceTrackingFileVersionMismatch', ['old']),
       'SourceTrackingFileVersionMismatch',
       [
-        messages.getMessage('useOtherVersion', ['old', replaceRenamedCommands(command)]),
-        messages.getMessage('clearSuggestion', ['old', replaceRenamedCommands('sfdx force:source:tracking:clear')]),
+        messages.getMessage('useOtherVersion', ['old', replaceRenamedCommands(command, true)]),
+        messages.getMessage('clearSuggestion', ['old', 'sfdx force:source:tracking:clear']),
       ]
     );
   }
