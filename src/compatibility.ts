@@ -67,12 +67,12 @@ export const throwIfInvalid = ({
   if (toValidate === 'toolbelt') {
     // some of the toolbelt commands aren't using SfdxCommand and the SfdxError actions won't be automatically displayed
     throw new SfdxError(
-      `${messages.getMessage('sourceTrackingFileVersionMismatch', ['new'])}\n\nTry this:\n${messages.getMessage(
+      `${messages.getMessage('sourceTrackingFileVersionMismatch', ['new/beta'])}\n\nTry this:\n${messages.getMessage(
         'useOtherVersion',
-        ['new', replaceRenamedCommands(command, true)]
+        ['new/beta', replaceRenamedCommands(command.replace(':legacy', ''))]
       )}.\n${messages.getMessage('clearSuggestion', [
-        'new',
-        replaceRenamedCommands('sfdx force:source:tracking:clear', true),
+        'new/beta',
+        replaceRenamedCommands('sfdx force:source:tracking:clear'),
       ])}.`,
       'SourceTrackingFileVersionMismatch'
     );
@@ -80,11 +80,11 @@ export const throwIfInvalid = ({
   // We expected it to be the plugin-source version but it is using the old tracking files
   if (toValidate === 'plugin-source') {
     throw new SfdxError(
-      messages.getMessage('sourceTrackingFileVersionMismatch', ['old']),
+      messages.getMessage('sourceTrackingFileVersionMismatch', ['old/legacy']),
       'SourceTrackingFileVersionMismatch',
       [
-        messages.getMessage('useOtherVersion', ['old', replaceRenamedCommands(command, true)]),
-        messages.getMessage('clearSuggestion', ['old', 'sfdx force:source:tracking:clear']),
+        messages.getMessage('useOtherVersion', ['old/legacy', replaceRenamedCommands(command, true)]),
+        messages.getMessage('clearSuggestion', ['old/legacy', 'sfdx force:source:tracking:clear']),
       ]
     );
   }
