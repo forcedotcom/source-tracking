@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.1.3](https://github.com/forcedotcom/source-tracking/compare/v1.1.2...v1.1.3) (2022-03-07)
+
+### Bug Fixes
+
+- revert beta/legacy mapping ([4d3380c](https://github.com/forcedotcom/source-tracking/commit/4d3380c74a72572a8c1e464c739c4d5b8af69442))
+
 ### [1.1.2](https://github.com/forcedotcom/source-tracking/compare/v1.1.1...v1.1.2) (2022-03-02)
 
 ### Bug Fixes
