@@ -83,8 +83,8 @@ export const throwIfInvalid = ({
       messages.getMessage('sourceTrackingFileVersionMismatch', ['old']),
       'SourceTrackingFileVersionMismatch',
       [
-        messages.getMessage('useOtherVersion', ['old', replaceRenamedCommands(command)]),
-        messages.getMessage('clearSuggestion', ['old', replaceRenamedCommands('sfdx force:source:tracking:clear')]),
+        messages.getMessage('useOtherVersion', ['old', replaceRenamedCommands(command, true)]),
+        messages.getMessage('clearSuggestion', ['old', 'sfdx force:source:tracking:clear']),
       ]
     );
   }
@@ -104,9 +104,9 @@ export const replaceRenamedCommands = (input: string, reverse = false): string =
 };
 
 const renames = new Map([
-  ['force:source:status', 'force:source:legacy:status'],
-  ['force:source:push', 'force:source:legacy:push'],
-  ['force:source:pull', 'force:source:legacy:pull'],
-  ['force:source:tracking:reset', 'force:source:legacy:tracking:reset'],
-  ['force:source:tracking:clear', 'force:source:legacy:tracking:clear'],
+  ['force:source:status', 'force:source:beta:status'],
+  ['force:source:push', 'force:source:beta:push'],
+  ['force:source:pull', 'force:source:beta:pull'],
+  ['force:source:tracking:reset', 'force:source:beta:tracking:reset'],
+  ['force:source:tracking:clear', 'force:source:beta:tracking:clear'],
 ]);
