@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.1.4](https://github.com/forcedotcom/source-tracking/compare/v1.1.3...v1.1.4) (2022-03-07)
+
+### Bug Fixes
+
+- clearer messaging and legacy accommodation ([9f14e0f](https://github.com/forcedotcom/source-tracking/commit/9f14e0f02c9df69018b396148b8b4c49c161bf4d))
+
 ### [1.1.3](https://github.com/forcedotcom/source-tracking/compare/v1.1.2...v1.1.3) (2022-03-07)
 
 ### Bug Fixes
