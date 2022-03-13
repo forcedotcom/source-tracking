@@ -235,11 +235,16 @@ export class ShadowRepo {
       deletedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
     }
 
+    const uniqueDeployedFiles = Array.from(new Set(deployedFiles));
+    const uniqueDeletedFiles = Array.from(new Set(deletedFiles));
+
     try {
       // stage changes
       await Promise.all([
-        ...deployedFiles.map((filepath) => git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })),
-        ...deletedFiles.map((filepath) => git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })),
+        ...uniqueDeployedFiles.map((filepath) => git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })),
+        ...uniqueDeletedFiles.map((filepath) =>
+          git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })
+        ),
       ]);
 
       const sha = await git.commit({
