@@ -8,10 +8,20 @@
 
 import * as path from 'path';
 import * as os from 'os';
-import { NamedPackageDir, Logger, fs } from '@salesforce/core';
+import * as fs from 'fs';
+import { PerformanceObserver, performance } from 'perf_hooks';
+import { NamedPackageDir, Logger } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 import { pathIsInFolder } from './functions';
+const obs = new PerformanceObserver((items) => {
+  const item = items.getEntries()[0];
+  console.log(`${item.name} : ${item.duration}`);
+  performance.clearMarks(item.name);
+});
 
+obs.observe({ type: 'measure' });
+
+const cache = {};
 const gitIgnoreFileName = '.gitignore';
 const stashedGitIgnoreFileName = '.BAK.gitignore';
 /**
@@ -42,6 +52,7 @@ interface CommitRequest {
   deployedFiles?: string[];
   deletedFiles?: string[];
   message?: string;
+  needsUpdatedStatus?: boolean;
 }
 
 export class ShadowRepo {
@@ -63,11 +74,14 @@ export class ShadowRepo {
 
   // think of singleton behavior but unique to the projectPath
   public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
+    performance.mark('start-instance');
     if (!ShadowRepo.instanceMap.has(options.projectPath)) {
       const newInstance = new ShadowRepo(options);
       await newInstance.init();
       ShadowRepo.instanceMap.set(options.projectPath, newInstance);
     }
+    performance.mark('end-instance');
+    performance.measure('getInstance', 'start-instance', 'end-instance');
     return ShadowRepo.instanceMap.get(options.projectPath) as ShadowRepo;
   }
 
@@ -114,6 +128,7 @@ export class ShadowRepo {
    * @returns StatusRow[]
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
+    performance.mark('start-status');
     if (!this.status || noCache) {
       try {
         // only ask about OS once but use twice
@@ -126,6 +141,7 @@ export class ShadowRepo {
         // status hasn't been initalized yet
         this.status = await git.statusMatrix({
           fs,
+          cache,
           dir: this.projectPath,
           gitdir: this.gitDir,
           filepaths,
@@ -147,6 +163,8 @@ export class ShadowRepo {
         await this.unStashIgnoreFile();
       }
     }
+    performance.mark('end-status');
+    performance.measure('getStatus', 'start-status', 'end-status');
     return this.status;
   }
 
@@ -217,15 +235,13 @@ export class ShadowRepo {
     deployedFiles = [],
     deletedFiles = [],
     message = 'sfdx source tracking',
+    needsUpdatedStatus = true,
   }: CommitRequest = {}): Promise<string> {
     // if no files are specified, commit all changes
     if (deployedFiles.length === 0 && deletedFiles.length === 0) {
       // this is valid, might not be an error
       return 'no files to commit';
     }
-
-    this.logger.debug('changes are', deployedFiles);
-    this.logger.debug('deletes are', deletedFiles);
 
     await this.stashIgnoreFile();
 
@@ -234,13 +250,21 @@ export class ShadowRepo {
       deployedFiles = deployedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
       deletedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
     }
-
     try {
-      // stage changes
-      await Promise.all([
-        ...deployedFiles.map((filepath) => git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })),
-        ...deletedFiles.map((filepath) => git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })),
-      ]);
+      performance.mark('start-add');
+      // for (const filepath of [...new Set(deployedFiles)]) {
+      // performance.mark(`item-add-${filepath}`);
+      await git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath: [...new Set(deployedFiles)], cache });
+      // performance.mark(`item-end-${filepath}`);
+      // performance.measure(`add-${filepath}`, `item-add-${filepath}`, `item-end-${filepath}`);
+      // }
+      performance.mark('end-add');
+      performance.measure('git add', 'start-add', 'end-add');
+
+      for (const filepath of [...new Set(deletedFiles)]) {
+        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
+      }
+      performance.mark('start-commit');
 
       const sha = await git.commit({
         fs,
@@ -248,9 +272,14 @@ export class ShadowRepo {
         gitdir: this.gitDir,
         message,
         author: { name: 'sfdx source tracking' },
+        cache,
       });
+      performance.mark('end-commit');
+      performance.measure('git commit', 'start-commit', 'end-commit');
       // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
-      await this.getStatus(true);
+      if (needsUpdatedStatus) {
+        await this.getStatus(true);
+      }
       return sha;
     } finally {
       await this.unStashIgnoreFile();
@@ -265,6 +294,7 @@ export class ShadowRepo {
         dir: this.projectPath,
         gitdir: this.gitDir,
         trees: [git.WORKDIR()],
+        cache,
         // eslint-disable-next-line @typescript-eslint/require-await
         map: async (filepath: string) => filepath,
       })) as string[]
@@ -290,4 +320,6 @@ export class ShadowRepo {
       )
     );
   }
+
+  // private async addMultipleFiles(files: string[]): Promise<void> {}
 }
