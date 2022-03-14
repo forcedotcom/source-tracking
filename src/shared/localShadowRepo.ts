@@ -13,7 +13,6 @@ import { NamedPackageDir, Logger } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 import { pathIsInFolder } from './functions';
 
-const cache = {};
 const gitIgnoreFileName = '.gitignore';
 const stashedGitIgnoreFileName = '.BAK.gitignore';
 /**
@@ -129,7 +128,6 @@ export class ShadowRepo {
         // status hasn't been initalized yet
         this.status = await git.statusMatrix({
           fs,
-          cache,
           dir: this.projectPath,
           gitdir: this.gitDir,
           filepaths,
@@ -238,11 +236,11 @@ export class ShadowRepo {
     }
     try {
       if (deployedFiles.length) {
-        await git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath: [...new Set(deployedFiles)], cache });
+        await git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath: [...new Set(deployedFiles)] });
       }
 
       for (const filepath of [...new Set(deletedFiles)]) {
-        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
+        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
       }
 
       const sha = await git.commit({
@@ -251,7 +249,6 @@ export class ShadowRepo {
         gitdir: this.gitDir,
         message,
         author: { name: 'sfdx source tracking' },
-        cache,
       });
       // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
       if (needsUpdatedStatus) {
@@ -271,7 +268,6 @@ export class ShadowRepo {
         dir: this.projectPath,
         gitdir: this.gitDir,
         trees: [git.WORKDIR()],
-        cache,
         // eslint-disable-next-line @typescript-eslint/require-await
         map: async (filepath: string) => filepath,
       })) as string[]
