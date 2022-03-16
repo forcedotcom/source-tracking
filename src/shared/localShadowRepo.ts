@@ -8,7 +8,8 @@
 
 import * as path from 'path';
 import * as os from 'os';
-import { NamedPackageDir, Logger, fs } from '@salesforce/core';
+import * as fs from 'fs';
+import { NamedPackageDir, Logger } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 import { pathIsInFolder } from './functions';
 
@@ -42,6 +43,7 @@ interface CommitRequest {
   deployedFiles?: string[];
   deletedFiles?: string[];
   message?: string;
+  needsUpdatedStatus?: boolean;
 }
 
 export class ShadowRepo {
@@ -217,15 +219,13 @@ export class ShadowRepo {
     deployedFiles = [],
     deletedFiles = [],
     message = 'sfdx source tracking',
+    needsUpdatedStatus = true,
   }: CommitRequest = {}): Promise<string> {
     // if no files are specified, commit all changes
     if (deployedFiles.length === 0 && deletedFiles.length === 0) {
       // this is valid, might not be an error
       return 'no files to commit';
     }
-
-    this.logger.debug('changes are', deployedFiles);
-    this.logger.debug('deletes are', deletedFiles);
 
     await this.stashIgnoreFile();
 
@@ -234,18 +234,14 @@ export class ShadowRepo {
       deployedFiles = deployedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
       deletedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
     }
-
-    const uniqueDeployedFiles = Array.from(new Set(deployedFiles));
-    const uniqueDeletedFiles = Array.from(new Set(deletedFiles));
-
     try {
-      // stage changes
-      await Promise.all([
-        ...uniqueDeployedFiles.map((filepath) => git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })),
-        ...uniqueDeletedFiles.map((filepath) =>
-          git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath })
-        ),
-      ]);
+      if (deployedFiles.length) {
+        await git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath: [...new Set(deployedFiles)] });
+      }
+
+      for (const filepath of [...new Set(deletedFiles)]) {
+        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
+      }
 
       const sha = await git.commit({
         fs,
@@ -255,7 +251,9 @@ export class ShadowRepo {
         author: { name: 'sfdx source tracking' },
       });
       // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
-      await this.getStatus(true);
+      if (needsUpdatedStatus) {
+        await this.getStatus(true);
+      }
       return sha;
     } finally {
       await this.unStashIgnoreFile();
