@@ -3382,10 +3382,10 @@ isexe@^2.0.0:
   resolved "https://registry.yarnpkg.com/isexe/-/isexe-2.0.0.tgz#e8fbf374dc556ff8947a10dcb0572d633f2cfa10"
   integrity sha1-6PvzdNxVb/iUehDcsFctYz8s+hA=
 
-isomorphic-git@^1.14.0:
-  version "1.14.0"
-  resolved "https://registry.yarnpkg.com/isomorphic-git/-/isomorphic-git-1.14.0.tgz#989bd4837eee243921085d6638f6fda6a6f4d4ee"
-  integrity sha512-YO9PPLnLLSZRQ/BMwnGZ78eAftaEzhoAAhCiI6zrgUq7NZF2V/lNYVtf2ypes7Bj8+SgOn/HCv1ssIaPw/PYsA==
+isomorphic-git@1.16.0:
+  version "1.16.0"
+  resolved "https://registry.yarnpkg.com/isomorphic-git/-/isomorphic-git-1.16.0.tgz#f4de2fd0e1c78bbbe03230fbefa88a84463e736a"
+  integrity sha512-pyYcMRp0125hmxsagSaAN63WgHd4x+4sR3eJ71+xdIN0aOij0q5ASPIN7jiJissUHx9/FE4dY73pzDehk+Xomw==
   dependencies:
     async-lock "^1.1.0"
     clean-git-ref "^2.0.1"
