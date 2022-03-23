@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.2.0](https://github.com/forcedotcom/source-tracking/compare/v1.1.7...v1.2.0) (2022-03-23)
+
+### Features
+
+- let isogit deal with ignore files ([#135](https://github.com/forcedotcom/source-tracking/issues/135)) ([1ddb2cd](https://github.com/forcedotcom/source-tracking/commit/1ddb2cdb8f23688f7bb4876a893097a85581f4c1))
+
+### Bug Fixes
+
+- ga tracking commands compatibility ([3a31a0d](https://github.com/forcedotcom/source-tracking/commit/3a31a0de448993c643ea4661a7a37772e46e8f51))
+- support pkgDir with ./foo ([3b46454](https://github.com/forcedotcom/source-tracking/commit/3b46454b3e57f653cbe80c66fbfee1cac121c2a8))
+
 ### [1.1.7](https://github.com/forcedotcom/source-tracking/compare/v1.1.6...v1.1.7) (2022-03-16)
 
 ### Bug Fixes
