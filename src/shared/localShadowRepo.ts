@@ -14,7 +14,6 @@ import * as git from 'isomorphic-git';
 import { pathIsInFolder } from './functions';
 
 const gitIgnoreFileName = '.gitignore';
-const stashedGitIgnoreFileName = '.BAK.gitignore';
 /**
  * returns the full path to where we store the shadow repo
  */
@@ -55,7 +54,6 @@ export class ShadowRepo {
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
-  private gitIgnoreLocations: string[] = [];
 
   private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
@@ -81,7 +79,6 @@ export class ShadowRepo {
       this.logger.debug('initializing git repo');
       await this.gitInit();
     }
-    await this.locateIgnoreFiles();
   }
 
   /**
@@ -117,36 +114,35 @@ export class ShadowRepo {
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     if (!this.status || noCache) {
-      try {
-        // only ask about OS once but use twice
-        const isWindows = os.type() === 'Windows_NT';
-        await this.stashIgnoreFile();
-        const filepaths = isWindows
-          ? // iso-git uses posix paths, but packageDirs has already normalized them so we need to convert if windows
-            this.packageDirs.map((dir) => dir.path.split(path.sep).join(path.posix.sep))
-          : this.packageDirs.map((dir) => dir.path);
-        // status hasn't been initalized yet
-        this.status = await git.statusMatrix({
-          fs,
-          dir: this.projectPath,
-          gitdir: this.gitDir,
-          filepaths,
-          filter: (f) =>
-            // no hidden files
-            !f.includes(`${path.sep}.`) &&
-            // no lwc tests
-            !f.includes('__tests__') &&
-            // no gitignore files
-            ![gitIgnoreFileName, stashedGitIgnoreFileName].includes(path.basename(f)) &&
-            // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-            filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir)),
-        });
-        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-        if (isWindows) {
-          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
-        }
-      } finally {
-        await this.unStashIgnoreFile();
+      // only ask about OS once but use twice
+      const isWindows = os.type() === 'Windows_NT';
+      // iso-git uses relative, posix paths
+      // but packageDirs has already resolved / normalized them
+      // so we need to make them project-relative again and convert if windows
+      const filepaths = this.packageDirs
+        .map((dir) => path.relative(this.projectPath, dir.fullPath))
+        .map((p) => (isWindows ? p.split(path.sep).join(path.posix.sep) : p));
+
+      // status hasn't been initalized yet
+      this.status = await git.statusMatrix({
+        fs,
+        dir: this.projectPath,
+        gitdir: this.gitDir,
+        filepaths,
+        ignored: true,
+        filter: (f) =>
+          // no hidden files
+          !f.includes(`${path.sep}.`) &&
+          // no lwc tests
+          !f.includes('__tests__') &&
+          // no gitignore files
+          !f.endsWith(gitIgnoreFileName) &&
+          // isogit uses `startsWith` for filepaths so it's possible to get a false positive
+          filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir)),
+      });
+      // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+      if (isWindows) {
+        this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
       }
     }
     return this.status;
@@ -227,70 +223,37 @@ export class ShadowRepo {
       return 'no files to commit';
     }
 
-    await this.stashIgnoreFile();
-
     // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
     if (os.type() === 'Windows_NT') {
       deployedFiles = deployedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
       deletedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
     }
-    try {
-      if (deployedFiles.length) {
-        await git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath: [...new Set(deployedFiles)] });
-      }
 
-      for (const filepath of [...new Set(deletedFiles)]) {
-        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
-      }
-
-      const sha = await git.commit({
+    if (deployedFiles.length) {
+      await git.add({
         fs,
         dir: this.projectPath,
         gitdir: this.gitDir,
-        message,
-        author: { name: 'sfdx source tracking' },
+        filepath: [...new Set(deployedFiles)],
+        force: true,
       });
-      // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
-      if (needsUpdatedStatus) {
-        await this.getStatus(true);
-      }
-      return sha;
-    } finally {
-      await this.unStashIgnoreFile();
     }
-  }
 
-  private async locateIgnoreFiles(): Promise<void> {
-    // set the gitIgnoreLocations so we only have to do it once
-    this.gitIgnoreLocations = (
-      (await git.walk({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        trees: [git.WORKDIR()],
-        // eslint-disable-next-line @typescript-eslint/require-await
-        map: async (filepath: string) => filepath,
-      })) as string[]
-    )
-      .filter((filepath) => filepath.includes(gitIgnoreFileName))
-      .map((ignoreFile) => path.join(this.projectPath, ignoreFile));
-  }
+    for (const filepath of [...new Set(deletedFiles)]) {
+      await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
+    }
 
-  private async stashIgnoreFile(): Promise<void> {
-    // allSettled allows them to fail (example, the file wasn't where it was expected).
-    await Promise.allSettled(
-      this.gitIgnoreLocations.map((originalLocation) =>
-        fs.promises.rename(originalLocation, originalLocation.replace(gitIgnoreFileName, stashedGitIgnoreFileName))
-      )
-    );
-  }
-
-  private async unStashIgnoreFile(): Promise<void> {
-    // allSettled allows them to fail (example, the file wasn't where it was expected).
-    await Promise.allSettled(
-      this.gitIgnoreLocations.map((originalLocation) =>
-        fs.promises.rename(originalLocation.replace(gitIgnoreFileName, stashedGitIgnoreFileName), originalLocation)
-      )
-    );
+    const sha = await git.commit({
+      fs,
+      dir: this.projectPath,
+      gitdir: this.gitDir,
+      message,
+      author: { name: 'sfdx source tracking' },
+    });
+    // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
+    if (needsUpdatedStatus) {
+      await this.getStatus(true);
+    }
+    return sha;
   }
 }

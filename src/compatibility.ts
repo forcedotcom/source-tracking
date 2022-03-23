@@ -73,6 +73,7 @@ export const throwIfInvalid = ({
       )}.\n${messages.getMessage('clearSuggestion', [
         'new/beta',
         replaceRenamedCommands('sfdx force:source:tracking:clear'),
+        replaceRenamedCommands('sfdx force:source:tracking:reset', true),
       ])}.`,
       'SourceTrackingFileVersionMismatch'
     );
@@ -84,7 +85,11 @@ export const throwIfInvalid = ({
       'SourceTrackingFileVersionMismatch',
       [
         messages.getMessage('useOtherVersion', ['old/legacy', replaceRenamedCommands(command, true)]),
-        messages.getMessage('clearSuggestion', ['old/legacy', 'sfdx force:source:tracking:clear']),
+        messages.getMessage('clearSuggestion', [
+          'old/legacy',
+          'sfdx force:source:legacy:tracking:clear',
+          'sfdx force:source:tracking:reset',
+        ]),
       ]
     );
   }
@@ -104,9 +109,9 @@ export const replaceRenamedCommands = (input: string, reverse = false): string =
 };
 
 const renames = new Map([
-  ['force:source:status', 'force:source:beta:status'],
-  ['force:source:push', 'force:source:beta:push'],
-  ['force:source:pull', 'force:source:beta:pull'],
-  ['force:source:tracking:reset', 'force:source:beta:tracking:reset'],
-  ['force:source:tracking:clear', 'force:source:beta:tracking:clear'],
+  ['force:source:legacy:status', 'force:source:status'],
+  ['force:source:legacy:push', 'force:source:push'],
+  ['force:source:legacy:pull', 'force:source:pull'],
+  ['force:source:legacy:tracking:reset', 'force:source:tracking:reset'],
+  ['force:source:legacy:tracking:clear', 'force:source:tracking:clear'],
 ]);
