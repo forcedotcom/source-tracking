@@ -116,10 +116,13 @@ export class ShadowRepo {
     if (!this.status || noCache) {
       // only ask about OS once but use twice
       const isWindows = os.type() === 'Windows_NT';
-      const filepaths = isWindows
-        ? // iso-git uses posix paths, but packageDirs has already normalized them so we need to convert if windows
-          this.packageDirs.map((dir) => dir.path.split(path.sep).join(path.posix.sep))
-        : this.packageDirs.map((dir) => dir.path);
+      // iso-git uses relative, posix paths
+      // but packageDirs has already resolved / normalized them
+      // so we need to make them project-relative again and convert if windows
+      const filepaths = this.packageDirs
+        .map((dir) => path.relative(this.projectPath, dir.fullPath))
+        .map((p) => (isWindows ? p.split(path.sep).join(path.posix.sep) : p));
+
       // status hasn't been initalized yet
       this.status = await git.statusMatrix({
         fs,
