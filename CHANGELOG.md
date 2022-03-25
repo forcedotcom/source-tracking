@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.3.0](https://github.com/forcedotcom/source-tracking/compare/v1.2.0...v1.3.0) (2022-03-25)
+
+### Features
+
+- gracful-fs for EMFILE: too many open files ([1573828](https://github.com/forcedotcom/source-tracking/commit/1573828f5b3cf5f4f8b2023ff31b5764214d4b06))
+
 ## [1.2.0](https://github.com/forcedotcom/source-tracking/compare/v1.1.7...v1.2.0) (2022-03-23)
 
 ### Features
