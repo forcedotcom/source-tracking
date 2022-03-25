@@ -60,7 +60,7 @@ export class ShadowRepo {
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';
-    this.maxFileAdd = this.isWindows ? 15000 : 1000;
+    this.maxFileAdd = this.isWindows ? 8000 : 15000;
   }
 
   // think of singleton behavior but unique to the projectPath
