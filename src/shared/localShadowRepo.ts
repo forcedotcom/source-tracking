@@ -4,11 +4,10 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-/* eslint-disable no-console */
 
 import * as path from 'path';
 import * as os from 'os';
-import * as fs from 'fs';
+import * as fs from 'graceful-fs';
 import { NamedPackageDir, Logger } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 import { pathIsInFolder } from './functions';
