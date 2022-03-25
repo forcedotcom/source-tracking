@@ -12,11 +12,6 @@ import { NamedPackageDir, Logger, SfdxError } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 import { chunkArray, pathIsInFolder } from './functions';
 
-const gitIgnoreFileName = '.gitignore';
-
-/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
-const maxFileAdd = 10000;
-
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string => {
   return path.join(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
@@ -55,11 +50,17 @@ export class ShadowRepo {
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
+  private isWindows: boolean;
+
+  /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
+  private maxFileAdd: number;
 
   private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
+    this.isWindows = os.type() === 'Windows_NT';
+    this.maxFileAdd = this.isWindows ? 15000 : 7500;
   }
 
   // think of singleton behavior but unique to the projectPath
@@ -115,14 +116,12 @@ export class ShadowRepo {
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     if (!this.status || noCache) {
-      // only ask about OS once but use twice
-      const isWindows = os.type() === 'Windows_NT';
       // iso-git uses relative, posix paths
       // but packageDirs has already resolved / normalized them
       // so we need to make them project-relative again and convert if windows
       const filepaths = this.packageDirs
         .map((dir) => path.relative(this.projectPath, dir.fullPath))
-        .map((p) => (isWindows ? p.split(path.sep).join(path.posix.sep) : p));
+        .map((p) => (this.isWindows ? p.split(path.sep).join(path.posix.sep) : p));
 
       // status hasn't been initalized yet
       this.status = await git.statusMatrix({
@@ -137,12 +136,12 @@ export class ShadowRepo {
           // no lwc tests
           !f.includes('__tests__') &&
           // no gitignore files
-          !f.endsWith(gitIgnoreFileName) &&
+          !f.endsWith('.gitignore') &&
           // isogit uses `startsWith` for filepaths so it's possible to get a false positive
           filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir)),
       });
       // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-      if (isWindows) {
+      if (this.isWindows) {
         this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
       }
     }
@@ -231,7 +230,7 @@ export class ShadowRepo {
     }
 
     if (deployedFiles.length) {
-      const chunks = chunkArray([...new Set(deployedFiles)], maxFileAdd);
+      const chunks = chunkArray([...new Set(deployedFiles)], this.maxFileAdd);
       for (const chunk of chunks) {
         try {
           await git.add({
