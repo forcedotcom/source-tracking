@@ -8,14 +8,16 @@
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'graceful-fs';
-import { NamedPackageDir, Logger } from '@salesforce/core';
+import { NamedPackageDir, Logger, SfdxError } from '@salesforce/core';
 import * as git from 'isomorphic-git';
-import { pathIsInFolder } from './functions';
+import { chunkArray, pathIsInFolder } from './functions';
 
 const gitIgnoreFileName = '.gitignore';
-/**
- * returns the full path to where we store the shadow repo
- */
+
+/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
+const maxFileAdd = 10000;
+
+/** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string => {
   return path.join(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
 };
@@ -229,13 +231,26 @@ export class ShadowRepo {
     }
 
     if (deployedFiles.length) {
-      await git.add({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        filepath: [...new Set(deployedFiles)],
-        force: true,
-      });
+      const chunks = chunkArray([...new Set(deployedFiles)], maxFileAdd);
+      for (const chunk of chunks) {
+        try {
+          await git.add({
+            fs,
+            dir: this.projectPath,
+            gitdir: this.gitDir,
+            filepath: chunk,
+            force: true,
+          });
+        } catch (e) {
+          if (e instanceof git.Errors.MultipleGitError) {
+            this.logger.error('multiple errors on git.add', e.errors.slice(0, 5));
+            const error = new SfdxError(e.message, e.name, [], 1);
+            error.setData(e.errors);
+            throw error;
+          }
+          throw e;
+        }
+      }
     }
 
     for (const filepath of [...new Set(deletedFiles)]) {

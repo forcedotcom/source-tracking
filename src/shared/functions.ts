@@ -38,3 +38,7 @@ export const pathIsInFolder = (filePath: string, folder: string): boolean => {
 const nonEmptyStringFilter = (value: string): boolean => {
   return isString(value) && value.length > 0;
 };
+
+// adapted for TS from https://github.com/30-seconds/30-seconds-of-code/blob/master/snippets/chunk.md
+export const chunkArray = <T>(arr: T[], size: number): T[][] =>
+  Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
