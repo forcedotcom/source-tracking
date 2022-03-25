@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.3.1](https://github.com/forcedotcom/source-tracking/compare/v1.3.0...v1.3.1) (2022-03-25)
+
+### Bug Fixes
+
+- tracking really large repos in chunks, lower limit for windows ([0cb2ce5](https://github.com/forcedotcom/source-tracking/commit/0cb2ce5f3b65b8be9f4e4210aba010e919f692a3))
+
 ## [1.3.0](https://github.com/forcedotcom/source-tracking/compare/v1.2.0...v1.3.0) (2022-03-25)
 
 ### Features
