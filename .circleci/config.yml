@@ -148,7 +148,13 @@ workflows:
                 - lts
           requires:
             - release-management/test-package
+          context:
+            - salesforce-cli-na40-auth-url
+            - salesforce-cli-na40-jwt
       - external-nut:
+          context:
+            - salesforce-cli-na40-auth-url
+            - salesforce-cli-na40-jwt
           filters:
             branches:
               # we don't run again on main because
@@ -182,6 +188,7 @@ workflows:
           filters:
             branches:
               only: main
+          context: salesforce-cli
   test-ts-update:
     triggers:
       - schedule:
@@ -201,4 +208,5 @@ workflows:
               only:
                 - main
     jobs:
-      - release-management/dependabot-automerge
+      - release-management/dependabot-automerge:
+          context: salesforce-cli
