@@ -172,6 +172,34 @@ export class SourceTracking extends AsyncCreatable {
       .filter((componentSet) => componentSet.size > 0);
   }
 
+  public async remoteNonDeletesAsComponentSet(): Promise<ComponentSet> {
+    const [changeResults, sourceBackedComponents] = await Promise.all([
+      // all changes based on remote tracking
+      this.getChanges<ChangeResult>({
+        origin: 'remote',
+        state: 'nondelete',
+        format: 'ChangeResult',
+      }),
+      // only returns source-backed components (SBC)
+      this.getChanges<SourceComponent>({
+        origin: 'remote',
+        state: 'nondelete',
+        format: 'SourceComponent',
+      }),
+    ]);
+    const componentSet = new ComponentSet(sourceBackedComponents);
+    // there may be remote adds not in the SBC.  So we add those manually
+    changeResults.forEach((cr) => {
+      if (cr.type && cr.name && !componentSet.has({ type: cr.type, fullName: cr.name })) {
+        componentSet.add({
+          type: cr.type,
+          fullName: cr.name,
+        });
+      }
+    });
+
+    return componentSet;
+  }
   /**
    * Does most of the work for the force:source:status command.
    * Outputs need a bit of massage since this aims to provide nice json.
