@@ -299,7 +299,7 @@ export class SourceTracking extends AsyncCreatable {
         }))
       );
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-        fsPaths: this.packagesDirs.map((dir) => resolve(dir.path)),
+        fsPaths: this.packagesDirs.map((dir) => resolve(dir.fullPath)),
         include: remoteChangesAsComponentSet,
       });
       if (options.format === 'string') {
