@@ -606,9 +606,9 @@
     ts-retry-promise "^0.6.0"
 
 "@salesforce/core@^2.24.0", "@salesforce/core@^2.33.1", "@salesforce/core@^2.35.0":
-  version "2.36.0"
-  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-2.36.0.tgz#eadade3d663f0a2e11d0cc9f9097c528c182997d"
-  integrity sha512-VsKt7SXArxrOelaJl5Ez21Pmtdp2eU6qimqZ5clxnNaZDZKOySDPYnKHu7AYCt1LUNFN9cfsX8K5yOHxS+wT+w==
+  version "2.36.4"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-2.36.4.tgz#1e683bb06ca60356f7a8376d0ac022c526781587"
+  integrity sha512-h2wCbKJJbsULinbk9JgW1ZGHiuxGwjzSqRjxx5S1Zou2ikHFjNnlfUvLPexc42m3unoCbLmtwUExlXsY5l0N0g==
   dependencies:
     "@salesforce/bunyan" "^2.0.0"
     "@salesforce/kit" "^1.5.17"
@@ -617,12 +617,12 @@
     "@types/graceful-fs" "^4.1.5"
     "@types/jsforce" "^1.9.41"
     "@types/mkdirp" "^1.0.1"
+    ajv "^8.11.0"
     archiver "^5.3.0"
     debug "^3.1.0"
     faye "^1.4.0"
     graceful-fs "^4.2.4"
     js2xmlparser "^4.0.1"
-    jsen "0.6.6"
     jsforce "^1.11.0"
     jsonwebtoken "8.5.0"
     mkdirp "1.0.4"
@@ -693,10 +693,10 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.1.0.tgz#bbf94a11ee036f2b0ec6ba82306cd9565a6ba26b"
   integrity sha512-6D7DvE6nFxpLyyTnrOIbbAeCJw2r/EpinFAcMh6gU0gA/CGfSbwV/8uR3uHLYL2zCyCZLH8jJ4dZ3BzCMqc+Eg==
 
-"@salesforce/source-deploy-retrieve@^5.9.4":
-  version "5.12.6"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-5.12.6.tgz#0f5f06744b0c4f9718a3103ba683804e44b2b1e3"
-  integrity sha512-IPz5frvGsUf6ccmxiyMabM6TOsagLpn+SgMTFu7PcsL4kiBw7aeu+4abQdBaOirEx1Fp5W5Epz0vAtiB2rVaBA==
+"@salesforce/source-deploy-retrieve@^5.12.12":
+  version "5.12.12"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-5.12.12.tgz#3425ccb100a1f17f0dd7f8153af25a003bf9982d"
+  integrity sha512-XND/uJn7n0m38aJJ60MKy8alUP6Vg7WILm9NNb2Xh4Cu2agPpTOxru6pn32UKdNbjMMaxD7NmrAIk58eHm6sWw==
   dependencies:
     "@salesforce/core" "^2.35.0"
     "@salesforce/kit" "^1.5.32"
@@ -1043,10 +1043,10 @@ ajv@^6.10.0, ajv@^6.12.3, ajv@^6.12.4:
     json-schema-traverse "^0.4.1"
     uri-js "^4.2.2"
 
-ajv@^8.0.1:
-  version "8.6.2"
-  resolved "https://registry.yarnpkg.com/ajv/-/ajv-8.6.2.tgz#2fb45e0e5fcbc0813326c1c3da535d1881bb0571"
-  integrity sha512-9807RlWAgT564wT+DjeyU5OFMPjmzxVobvDFmNAhY+5zD6A2ly3jDp6sgnfyDtlIQ+7H97oc/DGCzzfu9rjw9w==
+ajv@^8.0.1, ajv@^8.11.0:
+  version "8.11.0"
+  resolved "https://registry.yarnpkg.com/ajv/-/ajv-8.11.0.tgz#977e91dd96ca669f54a11e23e378e33b884a565f"
+  integrity sha512-wGgprdCvMalC0BztXvitD2hC04YffAvtsUn93JbGXYLAtCUO4xd17mCCZQxUOItiBwZvJScWo8NIvQMQ71rdpg==
   dependencies:
     fast-deep-equal "^3.1.1"
     json-schema-traverse "^1.0.0"
@@ -3511,11 +3511,6 @@ jsdoc-type-pratt-parser@~2.2.3:
   version "2.2.3"
   resolved "https://registry.yarnpkg.com/jsdoc-type-pratt-parser/-/jsdoc-type-pratt-parser-2.2.3.tgz#3910cd0120054a512a73942d644ef1eb5a9df6e9"
   integrity sha512-QPyxq62Q8veBSDtDrWmqaEPjSCeknUV9dH/OAGt3q9an8qC8UQDqitQiw1NvoMskIESpoRZ6qzt4H3rlK0xo8A==
-
-jsen@0.6.6:
-  version "0.6.6"
-  resolved "https://registry.yarnpkg.com/jsen/-/jsen-0.6.6.tgz#0240c18cf11350ac021456f48a7eb13bd67e0420"
-  integrity sha1-AkDBjPETUKwCFFb0in6xO9Z+BCA=
 
 jsesc@^2.5.1:
   version "2.5.2"
