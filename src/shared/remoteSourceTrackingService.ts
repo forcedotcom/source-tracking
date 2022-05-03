@@ -522,6 +522,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
     expectedMembers
       .filter(
+        // eslint-disable-next-line complexity
         (fileResponse) =>
           // unchanged files will never be in the sourceMembers.  Not really sure why SDR returns them.
           fileResponse.state !== ComponentStatus.Unchanged &&
@@ -544,6 +545,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
           !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('__c')) &&
           // deleted fields
           !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('_del__c')) &&
+          // built-in report type ReportType__screen_flows_prebuilt_crt
+          !(fileResponse.type === 'ReportType' && fileResponse.filePath?.includes('screen_flows_prebuilt_crt')) &&
           // they're settings to mdapi, and FooSettings in sourceMembers
           !fileResponse.type.includes('Settings') &&
           // mdapi encodes these, sourceMembers don't have encoding
@@ -551,6 +554,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
             (fileResponse.type === 'Layout' ||
               fileResponse.type === 'BusinessProcess' ||
               fileResponse.type === 'Profile' ||
+              fileResponse.type === 'HomePageComponent' ||
               fileResponse.type === 'HomePageLayout') &&
             fileResponse.filePath?.includes('%')
           ) &&
