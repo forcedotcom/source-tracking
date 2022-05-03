@@ -513,10 +513,13 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
   }
 
+  /**
+   * Filter out known source tracking issues
+   * This prevents the polling from waiting on things that may never return
+   */
   private calculateExpectedSourceMembers(expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> {
     const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
 
-    // filter known Source tracking issues
     expectedMembers
       .filter(
         (fileResponse) =>
