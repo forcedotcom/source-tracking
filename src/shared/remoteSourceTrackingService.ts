@@ -539,11 +539,16 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
           ].includes(fileResponse.type) &&
           // don't wait for standard fields on standard objects
           !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('__c')) &&
+          // deleted fields
+          !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('_del__c')) &&
           // they're settings to mdapi, and FooSettings in sourceMembers
           !fileResponse.type.includes('Settings') &&
           // mdapi encodes these, sourceMembers don't have encoding
           !(
-            (fileResponse.type === 'Layout' || fileResponse.type === 'BusinessProcess') &&
+            (fileResponse.type === 'Layout' ||
+              fileResponse.type === 'BusinessProcess' ||
+              fileResponse.type === 'Profile' ||
+              fileResponse.type === 'HomePageLayout') &&
             fileResponse.filePath?.includes('%')
           ) &&
           // namespaced labels and CMDT don't resolve correctly
