@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.5.0](https://github.com/forcedotcom/source-tracking/compare/v1.4.2...v1.5.0) (2022-05-04)
+
+### Features
+
+- polling optimizations ([e39afd4](https://github.com/forcedotcom/source-tracking/commit/e39afd409ffa321ac7cf91aab3f850dea5dcb45e))
+
+### Bug Fixes
+
+- 2 more types ([c5554f1](https://github.com/forcedotcom/source-tracking/commit/c5554f18c21283c85589ab0ea1c9e632be1bbeaf))
+
 ### [1.4.2](https://github.com/forcedotcom/source-tracking/compare/v1.4.1...v1.4.2) (2022-04-29)
 
 ### Bug Fixes
