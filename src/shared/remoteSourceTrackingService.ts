@@ -513,12 +513,16 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
   }
 
+  /**
+   * Filter out known source tracking issues
+   * This prevents the polling from waiting on things that may never return
+   */
   private calculateExpectedSourceMembers(expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> {
     const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
 
-    // filter known Source tracking issues
     expectedMembers
       .filter(
+        // eslint-disable-next-line complexity
         (fileResponse) =>
           // unchanged files will never be in the sourceMembers.  Not really sure why SDR returns them.
           fileResponse.state !== ComponentStatus.Unchanged &&
@@ -539,11 +543,19 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
           ].includes(fileResponse.type) &&
           // don't wait for standard fields on standard objects
           !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('__c')) &&
+          // deleted fields
+          !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('_del__c')) &&
+          // built-in report type ReportType__screen_flows_prebuilt_crt
+          !(fileResponse.type === 'ReportType' && fileResponse.filePath?.includes('screen_flows_prebuilt_crt')) &&
           // they're settings to mdapi, and FooSettings in sourceMembers
           !fileResponse.type.includes('Settings') &&
           // mdapi encodes these, sourceMembers don't have encoding
           !(
-            (fileResponse.type === 'Layout' || fileResponse.type === 'BusinessProcess') &&
+            (fileResponse.type === 'Layout' ||
+              fileResponse.type === 'BusinessProcess' ||
+              fileResponse.type === 'Profile' ||
+              fileResponse.type === 'HomePageComponent' ||
+              fileResponse.type === 'HomePageLayout') &&
             fileResponse.filePath?.includes('%')
           ) &&
           // namespaced labels and CMDT don't resolve correctly
