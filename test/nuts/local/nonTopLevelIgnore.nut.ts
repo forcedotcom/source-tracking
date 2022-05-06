@@ -6,10 +6,9 @@
  */
 import * as path from 'path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
-import { fs } from '@salesforce/core';
 import { expect } from 'chai';
+import * as fs from 'graceful-fs';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
-
 describe('handles non-top-level ignore inside project dir', () => {
   let session: TestSession;
   let repo: ShadowRepo;

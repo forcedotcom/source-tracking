@@ -6,7 +6,7 @@
  */
 import * as path from 'path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
-import { fs } from '@salesforce/core';
+import * as fs from 'graceful-fs';
 import { expect } from 'chai';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 

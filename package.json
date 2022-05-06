@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "author": "Salesforce",
   "license": "BSD-3-Clause",
   "main": "lib/index.js",
@@ -43,7 +43,7 @@
     "/oclif.manifest.json"
   ],
   "dependencies": {
-    "@salesforce/core": "^2.33.1",
+    "@salesforce/core": "^3.16.0",
     "@salesforce/kit": "^1.5.17",
     "@salesforce/source-deploy-retrieve": "^5.12.12",
     "graceful-fs": "^4.2.9",

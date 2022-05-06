@@ -10,7 +10,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { ConfigFile, Logger, Org, SfdxError, Messages, Lifecycle } from '@salesforce/core';
+import { ConfigFile, Logger, Org, SfdxError, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, Duration } from '@salesforce/kit';
@@ -620,7 +620,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
     // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
     const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter > ${rev}`;
-    const queryResult = await this.query<SourceMember>(query, quiet);
+    const queryResult = await this.query(query, quiet);
     this.queryCache.set(rev, queryResult);
 
     return queryResult;
@@ -628,21 +628,23 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
   private async querySourceMembersTo(toRevision: number, quiet = false): Promise<SourceMember[]> {
     const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
-    return this.query<SourceMember>(query, quiet);
+    return this.query(query, quiet);
   }
 
-  private async query<T>(query: string, quiet = false): Promise<T[]> {
+  private async query(query: string, quiet = false): Promise<SourceMember[]> {
     if (!this.isSourceTrackedOrg) {
       Messages.importMessagesDirectory(__dirname);
-      this.messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
-      throw SfdxError.create('@salesforce/source-tracking', 'source', 'NonSourceTrackedOrgError');
+      const messages = Messages.load('@salesforce/source-tracking', 'source', ['NonSourceTrackedOrgError']);
+      throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
     }
     if (!quiet) {
       this.logger.debug(query);
     }
 
     try {
-      const results = await this.org.getConnection().tooling.autoFetchQuery<T>(query, { maxFetch: 50000 });
+      const results = await this.org.getConnection().tooling.query<SourceMember>(query, {
+        autoFetch: true,
+      });
       return results.records;
     } catch (error) {
       throw SfdxError.wrap(error as Error);

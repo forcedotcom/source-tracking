@@ -9,7 +9,11 @@ import * as path from 'path';
 import { Org, SfdxError, Messages } from '@salesforce/core';
 
 Messages.importMessagesDirectory(__dirname);
-const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'compatibility');
+const messages = Messages.load('@salesforce/source-tracking', 'compatibility', [
+  'sourceTrackingFileVersionMismatch',
+  'clearSuggestion',
+  'useOtherVersion',
+]);
 
 type TrackingFileVersion = 'plugin-source' | 'toolbelt' | 'none';
 /**

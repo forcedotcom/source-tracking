@@ -7,7 +7,7 @@
 import * as path from 'path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
-import { fs } from '@salesforce/core';
+import * as fs from 'graceful-fs';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
 const dirCount = 200;
