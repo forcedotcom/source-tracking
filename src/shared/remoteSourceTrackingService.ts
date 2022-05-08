@@ -19,10 +19,10 @@ import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataT
 import { getMetadataKey } from './functions';
 
 // represents the contents of the config file stored in 'maxRevision.json'
-interface Contents {
+type Contents = {
   serverMaxRevisionCounter: number;
   sourceMembers: Dictionary<MemberRevision>;
-}
+};
 
 /*
  * after some results have returned, how many times should we poll for missing sourcemembers
@@ -77,7 +77,7 @@ export namespace RemoteSourceTrackingService {
  * to the corresponding `RevisionCounter` from the `SourceMember` of the org.
  */
 // eslint-disable-next-line no-redeclare
-export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTrackingService.Options> {
+export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTrackingService.Options, Contents> {
   private static remoteSourceTrackingServiceDictionary: Dictionary<RemoteSourceTrackingService> = {};
   protected logger!: Logger;
   private org!: Org;
@@ -143,7 +143,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       throw SfError.wrap(err as Error);
     }
 
-    const contents = this.getTypedContents();
+    const contents = this.getContents();
     // Initialize a new maxRevision.json if the file doesn't yet exist.
     if (!contents.serverMaxRevisionCounter && !contents.sourceMembers) {
       try {
@@ -290,11 +290,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    this.getTypedContents().sourceMembers[key] = sourceMember;
-  }
-
-  private getTypedContents(): Contents {
-    return this.getContents() as unknown as Contents;
+    this.getContents().sourceMembers[key] = sourceMember;
   }
 
   // Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
