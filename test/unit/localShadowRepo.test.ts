@@ -37,6 +37,7 @@ describe('localShadowRepo', () => {
             path: path.join(projectDir, 'force-app'),
           },
         ],
+        hasSfdxTrackingFiles: false,
       });
 
       const gitAdd = sinon.spy(git, 'add');

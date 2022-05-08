@@ -27,6 +27,7 @@ describe('handles non-top-level ignore inside project dir', () => {
       orgId: 'fakeOrgId2',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'classes', name: 'classes', fullPath: path.join(session.project.dir, 'classes') }],
+      hasSfdxTrackingFiles: false,
     });
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));
@@ -61,6 +62,7 @@ describe('handles non-top-level ignore outside project dir', () => {
       orgId: 'fakeOrgId2',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'classes', name: 'classes', fullPath: path.join(session.project.dir, 'classes') }],
+      hasSfdxTrackingFiles: false,
     });
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));

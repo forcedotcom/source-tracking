@@ -16,6 +16,10 @@ const messages = Messages.load('@salesforce/source-tracking', 'compatibility', [
 ]);
 
 type TrackingFileVersion = 'plugin-source' | 'toolbelt' | 'none';
+
+export const hasSfdxTrackingFiles = (orgId: string, projectPath: string): boolean =>
+  fs.existsSync(path.join(projectPath, '.sfdx', 'orgs', orgId));
+
 /**
  * A project can have "old" (toolbelt), "new" (plugin-source) or "none" tracking files
  *

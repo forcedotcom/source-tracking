@@ -13,8 +13,8 @@ import * as git from 'isomorphic-git';
 import { chunkArray, pathIsInFolder } from './functions';
 
 /** returns the full path to where we store the shadow repo */
-const getGitDir = (orgId: string, projectPath: string): string => {
-  return path.join(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
+const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string => {
+  return path.join(projectPath, useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, 'localSourceTracking');
 };
 
 // filenames were normalized when read from isogit
@@ -24,6 +24,7 @@ interface ShadowRepoOptions {
   orgId: string;
   projectPath: string;
   packageDirs: NamedPackageDir[];
+  hasSfdxTrackingFiles: boolean;
 }
 
 // https://isomorphic-git.org/docs/en/statusMatrix#docsNav
@@ -56,7 +57,7 @@ export class ShadowRepo {
   private maxFileAdd: number;
 
   private constructor(options: ShadowRepoOptions) {
-    this.gitDir = getGitDir(options.orgId, options.projectPath);
+    this.gitDir = getGitDir(options.orgId, options.projectPath, options.hasSfdxTrackingFiles);
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';

@@ -17,7 +17,6 @@ import { env, Duration } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
-
 // represents the contents of the config file stored in 'maxRevision.json'
 type Contents = {
   serverMaxRevisionCounter: number;
@@ -34,9 +33,9 @@ const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
 export namespace RemoteSourceTrackingService {
   // Constructor Options for RemoteSourceTrackingService.
   export interface Options extends ConfigFile.Options {
-    orgId: string;
-    /** only used for connecting to the org */
-    username: string;
+    org: Org;
+    projectPath: string;
+    useSfdxTrackingFiles: boolean;
   }
 }
 
@@ -98,18 +97,19 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * @returns {Promise<RemoteSourceTrackingService>} the remoteSourceTrackingService object for the given username
    */
   public static async getInstance(options: RemoteSourceTrackingService.Options): Promise<RemoteSourceTrackingService> {
-    if (!this.remoteSourceTrackingServiceDictionary[options.orgId]) {
-      this.remoteSourceTrackingServiceDictionary[options.orgId] = await RemoteSourceTrackingService.create(options);
+    const orgId = options.org.getOrgId();
+    if (!this.remoteSourceTrackingServiceDictionary[orgId]) {
+      this.remoteSourceTrackingServiceDictionary[orgId] = await RemoteSourceTrackingService.create(options);
     }
-    return this.remoteSourceTrackingServiceDictionary[options.orgId] as RemoteSourceTrackingService;
+    return this.remoteSourceTrackingServiceDictionary[orgId] as RemoteSourceTrackingService;
   }
 
   public static getFileName(): string {
     return 'maxRevision.json';
   }
 
-  public static getFilePath(orgId: string): string {
-    return path.join('.sfdx', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
+  public static getFilePath(orgId: string, useSfdxTrackingFiles = false): string {
+    return path.join(useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
   }
 
   /**
@@ -118,8 +118,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * @param orgId
    * @returns the path of the deleted source tracking file
    */
-  public static async delete(orgId: string): Promise<string> {
-    const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId);
+  public static async delete(orgId: string, useSfdxTrackingFiles = false): Promise<string> {
+    const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId, useSfdxTrackingFiles);
     // the file might not exist, in which case we don't need to delete it
     if (fs.existsSync(fileToDelete)) {
       await fs.promises.unlink(fileToDelete);
@@ -132,10 +132,14 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * the state to begin source tracking of metadata changes in the org.
    */
   public async init(): Promise<void> {
-    this.org = await Org.create({ aliasOrUsername: this.options.username });
+    this.org = this.options.org;
     this.logger = await Logger.child(this.constructor.name);
-    this.options.filePath = path.join('orgs', this.org.getOrgId());
-    this.options.filename = RemoteSourceTrackingService.getFileName();
+    this.options = {
+      ...this.options,
+      stateFolder: this.options.useSfdxTrackingFiles ? '.sfdx' : '.sf',
+      filename: RemoteSourceTrackingService.getFileName(),
+      filePath: path.join('orgs', this.org.getOrgId()),
+    };
 
     try {
       await super.init();
