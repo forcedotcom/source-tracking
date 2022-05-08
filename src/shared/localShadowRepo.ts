@@ -8,7 +8,7 @@
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'graceful-fs';
-import { NamedPackageDir, Logger, SfdxError } from '@salesforce/core';
+import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 import { chunkArray, pathIsInFolder } from './functions';
 
@@ -243,7 +243,7 @@ export class ShadowRepo {
         } catch (e) {
           if (e instanceof git.Errors.MultipleGitError) {
             this.logger.error('multiple errors on git.add', e.errors.slice(0, 5));
-            const error = new SfdxError(e.message, e.name, [], 1);
+            const error = new SfError(e.message, e.name, [], 1);
             error.setData(e.errors);
             throw error;
           }

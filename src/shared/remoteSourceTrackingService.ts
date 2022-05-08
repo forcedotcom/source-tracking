@@ -10,7 +10,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { ConfigFile, Logger, Org, SfdxError, Messages, Lifecycle, SfError } from '@salesforce/core';
+import { ConfigFile, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, Duration } from '@salesforce/kit';
@@ -140,7 +140,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     try {
       await super.init();
     } catch (err) {
-      throw SfdxError.wrap(err as Error);
+      throw SfError.wrap(err as Error);
     }
 
     const contents = this.getTypedContents();
@@ -160,7 +160,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       } catch (e) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
         if (
-          e instanceof SfdxError &&
+          e instanceof SfError &&
           e.name === 'INVALID_TYPE' &&
           e.message.includes("sObject type 'SourceMember' is not supported")
         ) {
@@ -647,7 +647,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       });
       return results.records;
     } catch (error) {
-      throw SfdxError.wrap(error as Error);
+      throw SfError.wrap(error as Error);
     }
   }
 }
