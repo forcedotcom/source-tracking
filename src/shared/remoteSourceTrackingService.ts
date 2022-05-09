@@ -273,7 +273,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private getServerMaxRevision(): number {
-    return (this['contents'] as Contents).serverMaxRevisionCounter;
+    return this.getContents().serverMaxRevisionCounter;
   }
 
   private setServerMaxRevision(revision = 0): void {
@@ -281,11 +281,11 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private getSourceMembers(): Dictionary<MemberRevision> {
-    return (this['contents'] as Contents).sourceMembers;
+    return this.getContents().sourceMembers;
   }
 
   private initSourceMembers(): void {
-    (this['contents'] as Contents).sourceMembers = {};
+    this.getContents().sourceMembers = {};
   }
 
   // Return a tracked element as MemberRevision data.
