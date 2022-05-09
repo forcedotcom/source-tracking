@@ -40,8 +40,6 @@ import { hasSfdxTrackingFiles } from './compatibility';
 export interface SourceTrackingOptions {
   org: Org;
   project: SfProject;
-  /** @deprecated not used defaults to sfdxProject sourceApiVersion unless provided */
-  apiVersion?: string;
 }
 
 /**
