@@ -9,6 +9,7 @@
 /* eslint-disable camelcase */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
+import { sep } from 'path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
 import { Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
@@ -17,7 +18,6 @@ import { SinonStub } from 'sinon';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService } from '../../src/shared/remoteSourceTrackingService';
 import { RemoteSyncInput, SourceMember, MemberRevision } from '../../src/shared/types';
-
 Messages.importMessagesDirectory(__dirname);
 
 const getSourceMember = (revision: number, deleted = false): SourceMember => ({
@@ -352,7 +352,7 @@ describe('remoteSourceTrackingService', () => {
   describe('file location support', () => {
     it('should return the correct file location (base case)', () => {
       const fileLocation = remoteSourceTrackingService.getPath();
-      expect(fileLocation).to.include('.sf/');
+      expect(fileLocation).to.include(`.sf${sep}`);
     });
     it('should return the correct file location (sfdx legacy case)', async () => {
       // redo the context
@@ -378,7 +378,7 @@ describe('remoteSourceTrackingService', () => {
       });
 
       const fileLocation = remoteSourceTrackingService.getPath();
-      expect(fileLocation).to.include('.sfdx/');
+      expect(fileLocation).to.include(`.sfdx${sep}`);
     });
   });
 });
