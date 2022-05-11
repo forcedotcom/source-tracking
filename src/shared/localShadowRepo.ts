@@ -102,8 +102,7 @@ export class ShadowRepo {
     if (typeof fs.promises.rm === 'function') {
       await fs.promises.rm(this.gitDir, { recursive: true, force: true });
     } else {
-      // when node 12 support is over, switch to promise version
-      fs.rmdirSync(this.gitDir, { recursive: true });
+      await fs.promises.rm(this.gitDir, { recursive: true });
     }
     return this.gitDir;
   }

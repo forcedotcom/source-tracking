@@ -48,7 +48,7 @@ describe('localShadowRepo', () => {
       expect(sha).to.not.be.empty;
       expect(gitAdd.calledOnce).to.be.true;
     } finally {
-      if (projectDir) fs.rmdirSync(projectDir, { recursive: true });
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
   });
 });
