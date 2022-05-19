@@ -55,6 +55,7 @@ describe('remoteSourceTrackingService', () => {
     const orgData = new MockTestOrgData();
     orgData.username = username;
     orgData.orgId = orgId;
+    orgData.tracksSource = true;
 
     $$.setConfigStubContents('GlobalInfo', {
       contents: {
@@ -361,6 +362,7 @@ describe('remoteSourceTrackingService', () => {
       const orgData = new MockTestOrgData();
       orgData.username = username;
       orgData.orgId = orgId;
+      orgData.tracksSource = true;
 
       $$.setConfigStubContents('GlobalInfo', {
         contents: {

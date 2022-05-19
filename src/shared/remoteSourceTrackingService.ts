@@ -80,7 +80,6 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   private static remoteSourceTrackingServiceDictionary: Dictionary<RemoteSourceTrackingService> = {};
   protected logger!: Logger;
   private org!: Org;
-  private isSourceTrackedOrg = true;
 
   // A short term cache (within the same process) of query results based on a revision.
   // Useful for source:pull, which makes 3 of the same queries; during status, building manifests, after pull success.
@@ -169,7 +168,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
           e.message.includes("sObject type 'SourceMember' is not supported")
         ) {
           // non-source-tracked org E.G. DevHub or trailhead playground
-          this.isSourceTrackedOrg = false;
+          await this.org.setTracksSource(false);
         } else {
           throw e;
         }
@@ -632,7 +631,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private async query(query: string, quiet = false): Promise<SourceMember[]> {
-    if (!this.isSourceTrackedOrg) {
+    if (!(await this.org.tracksSource())) {
       Messages.importMessagesDirectory(__dirname);
       const messages = Messages.load('@salesforce/source-tracking', 'source', ['NonSourceTrackedOrgError']);
       throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
