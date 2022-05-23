@@ -62,4 +62,11 @@ export interface ConflictError {
   conflicts: ChangeResult[];
 }
 
+export interface ConflictResponse {
+  state: 'Conflict';
+  fullName: string;
+  type: string;
+  filePath: string;
+}
+
 export type ChangeOptionType = ChangeResult | SourceComponent | string;

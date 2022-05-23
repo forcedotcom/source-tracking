@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
-import { sep, normalize } from 'path';
+import { sep, normalize, isAbsolute, relative } from 'path';
 import { isString } from '@salesforce/ts-types';
 import { SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { RemoteChangeElement, ChangeResult } from './types';
@@ -42,3 +42,6 @@ const nonEmptyStringFilter = (value: string): boolean => {
 // adapted for TS from https://github.com/30-seconds/30-seconds-of-code/blob/master/snippets/chunk.md
 export const chunkArray = <T>(arr: T[], size: number): T[][] =>
   Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
+
+export const ensureRelative = (filePath: string, projectPath: string): string =>
+  isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;

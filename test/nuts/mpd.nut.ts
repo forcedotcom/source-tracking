@@ -33,7 +33,7 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
     });
     stl = await getSTLInstance(session);
     // these 2 lines help debug path issues in
-    const stlChanges = await stl.getChanges<string>({ origin: 'local', format: 'string', state: 'nondelete' });
+    const stlChanges = await stl.getChanges({ origin: 'local', format: 'string', state: 'nondelete' });
     expect(stlChanges, stlChanges.join(',')).to.have.length.greaterThan(10);
   });
 
