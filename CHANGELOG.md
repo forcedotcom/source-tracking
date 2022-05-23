@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.0.0](https://github.com/forcedotcom/source-tracking/compare/v1.5.0...v2.0.0) (2022-05-23)
+
+### ⚠ BREAKING CHANGES
+
+- remove deprecated option since major version
+
+### Features
+
+- corev3, jsforce2 ([0c0b1cf](https://github.com/forcedotcom/source-tracking/commit/0c0b1cf377245e61d83397fcf39baf7de6c06e76))
+- support both .sfdx/.sf ([3d52e66](https://github.com/forcedotcom/source-tracking/commit/3d52e66b2228c7c6721e97d780d8b56a30cb0496))
+- use new org feature to determine tracking ([0299bfb](https://github.com/forcedotcom/source-tracking/commit/0299bfb9b49122c5e2ff9748038e10a129b26829))
+- use v3 error/messages ([41676ff](https://github.com/forcedotcom/source-tracking/commit/41676ff2d23c6bba91e807d8be152558ad849e30))
+- use v3 error/messages ([488fbfa](https://github.com/forcedotcom/source-tracking/commit/488fbfabbeedb113566b9c67201da4245338b2b6))
+
+- remove deprecated option since major version ([610930a](https://github.com/forcedotcom/source-tracking/commit/610930ac4239a0e1cca57809b0b57d2f022f0b0a))
+
 ## [1.5.0](https://github.com/forcedotcom/source-tracking/compare/v1.4.2...v1.5.0) (2022-05-04)
 
 ### Features
