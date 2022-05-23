@@ -34,6 +34,7 @@ describe('end-to-end-test for local tracking', () => {
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+      hasSfdxTrackingFiles: false,
     });
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));

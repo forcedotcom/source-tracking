@@ -6,12 +6,20 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { Org, SfdxError, Messages } from '@salesforce/core';
+import { Org, SfError, Messages } from '@salesforce/core';
 
 Messages.importMessagesDirectory(__dirname);
-const messages: Messages = Messages.loadMessages('@salesforce/source-tracking', 'compatibility');
+const messages = Messages.load('@salesforce/source-tracking', 'compatibility', [
+  'sourceTrackingFileVersionMismatch',
+  'clearSuggestion',
+  'useOtherVersion',
+]);
 
 type TrackingFileVersion = 'plugin-source' | 'toolbelt' | 'none';
+
+export const hasSfdxTrackingFiles = (orgId: string, projectPath: string): boolean =>
+  fs.existsSync(path.join(projectPath, '.sfdx', 'orgs', orgId));
+
 /**
  * A project can have "old" (toolbelt), "new" (plugin-source) or "none" tracking files
  *
@@ -65,8 +73,8 @@ export const throwIfInvalid = ({
 
   // We expected it to be the toolbelt version but it is using the new tracking files
   if (toValidate === 'toolbelt') {
-    // some of the toolbelt commands aren't using SfdxCommand and the SfdxError actions won't be automatically displayed
-    throw new SfdxError(
+    // some of the toolbelt commands aren't using SfdxCommand and the SfError actions won't be automatically displayed
+    throw new SfError(
       `${messages.getMessage('sourceTrackingFileVersionMismatch', ['new/beta'])}\n\nTry this:\n${messages.getMessage(
         'useOtherVersion',
         ['new/beta', replaceRenamedCommands(command.replace(':legacy', ''))]
@@ -80,7 +88,7 @@ export const throwIfInvalid = ({
   }
   // We expected it to be the plugin-source version but it is using the old tracking files
   if (toValidate === 'plugin-source') {
-    throw new SfdxError(
+    throw new SfError(
       messages.getMessage('sourceTrackingFileVersionMismatch', ['old/legacy']),
       'SourceTrackingFileVersionMismatch',
       [

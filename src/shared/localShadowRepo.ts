@@ -8,13 +8,13 @@
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'graceful-fs';
-import { NamedPackageDir, Logger, SfdxError } from '@salesforce/core';
+import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
 import * as git from 'isomorphic-git';
 import { chunkArray, pathIsInFolder } from './functions';
 
 /** returns the full path to where we store the shadow repo */
-const getGitDir = (orgId: string, projectPath: string): string => {
-  return path.join(projectPath, '.sfdx', 'orgs', orgId, 'localSourceTracking');
+const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string => {
+  return path.join(projectPath, useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, 'localSourceTracking');
 };
 
 // filenames were normalized when read from isogit
@@ -24,6 +24,7 @@ interface ShadowRepoOptions {
   orgId: string;
   projectPath: string;
   packageDirs: NamedPackageDir[];
+  hasSfdxTrackingFiles: boolean;
 }
 
 // https://isomorphic-git.org/docs/en/statusMatrix#docsNav
@@ -56,7 +57,7 @@ export class ShadowRepo {
   private maxFileAdd: number;
 
   private constructor(options: ShadowRepoOptions) {
-    this.gitDir = getGitDir(options.orgId, options.projectPath);
+    this.gitDir = getGitDir(options.orgId, options.projectPath, options.hasSfdxTrackingFiles);
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';
@@ -101,8 +102,7 @@ export class ShadowRepo {
     if (typeof fs.promises.rm === 'function') {
       await fs.promises.rm(this.gitDir, { recursive: true, force: true });
     } else {
-      // when node 12 support is over, switch to promise version
-      fs.rmdirSync(this.gitDir, { recursive: true });
+      await fs.promises.rm(this.gitDir, { recursive: true });
     }
     return this.gitDir;
   }
@@ -243,7 +243,7 @@ export class ShadowRepo {
         } catch (e) {
           if (e instanceof git.Errors.MultipleGitError) {
             this.logger.error('multiple errors on git.add', e.errors.slice(0, 5));
-            const error = new SfdxError(e.message, e.name, [], 1);
+            const error = new SfError(e.message, e.name, [], 1);
             error.setData(e.errors);
             throw error;
           }

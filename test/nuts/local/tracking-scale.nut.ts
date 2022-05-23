@@ -7,7 +7,7 @@
 import * as path from 'path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
-import { fs } from '@salesforce/core';
+import * as fs from 'graceful-fs';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
 const dirCount = 200;
@@ -58,6 +58,7 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+      hasSfdxTrackingFiles: false,
     });
   });
 

@@ -7,7 +7,7 @@
 import * as fs from 'fs';
 import { isAbsolute, relative, resolve, sep, normalize } from 'path';
 import { EOL } from 'os';
-import { NamedPackageDir, Logger, Org, SfdxProject } from '@salesforce/core';
+import { NamedPackageDir, Logger, Org, SfProject } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { getString, isString } from '@salesforce/ts-types';
 import {
@@ -36,12 +36,10 @@ import {
 import { sourceComponentGuard, metadataMemberGuard } from './shared/guards';
 import { getKeyFromObject, getMetadataKey, isBundle, pathIsInFolder } from './shared/functions';
 import { mappingsForSourceMemberTypesToMetadataType } from './shared/metadataKeys';
-
+import { hasSfdxTrackingFiles } from './compatibility';
 export interface SourceTrackingOptions {
   org: Org;
-  project: SfdxProject;
-  /** @deprecated not used defaults to sfdxProject sourceApiVersion unless provided */
-  apiVersion?: string;
+  project: SfProject;
 }
 
 /**
@@ -51,26 +49,26 @@ export interface SourceTrackingOptions {
  *
  */
 export class SourceTracking extends AsyncCreatable {
-  private orgId: string;
-  private project: SfdxProject;
+  private org: Org;
+  private project: SfProject;
   private projectPath: string;
   private packagesDirs: NamedPackageDir[];
-  private username: string;
   private logger: Logger;
   private registry = new RegistryAccess();
   // remote and local tracking may not exist if not initialized
   private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
   private forceIgnore!: ForceIgnore;
+  private hasSfdxTrackingFiles: boolean;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
-    this.orgId = options.org.getOrgId();
-    this.username = options.org.getUsername() as string;
+    this.org = options.org;
     this.projectPath = options.project.getPath();
     this.packagesDirs = options.project.getPackageDirectories();
     this.logger = Logger.childFromRoot('SourceTracking');
     this.project = options.project;
+    this.hasSfdxTrackingFiles = hasSfdxTrackingFiles(this.org.getOrgId(), this.projectPath);
   }
 
   public async init(): Promise<void> {
@@ -427,9 +425,10 @@ export class SourceTracking extends AsyncCreatable {
       return;
     }
     this.localRepo = await ShadowRepo.getInstance({
-      orgId: this.orgId,
+      orgId: this.org.getOrgId(),
       projectPath: normalize(this.projectPath),
       packageDirs: this.packagesDirs,
+      hasSfdxTrackingFiles: this.hasSfdxTrackingFiles,
     });
     // loads the status from file so that it's cached
     await this.localRepo.getStatus();
@@ -447,8 +446,9 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.logger.debug('ensureRemoteTracking: remote tracking does not exist yet; getting instance');
     this.remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({
-      username: this.username,
-      orgId: this.orgId,
+      org: this.org,
+      projectPath: this.projectPath,
+      useSfdxTrackingFiles: this.hasSfdxTrackingFiles,
     });
     if (initializeWithQuery) {
       await this.remoteSourceTrackingService.retrieveUpdates();
@@ -485,7 +485,7 @@ export class SourceTracking extends AsyncCreatable {
    * Deletes the remote tracking files
    */
   public async clearRemoteTracking(): Promise<string> {
-    return RemoteSourceTrackingService.delete(this.orgId);
+    return RemoteSourceTrackingService.delete(this.org.getOrgId(), this.hasSfdxTrackingFiles);
   }
 
   /**

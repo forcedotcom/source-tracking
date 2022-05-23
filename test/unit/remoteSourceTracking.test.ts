@@ -9,8 +9,9 @@
 /* eslint-disable camelcase */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
+import { sep } from 'path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
-import { Connection, Messages } from '@salesforce/core';
+import { Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { SinonStub } from 'sinon';
@@ -45,24 +46,31 @@ describe('remoteSourceTrackingService', () => {
   const $$ = instantiateContext();
   let remoteSourceTrackingService: RemoteSourceTrackingService;
 
+  afterEach(() => {
+    restoreContext($$);
+  });
+
   beforeEach(async () => {
     stubContext($$);
-
-    // @ts-ignore
-    $$.SANDBOX.stub(Connection.prototype, 'autoFetchQuery').resolves({ records: [] });
-
     const orgData = new MockTestOrgData();
     orgData.username = username;
     orgData.orgId = orgId;
-    // Fake user
-    $$.configStubs.AuthInfoConfig = {
-      contents: await orgData.getConfig(),
-    };
-    remoteSourceTrackingService = await RemoteSourceTrackingService.create({ username, orgId });
-  });
+    orgData.tracksSource = true;
 
-  afterEach(() => {
-    restoreContext($$);
+    $$.setConfigStubContents('GlobalInfo', {
+      contents: {
+        orgs: {
+          [username]: await orgData.getConfig(),
+        },
+      },
+    });
+    const org = await Org.create({ aliasOrUsername: username });
+    $$.SANDBOX.stub(org.getConnection().tooling, 'query').resolves({ records: [], done: true, totalSize: 0 });
+    remoteSourceTrackingService = await RemoteSourceTrackingService.create({
+      org,
+      projectPath: await $$.localPathRetriever($$.id),
+      useSfdxTrackingFiles: false,
+    });
   });
 
   describe('getServerMaxRevision', () => {
@@ -165,65 +173,6 @@ describe('remoteSourceTrackingService', () => {
         deleted: true,
       });
     });
-
-    // it('will sync the serverRevisionCounter and lastRetrievedFromServer for memberNames passed into sync()', async () => {
-    //   // Set initial test state of 5 apex classes not yet synced.
-    //   remoteSourceTrackingService['contents'] = {
-    //     serverMaxRevisionCounter: 5,
-    //     sourceMembers: getMemberRevisionEntries(5),
-    //   };
-
-    //   const sourceMembers = [1, 2, 3, 4, 5].map((rev) => getSourceMember(rev));
-    //   // @ts-ignore
-    //   $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
-    //   // @ts-ignore
-    //   const pollSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'pollForSourceTracking');
-    //   // @ts-ignore
-    //   const retrieveSpy = $$.SANDBOX.spy(remoteSourceTrackingService, '_retrieveUpdates');
-
-    //   // Passing metadata names to sync will poll for SourceMembers
-    //   const metadataNames = ['MyClass1', 'MyClass5'];
-    //   await remoteSourceTrackingService.sync(metadataNames);
-
-    //   const contents = remoteSourceTrackingService.getContents();
-    //   expect(contents.serverMaxRevisionCounter).to.equal(5);
-    //   const expectedMemberRevisions = getMemberRevisionEntries(5, true);
-    //   expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
-
-    //   // eslint-disable-next-line no-unused-expressions
-    //   expect(pollSpy.calledOnce).to.be.true;
-    //   // pollSpy.calledWith(metadataNames).should.equal(true);
-    //   // eslint-disable-next-line no-unused-expressions
-    //   expect(retrieveSpy.called, '_retrieveUpdates should not have been called during sync').to.be.false;
-    // });
-
-    // it('will sync all SourceMembers when nothing is passed into sync()', async () => {
-    //   // Set initial test state of 5 apex classes not yet synced.
-    //   remoteSourceTrackingService['contents'] = {
-    //     serverMaxRevisionCounter: 5,
-    //     sourceMembers: getMemberRevisionEntries(5),
-    //   };
-
-    //   const sourceMembers = [1, 2, 3, 4, 5].map((rev) => getSourceMember(rev));
-    //   // @ts-ignore
-    //   $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
-    //   // @ts-ignore
-    //   const pollSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'pollForSourceTracking');
-    //   // @ts-ignore
-    //   const retrieveSpy = $$.SANDBOX.spy(remoteSourceTrackingService, '_retrieveUpdates');
-
-    //   await remoteSourceTrackingService.sync();
-
-    //   const contents = remoteSourceTrackingService.getContents();
-    //   expect(contents.serverMaxRevisionCounter).to.equal(5);
-    //   const expectedMemberRevisions = getMemberRevisionEntries(5, true);
-    //   expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
-    //   // eslint-disable-next-line no-unused-expressions
-    //   expect(retrieveSpy.calledOnce).to.be.true;
-    //   // expect(retrieveSpy.calledOnceWith(true)).to.equal(true);
-    //   // eslint-disable-next-line no-unused-expressions
-    //   expect(pollSpy.called, 'pollForSourceTracking should NOT have been called during sync').to.be.false;
-    // });
   });
 
   describe('setServerMaxRevision', () => {
@@ -398,6 +347,40 @@ describe('remoteSourceTrackingService', () => {
       expect(contents.serverMaxRevisionCounter).to.equal(3);
       const expectedMemberRevisions = getMemberRevisionEntries(3, true);
       expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
+    });
+  });
+
+  describe('file location support', () => {
+    it('should return the correct file location (base case)', () => {
+      const fileLocation = remoteSourceTrackingService.getPath();
+      expect(fileLocation).to.include(`.sf${sep}`);
+    });
+    it('should return the correct file location (sfdx legacy case)', async () => {
+      // redo the context
+      restoreContext($$);
+      stubContext($$);
+      const orgData = new MockTestOrgData();
+      orgData.username = username;
+      orgData.orgId = orgId;
+      orgData.tracksSource = true;
+
+      $$.setConfigStubContents('GlobalInfo', {
+        contents: {
+          orgs: {
+            [username]: await orgData.getConfig(),
+          },
+        },
+      });
+      const org = await Org.create({ aliasOrUsername: username });
+      $$.SANDBOX.stub(org.getConnection().tooling, 'query').resolves({ records: [], done: true, totalSize: 0 });
+      remoteSourceTrackingService = await RemoteSourceTrackingService.create({
+        org,
+        projectPath: await $$.localPathRetriever($$.id),
+        useSfdxTrackingFiles: true,
+      });
+
+      const fileLocation = remoteSourceTrackingService.getPath();
+      expect(fileLocation).to.include(`.sfdx${sep}`);
     });
   });
 });

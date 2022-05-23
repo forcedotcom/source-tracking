@@ -10,19 +10,18 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { ConfigFile, Logger, Org, SfdxError, Messages, Lifecycle } from '@salesforce/core';
+import { ConfigFile, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, Duration } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
-
 // represents the contents of the config file stored in 'maxRevision.json'
-interface Contents {
+type Contents = {
   serverMaxRevisionCounter: number;
   sourceMembers: Dictionary<MemberRevision>;
-}
+};
 
 /*
  * after some results have returned, how many times should we poll for missing sourcemembers
@@ -34,9 +33,9 @@ const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
 export namespace RemoteSourceTrackingService {
   // Constructor Options for RemoteSourceTrackingService.
   export interface Options extends ConfigFile.Options {
-    orgId: string;
-    /** only used for connecting to the org */
-    username: string;
+    org: Org;
+    projectPath: string;
+    useSfdxTrackingFiles: boolean;
   }
 }
 
@@ -77,11 +76,10 @@ export namespace RemoteSourceTrackingService {
  * to the corresponding `RevisionCounter` from the `SourceMember` of the org.
  */
 // eslint-disable-next-line no-redeclare
-export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTrackingService.Options> {
+export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTrackingService.Options, Contents> {
   private static remoteSourceTrackingServiceDictionary: Dictionary<RemoteSourceTrackingService> = {};
   protected logger!: Logger;
   private org!: Org;
-  private isSourceTrackedOrg = true;
 
   // A short term cache (within the same process) of query results based on a revision.
   // Useful for source:pull, which makes 3 of the same queries; during status, building manifests, after pull success.
@@ -98,18 +96,19 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * @returns {Promise<RemoteSourceTrackingService>} the remoteSourceTrackingService object for the given username
    */
   public static async getInstance(options: RemoteSourceTrackingService.Options): Promise<RemoteSourceTrackingService> {
-    if (!this.remoteSourceTrackingServiceDictionary[options.orgId]) {
-      this.remoteSourceTrackingServiceDictionary[options.orgId] = await RemoteSourceTrackingService.create(options);
+    const orgId = options.org.getOrgId();
+    if (!this.remoteSourceTrackingServiceDictionary[orgId]) {
+      this.remoteSourceTrackingServiceDictionary[orgId] = await RemoteSourceTrackingService.create(options);
     }
-    return this.remoteSourceTrackingServiceDictionary[options.orgId] as RemoteSourceTrackingService;
+    return this.remoteSourceTrackingServiceDictionary[orgId] as RemoteSourceTrackingService;
   }
 
   public static getFileName(): string {
     return 'maxRevision.json';
   }
 
-  public static getFilePath(orgId: string): string {
-    return path.join('.sfdx', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
+  public static getFilePath(orgId: string, useSfdxTrackingFiles = false): string {
+    return path.join(useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
   }
 
   /**
@@ -118,8 +117,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * @param orgId
    * @returns the path of the deleted source tracking file
    */
-  public static async delete(orgId: string): Promise<string> {
-    const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId);
+  public static async delete(orgId: string, useSfdxTrackingFiles = false): Promise<string> {
+    const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId, useSfdxTrackingFiles);
     // the file might not exist, in which case we don't need to delete it
     if (fs.existsSync(fileToDelete)) {
       await fs.promises.unlink(fileToDelete);
@@ -132,18 +131,22 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * the state to begin source tracking of metadata changes in the org.
    */
   public async init(): Promise<void> {
-    this.org = await Org.create({ aliasOrUsername: this.options.username });
+    this.org = this.options.org;
     this.logger = await Logger.child(this.constructor.name);
-    this.options.filePath = path.join('orgs', this.org.getOrgId());
-    this.options.filename = RemoteSourceTrackingService.getFileName();
+    this.options = {
+      ...this.options,
+      stateFolder: this.options.useSfdxTrackingFiles ? '.sfdx' : '.sf',
+      filename: RemoteSourceTrackingService.getFileName(),
+      filePath: path.join('orgs', this.org.getOrgId()),
+    };
 
     try {
       await super.init();
     } catch (err) {
-      throw SfdxError.wrap(err as Error);
+      throw SfError.wrap(err as Error);
     }
 
-    const contents = this.getTypedContents();
+    const contents = this.getContents();
     // Initialize a new maxRevision.json if the file doesn't yet exist.
     if (!contents.serverMaxRevisionCounter && !contents.sourceMembers) {
       try {
@@ -160,12 +163,12 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       } catch (e) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
         if (
-          e instanceof SfdxError &&
+          e instanceof SfError &&
           e.name === 'INVALID_TYPE' &&
           e.message.includes("sObject type 'SourceMember' is not supported")
         ) {
           // non-source-tracked org E.G. DevHub or trailhead playground
-          this.isSourceTrackedOrg = false;
+          await this.org.setTracksSource(false);
         } else {
           throw e;
         }
@@ -269,7 +272,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private getServerMaxRevision(): number {
-    return (this['contents'] as Contents).serverMaxRevisionCounter;
+    return this.getContents().serverMaxRevisionCounter;
   }
 
   private setServerMaxRevision(revision = 0): void {
@@ -277,11 +280,11 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private getSourceMembers(): Dictionary<MemberRevision> {
-    return (this['contents'] as Contents).sourceMembers;
+    return this.getContents().sourceMembers;
   }
 
   private initSourceMembers(): void {
-    (this['contents'] as Contents).sourceMembers = {};
+    this.getContents().sourceMembers = {};
   }
 
   // Return a tracked element as MemberRevision data.
@@ -290,11 +293,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    this.getTypedContents().sourceMembers[key] = sourceMember;
-  }
-
-  private getTypedContents(): Contents {
-    return this.getContents() as unknown as Contents;
+    this.getContents().sourceMembers[key] = sourceMember;
   }
 
   // Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
@@ -620,7 +619,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
     // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
     const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter > ${rev}`;
-    const queryResult = await this.query<SourceMember>(query, quiet);
+    const queryResult = await this.query(query, quiet);
     this.queryCache.set(rev, queryResult);
 
     return queryResult;
@@ -628,24 +627,26 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
   private async querySourceMembersTo(toRevision: number, quiet = false): Promise<SourceMember[]> {
     const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
-    return this.query<SourceMember>(query, quiet);
+    return this.query(query, quiet);
   }
 
-  private async query<T>(query: string, quiet = false): Promise<T[]> {
-    if (!this.isSourceTrackedOrg) {
+  private async query(query: string, quiet = false): Promise<SourceMember[]> {
+    if (!(await this.org.tracksSource())) {
       Messages.importMessagesDirectory(__dirname);
-      this.messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
-      throw SfdxError.create('@salesforce/source-tracking', 'source', 'NonSourceTrackedOrgError');
+      const messages = Messages.load('@salesforce/source-tracking', 'source', ['NonSourceTrackedOrgError']);
+      throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
     }
     if (!quiet) {
       this.logger.debug(query);
     }
 
     try {
-      const results = await this.org.getConnection().tooling.autoFetchQuery<T>(query, { maxFetch: 50000 });
+      const results = await this.org.getConnection().tooling.query<SourceMember>(query, {
+        autoFetch: true,
+      });
       return results.records;
     } catch (error) {
-      throw SfdxError.wrap(error as Error);
+      throw SfError.wrap(error as Error);
     }
   }
 }
