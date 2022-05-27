@@ -69,10 +69,7 @@ export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: str
   );
 
   // make it simpler to find things later
-  const elementMap = new Map<string, ChangeResult>();
-  elements.map((element) => {
-    elementMap.set(getKeyFromObject(element), element);
-  });
+  const elementMap = new Map<string, ChangeResult>(elements.map((e) => [getKeyFromObject(e), e]));
 
   // iterates the local components and sets their filenames
   for (const matchingComponent of matchingLocalSourceComponentsSet.getSourceComponents().toArray()) {

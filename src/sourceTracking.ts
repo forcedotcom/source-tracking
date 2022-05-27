@@ -19,6 +19,11 @@ import {
   DestructiveChangesType,
   VirtualTreeContainer,
   DeployResult,
+  ScopedPreDeploy,
+  ScopedPostRetrieve,
+  ScopedPreRetrieve,
+  ScopedPostDeploy,
+  RetrieveResult,
 } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
@@ -42,8 +47,8 @@ import { populateTypesAndNames } from './shared/populateTypesAndNames';
 export interface SourceTrackingOptions {
   org: Org;
   project: SfProject;
-  ignoreConflicts?: boolean;
   subscribeSDREvents?: boolean;
+  ignoreConflicts?: boolean;
 }
 
 /**
@@ -65,17 +70,19 @@ export class SourceTracking extends AsyncCreatable {
   private hasSfdxTrackingFiles: boolean;
   private ignoreConflicts: boolean;
   private subscribeSDREvents: boolean;
+  private orgId: string;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
     this.org = options.org;
+    this.orgId = this.org.getOrgId();
     this.projectPath = options.project.getPath();
     this.packagesDirs = options.project.getPackageDirectories();
     this.logger = Logger.childFromRoot('SourceTracking');
     this.project = options.project;
     this.ignoreConflicts = options.ignoreConflicts ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
-    this.hasSfdxTrackingFiles = hasSfdxTrackingFiles(this.org.getOrgId(), this.projectPath);
+    this.hasSfdxTrackingFiles = hasSfdxTrackingFiles(this.orgId, this.projectPath);
     this.maybeSubscribeLifecycleEvents();
   }
 
@@ -296,7 +303,7 @@ export class SourceTracking extends AsyncCreatable {
       this.logger.debug('remoteChanges', remoteChanges);
       const filteredChanges = remoteChanges
         .filter(remoteFilterByState[options.state])
-        // skip any remote types not in the registry.  Will emit node warnings
+        // skip any remote types not in the registry.  Will emit warnings
         .filter((rce) => registrySupportsType(rce.type));
       if (options.format === 'ChangeResult') {
         return filteredChanges.map((change) => remoteChangeElementToChangeResult(change));
@@ -330,6 +337,20 @@ export class SourceTracking extends AsyncCreatable {
     throw new Error(`unsupported options: ${JSON.stringify(options)}`);
   }
 
+  /**
+   *
+   * Convenience method to reduce duplicated steps required to do a fka pull
+   * It's full of side effects: retrieving remote deletes, deleting those files locall, and then updating tracking files
+   * Most bizarrely, it then returns a ComponentSet of the remote nonDeletes.
+   *
+   * @returns the ComponentSet for what you would retrieve now that the deletes are done
+   */
+
+  public async maybeApplyRemoteDeletesToLocal(): Promise<ComponentSet> {
+    const changesToDelete = await this.getChanges({ origin: 'remote', state: 'delete', format: 'SourceComponent' });
+    await this.deleteFilesAndUpdateTracking(changesToDelete);
+    return this.remoteNonDeletesAsComponentSet();
+  }
   /**
    *
    * returns immediately if there are no changesToDelete
@@ -441,7 +462,7 @@ export class SourceTracking extends AsyncCreatable {
       return;
     }
     this.localRepo = await ShadowRepo.getInstance({
-      orgId: this.org.getOrgId(),
+      orgId: this.orgId,
       projectPath: normalize(this.projectPath),
       packageDirs: this.packagesDirs,
       hasSfdxTrackingFiles: this.hasSfdxTrackingFiles,
@@ -501,7 +522,7 @@ export class SourceTracking extends AsyncCreatable {
    * Deletes the remote tracking files
    */
   public async clearRemoteTracking(): Promise<string> {
-    return RemoteSourceTrackingService.delete(this.org.getOrgId(), this.hasSfdxTrackingFiles);
+    return RemoteSourceTrackingService.delete(this.orgId, this.hasSfdxTrackingFiles);
   }
 
   /**
@@ -573,8 +594,7 @@ export class SourceTracking extends AsyncCreatable {
           .map((fileResponse) => fileResponse.filePath as string),
       }),
       this.updateRemoteTracking(
-        successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath })),
-        true // retrieves don't need to poll for SourceMembers
+        successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath }))
       ),
     ]);
   }
@@ -584,15 +604,17 @@ export class SourceTracking extends AsyncCreatable {
    *
    * @param result FileResponse[]
    */
-  public async updateTrackingFromRetrieve(responses: FileResponse[]): Promise<void> {
-    const successes = responses.filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
+  public async updateTrackingFromRetrieve(retrieveResult: RetrieveResult): Promise<void> {
+    const successes = retrieveResult
+      .getFileResponses()
+      .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
     if (!successes.length) {
       return;
     }
 
     await Promise.all([
       this.updateLocalTracking({
-        // assertion allowed because it's filtering out undefined on the next line
+        // assertion allowed because it's filtering out undefined
         files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
       }),
       this.updateRemoteTracking(
@@ -615,21 +637,35 @@ export class SourceTracking extends AsyncCreatable {
   private maybeSubscribeLifecycleEvents(): void {
     if (this.subscribeSDREvents && this.org.tracksSource) {
       const lifecycle = Lifecycle.getInstance();
+      // the only thing STL uses pre events for is to check conflicts.  So if you don't care about conflicts, don't listen!
       if (!this.ignoreConflicts) {
         this.logger.debug('subscribing to predeploy/retrieve events');
         // subscribe to SDR `pre` events to handle conflicts before deploy/retrieve
-        lifecycle.on('predeploy', async (components: SourceComponent[]) => {
-          throwIfConflicts(findConflictsInComponentSet(components, await this.getConflicts()));
+        lifecycle.on('scopedPreDeploy', async (e: ScopedPreDeploy) => {
+          if (e.orgId === this.orgId) {
+            throwIfConflicts(findConflictsInComponentSet(e.componentSet, await this.getConflicts()));
+          }
         });
-        lifecycle.on('preretrieve', async (components: SourceComponent[]) => {
-          throwIfConflicts(findConflictsInComponentSet(components, await this.getConflicts()));
+        lifecycle.on('scopedPreRetrieve', async (e: ScopedPreRetrieve) => {
+          if (e.orgId === this.orgId) {
+            throwIfConflicts(findConflictsInComponentSet(e.componentSet, await this.getConflicts()));
+          }
         });
       }
       // subscribe to SDR post-deploy event
       this.logger.debug('subscribing to postdeploy/retrieve events');
+
       // yes, the post hooks really have different payloads!
-      lifecycle.on('postdeploy', async (result: DeployResult) => this.updateTrackingFromDeploy(result));
-      lifecycle.on('postretrieve', async (result: FileResponse[]) => this.updateTrackingFromRetrieve(result));
+      lifecycle.on('scopedPostDeploy', async (e: ScopedPostDeploy) => {
+        if (e.orgId === this.orgId) {
+          await this.updateTrackingFromDeploy(e.deployResult);
+        }
+      });
+      lifecycle.on('scopedPostRetrieve', async (e: ScopedPostRetrieve) => {
+        if (e.orgId === this.orgId) {
+          await this.updateTrackingFromRetrieve(e.retrieveResult);
+        }
+      });
     }
   }
 
