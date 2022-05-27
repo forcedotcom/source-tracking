@@ -4,10 +4,10 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-
+import { Lifecycle } from '@salesforce/core';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { getMetadataKeyFromFileResponse } from '../../src/shared/metadataKeys';
+import { getMetadataKeyFromFileResponse, registrySupportsType } from '../../src/shared/metadataKeys';
 
 describe('metadataKeys', () => {
   it('default behavior', () => {
@@ -105,5 +105,26 @@ describe('metadataKeys', () => {
         'EmailTemplateFolder__ETF_WTF',
       ]);
     });
+  });
+});
+
+describe('registrySupportsType', () => {
+  it('custom mapped types', () => {
+    expect(registrySupportsType('AuraDefinition')).to.equal(true);
+    expect(registrySupportsType('LightningComponentResource')).to.equal(true);
+  });
+  it('other real types types', () => {
+    expect(registrySupportsType('CustomObject')).to.equal(true);
+    expect(registrySupportsType('ApexClass')).to.equal(true);
+  });
+  it('bad type returns false and emits warning', () => {
+    let warningEmitted = false;
+    const badType = 'NotARealType';
+    // eslint-disable-next-line @typescript-eslint/require-await
+    Lifecycle.getInstance().onWarning(async (w): Promise<void> => {
+      warningEmitted = w.includes(badType);
+    });
+    expect(registrySupportsType(badType)).to.equal(false);
+    expect(warningEmitted, 'warning not emitted').to.equal(true);
   });
 });
