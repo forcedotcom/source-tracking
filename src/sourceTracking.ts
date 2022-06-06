@@ -27,7 +27,7 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
-import { throwIfConflicts, findConflictsInComponentSet, dedupeConflictChangeResults } from './shared/conflicts';
+import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
 import {
   RemoteSyncInput,
   StatusOutputRow,
@@ -562,7 +562,7 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
 
-    return dedupeConflictChangeResults({
+    return getDedupedConflictsFromChanges({
       localChanges,
       remoteChanges,
       projectPath: this.projectPath,
@@ -642,11 +642,13 @@ export class SourceTracking extends AsyncCreatable {
         this.logger.debug('subscribing to predeploy/retrieve events');
         // subscribe to SDR `pre` events to handle conflicts before deploy/retrieve
         lifecycle.on('scopedPreDeploy', async (e: ScopedPreDeploy) => {
+          this.logger.debug('received scopedPreDeploy event');
           if (e.orgId === this.orgId) {
             throwIfConflicts(findConflictsInComponentSet(e.componentSet, await this.getConflicts()));
           }
         });
         lifecycle.on('scopedPreRetrieve', async (e: ScopedPreRetrieve) => {
+          this.logger.debug('received scopedPreRetrieve event');
           if (e.orgId === this.orgId) {
             throwIfConflicts(findConflictsInComponentSet(e.componentSet, await this.getConflicts()));
           }
@@ -657,11 +659,13 @@ export class SourceTracking extends AsyncCreatable {
 
       // yes, the post hooks really have different payloads!
       lifecycle.on('scopedPostDeploy', async (e: ScopedPostDeploy) => {
+        this.logger.debug('received scopedPostDeploy event');
         if (e.orgId === this.orgId) {
           await this.updateTrackingFromDeploy(e.deployResult);
         }
       });
       lifecycle.on('scopedPostRetrieve', async (e: ScopedPostRetrieve) => {
+        this.logger.debug('received scopedPostRetrieve event');
         if (e.orgId === this.orgId) {
           await this.updateTrackingFromRetrieve(e.retrieveResult);
         }
