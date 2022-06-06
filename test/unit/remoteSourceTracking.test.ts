@@ -56,14 +56,7 @@ describe('remoteSourceTrackingService', () => {
     orgData.username = username;
     orgData.orgId = orgId;
     orgData.tracksSource = true;
-
-    $$.setConfigStubContents('GlobalInfo', {
-      contents: {
-        orgs: {
-          [username]: await orgData.getConfig(),
-        },
-      },
-    });
+    $$.stubAuths(orgData);
     const org = await Org.create({ aliasOrUsername: username });
     $$.SANDBOX.stub(org.getConnection().tooling, 'query').resolves({ records: [], done: true, totalSize: 0 });
     remoteSourceTrackingService = await RemoteSourceTrackingService.create({
@@ -363,14 +356,7 @@ describe('remoteSourceTrackingService', () => {
       orgData.username = username;
       orgData.orgId = orgId;
       orgData.tracksSource = true;
-
-      $$.setConfigStubContents('GlobalInfo', {
-        contents: {
-          orgs: {
-            [username]: await orgData.getConfig(),
-          },
-        },
-      });
+      $$.stubAuths(orgData);
       const org = await Org.create({ aliasOrUsername: username });
       $$.SANDBOX.stub(org.getConnection().tooling, 'query').resolves({ records: [], done: true, totalSize: 0 });
       remoteSourceTrackingService = await RemoteSourceTrackingService.create({
