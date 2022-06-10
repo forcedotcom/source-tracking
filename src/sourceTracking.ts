@@ -225,9 +225,20 @@ export class SourceTracking extends AsyncCreatable {
    * @returns StatusOutputRow[]
    */
 
-  public async getStatus({ local, remote }: { local: boolean; remote: boolean }): Promise<StatusOutputRow[]> {
+  public async getStatus({
+    local,
+    remote,
+    useCache = true,
+  }: {
+    local: boolean;
+    remote: boolean;
+    useCache: boolean;
+  }): Promise<StatusOutputRow[]> {
     let results: StatusOutputRow[] = [];
     if (local) {
+      if (!useCache) {
+        await this.reReadLocalTrackingCache();
+      }
       results = results.concat(await this.getLocalStatusRows());
     }
     if (remote) {
@@ -452,6 +463,9 @@ export class SourceTracking extends AsyncCreatable {
     await this.remoteSourceTrackingService.syncSpecifiedElements(fileResponses);
   }
 
+  public async reReadLocalTrackingCache(): Promise<void> {
+    await this.localRepo.getStatus(true);
+  }
   /**
    * If the local tracking shadowRepo doesn't exist, it will be created.
    * Does nothing if it already exists.
