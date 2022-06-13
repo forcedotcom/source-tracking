@@ -83,11 +83,10 @@ export class SourceTracking extends AsyncCreatable {
     this.ignoreConflicts = options.ignoreConflicts ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
     this.hasSfdxTrackingFiles = hasSfdxTrackingFiles(this.orgId, this.projectPath);
-    this.maybeSubscribeLifecycleEvents();
   }
 
   public async init(): Promise<void> {
-    // reserved for future use
+    await this.maybeSubscribeLifecycleEvents();
   }
 
   /**
@@ -648,8 +647,8 @@ export class SourceTracking extends AsyncCreatable {
     this.ignoreConflicts = value;
   }
 
-  private maybeSubscribeLifecycleEvents(): void {
-    if (this.subscribeSDREvents && this.org.tracksSource) {
+  private async maybeSubscribeLifecycleEvents(): Promise<void> {
+    if (this.subscribeSDREvents && (await this.org.tracksSource())) {
       const lifecycle = Lifecycle.getInstance();
       // the only thing STL uses pre events for is to check conflicts.  So if you don't care about conflicts, don't listen!
       if (!this.ignoreConflicts) {
