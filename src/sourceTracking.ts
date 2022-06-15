@@ -274,9 +274,26 @@ export class SourceTracking extends AsyncCreatable {
    * @returns local and remote changed metadata
    *
    */
+  // you should use one of these
   public async getChanges(options: ChangeOptions & { format: 'string' }): Promise<string[]>;
   public async getChanges(options: ChangeOptions & { format: 'SourceComponent' }): Promise<SourceComponent[]>;
   public async getChanges(options: ChangeOptions & { format: 'ChangeResult' }): Promise<ChangeResult[]>;
+  // these following three are deprecated, but remain for backward compatibility
+  /**
+   * @deprecated omit the type parameter <string>.
+   */
+  public async getChanges<T extends string>(options: ChangeOptions & { format: 'string' }): Promise<T[]>;
+  /**
+   * @deprecated omit the type parameter <SourceComponent>.
+   */
+  public async getChanges<T extends SourceComponent>(
+    options: ChangeOptions & { format: 'SourceComponent' }
+  ): Promise<T[]>;
+  /**
+   * @deprecated omit the type parameter <ChangeResult>.
+   */
+  // eslint-disable-next-line @typescript-eslint/unified-signatures
+  public async getChanges<T extends ChangeResult>(options: ChangeOptions & { format: 'ChangeResult' }): Promise<T[]>;
   public async getChanges(
     options: ChangeOptions & { format: 'ChangeResultWithPaths' }
   ): Promise<Array<ChangeResult & { filename: string[] }>>;
