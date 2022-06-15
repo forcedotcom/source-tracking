@@ -49,6 +49,7 @@ export interface SourceTrackingOptions {
   project: SfProject;
   subscribeSDREvents?: boolean;
   ignoreConflicts?: boolean;
+  ignoreLocalCache?: boolean;
 }
 
 /**
@@ -70,6 +71,7 @@ export class SourceTracking extends AsyncCreatable {
   private hasSfdxTrackingFiles: boolean;
   private ignoreConflicts: boolean;
   private subscribeSDREvents: boolean;
+  private ignoreLocalCache: boolean;
   private orgId: string;
 
   public constructor(options: SourceTrackingOptions) {
@@ -81,6 +83,7 @@ export class SourceTracking extends AsyncCreatable {
     this.logger = Logger.childFromRoot('SourceTracking');
     this.project = options.project;
     this.ignoreConflicts = options.ignoreConflicts ?? false;
+    this.ignoreLocalCache = options.ignoreLocalCache ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
     this.hasSfdxTrackingFiles = hasSfdxTrackingFiles(this.orgId, this.projectPath);
   }
@@ -224,20 +227,9 @@ export class SourceTracking extends AsyncCreatable {
    * @returns StatusOutputRow[]
    */
 
-  public async getStatus({
-    local,
-    remote,
-    useCache = true,
-  }: {
-    local: boolean;
-    remote: boolean;
-    useCache: boolean;
-  }): Promise<StatusOutputRow[]> {
+  public async getStatus({ local, remote }: { local: boolean; remote: boolean }): Promise<StatusOutputRow[]> {
     let results: StatusOutputRow[] = [];
     if (local) {
-      if (!useCache) {
-        await this.reReadLocalTrackingCache();
-      }
       results = results.concat(await this.getLocalStatusRows());
     }
     if (remote) {
@@ -467,11 +459,14 @@ export class SourceTracking extends AsyncCreatable {
   }
   /**
    * If the local tracking shadowRepo doesn't exist, it will be created.
-   * Does nothing if it already exists.
+   * Does nothing if it already exists, unless you've instantiate SourceTracking to not cache local status, in which case it'll re-read your files
    * Useful before parallel operations
    */
   public async ensureLocalTracking(): Promise<void> {
     if (this.localRepo) {
+      if (this.ignoreLocalCache) {
+        await this.localRepo.getStatus(true);
+      }
       return;
     }
     this.localRepo = await ShadowRepo.getInstance({
