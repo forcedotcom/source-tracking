@@ -48,7 +48,10 @@ export interface SourceTrackingOptions {
   org: Org;
   project: SfProject;
 
-  /** listen for the SDR scoped<Pre|Post><Deploy|Retrieve> events */
+  /** listen for the SDR scoped<Pre|Post><Deploy|Retrieve> events
+   * `pre` events will check for conflicts and throw if there are any (use ignoreConflicts: true to disable)
+   * `post` events will update tracking files with the results of the deploy/retrieve
+   */
   subscribeSDREvents?: boolean;
 
   /** don't check for conflicts when responding to SDR events.
