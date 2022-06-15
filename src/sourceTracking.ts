@@ -47,8 +47,18 @@ import { populateTypesAndNames } from './shared/populateTypesAndNames';
 export interface SourceTrackingOptions {
   org: Org;
   project: SfProject;
+
+  /** listen for the SDR scoped<Pre|Post><Deploy|Retrieve> events */
   subscribeSDREvents?: boolean;
+
+  /** don't check for conflicts when responding to SDR events.
+   * This property has no effect unless you also set subscribeSDREvents to true.
+   */
   ignoreConflicts?: boolean;
+
+  /** SourceTracking is caching local file statuses.
+   * If you're using STL as part of a long running process (ex: vscode extensions), set this to false
+   */
   ignoreLocalCache?: boolean;
 }
 
