@@ -40,7 +40,7 @@ const getMemberRevisionEntries = (revision: number, synced = false): { [key: str
   return sourceMemberEntries;
 };
 
-describe('remoteSourceTrackingService', () => {
+describe.skip('remoteSourceTrackingService', () => {
   const username = 'foo@bar.com';
   const orgId = '00D456789012345';
   const $$ = instantiateContext();
