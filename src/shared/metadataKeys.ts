@@ -13,7 +13,7 @@ import { getMetadataKey } from './functions';
 // See UT for examples of the complexity this must handle
 // keys always use forward slashes, even on Windows
 const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
-  fileResponse && fileResponse.filePath
+  fileResponse?.filePath
     ? join(
         dirname(fileResponse.filePath).substring(dirname(fileResponse.filePath).lastIndexOf(fileResponse.fullName)),
         basename(fileResponse.filePath)
