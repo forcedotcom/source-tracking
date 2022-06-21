@@ -4,10 +4,11 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
+import * as path from 'path';
 import * as sinon from 'sinon';
 import { expect } from 'chai';
-import { ForceIgnore } from '@salesforce/source-deploy-retrieve';
-import { getDedupedConflictsFromChanges } from '../../src/shared/conflicts';
+import { ForceIgnore, ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts';
 import { ChangeResult } from '../../src/shared/types';
 
 const class1Local: ChangeResult = {
@@ -26,8 +27,27 @@ describe('conflicts functions', () => {
   });
 
   describe('filter component set', () => {
-    it('matches a conflict in a component set');
-    it('returns nothing when no matches');
+    it('matches a conflict in a component set', () => {
+      const cs = new ComponentSet([{ fullName: class1Local.name, type: class1Local.type }]);
+      expect(findConflictsInComponentSet(cs, [class1Local])).to.deep.equal([
+        {
+          filePath: path.join(__dirname, '..', '..', class1Local.filenames[0]),
+          fullName: class1Local.name,
+          state: 'Conflict',
+          type: class1Local.type,
+        },
+        {
+          filePath: path.join(__dirname, '..', '..', class1Local.filenames[1]),
+          fullName: class1Local.name,
+          state: 'Conflict',
+          type: class1Local.type,
+        },
+      ]);
+    });
+    it('returns nothing when no matches', () => {
+      const cs = new ComponentSet();
+      expect(findConflictsInComponentSet(cs, [class1Local])).to.deep.equal([]);
+    });
   });
   describe('dedupe', () => {
     it('works on empty changes', () => {
