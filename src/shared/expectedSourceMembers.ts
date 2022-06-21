@@ -9,57 +9,60 @@ import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { getMetadataKeyFromFileResponse } from './metadataKeys';
 import { RemoteSyncInput } from './types';
 
+const typesToNoPollFor = [
+  'CustomObject',
+  'EmailFolder',
+  'EmailTemplateFolder',
+  'StandardValueSet',
+  'Portal',
+  'StandardValueSetTranslation',
+  'SharingRules',
+  'SharingCriteriaRule',
+  'GlobalValueSetTranslation',
+  'AssignmentRules',
+];
+
+const isEncodedTypeWithPercentSign = (type: string, filePath?: string): boolean =>
+  ['Layout', 'Profile', 'HomePageComponent', 'HomePageLayout'].includes(type) && Boolean(filePath?.includes('%'));
+
+// aura xml aren't tracked as SourceMembers
+const isSpecialAuraXml = (filePath?: string): boolean =>
+  Boolean(
+    filePath &&
+      (filePath.endsWith('.cmp-meta.xml') ||
+        filePath.endsWith('.tokens-meta.xml') ||
+        filePath.endsWith('.evt-meta.xml') ||
+        filePath.endsWith('.app-meta.xml') ||
+        filePath.endsWith('.intf-meta.xml'))
+  );
+
 export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> => {
   const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
 
   expectedMembers
     .filter(
-      // eslint-disable-next-line complexity
       (fileResponse) =>
         // unchanged files will never be in the sourceMembers.  Not really sure why SDR returns them.
         fileResponse.state !== ComponentStatus.Unchanged &&
         // if a listView is the only change inside an object, the object won't have a sourceMember change.  We won't wait for those to be found
         // we don't know which email folder type might be there, so don't require either
         // Portal doesn't support source tracking, according to the coverage report
-        ![
-          'CustomObject',
-          'EmailFolder',
-          'EmailTemplateFolder',
-          'StandardValueSet',
-          'Portal',
-          'StandardValueSetTranslation',
-          'SharingRules',
-          'SharingCriteriaRule',
-          'GlobalValueSetTranslation',
-          'AssignmentRules',
-        ].includes(fileResponse.type) &&
+        !typesToNoPollFor.includes(fileResponse.type) &&
         // don't wait for standard fields on standard objects
         !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('__c')) &&
         // deleted fields
-        !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('_del__c')) &&
+        !(fileResponse.type === 'CustomField' && fileResponse.filePath?.includes('_del__c')) &&
         // built-in report type ReportType__screen_flows_prebuilt_crt
         !(fileResponse.type === 'ReportType' && fileResponse.filePath?.includes('screen_flows_prebuilt_crt')) &&
         // they're settings to mdapi, and FooSettings in sourceMembers
         !fileResponse.type.includes('Settings') &&
         // mdapi encodes these, sourceMembers don't have encoding
-        !(
-          (fileResponse.type === 'Layout' ||
-            fileResponse.type === 'BusinessProcess' ||
-            fileResponse.type === 'Profile' ||
-            fileResponse.type === 'HomePageComponent' ||
-            fileResponse.type === 'HomePageLayout') &&
-          fileResponse.filePath?.includes('%')
-        ) &&
+        !isEncodedTypeWithPercentSign(fileResponse.type, fileResponse.filePath) &&
         // namespaced labels and CMDT don't resolve correctly
         !(['CustomLabels', 'CustomMetadata'].includes(fileResponse.type) && fileResponse.filePath?.includes('__')) &&
         // don't wait on workflow children
         !fileResponse.type.startsWith('Workflow') &&
-        // aura xml aren't tracked as SourceMembers
-        !fileResponse.filePath?.endsWith('.cmp-meta.xml') &&
-        !fileResponse.filePath?.endsWith('.tokens-meta.xml') &&
-        !fileResponse.filePath?.endsWith('.evt-meta.xml') &&
-        !fileResponse.filePath?.endsWith('.app-meta.xml') &&
-        !fileResponse.filePath?.endsWith('.intf-meta.xml')
+        !isSpecialAuraXml(fileResponse.filePath)
     )
     .map((member) => {
       getMetadataKeyFromFileResponse(member)
