@@ -9,7 +9,7 @@ import { isString } from '@salesforce/ts-types';
 import { MetadataResolver, VirtualTreeContainer, ForceIgnore } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
 import { sourceComponentGuard } from './guards';
-import { ensureRelative } from './functions';
+import { ensureRelative, isLwcLocalOnlyTest } from './functions';
 const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
 
 /**
@@ -74,8 +74,8 @@ export const populateTypesAndNames = ({
       const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
       const ignored = filenamesFromMatchingComponent
         .filter(isString)
-        .filter((filename) => !filename.includes('__tests__'))
-        .some((filename) => forceIgnore?.denies(filename));
+        .filter((f) => !isLwcLocalOnlyTest(f))
+        .some((f) => forceIgnore?.denies(f));
       filenamesFromMatchingComponent.map((filename) => {
         if (filename && elementMap.has(filename)) {
           // add the type/name from the componentSet onto the element

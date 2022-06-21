@@ -22,6 +22,8 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
 };
 
 export const isBundle = (cmp: SourceComponent): boolean => cmp.type.strategies?.adapter === 'bundle';
+export const isLwcLocalOnlyTest = (filePath: string): boolean =>
+  filePath.includes('__utam__') || filePath.includes('__tests__');
 
 /**
  * Verify that a filepath starts exactly with a complete parent path
