@@ -760,21 +760,16 @@ export class SourceTracking extends AsyncCreatable {
 
   private localChangesToOutputRow(input: ChangeResult, localType: 'delete' | 'modify' | 'add'): StatusOutputRow[] {
     this.logger.debug('converting ChangeResult to a row', input);
-
-    const baseObject = {
-      type: input.type ?? '',
-      origin: 'local',
-      state: localType,
-      fullName: input.name ?? '',
-      // ignored property will be set in populateTypesAndNames
-      ignored: input.ignored ?? false,
-    };
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
 
     if (input.filenames) {
       return input.filenames.map((filename) => ({
-        ...baseObject,
+        type: input.type ?? '',
+        state: localType,
+        fullName: input.name ?? '',
         filePath: filename,
         origin: 'local',
+        ignored: this.forceIgnore.denies(filename),
       }));
     }
     throw new Error('no filenames found for local ChangeResult');
