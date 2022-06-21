@@ -13,6 +13,7 @@ import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { ConfigFile, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, Duration } from '@salesforce/kit';
+import { QueryResult } from 'jsforce';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
@@ -564,10 +565,27 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
 
     try {
-      const results = await this.org.getConnection().tooling.query<SourceMember>(query, {
-        autoFetch: true,
+      const result: QueryResult<SourceMember> = await new Promise((resolve, reject) => {
+        const records: SourceMember[] = [];
+        const res = this.org
+          .getConnection()
+          .tooling.query<SourceMember>(query)
+          .on('record', (rec) => records.push(rec))
+          .on('error', (err) => reject(err))
+          .on('end', () => {
+            resolve({
+              done: true,
+              totalSize: res.totalSize ?? 0,
+              records,
+            });
+          })
+          .run({
+            autoFetch: true,
+            maxFetch: 5000000,
+          });
       });
-      return results.records;
+
+      return result.records;
     } catch (error) {
       throw SfError.wrap(error as Error);
     }

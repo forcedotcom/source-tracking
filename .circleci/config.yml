@@ -63,7 +63,7 @@ jobs:
           command: |
             yarn
             yarn upgrade @salesforce/source-deploy-retrieve@latest
-            yarn upgrade @salesforce/core@latest
+            yarn upgrade @salesforce/core@v3-beta
       - when:
           condition:
             equal: ['linux', <<parameters.os>>]
