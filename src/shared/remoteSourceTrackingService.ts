@@ -328,6 +328,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         sourceMember.serverRevisionCounter = change.RevisionCounter;
         sourceMember.isNameObsolete = change.IsNameObsolete;
       } else if (!quiet) {
+        // We are not yet tracking it so we'll insert a new record
         this.logger.debug(
           `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
         );
