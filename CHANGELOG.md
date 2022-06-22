@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.1.1](https://github.com/forcedotcom/source-tracking/compare/v2.1.0...v2.1.1) (2022-06-22)
+
+### Bug Fixes
+
+- core for jsforce autofetch ([406c519](https://github.com/forcedotcom/source-tracking/commit/406c519827571fc8f9be2e8008b1cdd8b7827634))
+
 ## [2.1.0](https://github.com/forcedotcom/source-tracking/compare/v2.0.0...v2.1.0) (2022-06-22)
 
 ### Features
