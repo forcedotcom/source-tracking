@@ -17,6 +17,7 @@ import { env, Duration } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
+
 // represents the contents of the config file stored in 'maxRevision.json'
 type Contents = {
   serverMaxRevisionCounter: number;
@@ -327,13 +328,12 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         }
         sourceMember.serverRevisionCounter = change.RevisionCounter;
         sourceMember.isNameObsolete = change.IsNameObsolete;
-      } else {
-        // We are not yet tracking it so we'll insert a new record
-        if (!quiet) {
-          this.logger.debug(
-            `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
-          );
-        }
+      }
+      // We are not yet tracking it so we'll insert a new record
+      else if (!quiet) {
+        this.logger.debug(
+          `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
+        );
       }
 
       // If we are syncing changes then we need to update the lastRetrievedFromServer field to
@@ -516,6 +516,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * Filter out known source tracking issues
    * This prevents the polling from waiting on things that may never return
    */
+  // eslint-disable-next-line class-methods-use-this
   private calculateExpectedSourceMembers(expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> {
     const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
 
@@ -641,10 +642,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
 
     try {
-      const results = await this.org.getConnection().tooling.query<SourceMember>(query, {
-        autoFetch: true,
-      });
-      return results.records;
+      return (await this.org.getConnection().tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50000 }))
+        .records;
     } catch (error) {
       throw SfError.wrap(error as Error);
     }
