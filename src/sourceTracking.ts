@@ -71,6 +71,7 @@ export class SourceTracking extends AsyncCreatable {
     this.hasSfdxTrackingFiles = hasSfdxTrackingFiles(this.org.getOrgId(), this.projectPath);
   }
 
+  // eslint-disable-next-line class-methods-use-this
   public async init(): Promise<void> {
     // reserved for future use
   }

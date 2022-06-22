@@ -233,6 +233,8 @@ export class ShadowRepo {
       const chunks = chunkArray([...new Set(deployedFiles)], this.maxFileAdd);
       for (const chunk of chunks) {
         try {
+          // these need to be done sequentially (it's already batched) because isogit manages file locking
+          // eslint-disable-next-line no-await-in-loop
           await git.add({
             fs,
             dir: this.projectPath,
@@ -253,6 +255,8 @@ export class ShadowRepo {
     }
 
     for (const filepath of [...new Set(deletedFiles)]) {
+      // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
+      // eslint-disable-next-line no-await-in-loop
       await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
     }
 

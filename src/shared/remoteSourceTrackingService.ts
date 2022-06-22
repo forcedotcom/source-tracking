@@ -328,13 +328,12 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         }
         sourceMember.serverRevisionCounter = change.RevisionCounter;
         sourceMember.isNameObsolete = change.IsNameObsolete;
-      } else {
-        // We are not yet tracking it so we'll insert a new record
-        if (!quiet) {
-          this.logger.debug(
-            `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
-          );
-        }
+      }
+      // We are not yet tracking it so we'll insert a new record
+      else if (!quiet) {
+        this.logger.debug(
+          `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
+        );
       }
 
       // If we are syncing changes then we need to update the lastRetrievedFromServer field to
@@ -517,6 +516,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * Filter out known source tracking issues
    * This prevents the polling from waiting on things that may never return
    */
+  // eslint-disable-next-line class-methods-use-this
   private calculateExpectedSourceMembers(expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> {
     const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
 

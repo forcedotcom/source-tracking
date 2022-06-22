@@ -4,6 +4,7 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
+
 import * as path from 'path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
@@ -32,9 +33,12 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
     const classdir = path.join(session.project.dir, 'force-app', 'main', 'default', 'classes');
     for (let d = 0; d < dirCount; d++) {
       const dirName = path.join(classdir, `dir${d}`);
+      // you might think you could parallelize this, but Error: ENFILE: file table overflow will happen
+      // eslint-disable-next-line no-await-in-loop
       await fs.promises.mkdir(dirName);
       for (let c = 0; c < classesPerDir; c++) {
         const className = `x${d}x${c}`;
+        // eslint-disable-next-line no-await-in-loop
         await Promise.all([
           fs.promises.writeFile(
             path.join(dirName, `${className}.cls`),
