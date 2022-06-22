@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.1.0](https://github.com/forcedotcom/source-tracking/compare/v2.0.0...v2.1.0) (2022-06-22)
+
+### Features
+
+- use StateAggregator ([8a29ac6](https://github.com/forcedotcom/source-tracking/commit/8a29ac6cc7d4009cac32bd86ce55e82104991d95))
+
+### Bug Fixes
+
+- use await ([ce650bd](https://github.com/forcedotcom/source-tracking/commit/ce650bdc9d18a96adb1b0959c44c4e42eb972e2b))
+- use fixed jsforce autoFetch, restore ut ([f52afd0](https://github.com/forcedotcom/source-tracking/commit/f52afd055d05c6c577e864b1d78edf2acebaab46))
+- wait for query to finish ([4e4ac4b](https://github.com/forcedotcom/source-tracking/commit/4e4ac4b9e3a6a480e8ddb9419cecde7304db76c3))
+
 ## [2.0.0](https://github.com/forcedotcom/source-tracking/compare/v1.5.0...v2.0.0) (2022-05-23)
 
 ### ⚠ BREAKING CHANGES
