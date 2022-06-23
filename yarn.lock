@@ -687,7 +687,7 @@
     strip-ansi "6.0.1"
     ts-retry-promise "^0.6.0"
 
-"@salesforce/core@^3.20.1", "@salesforce/core@^3.21.1", "@salesforce/core@^3.21.3":
+"@salesforce/core@^3.20.1", "@salesforce/core@^3.21.1":
   version "3.21.3"
   resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-3.21.3.tgz#c19adb691d14c4c2c1ddcd9b63b054a7f69e4f05"
   integrity sha512-tpGLCkkjKCsuK7gACwHjb6C0D7i9KRXMr4Na7hahHB7GxNvTWi8ZpgXcKd1nMumHpUeMZ5vmEQPuCP9MSOmeRQ==
@@ -708,6 +708,31 @@
     graceful-fs "^4.2.9"
     js2xmlparser "^4.0.1"
     jsforce "2.0.0-beta.12"
+    jsonwebtoken "8.5.1"
+    mkdirp "1.0.4"
+    ts-retry-promise "^0.6.0"
+
+"@salesforce/core@^3.21.5":
+  version "3.21.5"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-3.21.5.tgz#d85aa87af8a553bbfe02f5c7574bd775384eb9d9"
+  integrity sha512-UkWccO+oQ1EDa5ao+beTI3CpaBwwKWRZsbviIXZNL3oa19uB8Lv3kiQoMUSIGQKi2iWqZ5JuYjqkPBVhjBJjbg==
+  dependencies:
+    "@salesforce/bunyan" "^2.0.0"
+    "@salesforce/kit" "^1.5.41"
+    "@salesforce/schemas" "^1.1.0"
+    "@salesforce/ts-types" "^1.5.20"
+    "@types/graceful-fs" "^4.1.5"
+    "@types/mkdirp" "^1.0.2"
+    "@types/semver" "^7.3.9"
+    ajv "^8.11.0"
+    archiver "^5.3.0"
+    change-case "^4.1.2"
+    debug "^3.2.7"
+    faye "^1.4.0"
+    form-data "^4.0.0"
+    graceful-fs "^4.2.9"
+    js2xmlparser "^4.0.1"
+    jsforce "2.0.0-beta.14"
     jsonwebtoken "8.5.1"
     mkdirp "1.0.4"
     ts-retry-promise "^0.6.0"
@@ -3816,6 +3841,32 @@ jsforce@2.0.0-beta.12:
   version "2.0.0-beta.12"
   resolved "https://registry.yarnpkg.com/jsforce/-/jsforce-2.0.0-beta.12.tgz#55e1d5d49ebde380fb3582f5964a74da51dc271e"
   integrity sha512-HGGxDm0t5KUS7We2XMWTQQLmiwHLbZRdyEV9A/2rugorLwIPFJb3bnqKIyeO83cjETiVWYXFuEZwZR8XadWmEg==
+  dependencies:
+    "@babel/runtime" "^7.12.5"
+    "@babel/runtime-corejs3" "^7.12.5"
+    "@types/node" "^12.19.9"
+    abort-controller "^3.0.0"
+    base64url "^3.0.1"
+    commander "^4.0.1"
+    core-js "^3.6.4"
+    csv-parse "^4.8.2"
+    csv-stringify "^5.3.4"
+    faye "^1.4.0"
+    form-data "^4.0.0"
+    fs-extra "^8.1.0"
+    https-proxy-agent "^5.0.0"
+    inquirer "^7.0.0"
+    multistream "^3.1.0"
+    node-fetch "^2.6.1"
+    open "^7.0.0"
+    regenerator-runtime "^0.13.3"
+    strip-ansi "^6.0.0"
+    xml2js "^0.4.22"
+
+jsforce@2.0.0-beta.14:
+  version "2.0.0-beta.14"
+  resolved "https://registry.yarnpkg.com/jsforce/-/jsforce-2.0.0-beta.14.tgz#237753bdabb7e80447b5b266eaefc4abf8b6c951"
+  integrity sha512-j66PaKroshB4VZbfKBAx9+lJy8etFfGG1hGFsI7ufwxvacXxLTAxZwOEZPkYPMigiHrPlEMtIwh5NqwBsIn9HA==
   dependencies:
     "@babel/runtime" "^7.12.5"
     "@babel/runtime-corejs3" "^7.12.5"
