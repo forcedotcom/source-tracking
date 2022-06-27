@@ -122,7 +122,7 @@ export class SourceTracking extends AsyncCreatable {
     ]);
     const sourceApiVersion = projectConfig.sourceApiVersion;
 
-    const [allNonDeletes, allDeletes] = await Promise.all([
+    const [nonDeletes, deletes] = await Promise.all([
       this.localRepo.getNonDeleteFilenames(),
       this.localRepo.getDeleteFilenames(),
     ]);
@@ -131,8 +131,8 @@ export class SourceTracking extends AsyncCreatable {
     const groupings = getGroupedFiles(
       {
         packageDirs: this.packagesDirs,
-        allNonDeletes,
-        allDeletes,
+        nonDeletes,
+        deletes,
       },
       byPackageDir ?? Boolean(projectConfig.pushPackageDirectoriesSequentially)
     ); // if the users specified true or false for the param, that overrides the project config

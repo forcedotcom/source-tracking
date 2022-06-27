@@ -18,8 +18,8 @@ import { isBundle, pathIsInFolder } from './functions';
 
 interface GroupedFileInput {
   packageDirs: NamedPackageDir[];
-  allNonDeletes: string[];
-  allDeletes: string[];
+  nonDeletes: string[];
+  deletes: string[];
 }
 interface GroupedFile {
   path: string;
@@ -33,17 +33,21 @@ export const getGroupedFiles = (input: GroupedFileInput, byPackageDir = false): 
   );
 };
 
-const getSequential = ({ packageDirs, allNonDeletes, allDeletes }: GroupedFileInput): GroupedFile[] =>
+const getSequential = ({ packageDirs, nonDeletes, deletes }: GroupedFileInput): GroupedFile[] =>
   packageDirs.map((pkgDir) => ({
     path: pkgDir.name,
-    nonDeletes: allNonDeletes.filter((f) => pathIsInFolder(f, pkgDir.name)),
-    deletes: allDeletes.filter((f) => pathIsInFolder(f, pkgDir.name)),
+    nonDeletes: nonDeletes.filter((f) => pathIsInFolder(f, pkgDir.name)),
+    deletes: deletes.filter((f) => pathIsInFolder(f, pkgDir.name)),
   }));
 
-const getNonSequential = ({ packageDirs, allNonDeletes, allDeletes }: GroupedFileInput): GroupedFile[] => [
+const getNonSequential = ({
+  packageDirs,
+  nonDeletes: nonDeletes,
+  deletes: deletes,
+}: GroupedFileInput): GroupedFile[] => [
   {
-    nonDeletes: allNonDeletes,
-    deletes: allDeletes,
+    nonDeletes,
+    deletes,
     path: packageDirs.map((dir) => dir.name).join(';'),
   },
 ];
