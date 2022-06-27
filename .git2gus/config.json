@@ -1,8 +1,4 @@
 {
-  "productTag": "a1aB00000004Bx8IAE",
-  "defaultBuild": "offcore.tooling.53",
-  "issueTypeLabels": {
-    "feature": "USER STORY",
-    "bug": "BUG P3"
-  }
+    "productTag": "a1aB00000004Bx8IAE",
+    "defaultBuild": "offcore.tooling.54"
 }
