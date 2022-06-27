@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { resolve, sep, normalize } from 'path';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
-import { getString, isString, getBoolean } from '@salesforce/ts-types';
+import { isString } from '@salesforce/ts-types';
 import {
   ComponentSet,
   MetadataResolver,
@@ -16,7 +16,6 @@ import {
   SourceComponent,
   FileResponse,
   ForceIgnore,
-  DestructiveChangesType,
   VirtualTreeContainer,
   DeployResult,
   ScopedPreDeploy,
@@ -43,7 +42,7 @@ import { registrySupportsType } from './shared/metadataKeys';
 import { hasSfdxTrackingFiles } from './compatibility';
 import { populateFilePaths } from './shared/populateFilePaths';
 import { populateTypesAndNames } from './shared/populateTypesAndNames';
-
+import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray';
 export interface SourceTrackingOptions {
   org: Org;
   project: SfProject;
@@ -114,94 +113,32 @@ export class SourceTracking extends AsyncCreatable {
    * @returns ComponentSet[]
    */
   public async localChangesAsComponentSet(byPackageDir?: boolean): Promise<ComponentSet[]> {
-    const [projectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().name);
+    const [projectConfig] = await Promise.all([
+      this.project.resolveProjectConfig() as {
+        sourceApiVersion?: string;
+        pushPackageDirectoriesSequentially?: boolean;
+      },
+      this.ensureLocalTracking(),
+    ]);
+    const sourceApiVersion = projectConfig.sourceApiVersion;
 
-    const sourceApiVersion = getString(projectConfig, 'sourceApiVersion');
-
-    // optimistic resolution...some files may not be possible to resolve
-    const resolverForNonDeletes = new MetadataResolver();
-    // we need virtual components for the deletes.
-    // TODO: could we use the same for the non-deletes?
-
-    const [allNonDeletes, allDeletes] = (
-      await Promise.all([this.localRepo.getNonDeleteFilenames(), this.localRepo.getDeleteFilenames()])
-    )
-      // remove the forceIgnored items early
-      .map((group) => group.filter((item) => this.forceIgnore.accepts(item)));
+    const [allNonDeletes, allDeletes] = await Promise.all([
+      this.localRepo.getNonDeleteFilenames(),
+      this.localRepo.getDeleteFilenames(),
+    ]);
 
     // it'll be easier to filter filenames and work with smaller component sets than to filter SourceComponents
-    const groupings = // if the users specified true or false for the param, that overrides the project config
-      (
-        byPackageDir ?? getBoolean(projectConfig, 'pushPackageDirectoriesSequentially', false)
-          ? this.packagesDirs.map((pkgDir) => ({
-              path: pkgDir.name,
-              nonDeletes: allNonDeletes.filter((f) => pathIsInFolder(f, pkgDir.name)),
-              deletes: allDeletes.filter((f) => pathIsInFolder(f, pkgDir.name)),
-            }))
-          : [
-              {
-                nonDeletes: allNonDeletes,
-                deletes: allDeletes,
-                path: this.packagesDirs.map((dir) => dir.name).join(';'),
-              },
-            ]
-      ).filter((group) => group.deletes.length || group.nonDeletes.length);
+    const groupings = getGroupedFiles(
+      {
+        packageDirs: this.packagesDirs,
+        allNonDeletes,
+        allDeletes,
+      },
+      byPackageDir ?? Boolean(projectConfig.pushPackageDirectoriesSequentially)
+    ); // if the users specified true or false for the param, that overrides the project config
     this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
 
-    return groupings
-      .map((grouping) => {
-        this.logger.debug(
-          `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
-        );
-
-        const componentSet = new ComponentSet();
-        if (sourceApiVersion) {
-          componentSet.sourceApiVersion = sourceApiVersion;
-        }
-
-        const resolverForDeletes = new MetadataResolver(
-          undefined,
-          VirtualTreeContainer.fromFilePaths(grouping.deletes)
-        );
-
-        grouping.deletes
-          .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-          .filter(sourceComponentGuard)
-          .map((component) => {
-            // if the component is a file in a bundle type AND there are files from the bundle that are not deleted, set the bundle for deploy, not for delete
-            if (isBundle(component) && component.content && fs.existsSync(component.content)) {
-              // all bundle types have a directory name
-              try {
-                resolverForNonDeletes
-                  .getComponentsFromPath(resolve(component.content))
-                  .filter(sourceComponentGuard)
-                  .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
-              } catch (e) {
-                this.logger.warn(
-                  `unable to find component at ${component.content}.  That's ok if it was supposed to be deleted`
-                );
-              }
-            } else {
-              componentSet.add(component, DestructiveChangesType.POST);
-            }
-          });
-
-        grouping.nonDeletes
-          .flatMap((filename) => {
-            try {
-              return resolverForNonDeletes.getComponentsFromPath(resolve(filename));
-            } catch (e) {
-              this.logger.warn(`unable to resolve ${filename}`);
-              return undefined;
-            }
-          })
-          .filter(sourceComponentGuard)
-          .map((component) => componentSet.add(component));
-
-        return componentSet;
-      })
-      .filter((componentSet) => componentSet.size > 0);
+    return getComponentSets(groupings, sourceApiVersion);
   }
 
   public async remoteNonDeletesAsComponentSet(): Promise<ComponentSet> {
