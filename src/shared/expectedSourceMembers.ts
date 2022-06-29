@@ -20,10 +20,14 @@ const typesToNoPollFor = [
   'SharingCriteriaRule',
   'GlobalValueSetTranslation',
   'AssignmentRules',
+  'InstalledPackage',
 ];
 
+const typesNotToPollForIfNamespace = ['CustomLabels', 'CustomMetadata', 'DuplicateRule', 'WebLink'];
+
 const isEncodedTypeWithPercentSign = (type: string, filePath?: string): boolean =>
-  ['Layout', 'Profile', 'HomePageComponent', 'HomePageLayout'].includes(type) && Boolean(filePath?.includes('%'));
+  ['Layout', 'Profile', 'HomePageComponent', 'HomePageLayout', 'MilestoneType'].includes(type) &&
+  Boolean(filePath?.includes('%'));
 
 // aura xml aren't tracked as SourceMembers
 const isSpecialAuraXml = (filePath?: string): boolean =>
@@ -58,8 +62,7 @@ export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[
         !fileResponse.type.includes('Settings') &&
         // mdapi encodes these, sourceMembers don't have encoding
         !isEncodedTypeWithPercentSign(fileResponse.type, fileResponse.filePath) &&
-        // namespaced labels and CMDT don't resolve correctly
-        !(['CustomLabels', 'CustomMetadata'].includes(fileResponse.type) && fileResponse.filePath?.includes('__')) &&
+        !(typesNotToPollForIfNamespace.includes(fileResponse.type) && fileResponse.filePath?.includes('__')) &&
         // don't wait on workflow children
         !fileResponse.type.startsWith('Workflow') &&
         !isSpecialAuraXml(fileResponse.filePath)
