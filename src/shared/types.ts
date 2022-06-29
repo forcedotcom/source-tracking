@@ -6,6 +6,7 @@
  */
 
 import { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
+import { SfError } from '@salesforce/core';
 
 export interface ChangeOptions {
   origin: 'local' | 'remote';
@@ -56,10 +57,18 @@ export type SourceMember = {
   ignored?: boolean;
 };
 
-export interface ConflictError {
-  message: string;
-  name: 'conflict';
-  conflicts: ChangeResult[];
+export interface ConflictResponse {
+  state: 'Conflict';
+  fullName: string;
+  type: string;
+  filePath: string;
 }
+
+export interface SourceConflictError extends SfError {
+  name: 'SourceConflictError';
+  data: ConflictResponse[];
+}
+
+export class SourceConflictError extends SfError implements SourceConflictError {}
 
 export type ChangeOptionType = ChangeResult | SourceComponent | string;

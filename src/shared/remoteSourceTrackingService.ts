@@ -11,13 +11,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { ConfigFile, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
-import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { Dictionary, Optional } from '@salesforce/ts-types';
 import { env, Duration } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
-
+import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 // represents the contents of the config file stored in 'maxRevision.json'
 type Contents = {
   serverMaxRevisionCounter: number;
@@ -328,9 +327,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         }
         sourceMember.serverRevisionCounter = change.RevisionCounter;
         sourceMember.isNameObsolete = change.IsNameObsolete;
-      }
-      // We are not yet tracking it so we'll insert a new record
-      else if (!quiet) {
+      } else if (!quiet) {
+        // We are not yet tracking it so we'll insert a new record
         this.logger.debug(
           `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
         );
@@ -407,7 +405,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       return;
     }
 
-    const outstandingSourceMembers = this.calculateExpectedSourceMembers(expectedMembers);
+    const outstandingSourceMembers = calculateExpectedSourceMembers(expectedMembers);
     if (expectedMembers.length === 0 || outstandingSourceMembers.size === 0) {
       // Don't bother polling if we're not matching SourceMembers
       return;
@@ -510,81 +508,6 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         members: Array.from(outstandingSourceMembers.keys()).join(','),
       });
     }
-  }
-
-  /**
-   * Filter out known source tracking issues
-   * This prevents the polling from waiting on things that may never return
-   */
-  // eslint-disable-next-line class-methods-use-this
-  private calculateExpectedSourceMembers(expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> {
-    const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
-
-    expectedMembers
-      .filter(
-        // eslint-disable-next-line complexity
-        (fileResponse) =>
-          // unchanged files will never be in the sourceMembers.  Not really sure why SDR returns them.
-          fileResponse.state !== ComponentStatus.Unchanged &&
-          // if a listView is the only change inside an object, the object won't have a sourceMember change.  We won't wait for those to be found
-          // we don't know which email folder type might be there, so don't require either
-          // Portal doesn't support source tracking, according to the coverage report
-          ![
-            'CustomObject',
-            'EmailFolder',
-            'EmailTemplateFolder',
-            'StandardValueSet',
-            'Portal',
-            'StandardValueSetTranslation',
-            'SharingRules',
-            'SharingCriteriaRule',
-            'GlobalValueSetTranslation',
-            'AssignmentRules',
-          ].includes(fileResponse.type) &&
-          // don't wait for standard fields on standard objects
-          !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('__c')) &&
-          // deleted fields
-          !(fileResponse.type === 'CustomField' && !fileResponse.filePath?.includes('_del__c')) &&
-          // built-in report type ReportType__screen_flows_prebuilt_crt
-          !(fileResponse.type === 'ReportType' && fileResponse.filePath?.includes('screen_flows_prebuilt_crt')) &&
-          // they're settings to mdapi, and FooSettings in sourceMembers
-          !fileResponse.type.includes('Settings') &&
-          // mdapi encodes these, sourceMembers don't have encoding
-          !(
-            (fileResponse.type === 'Layout' ||
-              fileResponse.type === 'BusinessProcess' ||
-              fileResponse.type === 'Profile' ||
-              fileResponse.type === 'HomePageComponent' ||
-              fileResponse.type === 'HomePageLayout') &&
-            fileResponse.filePath?.includes('%')
-          ) &&
-          // namespaced labels and CMDT don't resolve correctly
-          !(['CustomLabels', 'CustomMetadata'].includes(fileResponse.type) && fileResponse.filePath?.includes('__')) &&
-          // don't wait on workflow children
-          !fileResponse.type.startsWith('Workflow') &&
-          // aura xml aren't tracked as SourceMembers
-          !fileResponse.filePath?.endsWith('.cmp-meta.xml') &&
-          !fileResponse.filePath?.endsWith('.tokens-meta.xml') &&
-          !fileResponse.filePath?.endsWith('.evt-meta.xml') &&
-          !fileResponse.filePath?.endsWith('.app-meta.xml') &&
-          !fileResponse.filePath?.endsWith('.intf-meta.xml')
-      )
-      .map((member) => {
-        getMetadataKeyFromFileResponse(member)
-          // remove some individual members known to not work with tracking even when their type does
-          .filter(
-            (key) =>
-              // CustomObject could have been re-added by the key generator from one of its fields
-              !key.startsWith('CustomObject') &&
-              key !== 'Profile__Standard' &&
-              key !== 'CustomTab__standard-home' &&
-              key !== 'AssignmentRules__Case' &&
-              key !== 'ListView__CollaborationGroup.All_ChatterGroups'
-          )
-          .map((key) => outstandingSourceMembers.set(key, member));
-      });
-
-    return outstandingSourceMembers;
   }
 
   private calculateTimeout(memberCount: number): Duration {

@@ -6,6 +6,7 @@
  */
 import { basename, dirname, join, normalize, sep } from 'path';
 import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import { Lifecycle } from '@salesforce/core';
 import { RemoteSyncInput } from './types';
 import { getMetadataKey } from './functions';
 
@@ -76,3 +77,17 @@ export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string
   ['AuraDefinition', 'AuraDefinitionBundle'],
   ['LightningComponentResource', 'LightningComponentBundle'],
 ]);
+
+export const registrySupportsType = (type: string): boolean => {
+  try {
+    if (mappingsForSourceMemberTypesToMetadataType.has(type)) {
+      return true;
+    }
+    // this must use getTypeByName because findType doesn't support addressable child types (ex: customField!)
+    registry.getTypeByName(type);
+    return true;
+  } catch (e) {
+    void Lifecycle.getInstance().emitWarning(`Unable to find type ${type} in registry`);
+    return false;
+  }
+};
