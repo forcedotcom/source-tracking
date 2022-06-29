@@ -112,7 +112,7 @@ export class SourceTracking extends AsyncCreatable {
    * * if not specified, this method will follow what sfdx-project.json says
    * @returns ComponentSet[]
    */
-  public async localChangesAsComponentSet(byPackageDir?: boolean): Promise<ComponentSet[]> {
+  public async localChangesAsComponentSet(byPackageDir?: boolean, includeIgnored = false): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([
       this.project.resolveProjectConfig() as {
         sourceApiVersion?: string;
@@ -138,7 +138,7 @@ export class SourceTracking extends AsyncCreatable {
     ); // if the users specified true or false for the param, that overrides the project config
     this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
 
-    return getComponentSets(groupings, sourceApiVersion);
+    return getComponentSets({ groupings, sourceApiVersion, includeIgnored });
   }
 
   public async remoteNonDeletesAsComponentSet(): Promise<ComponentSet> {
