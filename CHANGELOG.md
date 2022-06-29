@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.2.0](https://github.com/forcedotcom/source-tracking/compare/v2.1.2...v2.2.0) (2022-06-29)
+
+### Features
+
+- event subscription and convenience method for push ([0c2135b](https://github.com/forcedotcom/source-tracking/commit/0c2135ba3076d3d7a3efd1e4d3c41a468e349728))
+- local repo cache breaking for get status, and a generic method ([6645b72](https://github.com/forcedotcom/source-tracking/commit/6645b72c4695a15caca8aa6d3dc158a600fd15de))
+- never track utam ([6e71f03](https://github.com/forcedotcom/source-tracking/commit/6e71f031c27c4e690d8538253b751da13da0b6e3))
+- option to use SDR events ([d86f698](https://github.com/forcedotcom/source-tracking/commit/d86f69896185b68af7e489f6026589957e06f29d))
+- top-level cache config of local cache behavior ([236ac28](https://github.com/forcedotcom/source-tracking/commit/236ac28314b45c42eff83b9ab8003d0c39efbbb0))
+- track based on sdr events ([1238a68](https://github.com/forcedotcom/source-tracking/commit/1238a686f1d2c6091154ac6370c3d3d019c3a7a7))
+
+### Bug Fixes
+
+- async lifecycle subscribe ([75031f3](https://github.com/forcedotcom/source-tracking/commit/75031f3bbe753001a42f7abcfec1415bfb62547e))
+- custom field was not polling correctly (logic error on del\_\_c) ([1ff2341](https://github.com/forcedotcom/source-tracking/commit/1ff23419d737cb2a22bcf070f5b2790b9ef0536d))
+- logic on local ignored ([9667a6e](https://github.com/forcedotcom/source-tracking/commit/9667a6e8b442a6df0a42fd42dde4dfc289928f90))
+- use fixed jsforce autoFetch, restore ut ([0b32d21](https://github.com/forcedotcom/source-tracking/commit/0b32d217013a346ef8826d3820566b7d70dba3c1))
+
 ### [2.1.2](https://github.com/forcedotcom/source-tracking/compare/v2.1.1...v2.1.2) (2022-06-23)
 
 ### Bug Fixes
