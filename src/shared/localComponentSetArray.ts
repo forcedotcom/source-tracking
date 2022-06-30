@@ -52,32 +52,11 @@ const getNonSequential = ({
   },
 ];
 
-export const getComponentSets = ({
-  groupings,
-  sourceApiVersion,
-  includeIgnored = false,
-}: {
-  groupings: GroupedFile[];
-  sourceApiVersion?: string;
-  includeIgnored: boolean;
-}): ComponentSet[] => {
+export const getComponentSets = (groupings: GroupedFile[], sourceApiVersion?: string): ComponentSet[] => {
   const logger = Logger.childFromRoot('localComponentSetArray');
 
-  // TODO: could we use the same for the non-deletes (ie, virtual tree instead of live fs?)
-  //  - we'd have to guarantee that none of the SDR resolver stuff needs anything besides the path
-  // the nonDelete resolver is used by both deletes and nonDeletes (because bundles)
-  const resolverForNonDeletes = new MetadataResolver(undefined, undefined, !includeIgnored);
-
-  // if there are no deletes, we avoid the cost of constructing the resolver
-  // we need virtual components if there are deletes.
-  // one resolver for all deletes across groupings
-  const resolverForDeletes = groupings.some((g) => g.deletes.length)
-    ? new MetadataResolver(
-        undefined,
-        VirtualTreeContainer.fromFilePaths(groupings.flatMap((g) => g.deletes)),
-        !includeIgnored
-      )
-    : undefined;
+  // optimistic resolution...some files may not be possible to resolve
+  const resolverForNonDeletes = new MetadataResolver();
 
   return groupings
     .map((grouping) => {
@@ -85,27 +64,17 @@ export const getComponentSets = ({
         `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
       );
 
-      const componentSet = grouping.nonDeletes.length
-        ? ComponentSet.fromSource(
-            grouping.nonDeletes
-              // some files may not be resolvable but might be part of local source.
-              // examples: readme.md, gitignores, etc.
-              // resolver will throw when it can't figure out the component type
-              .filter((filename) => {
-                try {
-                  resolverForNonDeletes?.getComponentsFromPath(resolve(filename));
-                  return true;
-                } catch (e) {
-                  logger.warn(`unable to resolve ${filename}`);
-                  return false;
-                }
-              })
-          )
-        : // there could be no nonDeletes if we're only deleting files
-          new ComponentSet();
+      const componentSet = new ComponentSet();
+      if (sourceApiVersion) {
+        componentSet.sourceApiVersion = sourceApiVersion;
+      }
+
+      // we need virtual components for the deletes.
+      // TODO: could we use the same for the non-deletes?
+      const resolverForDeletes = new MetadataResolver(undefined, VirtualTreeContainer.fromFilePaths(grouping.deletes));
 
       grouping.deletes
-        .flatMap((filename) => resolverForDeletes?.getComponentsFromPath(filename))
+        .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
         .filter(sourceComponentGuard)
         .map((component) => {
           // if the component is a file in a bundle type AND there are files from the bundle that are not deleted, set the bundle for deploy, not for delete
@@ -126,9 +95,18 @@ export const getComponentSets = ({
           }
         });
 
-      if (sourceApiVersion) {
-        componentSet.sourceApiVersion = sourceApiVersion;
-      }
+      grouping.nonDeletes
+        .flatMap((filename) => {
+          try {
+            return resolverForNonDeletes.getComponentsFromPath(resolve(filename));
+          } catch (e) {
+            logger.warn(`unable to resolve ${filename}`);
+            return undefined;
+          }
+        })
+        .filter(sourceComponentGuard)
+        .map((component) => componentSet.add(component));
+
       return componentSet;
     })
     .filter((componentSet) => componentSet.size > 0);
