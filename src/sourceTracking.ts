@@ -308,18 +308,21 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   /**
-   *
+   * @deprecated
    * Convenience method to reduce duplicated steps required to do a fka pull
    * It's full of side effects: retrieving remote deletes, deleting those files locall, and then updating tracking files
-   * Most bizarrely, it then returns a ComponentSet of the remote nonDeletes.
+   * Most bizarrely, it then returns a ComponentSet of the remote nonDeletes and the FileResponses from the delete
    *
    * @returns the ComponentSet for what you would retrieve now that the deletes are done
    */
 
-  public async maybeApplyRemoteDeletesToLocal(): Promise<ComponentSet> {
+  public async maybeApplyRemoteDeletesToLocal(): Promise<{
+    componentSet: ComponentSet;
+    fileResponsesFromDelete: FileResponse[];
+  }> {
     const changesToDelete = await this.getChanges({ origin: 'remote', state: 'delete', format: 'SourceComponent' });
-    await this.deleteFilesAndUpdateTracking(changesToDelete);
-    return this.remoteNonDeletesAsComponentSet();
+    const fileResponsesFromDelete = await this.deleteFilesAndUpdateTracking(changesToDelete);
+    return { componentSet: await this.remoteNonDeletesAsComponentSet(), fileResponsesFromDelete };
   }
   /**
    *
