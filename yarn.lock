@@ -2437,9 +2437,9 @@ eslint-config-salesforce@^0.1.6:
   integrity sha512-QloeQzIka5Ruj6RfkfqeNPZoaR7wkz34AU/RABVdn/XBd23lk/l0/I/Hx3Rzx0G4dft/DBaHBL1JYllT0cWE1A==
 
 eslint-config-salesforce@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/eslint-config-salesforce/-/eslint-config-salesforce-1.0.1.tgz#947c15d5247a28c7bb9564e9427e2fd112b97b8a"
-  integrity sha512-36iRnrB+jC//I71Cuid7BDvPotHH9XiTbA96c7HUeuniyxqFk2G0Xdwsyf54AEknqFqzdnqBIU/IDL38ozgy4Q==
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/eslint-config-salesforce/-/eslint-config-salesforce-1.0.2.tgz#3d0f25a28f494336f0d5bcc4cf591c453f8ed5bb"
+  integrity sha512-oMxbfL8SVM/pUNFL7CN1UP6L/J9U/JhLQATmEqcN1QVzJAHgT66vYc2Dwz5SL0Bbsqhk1sVFLY/8tLw6L+tHqQ==
 
 eslint-import-resolver-node@^0.3.6:
   version "0.3.6"
@@ -3821,32 +3821,6 @@ jsesc@^2.5.1:
   version "2.5.2"
   resolved "https://registry.yarnpkg.com/jsesc/-/jsesc-2.5.2.tgz#80564d2e483dacf6e8ef209650a67df3f0c283a4"
   integrity sha512-OYu7XEzjkCQ3C5Ps3QIZsQfNpqoJyZZA99wd9aWd05NCtC5pWOkShK2mkL6HXQR6/Cy2lbNdPlZBpuQHXE63gA==
-
-jsforce@2.0.0-beta.12:
-  version "2.0.0-beta.12"
-  resolved "https://registry.yarnpkg.com/jsforce/-/jsforce-2.0.0-beta.12.tgz#55e1d5d49ebde380fb3582f5964a74da51dc271e"
-  integrity sha512-HGGxDm0t5KUS7We2XMWTQQLmiwHLbZRdyEV9A/2rugorLwIPFJb3bnqKIyeO83cjETiVWYXFuEZwZR8XadWmEg==
-  dependencies:
-    "@babel/runtime" "^7.12.5"
-    "@babel/runtime-corejs3" "^7.12.5"
-    "@types/node" "^12.19.9"
-    abort-controller "^3.0.0"
-    base64url "^3.0.1"
-    commander "^4.0.1"
-    core-js "^3.6.4"
-    csv-parse "^4.8.2"
-    csv-stringify "^5.3.4"
-    faye "^1.4.0"
-    form-data "^4.0.0"
-    fs-extra "^8.1.0"
-    https-proxy-agent "^5.0.0"
-    inquirer "^7.0.0"
-    multistream "^3.1.0"
-    node-fetch "^2.6.1"
-    open "^7.0.0"
-    regenerator-runtime "^0.13.3"
-    strip-ansi "^6.0.0"
-    xml2js "^0.4.22"
 
 jsforce@2.0.0-beta.14:
   version "2.0.0-beta.14"
