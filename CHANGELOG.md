@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.2.1](https://github.com/forcedotcom/source-tracking/compare/v2.2.0...v2.2.1) (2022-07-05)
+
+### Bug Fixes
+
+- bump core ([#180](https://github.com/forcedotcom/source-tracking/issues/180)) ([bf0c1f7](https://github.com/forcedotcom/source-tracking/commit/bf0c1f71f91701dacd2516914ab2abca33b1d00a))
+
 ## [2.2.0](https://github.com/forcedotcom/source-tracking/compare/v2.1.2...v2.2.0) (2022-06-29)
 
 ### Features
