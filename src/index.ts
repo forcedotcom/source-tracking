@@ -13,7 +13,8 @@ export {
   ChangeOptions,
   LocalUpdateOptions,
   ChangeResult,
-  ConflictError,
   StatusOutputRow,
+  ConflictResponse,
+  SourceConflictError,
 } from './shared/types';
 export { getKeyFromObject } from './shared/functions';

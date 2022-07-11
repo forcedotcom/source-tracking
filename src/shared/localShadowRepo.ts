@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as fs from 'graceful-fs';
 import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
 import * as git from 'isomorphic-git';
-import { chunkArray, pathIsInFolder } from './functions';
+import { chunkArray, isLwcLocalOnlyTest, pathIsInFolder } from './functions';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string => {
@@ -134,7 +134,7 @@ export class ShadowRepo {
           // no hidden files
           !f.includes(`${path.sep}.`) &&
           // no lwc tests
-          !f.includes('__tests__') &&
+          !isLwcLocalOnlyTest(f) &&
           // no gitignore files
           !f.endsWith('.gitignore') &&
           // isogit uses `startsWith` for filepaths so it's possible to get a false positive
