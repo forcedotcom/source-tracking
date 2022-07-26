@@ -8,7 +8,7 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 
 import * as path from 'path';
-import * as fs from 'fs';
+import { existsSync, promises } from 'graceful-fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { ConfigFile, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { Dictionary, Optional } from '@salesforce/ts-types';
@@ -120,8 +120,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   public static async delete(orgId: string, useSfdxTrackingFiles = false): Promise<string> {
     const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId, useSfdxTrackingFiles);
     // the file might not exist, in which case we don't need to delete it
-    if (fs.existsSync(fileToDelete)) {
-      await fs.promises.unlink(fileToDelete);
+    if (existsSync(fileToDelete)) {
+      await promises.unlink(fileToDelete);
     }
     return path.isAbsolute(fileToDelete) ? fileToDelete : path.join(process.cwd(), fileToDelete);
   }

@@ -4,8 +4,8 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import * as fs from 'fs';
 import { resolve } from 'path';
+import { existsSync } from 'graceful-fs';
 import { NamedPackageDir, Logger } from '@salesforce/core';
 import {
   ComponentSet,
@@ -78,7 +78,7 @@ export const getComponentSets = (groupings: GroupedFile[], sourceApiVersion?: st
         .filter(sourceComponentGuard)
         .map((component) => {
           // if the component is a file in a bundle type AND there are files from the bundle that are not deleted, set the bundle for deploy, not for delete
-          if (isBundle(component) && component.content && fs.existsSync(component.content)) {
+          if (isBundle(component) && component.content && existsSync(component.content)) {
             // all bundle types have a directory name
             try {
               resolverForNonDeletes
