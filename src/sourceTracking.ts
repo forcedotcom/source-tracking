@@ -23,7 +23,11 @@ import {
   ScopedPreRetrieve,
   ScopedPostDeploy,
   RetrieveResult,
+  RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
+// this is not exported by SDR (see the comments in SDR regarding its limitations)
+import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
+
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
@@ -723,7 +727,8 @@ export class SourceTracking extends AsyncCreatable {
     throw new Error('no filenames found for local ChangeResult');
   }
 
-  // this will eventually have async call to figure out the target file locations for remote changes
+  // reserve the right to do something more sophisticated in the future
+  // via async for figuring out hypothetical filenames (ex: getting default packageDir)
   // eslint-disable-next-line @typescript-eslint/require-await
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
@@ -743,7 +748,22 @@ export class SourceTracking extends AsyncCreatable {
       }));
     }
     // when the file doesn't exist locally, there are no filePaths
-    // So we can't say whether it's ignored or not
+    // SDR can generate the hypothetical place it *would* go and check that
+    if (
+      input.name &&
+      input.type &&
+      filePathsFromMetadataComponent({
+        fullName: input.name,
+        type: new RegistryAccess().getTypeByName(input.type),
+      }).some((hypotheticalFilePath) => this.forceIgnore.denies(hypotheticalFilePath))
+    ) {
+      return [
+        {
+          ...baseObject,
+          ignored: true,
+        },
+      ];
+    }
     return [baseObject];
   }
 }
