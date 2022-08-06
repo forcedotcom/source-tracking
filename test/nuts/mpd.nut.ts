@@ -51,7 +51,7 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
     expect(cs[2].getSourceComponents().toArray()).to.have.length(3);
   });
 
-  it('byPkgDir => 2 component when one pkgDir has no non-ignored files', async () => {
+  it('byPkgDir => 3 component sets and shows ignored files', async () => {
     // will forceignore an entire directory--effectively, a pkgDir with no files found
     const forceIgnoreLocation = path.join(session.project.dir, '.forceignore');
     await fs.promises.writeFile(forceIgnoreLocation, path.join('my-app', '*'));
@@ -59,7 +59,15 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
     // new instance of STL since we changed the forceignore (it'd be cached from previous tests)
     stl = await getSTLInstance(session);
     const cs = await stl.localChangesAsComponentSet(true);
-    expect(cs.length).to.equal(2);
+    expect(cs.length).to.equal(3);
+    expect(cs[0].getSourceComponents().toArray()).to.have.length(6);
+    expect(cs[2].getSourceComponents().toArray()).to.have.length(3);
+
+    // the middle componentSet had everything ignored.
+    expect(cs[1].getSourceComponents().toArray()).to.have.length(0);
+    // those files instead show up in the ignored paths
+    // 1 label + 2 fields in objects + (2 classes * 2 files) = 4
+    expect(cs[1].forceIgnoredPaths).to.have.length(7);
   });
 
   after(async () => {
