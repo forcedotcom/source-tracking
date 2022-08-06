@@ -108,10 +108,8 @@ export const getComponentSets = (groupings: GroupedFile[], sourceApiVersion?: st
         .map((component) => componentSet.add(component));
       // there may have been ignored files, but componentSet.add doesn't automatically track them.
       // We'll manually set the ignored paths from what the resolver has been tracking
-      resolverForNonDeletes.forceIgnoredPaths.forEach((ignoredPath) =>
-        componentSet.forceIgnoredPaths
-          ? componentSet.forceIgnoredPaths.add(ignoredPath)
-          : (componentSet.forceIgnoredPaths = new Set([ignoredPath]))
+      componentSet.forceIgnoredPaths = new Set(
+        [...(componentSet.forceIgnoredPaths ?? [])].concat(Array.from(resolverForNonDeletes.forceIgnoredPaths))
       );
       return componentSet;
     })

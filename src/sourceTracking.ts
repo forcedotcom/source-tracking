@@ -64,6 +64,11 @@ export interface SourceTrackingOptions {
   ignoreLocalCache?: boolean;
 }
 
+type RemoteChangesResults = {
+  componentSetFromNonDeletes: ComponentSet;
+  fileResponsesFromDelete: FileResponse[];
+};
+
 /**
  * Manages source tracking files (remote and local)
  *
@@ -315,14 +320,16 @@ export class SourceTracking extends AsyncCreatable {
    *
    * @returns the ComponentSet for what you would retrieve now that the deletes are done
    */
-
-  public async maybeApplyRemoteDeletesToLocal(): Promise<{
-    componentSet: ComponentSet;
-    fileResponsesFromDelete: FileResponse[];
-  }> {
+  public async maybeApplyRemoteDeletesToLocal(returnDeleteComponentSet: true): Promise<RemoteChangesResults>;
+  public async maybeApplyRemoteDeletesToLocal(returnDeleteComponentSet?: false): Promise<ComponentSet>;
+  public async maybeApplyRemoteDeletesToLocal(
+    returnDeleteComponentSet?: boolean
+  ): Promise<ComponentSet | RemoteChangesResults> {
     const changesToDelete = await this.getChanges({ origin: 'remote', state: 'delete', format: 'SourceComponent' });
     const fileResponsesFromDelete = await this.deleteFilesAndUpdateTracking(changesToDelete);
-    return { componentSet: await this.remoteNonDeletesAsComponentSet(), fileResponsesFromDelete };
+    return returnDeleteComponentSet
+      ? { componentSetFromNonDeletes: await this.remoteNonDeletesAsComponentSet(), fileResponsesFromDelete }
+      : this.remoteNonDeletesAsComponentSet();
   }
   /**
    *
