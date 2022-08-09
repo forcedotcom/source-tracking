@@ -44,7 +44,7 @@
   ],
   "dependencies": {
     "@salesforce/core": "^3.23.1",
-    "@salesforce/kit": "^1.5.42",
+    "@salesforce/kit": "^1.5.45",
     "@salesforce/source-deploy-retrieve": "^6.1.0",
     "graceful-fs": "^4.2.9",
     "isomorphic-git": "1.17.0",
