@@ -749,18 +749,14 @@ export class SourceTracking extends AsyncCreatable {
     }
     // when the file doesn't exist locally, there are no filePaths
     // SDR can generate the hypothetical place it *would* go and check that
-    if (
-      input.name &&
-      input.type &&
-      filePathsFromMetadataComponent({
-        fullName: input.name,
-        type: new RegistryAccess().getTypeByName(input.type),
-      }).some((hypotheticalFilePath) => this.forceIgnore.denies(hypotheticalFilePath))
-    ) {
+    if (input.name && input.type) {
       return [
         {
           ...baseObject,
-          ignored: true,
+          ignored: filePathsFromMetadataComponent({
+            fullName: input.name,
+            type: new RegistryAccess().getTypeByName(input.type),
+          }).some((hypotheticalFilePath) => this.forceIgnore.denies(hypotheticalFilePath)),
         },
       ];
     }
