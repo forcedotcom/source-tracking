@@ -23,7 +23,11 @@ import {
   ScopedPreRetrieve,
   ScopedPostDeploy,
   RetrieveResult,
+  RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
+// this is not exported by SDR (see the comments in SDR regarding its limitations)
+import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
+
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
@@ -63,6 +67,11 @@ export interface SourceTrackingOptions {
    */
   ignoreLocalCache?: boolean;
 }
+
+type RemoteChangesResults = {
+  componentSetFromNonDeletes: ComponentSet;
+  fileResponsesFromDelete: FileResponse[];
+};
 
 /**
  * Manages source tracking files (remote and local)
@@ -311,15 +320,20 @@ export class SourceTracking extends AsyncCreatable {
    *
    * Convenience method to reduce duplicated steps required to do a fka pull
    * It's full of side effects: retrieving remote deletes, deleting those files locall, and then updating tracking files
-   * Most bizarrely, it then returns a ComponentSet of the remote nonDeletes.
+   * Most bizarrely, it then returns a ComponentSet of the remote nonDeletes and the FileResponses from the delete
    *
-   * @returns the ComponentSet for what you would retrieve now that the deletes are done
+   * @returns the ComponentSet for what you would retrieve now that the deletes are done, and optionally, a FileResponses array for the deleted files
    */
-
-  public async maybeApplyRemoteDeletesToLocal(): Promise<ComponentSet> {
+  public async maybeApplyRemoteDeletesToLocal(returnDeleteFileResponses: true): Promise<RemoteChangesResults>;
+  public async maybeApplyRemoteDeletesToLocal(returnDeleteFileResponses?: false): Promise<ComponentSet>;
+  public async maybeApplyRemoteDeletesToLocal(
+    returnDeleteFileResponses?: boolean
+  ): Promise<ComponentSet | RemoteChangesResults> {
     const changesToDelete = await this.getChanges({ origin: 'remote', state: 'delete', format: 'SourceComponent' });
-    await this.deleteFilesAndUpdateTracking(changesToDelete);
-    return this.remoteNonDeletesAsComponentSet();
+    const fileResponsesFromDelete = await this.deleteFilesAndUpdateTracking(changesToDelete);
+    return returnDeleteFileResponses
+      ? { componentSetFromNonDeletes: await this.remoteNonDeletesAsComponentSet(), fileResponsesFromDelete }
+      : this.remoteNonDeletesAsComponentSet();
   }
   /**
    *
@@ -713,7 +727,8 @@ export class SourceTracking extends AsyncCreatable {
     throw new Error('no filenames found for local ChangeResult');
   }
 
-  // this will eventually have async call to figure out the target file locations for remote changes
+  // reserve the right to do something more sophisticated in the future
+  // via async for figuring out hypothetical filenames (ex: getting default packageDir)
   // eslint-disable-next-line @typescript-eslint/require-await
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
@@ -733,7 +748,18 @@ export class SourceTracking extends AsyncCreatable {
       }));
     }
     // when the file doesn't exist locally, there are no filePaths
-    // So we can't say whether it's ignored or not
+    // SDR can generate the hypothetical place it *would* go and check that
+    if (input.name && input.type) {
+      return [
+        {
+          ...baseObject,
+          ignored: filePathsFromMetadataComponent({
+            fullName: input.name,
+            type: new RegistryAccess().getTypeByName(input.type),
+          }).some((hypotheticalFilePath) => this.forceIgnore.denies(hypotheticalFilePath)),
+        },
+      ];
+    }
     return [baseObject];
   }
 }
