@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.2.2](https://github.com/forcedotcom/source-tracking/compare/v2.2.1...v2.2.2) (2022-08-10)
+
+### ⚠ BREAKING CHANGES
+
+- return componentSet and File Responses
+
+### Features
+
+- local CmpSet from changes tracks ignored files like normal CmpSet ([aaa707f](https://github.com/forcedotcom/source-tracking/commit/aaa707fb2e68f5b7199d79d8ea8213068bea09b1))
+- local componentSet can show ignored local files ([c230437](https://github.com/forcedotcom/source-tracking/commit/c23043726dcee304a3b550c0d463719e11f6d9ef))
+- overload to preserve backwards compatibility ([cfc53e3](https://github.com/forcedotcom/source-tracking/commit/cfc53e3ecf0b037cbe7c7ada2588c2e4ead2ab88))
+- return componentSet and File Responses ([b8dc01e](https://github.com/forcedotcom/source-tracking/commit/b8dc01eb0e01ed0aa010c554beae35fa0613d628))
+
+### Bug Fixes
+
+- bump eslint/jsdoc to get automerges flowing again ([afd85ff](https://github.com/forcedotcom/source-tracking/commit/afd85ff420877b7fb969085cf5f59d9c3f80555f))
+- ensure remote changes have a value for ignored (plugin expects it) ([bc1379f](https://github.com/forcedotcom/source-tracking/commit/bc1379f8f020fed5bfca721330f4404662d1b300))
+- force version change ([5483cd3](https://github.com/forcedotcom/source-tracking/commit/5483cd317614aea6aeb50c5544cede92fa9c2cb2))
+- remote changes display ignoredness ([d3533f9](https://github.com/forcedotcom/source-tracking/commit/d3533f9275d2a290b3c34019e204718e16ceaa75))
+
 ### [2.2.1](https://github.com/forcedotcom/source-tracking/compare/v2.2.0...v2.2.1) (2022-07-05)
 
 ### Bug Fixes
