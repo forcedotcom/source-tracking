@@ -48,7 +48,7 @@
     "@salesforce/source-deploy-retrieve": "^6.3.0",
     "graceful-fs": "^4.2.9",
     "isomorphic-git": "1.17.0",
-    "ts-retry-promise": "^0.6.0"
+    "ts-retry-promise": "^0.7.0"
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^2.3.10",
