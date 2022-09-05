@@ -673,14 +673,15 @@
     mv "~2"
     safe-json-stringify "~1"
 
-"@salesforce/cli-plugins-testkit@^2.3.10":
-  version "2.3.10"
-  resolved "https://registry.yarnpkg.com/@salesforce/cli-plugins-testkit/-/cli-plugins-testkit-2.3.10.tgz#bd2596259b5f3ee67fe535c01ee5aa68e55a17e4"
-  integrity sha512-6NFnfTyG927OGZcYwfPSShXs+s+uq9Kat5HQEzFx+I/FLwfoa2vLfEvchSxaoJexg/1ZkMaoWCRjABivCRgloQ==
+"@salesforce/cli-plugins-testkit@^2.3.13":
+  version "2.3.13"
+  resolved "https://registry.yarnpkg.com/@salesforce/cli-plugins-testkit/-/cli-plugins-testkit-2.3.13.tgz#d3179403f1264b8c11bc021768ae1a8b70cc8eb8"
+  integrity sha512-vyz+1E7sPBD+BubvOF6OJYIV4e6J5PB/v9V77GQjGXx3FI0J09OLjvGe2rjIW+Vm1rbjLBVjtIAZvKlpGYx/Uw==
   dependencies:
     "@salesforce/core" "^3.20.1"
     "@salesforce/kit" "^1.5.42"
     "@salesforce/ts-types" "^1.5.17"
+    "@types/shelljs" "^0.8.11"
     archiver "^5.2.0"
     debug "^4.3.1"
     shelljs "^0.8.4"
@@ -1040,7 +1041,7 @@
   resolved "https://registry.yarnpkg.com/@types/semver/-/semver-7.3.10.tgz#5f19ee40cbeff87d916eedc8c2bfe2305d957f73"
   integrity sha512-zsv3fsC7S84NN6nPK06u79oWgrPVd0NvOyqgghV1haPaFcVxIrP4DLomRwGAXk0ui4HZA7mOcSFL98sMVW9viw==
 
-"@types/shelljs@^0.8.9":
+"@types/shelljs@^0.8.11", "@types/shelljs@^0.8.9":
   version "0.8.11"
   resolved "https://registry.yarnpkg.com/@types/shelljs/-/shelljs-0.8.11.tgz#17a5696c825974e96828e96e89585d685646fcb8"
   integrity sha512-x9yaMvEh5BEaZKeVQC4vp3l+QoFj3BXcd4aYfuKSzIIyihjdVARAadYy3SMNIz0WCCdS2vB9JL/U6GQk5PaxQw==
