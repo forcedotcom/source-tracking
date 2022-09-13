@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.2.3](https://github.com/forcedotcom/source-tracking/compare/v2.2.2...v2.2.3) (2022-09-13)
+
+### Bug Fixes
+
+- ignore DEB, DigitalExperience and DEC from source tracking tracking ([#206](https://github.com/forcedotcom/source-tracking/issues/206)) ([3e4b985](https://github.com/forcedotcom/source-tracking/commit/3e4b985f2c805d969a88a60171aab49f1d0032fb))
+
 ### [2.2.2](https://github.com/forcedotcom/source-tracking/compare/v2.2.1...v2.2.2) (2022-08-10)
 
 ### ⚠ BREAKING CHANGES
