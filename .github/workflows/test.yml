@@ -5,20 +5,20 @@ on:
   workflow_dispatch:
 
 jobs:
-  unit-tests:
-    uses: salesforcecli/github-workflows/.github/workflows/unitTest.yml@main
-  nuts:
-    needs: unit-tests
-    uses: salesforcecli/github-workflows/.github/workflows/nut.yml@main
-    secrets: inherit
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-      fail-fast: false
-    with:
-      os: ${{ matrix.os }}
+  # unit-tests:
+  #   uses: salesforcecli/github-workflows/.github/workflows/unitTest.yml@main
+  # nuts:
+  #   needs: unit-tests
+  #   uses: salesforcecli/github-workflows/.github/workflows/nut.yml@main
+  #   secrets: inherit
+  #   strategy:
+  #     matrix:
+  #       os: [ubuntu-latest, windows-latest]
+  #     fail-fast: false
+  #   with:
+  #     os: ${{ matrix.os }}
   extNuts:
-    needs: unit-tests
+    # needs: unit-tests
     uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@main
     strategy:
       fail-fast: false
@@ -26,18 +26,18 @@ jobs:
         os: ['ubuntu-latest', 'windows-latest']
         command:
           - 'yarn test:nuts:tracking:basics'
-          - 'yarn test:nuts:tracking:conflicts'
-          - 'yarn test:nuts:tracking:forceignore'
-          - 'yarn test:nuts:tracking:remote'
-          - 'yarn test:nuts:tracking:resetClear'
-          - 'yarn test:nuts:tracking:lwc'
-          - 'yarn mocha "test/nuts/trackingCommands/mpd-*.nut.ts" --slow 3000 --timeout 600000 --parallel'
+          # - 'yarn test:nuts:tracking:conflicts'
+          # - 'yarn test:nuts:tracking:forceignore'
+          # - 'yarn test:nuts:tracking:remote'
+          # - 'yarn test:nuts:tracking:resetClear'
+          # - 'yarn test:nuts:tracking:lwc'
+          # - 'yarn mocha "test/nuts/trackingCommands/mpd-*.nut.ts" --slow 3000 --timeout 600000 --parallel'
     with:
       packageName: '@salesforce/source-tracking'
       externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-source'
       command: ${{matrix.command}}
-      # preBuildCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest; yarn upgrade @salesforce/core@v3-beta; npx yarn-deduplicate; yarn install'
+      preBuildCommands: 'yarn install; npx shx rm -rf node_modules/@salesforce/kit; npx shx rm -rf node_modules/@salesforce/source-deploy-retrieve; npx shx rm -rf node_modules/@salesforce/core; npx shx rm -rf node_modules/eslint-plugin-header; npx shx rm -rf node_modules/@typescript-eslint/eslint-plugin; npx shx rm -rf node_modules/@typescript-eslint/eslint-parser; npx shx rm -rf node_modules/eslint-plugin-import; npx shx rm -rf node_modules/eslint; npx shx rm -rf node_modules/eslint-plugin-prettier; npx shx rm -rf node_modules/eslint-config-prettier; npx shx rm -rf node_modules/eslint-config-salesforce-license'
       # postbuildCommands: 'cp src/registry/metadataRegistry.json lib/src/registry'
-      # preExternalBuildCommands: 'shx rm -rf node_modules/@salesforce/source-tracking/node_modules/@salesforce/source-deploy-retrieve'
+      preExternalBuildCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest; yarn upgrade @salesforce/core@v3-beta; npx yarn-deduplicate'
       os: ${{matrix.os}}
     secrets: inherit
