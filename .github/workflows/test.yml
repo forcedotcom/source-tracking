@@ -19,7 +19,7 @@ jobs:
       os: ${{ matrix.os }}
   extNuts:
     needs: unit-tests
-    uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@sm/extNutWork
+    uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@main
     strategy:
       fail-fast: false
       matrix:
