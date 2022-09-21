@@ -21,9 +21,6 @@ const typesToNoPollFor = [
   'GlobalValueSetTranslation',
   'AssignmentRules',
   'InstalledPackage',
-  'DigitalExperienceBundle',
-  'DigitalExperience',
-  'DigitalExperienceConfig',
 ];
 
 const typesNotToPollForIfNamespace = ['CustomLabels', 'CustomMetadata', 'DuplicateRule', 'WebLink'];

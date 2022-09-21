@@ -4,6 +4,7 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
+import * as path from 'path';
 import { basename, dirname, join, normalize, sep } from 'path';
 import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { Lifecycle } from '@salesforce/core';
@@ -14,10 +15,19 @@ import { getMetadataKey } from './functions';
 // keys always use forward slashes, even on Windows
 const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
   fileResponse?.filePath
-    ? join(
-        dirname(fileResponse.filePath).substring(dirname(fileResponse.filePath).lastIndexOf(fileResponse.fullName)),
-        basename(fileResponse.filePath)
-      ).replace(/\\/gi, '/')
+    ? fileResponse.type === 'DigitalExperience'
+      ? join(
+          dirname(fileResponse.filePath).substring(
+            dirname(fileResponse.filePath).lastIndexOf(
+              path.join(fileResponse.fullName.split('.')[0], fileResponse.fullName.split('.')[1])
+            )
+          ),
+          basename(fileResponse.filePath)
+        ).replace(/\\/gi, '/')
+      : join(
+          dirname(fileResponse.filePath).substring(dirname(fileResponse.filePath).lastIndexOf(fileResponse.fullName)),
+          basename(fileResponse.filePath)
+        ).replace(/\\/gi, '/')
     : '';
 
 const registry = new RegistryAccess();
@@ -54,6 +64,12 @@ export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): s
       getMetadataKey(fileResponse.type, fileResponse.fullName),
     ];
   }
+  if (fileResponse.type === 'DigitalExperience' && fileResponse.filePath) {
+    return [
+      `DigitalExperienceResource__${pathAfterFullName(fileResponse)}`,
+      getMetadataKey(fileResponse.type, fileResponse.fullName),
+    ];
+  }
   // CustomLabels (file) => CustomLabel[] (how they're storedin SourceMembers)
   if (fileResponse.type === 'CustomLabels' && fileResponse.filePath) {
     return ComponentSet.fromSource(fileResponse.filePath)
@@ -76,6 +92,7 @@ export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string
   ...aliasTypes,
   ['AuraDefinition', 'AuraDefinitionBundle'],
   ['LightningComponentResource', 'LightningComponentBundle'],
+  ['DigitalExperienceResource', 'DigitalExperience'],
 ]);
 
 export const registrySupportsType = (type: string): boolean => {

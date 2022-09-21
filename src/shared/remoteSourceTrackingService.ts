@@ -578,14 +578,32 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
  * Useful for correcing bundle types where the files show change results with types but aren't resolvable
  */
 export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): ChangeResult => {
-  return {
-    ...rce,
-    ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
-      ? {
-          name: rce.name.split('/')[0],
-          type: mappingsForSourceMemberTypesToMetadataType.get(rce.type),
-        }
-      : {}),
-    origin: 'remote', // we know they're remote
-  };
+  if (rce.type === 'DigitalExperienceResource') {
+    const parts = rce.name.split('/');
+    const name1 = path.join(parts[0], parts[1]);
+    const name2 = path.join(parts[2], parts[3]);
+    const name = name1 + '.' + name2;
+
+    return {
+      ...rce,
+      ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
+        ? {
+            name: name,
+            type: mappingsForSourceMemberTypesToMetadataType.get(rce.type),
+          }
+        : {}),
+      origin: 'remote', // we know they're remote
+    };
+  } else {
+    return {
+      ...rce,
+      ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
+        ? {
+            name: rce.name.split('/')[0], // TODO RA ST: this should be fixed
+            type: mappingsForSourceMemberTypesToMetadataType.get(rce.type),
+          }
+        : {}),
+      origin: 'remote', // we know they're remote
+    };
+  }
 };
