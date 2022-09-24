@@ -51,7 +51,7 @@
     "ts-retry-promise": "^0.7.0"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^2.4.0",
+    "@salesforce/cli-plugins-testkit": "^2.4.1",
     "@salesforce/dev-config": "^3.1.0",
     "@salesforce/dev-scripts": "^2.0.4",
     "@salesforce/prettier-config": "^0.0.2",
