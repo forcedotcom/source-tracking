@@ -27,11 +27,9 @@ interface GroupedFile {
   deletes: string[];
 }
 
-export const getGroupedFiles = (input: GroupedFileInput, byPackageDir = false): GroupedFile[] => {
-  return (byPackageDir ? getSequential(input) : getNonSequential(input)).filter(
+export const getGroupedFiles = (input: GroupedFileInput, byPackageDir = false): GroupedFile[] => (byPackageDir ? getSequential(input) : getNonSequential(input)).filter(
     (group) => group.deletes.length || group.nonDeletes.length
   );
-};
 
 const getSequential = ({ packageDirs, nonDeletes, deletes }: GroupedFileInput): GroupedFile[] =>
   packageDirs.map((pkgDir) => ({
