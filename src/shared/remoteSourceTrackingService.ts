@@ -577,8 +577,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
  * pass in an RCE, and this will return a pullable ChangeResult.
  * Useful for correcing bundle types where the files show change results with types but aren't resolvable
  */
-export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): ChangeResult => {
-  return {
+export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): ChangeResult => ({
     ...rce,
     ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
       ? {
@@ -587,5 +586,4 @@ export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): Cha
         }
       : {}),
     origin: 'remote', // we know they're remote
-  };
-};
+  });

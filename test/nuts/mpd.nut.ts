@@ -13,12 +13,10 @@ import { Org, SfProject } from '@salesforce/core';
 import { getString } from '@salesforce/ts-types';
 import { SourceTracking } from '../../src/sourceTracking';
 
-const getSTLInstance = async (session: TestSession): Promise<SourceTracking> => {
-  return SourceTracking.create({
+const getSTLInstance = async (session: TestSession): Promise<SourceTracking> => SourceTracking.create({
     org: await Org.create({ aliasOrUsername: getString(session, 'setup[0].result.username') }),
     project: await SfProject.resolve(session.project.dir),
   });
-};
 
 describe('sourceTracking: localChangesAsComponentSet', () => {
   let session: TestSession;

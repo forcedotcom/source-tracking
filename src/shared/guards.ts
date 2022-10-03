@@ -6,10 +6,6 @@
  */
 import { SourceComponent, MetadataMember } from '@salesforce/source-deploy-retrieve';
 
-export const sourceComponentGuard = (input: SourceComponent | undefined): input is SourceComponent => {
-  return input instanceof SourceComponent;
-};
+export const sourceComponentGuard = (input: SourceComponent | undefined): input is SourceComponent => input instanceof SourceComponent;
 
-export const metadataMemberGuard = (input: MetadataMember | undefined): input is MetadataMember => {
-  return input !== undefined && typeof input.fullName === 'string' && typeof input.type === 'string';
-};
+export const metadataMemberGuard = (input: MetadataMember | undefined): input is MetadataMember => input !== undefined && typeof input.fullName === 'string' && typeof input.type === 'string';

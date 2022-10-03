@@ -53,27 +53,25 @@
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^2.4.0",
     "@salesforce/dev-config": "^3.1.0",
-    "@salesforce/dev-scripts": "^2.0.4",
+    "@salesforce/dev-scripts": "^3.1.0",
     "@salesforce/prettier-config": "^0.0.2",
     "@salesforce/ts-sinon": "^1.3.21",
     "@types/shelljs": "^0.8.9",
-    "@typescript-eslint/eslint-plugin": "^4.29.0",
-    "@typescript-eslint/parser": "^4.29.0",
+    "@typescript-eslint/eslint-plugin": "^5.33.0",
+    "@typescript-eslint/parser": "^5.33.0",
     "chai": "^4.3.0",
-    "cz-conventional-changelog": "^3.3.0",
-    "eslint": "^7.32.0",
-    "eslint-config-prettier": "^8.3.0",
+    "eslint": "^8.21.0",
+    "eslint-config-prettier": "^8.5.0",
     "eslint-config-salesforce": "^1.1.0",
     "eslint-config-salesforce-license": "^0.1.6",
-    "eslint-config-salesforce-typescript": "^1.0.0",
+    "eslint-config-salesforce-typescript": "^1.1.1",
     "eslint-plugin-header": "^3.1.1",
-    "eslint-plugin-import": "2.25.4",
+    "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-jsdoc": "^39.3.6",
-    "eslint-plugin-prettier": "^3.4.0",
     "husky": "^7.0.4",
     "mocha": "^9.1.3",
     "nyc": "^15.1.0",
-    "prettier": "^2.3.2",
+    "prettier": "^2.7.1",
     "pretty-quick": "^3.1.1",
     "shelljs": "^0.8.4",
     "shx": "^0.3.3",
@@ -82,11 +80,7 @@
     "ts-prune": "^0.10.0",
     "typescript": "^4.7.4"
   },
-  "config": {
-    "commitizen": {
-      "path": "cz-conventional-changelog"
-    }
-  },
+  "config": {},
   "publishConfig": {
     "access": "public"
   }

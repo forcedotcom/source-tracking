@@ -10,9 +10,7 @@ import { isString } from '@salesforce/ts-types';
 import { SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { RemoteChangeElement, ChangeResult } from './types';
 
-export const getMetadataKey = (metadataType: string, metadataName: string): string => {
-  return `${metadataType}__${metadataName}`;
-};
+export const getMetadataKey = (metadataType: string, metadataName: string): string => `${metadataType}__${metadataName}`;
 
 export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): string => {
   if (element.type && element.name) {
@@ -37,9 +35,7 @@ export const pathIsInFolder = (filePath: string, folder: string): boolean => {
     .every((part, index) => part === biggerStringParts[index]);
 };
 
-const nonEmptyStringFilter = (value: string): boolean => {
-  return isString(value) && value.length > 0;
-};
+const nonEmptyStringFilter = (value: string): boolean => isString(value) && value.length > 0;
 
 // adapted for TS from https://github.com/30-seconds/30-seconds-of-code/blob/master/snippets/chunk.md
 export const chunkArray = <T>(arr: T[], size: number): T[][] =>
