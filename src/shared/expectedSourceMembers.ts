@@ -76,7 +76,7 @@ export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[
         .filter(
           (key) =>
             // CustomObject could have been re-added by the key generator from one of its fields
-            !key.startsWith('CustomObject') &&
+            !key.startsWith('CustomObject__') &&
             key !== 'Profile__Standard' &&
             key !== 'CustomTab__standard-home' &&
             key !== 'AssignmentRules__Case' &&
