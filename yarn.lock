@@ -673,10 +673,10 @@
     strip-ansi "6.0.1"
     ts-retry-promise "^0.7.0"
 
-"@salesforce/core@^3.30.9", "@salesforce/core@^3.31.16", "@salesforce/core@^3.31.9":
-  version "3.31.16"
-  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-3.31.16.tgz#af52b01eda974b8f000c81d7111e299db64ee38c"
-  integrity sha512-at5J9chWR0RQxymQTNiyoNxsVJ56Opq79F7FIKt7Y0T/o+OkdOCnveny2tcVEFeJz4OjRV9+57R9eCsn0gg3gQ==
+"@salesforce/core@^3.30.9", "@salesforce/core@^3.31.17", "@salesforce/core@^3.31.9":
+  version "3.31.17"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-3.31.17.tgz#83ab3c9c4730223943ceef4798aaa901fec7981e"
+  integrity sha512-rn3AYyePp3m1+IH+KVi+DWwMPcAPDYFiUxyJLh+Jr2hNj9i79eQBcUix6wunK3HaVz0N6Tm5FGIpjqfEVsU0cA==
   dependencies:
     "@salesforce/bunyan" "^2.0.0"
     "@salesforce/kit" "^1.7.0"
@@ -1024,15 +1024,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/semver@^7.3.12":
+"@types/semver@^7.3.12", "@types/semver@^7.3.9":
   version "7.3.12"
   resolved "https://registry.yarnpkg.com/@types/semver/-/semver-7.3.12.tgz#920447fdd78d76b19de0438b7f60df3c4a80bf1c"
   integrity sha512-WwA1MW0++RfXmCr12xeYOOC5baSC9mSb0ZqCquFzKhcoF4TvHu5MKOuXsncgZcpVFhB1pXd5hZmM0ryAoCp12A==
-
-"@types/semver@^7.3.9":
-  version "7.3.10"
-  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-7.3.10.tgz#5f19ee40cbeff87d916eedc8c2bfe2305d957f73"
-  integrity sha512-zsv3fsC7S84NN6nPK06u79oWgrPVd0NvOyqgghV1haPaFcVxIrP4DLomRwGAXk0ui4HZA7mOcSFL98sMVW9viw==
 
 "@types/shelljs@^0.8.11", "@types/shelljs@^0.8.9":
   version "0.8.11"
