@@ -777,19 +777,19 @@
     proxy-from-env "^1.1.0"
     unzipper "0.10.11"
 
-"@salesforce/ts-sinon@^1.4.0":
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/@salesforce/ts-sinon/-/ts-sinon-1.4.0.tgz#382a92b91dc6ba692dbc9d195d06c753590c5ebf"
-  integrity sha512-mqHMA6mCOfsZTMXk7JxBMG24Ci7bei3uf0m4yXWh9ERCnmNwbFMc+O90tSLqYwbRnafxIqLfSey9Q8dpJ9LTAw==
+"@salesforce/ts-sinon@^1.4.1":
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/ts-sinon/-/ts-sinon-1.4.1.tgz#4abafa0a5b895ea23287fc96d69952862f51875f"
+  integrity sha512-sXAB+IiOLZL8B3wBT6YviuuhfWp1N59QBLNUgzqslHIP4P38xsLECvC+Lvlhzs0rSv7xKNMdKZeaM6gpCHKoTg==
   dependencies:
-    "@salesforce/ts-types" "^1.5.21"
+    "@salesforce/ts-types" "^1.7.0"
     sinon "^5.1.1"
     tslib "^2.2.0"
 
-"@salesforce/ts-types@^1.5.20", "@salesforce/ts-types@^1.5.21":
-  version "1.5.21"
-  resolved "https://registry.yarnpkg.com/@salesforce/ts-types/-/ts-types-1.5.21.tgz#e62784872f0e74bf4ae13381dc58aa4644ee2df3"
-  integrity sha512-qG8r8WOzqpFOHaH3EGU3IwGrY/pSv9NQp4B0wGxOuPDBbraXVvd3KhWVStxaLGKBkJClJ7/+t+iCSP82sEiGcg==
+"@salesforce/ts-types@^1.5.20", "@salesforce/ts-types@^1.5.21", "@salesforce/ts-types@^1.7.0":
+  version "1.7.0"
+  resolved "https://registry.yarnpkg.com/@salesforce/ts-types/-/ts-types-1.7.0.tgz#0ec743b324a0d39b13ac681132042742e9a43d0f"
+  integrity sha512-8bLGBZCk7T/tkfXP66r5Pkhn3CjfNQIOy6B0Z1rvam5RgqWtYYcubF7eSLSj7bop/q7tA8+R6bNJmjATX6hTqA==
   dependencies:
     tslib "^2.2.0"
 
