@@ -19,7 +19,8 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
   throw new Error(`unable to complete key from ${JSON.stringify(element)}`);
 };
 
-export const isBundle = (cmp: SourceComponent): boolean => cmp.type.strategies?.adapter === 'bundle';
+export const isBundle = (cmp: SourceComponent): boolean => 
+cmp.type.strategies?.adapter === 'bundle' || cmp.type.strategies?.adapter === 'digitalExperience';
 export const isLwcLocalOnlyTest = (filePath: string): boolean =>
   filePath.includes('__utam__') || filePath.includes('__tests__');
 
