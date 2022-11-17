@@ -1,0 +1,16 @@
+{
+  "type": "sfdc_cms__view",
+  "title": "Home",
+  "contentBody": {
+    "sfdc_cms:component": {
+      "sfdc_cms:children": [
+        {
+          "componentAttributes": {
+            "text": "Energy Savings in Germany"
+          },
+          "sfdc_cms:id": "48307a75-c62b-4773-83d0-80bafd21a072"
+        }
+      ]
+    }
+  }
+}

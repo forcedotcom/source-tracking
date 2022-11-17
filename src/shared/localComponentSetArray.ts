@@ -27,7 +27,8 @@ interface GroupedFile {
   deletes: string[];
 }
 
-export const getGroupedFiles = (input: GroupedFileInput, byPackageDir = false): GroupedFile[] => (byPackageDir ? getSequential(input) : getNonSequential(input)).filter(
+export const getGroupedFiles = (input: GroupedFileInput, byPackageDir = false): GroupedFile[] =>
+  (byPackageDir ? getSequential(input) : getNonSequential(input)).filter(
     (group) => group.deletes.length || group.nonDeletes.length
   );
 
@@ -75,7 +76,8 @@ export const getComponentSets = (groupings: GroupedFile[], sourceApiVersion?: st
         .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
         .filter(sourceComponentGuard)
         .map((component) => {
-          // if the component is a file in a bundle type AND there are files from the bundle that are not deleted, set the bundle for deploy, not for delete
+          // if the component is part of a bundle AND there are files from the bundle that are not deleted,
+          // set the bundle for deploy, not for delete.
           if (isBundle(component) && component.content && fs.existsSync(component.content)) {
             // all bundle types have a directory name
             try {

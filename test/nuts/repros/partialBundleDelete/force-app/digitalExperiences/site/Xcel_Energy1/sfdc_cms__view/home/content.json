@@ -1,0 +1,77 @@
+{
+  "type": "sfdc_cms__view",
+  "title": "Home",
+  "contentBody": {
+    "sfdc_cms:component": {
+      "definitionName": "community_layout:sldsFlexibleLayout",
+      "sfdc_cms:children": [
+        {
+          "regionName": "content",
+          "sfdc_cms:children": [
+            {
+              "componentAttributes": {
+                "backgroundImageConfig": "",
+                "backgroundImageOverlay": "rgba(0,0,0,0)",
+                "sectionConfig": "{\"UUID\":\"15aa9710-b6ef-4ea0-b0c6-ba180c1c3c2e\",\"columns\":[{\"UUID\":\"be38dd97-d7ad-4fe8-a0a2-69e4a530bd64\",\"columnName\":\"Column 1\",\"columnKey\":\"col1\",\"columnWidth\":\"12\",\"seedComponents\":null}]}"
+              },
+              "definitionName": "community_layout:section",
+              "sfdc_cms:children": [
+                {
+                  "regionName": "col1",
+                  "sfdc_cms:children": [
+                    {
+                      "componentAttributes": {
+                        "backgroundColor": "",
+                        "paddingHorizontal": "none",
+                        "paddingVertical": "none",
+                        "text": "Energy Savings in United States",
+                        "textAlign": "left",
+                        "textDecoration": "{}",
+                        "textDisplayInfo": "{}"
+                      },
+                      "definitionName": "dxp_base:textBlock",
+                      "sfdc_cms:id": "48307a75-c62b-4773-83d0-80bafd21a072",
+                      "sfdc_cms:type": "component"
+                    }
+                  ],
+                  "sfdc_cms:id": "be38dd97-d7ad-4fe8-a0a2-69e4a530bd64",
+                  "sfdc_cms:type": "region",
+                  "title": "Column 1"
+                }
+              ],
+              "sfdc_cms:id": "15aa9710-b6ef-4ea0-b0c6-ba180c1c3c2e",
+              "sfdc_cms:type": "component"
+            }
+          ],
+          "sfdc_cms:id": "5e0b2fb6-7fd0-4ef7-90da-f9df55c08314",
+          "sfdc_cms:type": "region",
+          "title": "Content"
+        },
+        {
+          "regionName": "sfdcHiddenRegion",
+          "sfdc_cms:children": [
+            {
+              "componentAttributes": {
+                "customHeadTags": "",
+                "description": "",
+                "pageTitle": "Home",
+                "recordId": "{!recordId}"
+              },
+              "definitionName": "community_builder:seoAssistant",
+              "sfdc_cms:id": "3044250c-1fb2-4dfd-bd08-f3ee59e53780",
+              "sfdc_cms:type": "component"
+            }
+          ],
+          "sfdc_cms:id": "bdcdd407-ca9c-49cc-9f47-9f2bd6f4d707",
+          "sfdc_cms:type": "region",
+          "title": "sfdcHiddenRegion"
+        }
+      ],
+      "sfdc_cms:id": "86c550f0-05de-4ad9-ad11-a1714d30703f",
+      "sfdc_cms:type": "component"
+    },
+    "themeLayoutType": "Inner",
+    "title": "Home",
+    "viewType": "home"
+  }
+}
