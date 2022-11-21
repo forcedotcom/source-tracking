@@ -20,16 +20,7 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
   throw new Error(`unable to complete key from ${JSON.stringify(element)}`);
 };
 
-// Return whether a component is part of a bundle. Note that this applies to SDR bundle
-// types, but it also applies to some special types that are not technically classified
-// in SDR as bundles, such as DigitalExperienceBundle, ExperienceBundle, and StaticResources.
-// These types share characteristics of bundle types.
-export const isBundle = (cmp: SourceComponent): boolean => {
-  const cmpTypeAdapter = cmp.type.strategies?.adapter;
-  const cmpTypeName = cmp.type.name;
-  const bundleLikeTypes = ['DigitalExperience', 'DigitalExperienceBundle', 'ExperienceBundle', 'StaticResource'];
-  return cmpTypeAdapter === 'bundle' || bundleLikeTypes.includes(cmpTypeName);
-};
+export const supportsPartialDelete = (cmp: SourceComponent): boolean => !!cmp.type.supportsPartialDelete;
 
 export const isLwcLocalOnlyTest = (filePath: string): boolean =>
   filePath.includes('__utam__') || filePath.includes('__tests__');

@@ -14,7 +14,7 @@ import {
   DestructiveChangesType,
 } from '@salesforce/source-deploy-retrieve';
 import { sourceComponentGuard } from './guards';
-import { isBundle, pathIsInFolder } from './functions';
+import { supportsPartialDelete, pathIsInFolder } from './functions';
 
 interface GroupedFileInput {
   packageDirs: NamedPackageDir[];
@@ -76,9 +76,9 @@ export const getComponentSets = (groupings: GroupedFile[], sourceApiVersion?: st
         .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
         .filter(sourceComponentGuard)
         .map((component) => {
-          // if the component is part of a bundle AND there are files from the bundle that are not deleted,
-          // set the bundle for deploy, not for delete.
-          if (isBundle(component) && component.content && fs.existsSync(component.content)) {
+          // if the component supports partial delete AND there are files that are not deleted,
+          // set the component for deploy, not for delete.
+          if (supportsPartialDelete(component) && component.content && fs.existsSync(component.content)) {
             // all bundle types have a directory name
             try {
               resolverForNonDeletes
