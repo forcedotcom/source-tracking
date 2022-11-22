@@ -41,7 +41,7 @@ import {
   RemoteChangeElement,
 } from './shared/types';
 import { sourceComponentGuard } from './shared/guards';
-import { isBundle, pathIsInFolder, ensureRelative } from './shared/functions';
+import { supportsPartialDelete, pathIsInFolder, ensureRelative } from './shared/functions';
 import { registrySupportsType } from './shared/metadataKeys';
 import { hasSfdxTrackingFiles } from './compatibility';
 import { populateFilePaths } from './shared/populateFilePaths';
@@ -403,7 +403,7 @@ export class SourceTracking extends AsyncCreatable {
     const bundlesWithDeletedFiles = (
       await this.getChanges({ origin: 'local', state: 'delete', format: 'SourceComponent' })
     )
-      .filter(isBundle)
+      .filter(supportsPartialDelete)
       .filter((cmp) => deployedFilesAsVirtualComponentSet.has({ type: cmp.type, fullName: cmp.fullName }))
       .map((cmp) => cmp.content)
       .filter(isString);

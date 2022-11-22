@@ -10,7 +10,8 @@ import { isString } from '@salesforce/ts-types';
 import { SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { RemoteChangeElement, ChangeResult } from './types';
 
-export const getMetadataKey = (metadataType: string, metadataName: string): string => `${metadataType}__${metadataName}`;
+export const getMetadataKey = (metadataType: string, metadataName: string): string =>
+  `${metadataType}__${metadataName}`;
 
 export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): string => {
   if (element.type && element.name) {
@@ -19,8 +20,8 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
   throw new Error(`unable to complete key from ${JSON.stringify(element)}`);
 };
 
-export const isBundle = (cmp: SourceComponent): boolean => 
-cmp.type.strategies?.adapter === 'bundle' || cmp.type.strategies?.adapter === 'digitalExperience';
+export const supportsPartialDelete = (cmp: SourceComponent): boolean => !!cmp.type.supportsPartialDelete;
+
 export const isLwcLocalOnlyTest = (filePath: string): boolean =>
   filePath.includes('__utam__') || filePath.includes('__tests__');
 
