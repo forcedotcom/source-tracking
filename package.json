@@ -43,7 +43,7 @@
     "/oclif.manifest.json"
   ],
   "dependencies": {
-    "@salesforce/core": "^3.32.8",
+    "@salesforce/core": "^3.32.11",
     "@salesforce/kit": "^1.8.0",
     "@salesforce/source-deploy-retrieve": "^7.5.16",
     "graceful-fs": "^4.2.10",
