@@ -13,7 +13,8 @@ import * as git from 'isomorphic-git';
 import { chunkArray, isLwcLocalOnlyTest, pathIsInFolder } from './functions';
 
 /** returns the full path to where we store the shadow repo */
-const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string => path.join(projectPath, useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, 'localSourceTracking');
+const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string =>
+  path.join(projectPath, useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, 'localSourceTracking');
 
 // filenames were normalized when read from isogit
 const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
@@ -59,7 +60,7 @@ export class ShadowRepo {
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';
-    this.maxFileAdd = this.isWindows ? 8000 : 15000;
+    this.maxFileAdd = 8000;
   }
 
   // think of singleton behavior but unique to the projectPath
