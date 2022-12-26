@@ -1,3 +1,12 @@
+## [2.2.16-dev.1](https://github.com/forcedotcom/source-tracking/compare/2.2.15...2.2.16-dev.1) (2022-12-26)
+
+
+### Bug Fixes
+
+* testing lowering maxFileAdd ([3032066](https://github.com/forcedotcom/source-tracking/commit/303206643bfa3ef5b6c48f18d4250f3462130da3))
+
+
+
 ## [2.2.15](https://github.com/forcedotcom/source-tracking/compare/2.2.14...2.2.15) (2022-12-14)
 
 
