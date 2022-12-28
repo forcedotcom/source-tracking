@@ -1,3 +1,12 @@
+## [2.2.16-dev.3](https://github.com/forcedotcom/source-tracking/compare/2.2.16-dev.2...2.2.16-dev.3) (2022-12-28)
+
+
+### Bug Fixes
+
+* better error message ([8e3d011](https://github.com/forcedotcom/source-tracking/commit/8e3d0110c1994fd9389c6896d1a1eef415d87462))
+
+
+
 ## [2.2.16-dev.2](https://github.com/forcedotcom/source-tracking/compare/2.2.16-dev.1...2.2.16-dev.2) (2022-12-28)
 
 
