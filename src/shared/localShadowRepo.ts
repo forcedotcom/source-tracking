@@ -13,7 +13,8 @@ import * as git from 'isomorphic-git';
 import { chunkArray, isLwcLocalOnlyTest, pathIsInFolder } from './functions';
 
 /** returns the full path to where we store the shadow repo */
-const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string => path.join(projectPath, useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, 'localSourceTracking');
+const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string =>
+  path.join(projectPath, useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, 'localSourceTracking');
 
 // filenames were normalized when read from isogit
 const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
