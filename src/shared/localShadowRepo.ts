@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'graceful-fs';
 import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
+import { env } from '@salesforce/kit';
 import * as git from 'isomorphic-git';
 import { chunkArray, isLwcLocalOnlyTest, pathIsInFolder } from './functions';
 
@@ -60,7 +61,9 @@ export class ShadowRepo {
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';
-    this.maxFileAdd = 8000;
+
+    const batchSize = env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE');
+    this.maxFileAdd = batchSize ? batchSize : this.isWindows ? 8000 : 15000;
   }
 
   // think of singleton behavior but unique to the projectPath
@@ -244,7 +247,14 @@ export class ShadowRepo {
         } catch (e) {
           if (e instanceof git.Errors.MultipleGitError) {
             this.logger.error('multiple errors on git.add', e.errors.slice(0, 5));
-            const error = new SfError(e.message, e.name, [], 1);
+            const error = new SfError(
+              e.message,
+              e.name,
+              [
+                `This error may be thrown because the number of files that source tracking is batching is exceeding your user specific file limits. Either increase your hard file limit in the same session with 'ulimit -Hn ${this.maxFileAdd}', or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'`,
+              ],
+              1
+            );
             error.setData(e.errors);
             throw error;
           }
