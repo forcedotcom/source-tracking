@@ -251,7 +251,7 @@ export class ShadowRepo {
               e.message,
               e.name,
               [
-                `This error may be thrown because the number of files that source tracking is batching is exceeding your user specific file limits. Either increase your hard file limit in the same session with 'ulimit -Hn ${this.maxFileAdd}', or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'`,
+                `This error may be thrown because the number of files that source tracking is batching is exceeding your user specific file limits. Either increase your hard file limit in the same session with 'ulimit -Hn ${this.maxFileAdd}', or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Do set this env var too close or your system will still hit the limit. If you continue to get the error, lower the value of the env var even more.`,
               ],
               1
             );
