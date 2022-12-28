@@ -1,3 +1,12 @@
+## [2.2.16-dev.2](https://github.com/forcedotcom/source-tracking/compare/2.2.16-dev.1...2.2.16-dev.2) (2022-12-28)
+
+
+### Bug Fixes
+
+* maxFileAdd env var ([060b821](https://github.com/forcedotcom/source-tracking/commit/060b821587ebc10a41919426617e70045ba6db65))
+
+
+
 ## [2.2.16-dev.1](https://github.com/forcedotcom/source-tracking/compare/2.2.15...2.2.16-dev.1) (2022-12-26)
 
 
