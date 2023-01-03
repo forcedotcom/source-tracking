@@ -1,3 +1,30 @@
+## [2.2.16-dev.3](https://github.com/forcedotcom/source-tracking/compare/2.2.16-dev.2...2.2.16-dev.3) (2022-12-28)
+
+
+### Bug Fixes
+
+* better error message ([8e3d011](https://github.com/forcedotcom/source-tracking/commit/8e3d0110c1994fd9389c6896d1a1eef415d87462))
+
+
+
+## [2.2.16-dev.2](https://github.com/forcedotcom/source-tracking/compare/2.2.16-dev.1...2.2.16-dev.2) (2022-12-28)
+
+
+### Bug Fixes
+
+* maxFileAdd env var ([060b821](https://github.com/forcedotcom/source-tracking/commit/060b821587ebc10a41919426617e70045ba6db65))
+
+
+
+## [2.2.16-dev.1](https://github.com/forcedotcom/source-tracking/compare/2.2.15...2.2.16-dev.1) (2022-12-26)
+
+
+### Bug Fixes
+
+* testing lowering maxFileAdd ([3032066](https://github.com/forcedotcom/source-tracking/commit/303206643bfa3ef5b6c48f18d4250f3462130da3))
+
+
+
 ## [2.2.15](https://github.com/forcedotcom/source-tracking/compare/2.2.14...2.2.15) (2022-12-14)
 
 
