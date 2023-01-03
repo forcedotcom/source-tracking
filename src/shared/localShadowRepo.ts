@@ -62,8 +62,7 @@ export class ShadowRepo {
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';
 
-    const batchSize = env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE');
-    this.maxFileAdd = batchSize ? batchSize : this.isWindows ? 8000 : 15000;
+    this.maxFileAdd = env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', this.isWindows ? 8000 : 15000);
   }
 
   // think of singleton behavior but unique to the projectPath
