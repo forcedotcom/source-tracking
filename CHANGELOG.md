@@ -1,3 +1,16 @@
+## [2.2.17](https://github.com/forcedotcom/source-tracking/compare/2.2.16...2.2.17) (2023-01-04)
+
+
+### Bug Fixes
+
+* **deps:** bump json5 from 1.0.1 to 1.0.2 ([6030467](https://github.com/forcedotcom/source-tracking/commit/60304674980e351f6c279394d626af916688ea5d))
+
+
+
+## [2.2.16](https://github.com/forcedotcom/source-tracking/compare/2.2.16-dev.3...2.2.16) (2023-01-03)
+
+
+
 ## [2.2.16-dev.3](https://github.com/forcedotcom/source-tracking/compare/2.2.16-dev.2...2.2.16-dev.3) (2022-12-28)
 
 
