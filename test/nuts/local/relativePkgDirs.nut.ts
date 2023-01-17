@@ -19,7 +19,7 @@ describe('verifies behavior of relative pkgDirs', () => {
       project: {
         sourceDir: path.join('test', 'nuts', 'repros', 'extra-classes'),
       },
-      authStrategy: 'NONE',
+      devhubAuthStrategy: 'NONE',
     });
   });
 

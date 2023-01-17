@@ -13,7 +13,8 @@ import { Org, SfProject } from '@salesforce/core';
 import { getString } from '@salesforce/ts-types';
 import { SourceTracking } from '../../src/sourceTracking';
 
-const getSTLInstance = async (session: TestSession): Promise<SourceTracking> => SourceTracking.create({
+const getSTLInstance = async (session: TestSession): Promise<SourceTracking> =>
+  SourceTracking.create({
     org: await Org.create({ aliasOrUsername: getString(session, 'setup[0].result.username') }),
     project: await SfProject.resolve(session.project.dir),
   });
@@ -27,7 +28,13 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
         gitClone: 'https://github.com/salesforcecli/sample-project-multiple-packages',
       },
       // creating an org because a default org/id is required for source tracking files
-      setupCommands: [`sfdx force:org:create -d 1 -s -f ${path.join('config', 'project-scratch-def.json')}`],
+      scratchOrgs: [
+        {
+          config: path.join('config', 'project-scratch-def.json'),
+          duration: 1,
+          setDefault: true,
+        },
+      ],
     });
     stl = await getSTLInstance(session);
     // these 2 lines help debug path issues in

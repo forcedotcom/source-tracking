@@ -21,7 +21,7 @@ describe('end-to-end-test for local tracking', () => {
       project: {
         sourceDir: path.join('test', 'nuts', 'ebikes-lwc'),
       },
-      authStrategy: 'NONE',
+      devhubAuthStrategy: 'NONE',
     });
   });
 

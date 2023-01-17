@@ -27,7 +27,7 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
       project: {
         name: 'large-repo',
       },
-      authStrategy: 'NONE',
+      devhubAuthStrategy: 'NONE',
     });
     // create some number of files
     const classdir = path.join(session.project.dir, 'force-app', 'main', 'default', 'classes');

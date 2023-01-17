@@ -19,7 +19,7 @@ describe('end-to-end-test for custom labels', () => {
       project: {
         sourceDir: path.join('test', 'nuts', 'repros', 'duplabels'),
       },
-      authStrategy: 'NONE',
+      devhubAuthStrategy: 'NONE',
     });
   });
 
