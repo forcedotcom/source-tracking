@@ -19,7 +19,7 @@ describe('Bundle-like types delete', () => {
       project: {
         sourceDir: path.join('test', 'nuts', 'repros', 'partialBundleDelete'),
       },
-      authStrategy: 'NONE',
+      devhubAuthStrategy: 'NONE',
     });
   });
 

@@ -19,7 +19,7 @@ describe('perf testing for big commits', () => {
       project: {
         gitClone: 'https://github.com/SalesforceFoundation/EDA',
       },
-      authStrategy: 'NONE',
+      devhubAuthStrategy: 'NONE',
     });
   });
 

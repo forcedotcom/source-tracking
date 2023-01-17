@@ -18,7 +18,7 @@ describe('handles non-top-level ignore inside project dir', () => {
       project: {
         sourceDir: path.join('test', 'nuts', 'repros', 'nested-classes'),
       },
-      authStrategy: 'NONE',
+      devhubAuthStrategy: 'NONE',
     });
   });
 
@@ -53,7 +53,7 @@ describe('handles non-top-level ignore outside project dir', () => {
       project: {
         sourceDir: path.join('test', 'nuts', 'repros', 'nested-classes2'),
       },
-      authStrategy: 'NONE',
+      devhubAuthStrategy: 'NONE',
     });
   });
 
