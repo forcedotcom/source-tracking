@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "2.2.15",
+  "version": "2.2.17",
   "author": "Salesforce",
   "license": "BSD-3-Clause",
   "main": "lib/index.js",
@@ -43,8 +43,8 @@
     "/oclif.manifest.json"
   ],
   "dependencies": {
-    "@salesforce/core": "^3.32.8",
-    "@salesforce/kit": "^1.8.0",
+    "@salesforce/core": "^3.32.12",
+    "@salesforce/kit": "^1.8.3",
     "@salesforce/source-deploy-retrieve": "^7.7.3",
     "graceful-fs": "^4.2.10",
     "isomorphic-git": "1.17.0",
@@ -58,10 +58,10 @@
     "@salesforce/ts-sinon": "^1.4.2",
     "@types/shelljs": "^0.8.11",
     "@typescript-eslint/eslint-plugin": "^5.43.0",
-    "@typescript-eslint/parser": "^5.43.0",
+    "@typescript-eslint/parser": "^5.48.0",
     "chai": "^4.3.7",
-    "eslint": "^8.27.0",
-    "eslint-config-prettier": "^8.5.0",
+    "eslint": "^8.31.0",
+    "eslint-config-prettier": "^8.6.0",
     "eslint-config-salesforce": "^1.1.0",
     "eslint-config-salesforce-license": "^0.1.6",
     "eslint-config-salesforce-typescript": "^1.1.1",
@@ -78,7 +78,7 @@
     "sinon": "^10.0.0",
     "ts-node": "^10.9.1",
     "ts-prune": "^0.10.3",
-    "typescript": "^4.9.3"
+    "typescript": "^4.9.4"
   },
   "config": {},
   "publishConfig": {

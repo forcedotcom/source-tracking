@@ -9,11 +9,13 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'graceful-fs';
 import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
+import { env } from '@salesforce/kit';
 import * as git from 'isomorphic-git';
 import { chunkArray, isLwcLocalOnlyTest, pathIsInFolder } from './functions';
 
 /** returns the full path to where we store the shadow repo */
-const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string => path.join(projectPath, useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, 'localSourceTracking');
+const getGitDir = (orgId: string, projectPath: string, useSfdxTrackingFiles = false): string =>
+  path.join(projectPath, useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, 'localSourceTracking');
 
 // filenames were normalized when read from isogit
 const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
@@ -59,7 +61,8 @@ export class ShadowRepo {
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';
-    this.maxFileAdd = this.isWindows ? 8000 : 15000;
+
+    this.maxFileAdd = env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', this.isWindows ? 8000 : 15000);
   }
 
   // think of singleton behavior but unique to the projectPath
@@ -243,7 +246,14 @@ export class ShadowRepo {
         } catch (e) {
           if (e instanceof git.Errors.MultipleGitError) {
             this.logger.error('multiple errors on git.add', e.errors.slice(0, 5));
-            const error = new SfError(e.message, e.name, [], 1);
+            const error = new SfError(
+              e.message,
+              e.name,
+              [
+                `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${this.maxFileAdd}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
+              ],
+              1
+            );
             error.setData(e.errors);
             throw error;
           }
