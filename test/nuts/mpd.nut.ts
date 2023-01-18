@@ -34,6 +34,7 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
           setDefault: true,
         },
       ],
+      devhubAuthStrategy: 'AUTO',
     });
     stl = await getSTLInstance(session);
     // these 2 lines help debug path issues in
