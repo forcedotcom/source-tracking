@@ -11,11 +11,15 @@ import { ForceIgnore, ComponentSet } from '@salesforce/source-deploy-retrieve';
 import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts';
 import { ChangeResult } from '../../src/shared/types';
 
+const clsFullName = 'MyClass';
+const clsType = 'ApexClass';
+const file1cls = 'foo/classes/MyClass.cls';
+const file1meta = 'foo/classes/MyClass.cls-meta.xml';
 const class1Local: ChangeResult = {
   origin: 'local',
-  name: 'MyClass',
-  type: 'ApexClass',
-  filenames: ['foo/classes/MyClass.cls', 'foo/classes/MyClass.cls-meta.xml'],
+  name: clsFullName,
+  type: clsType,
+  filenames: [file1cls, file1meta],
 };
 
 describe('conflicts functions', () => {
@@ -28,16 +32,16 @@ describe('conflicts functions', () => {
 
   describe('filter component set', () => {
     it('matches a conflict in a component set', () => {
-      const cs = new ComponentSet([{ fullName: class1Local.name, type: class1Local.type }]);
+      const cs = new ComponentSet([{ fullName: clsFullName, type: clsType }]);
       expect(findConflictsInComponentSet(cs, [class1Local])).to.deep.equal([
         {
-          filePath: path.join(__dirname, '..', '..', class1Local.filenames[0]),
+          filePath: path.join(__dirname, '..', '..', file1cls),
           fullName: class1Local.name,
           state: 'Conflict',
           type: class1Local.type,
         },
         {
-          filePath: path.join(__dirname, '..', '..', class1Local.filenames[1]),
+          filePath: path.join(__dirname, '..', '..', file1meta),
           fullName: class1Local.name,
           state: 'Conflict',
           type: class1Local.type,

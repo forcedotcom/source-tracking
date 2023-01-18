@@ -34,9 +34,13 @@ describe('expectedSourceMembers', () => {
     const result = calculateExpectedSourceMembers(input);
     expect(result.size).to.equal(1);
     // fields return object, field for their keys
-    expect(result.get(getMetadataKeyFromFileResponse(input[2]).find((f) => f.startsWith('CustomField')))).to.deep.equal(
-      input[2]
-    );
+    const input2 = getMetadataKeyFromFileResponse(input[2]);
+    const mdKey = input2.find((f) => f.startsWith('CustomField'));
+    if (mdKey) {
+      expect(result.get(mdKey)).to.deep.equal(input[2]);
+    } else {
+      expect(false, 'CustomField metadata not found');
+    }
   });
 
   it('omits aura xml types', () => {

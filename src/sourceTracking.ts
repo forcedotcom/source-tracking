@@ -605,7 +605,14 @@ export class SourceTracking extends AsyncCreatable {
     await Promise.all([
       this.updateLocalTracking({
         // assertion allowed because it's filtering out undefined
-        files: successes.map((fileResponse) => fileResponse.filePath as string).filter(Boolean),
+        files: successes
+          .filter((fileResponse) => fileResponse.state !== ComponentStatus.Deleted)
+          .map((fileResponse) => fileResponse.filePath as string)
+          .filter(Boolean),
+        deletedFiles: successes
+          .filter((fileResponse) => fileResponse.state === ComponentStatus.Deleted)
+          .map((fileResponse) => fileResponse.filePath as string)
+          .filter(Boolean),
       }),
       this.updateRemoteTracking(
         successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath })),

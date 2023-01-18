@@ -77,7 +77,9 @@ describe('remoteSourceTrackingService', () => {
   describe('init', () => {
     it('should set initial state of contents', async () => {
       $$.SANDBOX.stub(remoteSourceTrackingService, 'getContents').returns({
+        // @ts-ignore
         serverMaxRevisionCounter: null,
+        // @ts-ignore
         sourceMembers: null,
       }) as SinonStub;
       // @ts-ignore
