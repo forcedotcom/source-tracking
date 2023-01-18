@@ -611,7 +611,8 @@ export class SourceTracking extends AsyncCreatable {
           .filter(Boolean),
         deletedFiles: successes
           .filter((fileResponse) => fileResponse.state === ComponentStatus.Deleted)
-          .map((fileResponse) => fileResponse.filePath as string),
+          .map((fileResponse) => fileResponse.filePath as string)
+          .filter(Boolean),
       }),
       this.updateRemoteTracking(
         successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath })),
