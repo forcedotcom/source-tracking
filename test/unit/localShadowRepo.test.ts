@@ -21,7 +21,7 @@ afterEach(() => {
 
 describe('localShadowRepo', () => {
   it('does not add same file multiple times', async () => {
-    let projectDir: string;
+    let projectDir!: string;
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
       fs.mkdirSync(path.join(projectDir, 'force-app'));

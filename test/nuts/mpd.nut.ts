@@ -10,12 +10,11 @@ import * as fs from 'fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { Org, SfProject } from '@salesforce/core';
-import { getString } from '@salesforce/ts-types';
 import { SourceTracking } from '../../src/sourceTracking';
 
 const getSTLInstance = async (session: TestSession): Promise<SourceTracking> =>
   SourceTracking.create({
-    org: await Org.create({ aliasOrUsername: getString(session, 'setup[0].result.username') }),
+    org: await Org.create({ aliasOrUsername: session.orgs.get('default')?.username }),
     project: await SfProject.resolve(session.project.dir),
   });
 
