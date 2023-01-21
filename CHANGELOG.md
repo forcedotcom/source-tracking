@@ -1,3 +1,12 @@
+## [2.2.19](https://github.com/forcedotcom/source-tracking/compare/2.2.18...2.2.19) (2023-01-21)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve from 7.7.3 to 7.7.5 ([0745319](https://github.com/forcedotcom/source-tracking/commit/074531952949363e32f1a2e742697bcf9537e378))
+
+
+
 ## [2.2.18](https://github.com/forcedotcom/source-tracking/compare/2.2.17...2.2.18) (2023-01-18)
 
 
