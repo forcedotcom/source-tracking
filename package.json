@@ -53,7 +53,7 @@
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^3.2.18",
     "@salesforce/dev-config": "^3.1.0",
-    "@salesforce/dev-scripts": "^3.1.0",
+    "@salesforce/dev-scripts": "^3.1.1",
     "@salesforce/prettier-config": "^0.0.2",
     "@salesforce/ts-sinon": "^1.4.2",
     "@types/shelljs": "^0.8.11",
