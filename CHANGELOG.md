@@ -1,3 +1,12 @@
+## [2.2.20](https://github.com/forcedotcom/source-tracking/compare/2.2.19...2.2.20) (2023-01-28)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 3.32.13 to 3.33.1 ([a3690db](https://github.com/forcedotcom/source-tracking/commit/a3690dbc1c1f50795447c1ac72c4b06f544cd1a5))
+
+
+
 ## [2.2.19](https://github.com/forcedotcom/source-tracking/compare/2.2.18...2.2.19) (2023-01-21)
 
 
