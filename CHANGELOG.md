@@ -1,3 +1,12 @@
+## [2.2.21](https://github.com/forcedotcom/source-tracking/compare/2.2.20...2.2.21) (2023-02-02)
+
+
+### Bug Fixes
+
+* bump sdr ([9014c97](https://github.com/forcedotcom/source-tracking/commit/9014c97bf4c4f69cf92082f37edf4d1c1ea6761d))
+
+
+
 ## [2.2.20](https://github.com/forcedotcom/source-tracking/compare/2.2.19...2.2.20) (2023-01-28)
 
 
