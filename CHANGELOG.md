@@ -1,3 +1,12 @@
+## [2.2.22](https://github.com/forcedotcom/source-tracking/compare/2.2.21...2.2.22) (2023-02-17)
+
+
+### Bug Fixes
+
+* empty project path when pulling remote deletes ([cee0498](https://github.com/forcedotcom/source-tracking/commit/cee049898ecee4353253d0b29d76e7fd7876d18b))
+
+
+
 ## [2.2.21](https://github.com/forcedotcom/source-tracking/compare/2.2.20...2.2.21) (2023-02-02)
 
 
