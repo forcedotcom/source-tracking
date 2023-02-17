@@ -368,15 +368,19 @@ export class SourceTracking extends AsyncCreatable {
         true // skip polling because it's a pull
       ),
     ]);
-    return filenames.map(
-      (filename) =>
-        ({
-          state: 'Deleted',
-          filename,
-          type: sourceComponentByFileName.get(filename)?.type.name,
-          fullName: sourceComponentByFileName.get(filename)?.fullName,
-        } as unknown as FileResponse)
-    );
+    return filenames.reduce<FileResponse[]>((result, filename) => {
+      const component = sourceComponentByFileName.get(filename);
+      if (component) {
+        result.push({
+          state: ComponentStatus.Deleted,
+          filePath: filename,
+          type: component.type.name,
+          fullName: component.fullName,
+        });
+      }
+
+      return result;
+    }, []);
   }
 
   /**

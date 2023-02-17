@@ -45,13 +45,13 @@
   "dependencies": {
     "@salesforce/core": "^3.33.1",
     "@salesforce/kit": "^1.8.3",
-    "@salesforce/source-deploy-retrieve": "^7.8.0",
+    "@salesforce/source-deploy-retrieve": "^7.9.1",
     "graceful-fs": "^4.2.10",
     "isomorphic-git": "1.17.0",
     "ts-retry-promise": "^0.7.0"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^3.2.18",
+    "@salesforce/cli-plugins-testkit": "^3.2.20",
     "@salesforce/dev-config": "^3.1.0",
     "@salesforce/dev-scripts": "^3.1.1",
     "@salesforce/prettier-config": "^0.0.2",
@@ -78,7 +78,7 @@
     "sinon": "^10.0.0",
     "ts-node": "^10.9.1",
     "ts-prune": "^0.10.3",
-    "typescript": "^4.9.4"
+    "typescript": "^4.9.5"
   },
   "config": {},
   "publishConfig": {
