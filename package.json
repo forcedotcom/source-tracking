@@ -9,23 +9,23 @@
   "homepage": "https://github.com/forcedotcom/source-tracking#readme",
   "repository": "forcedotcom/source-tracking",
   "scripts": {
-    "build": "sf-build",
+    "build": "wireit",
     "ci-docs": "yarn sf-ci-docs",
     "clean": "sf-clean",
     "clean-all": "sf-clean all",
-    "compile": "sf-compile",
+    "compile": "wireit",
     "docs": "sf-docs",
-    "format": "sf-format",
-    "lint": "sf-lint",
+    "format": "wireit",
+    "lint": "wireit",
     "lint-fix": "yarn sf-lint --fix",
     "postpack": "shx rm -f oclif.manifest.json",
     "prepack": "sf-prepack",
     "prepare": "sf-install",
-    "pretest": "sf-compile-test",
     "prune:dead": "ts-prune | grep -v 'source-deploy-retrieve' | grep -v 'index.ts'",
-    "test": "sf-test",
+    "test": "wireit",
     "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:nuts:local": "mocha \"**/local/*.nut.ts\" --slow 4500 --timeout 600000 --parallel"
+    "test:nuts:local": "mocha \"**/local/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:only": "wireit"
   },
   "keywords": [
     "force",
@@ -53,7 +53,7 @@
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^3.2.21",
     "@salesforce/dev-config": "^3.1.0",
-    "@salesforce/dev-scripts": "^3.1.1",
+    "@salesforce/dev-scripts": "^4.1.1",
     "@salesforce/prettier-config": "^0.0.2",
     "@salesforce/ts-sinon": "^1.4.5",
     "@types/shelljs": "^0.8.11",
@@ -78,10 +78,81 @@
     "sinon": "^10.0.0",
     "ts-node": "^10.9.1",
     "ts-prune": "^0.10.3",
-    "typescript": "^4.9.5"
+    "typescript": "^4.9.5",
+    "wireit": "^0.9.5"
   },
   "config": {},
   "publishConfig": {
     "access": "public"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "compile",
+        "lint"
+      ]
+    },
+    "compile": {
+      "command": "tsc -p . --pretty --incremental",
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json",
+        "messages/**"
+      ],
+      "output": [
+        "lib/**",
+        "*.tsbuildinfo"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "format": {
+      "command": "prettier --write \"+(src|test|schemas)/**/*.+(ts|js|json)|command-snapshot.json\"",
+      "files": [
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "schemas/**/*.json",
+        "command-snapshot.json",
+        ".prettier*"
+      ],
+      "output": []
+    },
+    "lint": {
+      "command": "eslint src test --color --cache --cache-location .eslintcache",
+      "files": [
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "messages/**",
+        ".eslint*"
+      ],
+      "output": []
+    },
+    "test:compile": {
+      "command": "tsc -p \"./test\" --pretty",
+      "files": [
+        "test/**/*.ts",
+        "tsconfig.json",
+        "test/tsconfig.json"
+      ],
+      "output": []
+    },
+    "test": {
+      "dependencies": [
+        "test:only",
+        "test:compile"
+      ]
+    },
+    "test:only": {
+      "command": "nyc mocha \"test/**/*.test.ts\"",
+      "files": [
+        "test/**/*.ts",
+        "src/**/*.ts",
+        "tsconfig.json",
+        ".mocha*",
+        "test/tsconfig.json",
+        "!*.nut.ts",
+        ".nycrc"
+      ],
+      "output": []
+    }
   }
 }
