@@ -1,3 +1,12 @@
+## [2.2.26](https://github.com/forcedotcom/source-tracking/compare/2.2.25...2.2.26) (2023-03-19)
+
+
+### Bug Fixes
+
+* **deps:** bump graceful-fs from 4.2.10 to 4.2.11 ([09eef39](https://github.com/forcedotcom/source-tracking/commit/09eef392e331ebc7e5b8b25aa788686e51fc2c51))
+
+
+
 ## [2.2.25](https://github.com/forcedotcom/source-tracking/compare/2.2.24...2.2.25) (2023-03-18)
 
 
