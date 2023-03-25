@@ -886,26 +886,26 @@
     strip-ansi "6.0.1"
     ts-retry-promise "^0.7.0"
 
-"@salesforce/core@^3.33.1", "@salesforce/core@^3.33.6":
-  version "3.33.6"
-  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-3.33.6.tgz#48a3e8c708f4a0ed153e5e2d43c343fd5bf2c923"
-  integrity sha512-HxA0OIt6NSMdZwu2X7wIru8OJN8x8XxNiazXpLNW5MUi9rBupBAWYNROjDMPilxBgnoiBcJ5I84xdl+jWD3vqA==
+"@salesforce/core@^3.33.1", "@salesforce/core@^3.33.6", "@salesforce/core@^3.34.4":
+  version "3.34.4"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-3.34.4.tgz#6fa11c32f14d20130a0c92c5d306f368671ec104"
+  integrity sha512-WasR/6IXKcNj3MgZIcVaT7W5Ic/blxOgpQIzob/7JEsnLVr3pPPb+9/axRvxEGdJr/gOnL1vR0NbBX+Mz6TtkQ==
   dependencies:
     "@salesforce/bunyan" "^2.0.0"
-    "@salesforce/kit" "^1.9.0"
+    "@salesforce/kit" "^1.9.2"
     "@salesforce/schemas" "^1.5.0"
     "@salesforce/ts-types" "^1.7.2"
     "@types/graceful-fs" "^4.1.6"
     "@types/semver" "^7.3.13"
-    ajv "^8.11.2"
+    ajv "^8.12.0"
     archiver "^5.3.0"
     change-case "^4.1.2"
     debug "^3.2.7"
     faye "^1.4.0"
     form-data "^4.0.0"
-    graceful-fs "^4.2.9"
+    graceful-fs "^4.2.11"
     js2xmlparser "^4.0.1"
-    jsforce "^2.0.0-beta.19"
+    jsforce "^2.0.0-beta.20"
     jsonwebtoken "9.0.0"
     ts-retry-promise "^0.7.0"
 
@@ -1483,7 +1483,7 @@ ajv@^6.10.0, ajv@^6.12.4:
     json-schema-traverse "^0.4.1"
     uri-js "^4.2.2"
 
-ajv@^8.11.0, ajv@^8.11.2:
+ajv@^8.11.0, ajv@^8.12.0:
   version "8.12.0"
   resolved "https://registry.yarnpkg.com/ajv/-/ajv-8.12.0.tgz#d1a0527323e22f53562c567c00991577dfbe19d1"
   integrity sha512-sRu1kpcO9yLtYxBKvqfTeh9KzZEwO3STyX1HT+4CaDzC6HpTGYhIhPIzj9XuKU7KYDwnaeh5hcOwjy1QuJzBPA==
@@ -3766,7 +3766,7 @@ got@^11, got@^11.8.6:
     p-cancelable "^2.0.0"
     responselike "^2.0.0"
 
-graceful-fs@^4.1.15, graceful-fs@^4.1.2, graceful-fs@^4.1.5, graceful-fs@^4.1.6, graceful-fs@^4.2.0, graceful-fs@^4.2.10, graceful-fs@^4.2.11, graceful-fs@^4.2.2, graceful-fs@^4.2.4, graceful-fs@^4.2.6, graceful-fs@^4.2.9:
+graceful-fs@^4.1.15, graceful-fs@^4.1.2, graceful-fs@^4.1.5, graceful-fs@^4.1.6, graceful-fs@^4.2.0, graceful-fs@^4.2.10, graceful-fs@^4.2.11, graceful-fs@^4.2.2, graceful-fs@^4.2.4, graceful-fs@^4.2.6:
   version "4.2.11"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.11.tgz#4183e4e8bf08bb6e05bbb2f7d2e0c8f712ca40e3"
   integrity sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==
@@ -4540,10 +4540,10 @@ jsesc@^2.5.1:
   resolved "https://registry.yarnpkg.com/jsesc/-/jsesc-2.5.2.tgz#80564d2e483dacf6e8ef209650a67df3f0c283a4"
   integrity sha512-OYu7XEzjkCQ3C5Ps3QIZsQfNpqoJyZZA99wd9aWd05NCtC5pWOkShK2mkL6HXQR6/Cy2lbNdPlZBpuQHXE63gA==
 
-jsforce@^2.0.0-beta.19:
-  version "2.0.0-beta.19"
-  resolved "https://registry.yarnpkg.com/jsforce/-/jsforce-2.0.0-beta.19.tgz#4a136b88d6a9f6668714c4ccbb0acd55e46ea493"
-  integrity sha512-WdF6hs7kukXNGvp/VRhu2DngldgiBBorsc2WA5us08oJGbEIPwn/itqYJWKJ+rfPXepz5JbkWQd48XHGjqmPpw==
+jsforce@^2.0.0-beta.20:
+  version "2.0.0-beta.20"
+  resolved "https://registry.yarnpkg.com/jsforce/-/jsforce-2.0.0-beta.20.tgz#907630942b2ecd653098caa3f87e7710874cb207"
+  integrity sha512-5TpdU0MEUN34M0mSKmBwOMKaI8dllTYF8NzpJn0/9akrwqKEERK6K2jGiMWcs85Vx1HCHEcwU2n+5ij6z6zr2g==
   dependencies:
     "@babel/runtime" "^7.12.5"
     "@babel/runtime-corejs3" "^7.12.5"
