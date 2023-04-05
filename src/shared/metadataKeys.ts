@@ -76,6 +76,7 @@ export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string
   ...aliasTypes,
   ['AuraDefinition', 'AuraDefinitionBundle'],
   ['LightningComponentResource', 'LightningComponentBundle'],
+  ['PicklistValue', 'GlobalValueSet'],
 ]);
 
 export const registrySupportsType = (type: string): boolean => {
