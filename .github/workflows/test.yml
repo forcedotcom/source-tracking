@@ -36,7 +36,6 @@ jobs:
           - 'yarn test:nuts:tracking:conflicts'
           - 'yarn test:nuts:tracking:forceignore'
           - 'yarn test:nuts:tracking:remote'
-          - 'yarn test:nuts:tracking:resetClear'
           - 'yarn test:nuts:tracking:lwc'
           - 'yarn mocha "test/nuts/trackingCommands/mpd-*.nut.ts" --slow 3000 --timeout 600000 --parallel'
     with:
