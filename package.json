@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "2.2.26",
+  "version": "3.0.0",
   "author": "Salesforce",
   "license": "BSD-3-Clause",
   "main": "lib/index.js",
@@ -68,6 +68,7 @@
     "eslint-plugin-header": "^3.1.1",
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-jsdoc": "^39.8.0",
+    "eslint-plugin-sf-plugin": "^1.14.0",
     "husky": "^7.0.4",
     "mocha": "^9.2.2",
     "nyc": "^15.1.0",
