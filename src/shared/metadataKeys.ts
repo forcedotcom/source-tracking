@@ -76,6 +76,9 @@ export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string
   ...aliasTypes,
   ['AuraDefinition', 'AuraDefinitionBundle'],
   ['LightningComponentResource', 'LightningComponentBundle'],
+  // PicklistValue appears occasionally in sourceMembers, but it's not a real type in the registry
+  // the library correctly pulls the GlobalValueSet anyway, but this suppresses the warning
+  ['PicklistValue', 'GlobalValueSet'],
 ]);
 
 export const registrySupportsType = (type: string): boolean => {

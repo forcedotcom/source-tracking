@@ -24,7 +24,7 @@ jobs:
       fail-fast: false
     with:
       os: ${{ matrix.os }}
-  extNuts:
+  xNuts-ps:
     needs: linux-unit-tests
     uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@main
     strategy:
@@ -36,9 +36,25 @@ jobs:
           - 'yarn test:nuts:tracking:conflicts'
           - 'yarn test:nuts:tracking:forceignore'
           - 'yarn test:nuts:tracking:remote'
-          - 'yarn test:nuts:tracking:resetClear'
           - 'yarn test:nuts:tracking:lwc'
           - 'yarn mocha "test/nuts/trackingCommands/mpd-*.nut.ts" --slow 3000 --timeout 600000 --parallel'
+    with:
+      packageName: '@salesforce/source-tracking'
+      externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-source'
+      command: ${{matrix.command}}
+      os: ${{matrix.os}}
+    secrets: inherit
+
+  xNuts-pdr:
+    needs: linux-unit-tests
+    uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@main
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['ubuntu-latest', 'windows-latest']
+        command:
+          - 'yarn test:nuts:tracking'
+          - 'yarn test:nuts:deb'
     with:
       packageName: '@salesforce/source-tracking'
       externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-source'

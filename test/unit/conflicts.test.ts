@@ -93,6 +93,7 @@ describe('conflicts functions', () => {
     });
 
     it('de-dupes local and remote change where names match', () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { filenames, ...simplifiedResult } = class1Local;
       expect(
         getDedupedConflictsFromChanges({
