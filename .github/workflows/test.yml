@@ -43,7 +43,8 @@ jobs:
       externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-source'
       command: ${{matrix.command}}
       os: ${{matrix.os}}
-      preExternalBuildCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest'
+      preExternalBuildCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest; npx yarn-deduplicate'
+      useCache: false
     secrets: inherit
 
   xNuts-pdr:
@@ -58,8 +59,9 @@ jobs:
           - 'yarn test:nuts:deb'
     with:
       packageName: '@salesforce/source-tracking'
-      externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-source'
+      externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-deploy-retrieve'
       command: ${{matrix.command}}
       os: ${{matrix.os}}
       preExternalBuildCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest'
+      useCache: false
     secrets: inherit
