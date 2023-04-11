@@ -43,9 +43,9 @@
     "/oclif.manifest.json"
   ],
   "dependencies": {
-    "@salesforce/core": "^3.33.6",
+    "@salesforce/core": "^3.34.6",
     "@salesforce/kit": "^1.9.0",
-    "@salesforce/source-deploy-retrieve": "^7.12.0",
+    "@salesforce/source-deploy-retrieve": "^8.0.1",
     "graceful-fs": "^4.2.11",
     "isomorphic-git": "1.17.0",
     "ts-retry-promise": "^0.7.0"
