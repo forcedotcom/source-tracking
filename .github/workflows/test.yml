@@ -43,7 +43,7 @@ jobs:
       externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-source'
       command: ${{matrix.command}}
       os: ${{matrix.os}}
-      preSwapCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest'
+      preSwapCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest; npx yarn-deduplicate; yarn install'
       useCache: false
     secrets: inherit
 
@@ -62,6 +62,6 @@ jobs:
       externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-deploy-retrieve'
       command: ${{matrix.command}}
       os: ${{matrix.os}}
-      preSwapCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest'
+      preSwapCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest; npx yarn-deduplicate; yarn install'
       useCache: false
     secrets: inherit
