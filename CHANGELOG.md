@@ -1,3 +1,12 @@
+## [2.2.27](https://github.com/forcedotcom/source-tracking/compare/2.2.26...2.2.27) (2023-04-11)
+
+
+### Bug Fixes
+
+* bump SDR and core libs ([32ba81e](https://github.com/forcedotcom/source-tracking/commit/32ba81e5cd768b35a977299879b24f60d42b9578))
+
+
+
 ## [2.2.26](https://github.com/forcedotcom/source-tracking/compare/2.2.25...2.2.26) (2023-03-19)
 
 
