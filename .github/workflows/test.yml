@@ -26,7 +26,7 @@ jobs:
       os: ${{ matrix.os }}
   xNuts-ps:
     needs: linux-unit-tests
-    uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@sm/external-nut-deps
+    uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@main
     strategy:
       fail-fast: false
       matrix:
@@ -49,7 +49,7 @@ jobs:
 
   xNuts-pdr:
     needs: linux-unit-tests
-    uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@sm/external-nut-deps
+    uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@main
     strategy:
       fail-fast: false
       matrix:
