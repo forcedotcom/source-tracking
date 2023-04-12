@@ -43,9 +43,30 @@ jobs:
       externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-source'
       command: ${{matrix.command}}
       os: ${{matrix.os}}
+      preSwapCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest; npx yarn-deduplicate; yarn install'
+      useCache: false
     secrets: inherit
 
   xNuts-pdr:
+    needs: linux-unit-tests
+    uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@main
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['ubuntu-latest', 'windows-latest']
+        command:
+          - 'yarn test:nuts:tracking'
+          - 'yarn test:nuts:deb'
+    with:
+      packageName: '@salesforce/source-tracking'
+      externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-deploy-retrieve'
+      command: ${{matrix.command}}
+      os: ${{matrix.os}}
+      preSwapCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest; npx yarn-deduplicate; yarn install'
+      useCache: false
+    secrets: inherit
+
+  xNuts-source-tracking:
     needs: linux-unit-tests
     uses: salesforcecli/github-workflows/.github/workflows/externalNut.yml@main
     strategy:

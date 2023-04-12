@@ -76,16 +76,22 @@ export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string
   ...aliasTypes,
   ['AuraDefinition', 'AuraDefinitionBundle'],
   ['LightningComponentResource', 'LightningComponentBundle'],
-  // PicklistValue appears occasionally in sourceMembers, but it's not a real type in the registry
-  // the library correctly pulls the GlobalValueSet anyway, but this suppresses the warning
-  ['PicklistValue', 'GlobalValueSet'],
 ]);
 
 export const registrySupportsType = (type: string): boolean => {
+  if (mappingsForSourceMemberTypesToMetadataType.has(type)) {
+    return true;
+  }
+  if (type === 'PicklistValue') {
+    /* "PicklistValue" appears occasionally in sourceMembers, but it's not a real, addressable type in the registry
+     * It only appears when a picklist value is reactivated, so I'd call this a SourceMember bug
+     * We also can't make it a child type in the SDR registry because it it can be a parent of either CustomField/Picklist OR GlobalValueSet
+     * in both parent cases (GVS and CustomField), the the parent is marked as changed in SourceMembers, to the behavior is ok igoring the PicklistValue
+     * This suppresses the warning, and could be removed if the SourceMember bug is fixed
+     */
+    return false;
+  }
   try {
-    if (mappingsForSourceMemberTypesToMetadataType.has(type)) {
-      return true;
-    }
     // this must use getTypeByName because findType doesn't support addressable child types (ex: customField!)
     registry.getTypeByName(type);
     return true;
