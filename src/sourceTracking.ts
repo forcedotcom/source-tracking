@@ -656,13 +656,13 @@ export class SourceTracking extends AsyncCreatable {
       // yes, the post hooks really have different payloads!
       lifecycle.on('scopedPostDeploy', async (e: ScopedPostDeploy) => {
         this.logger.debug('received scopedPostDeploy event');
-        if (e.orgId === this.orgId) {
+        if (e.orgId === this.orgId && e.deployResult.response.success) {
           await this.updateTrackingFromDeploy(e.deployResult);
         }
       });
       lifecycle.on('scopedPostRetrieve', async (e: ScopedPostRetrieve) => {
         this.logger.debug('received scopedPostRetrieve event');
-        if (e.orgId === this.orgId) {
+        if (e.orgId === this.orgId && e.retrieveResult.response.success) {
           await this.updateTrackingFromRetrieve(e.retrieveResult);
         }
       });
