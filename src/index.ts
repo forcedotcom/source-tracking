@@ -6,7 +6,6 @@
  */
 
 export * from './sourceTracking';
-export * from './compatibility';
 export {
   RemoteSyncInput,
   ChangeOptionType,

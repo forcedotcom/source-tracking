@@ -32,7 +32,6 @@ describe('perf testing for big commits', () => {
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
-      hasSfdxTrackingFiles: false,
     });
   });
 

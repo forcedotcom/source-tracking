@@ -62,7 +62,6 @@ describe('remoteSourceTrackingService', () => {
     remoteSourceTrackingService = await RemoteSourceTrackingService.create({
       org,
       projectPath: await $$.localPathRetriever($$.id),
-      useSfdxTrackingFiles: false,
     });
   });
 
@@ -349,26 +348,6 @@ describe('remoteSourceTrackingService', () => {
     it('should return the correct file location (base case)', () => {
       const fileLocation = remoteSourceTrackingService.getPath();
       expect(fileLocation).to.include(`.sf${sep}`);
-    });
-    it('should return the correct file location (sfdx legacy case)', async () => {
-      // redo the context
-      restoreContext($$);
-      stubContext($$);
-      const orgData = new MockTestOrgData();
-      orgData.username = username;
-      orgData.orgId = orgId;
-      orgData.tracksSource = true;
-      await $$.stubAuths(orgData);
-      const org = await Org.create({ aliasOrUsername: username });
-      $$.SANDBOX.stub(org.getConnection().tooling, 'query').resolves({ records: [], done: true, totalSize: 0 });
-      remoteSourceTrackingService = await RemoteSourceTrackingService.create({
-        org,
-        projectPath: await $$.localPathRetriever($$.id),
-        useSfdxTrackingFiles: true,
-      });
-
-      const fileLocation = remoteSourceTrackingService.getPath();
-      expect(fileLocation).to.include(`.sfdx${sep}`);
     });
   });
 });
