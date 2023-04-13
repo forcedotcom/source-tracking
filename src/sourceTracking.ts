@@ -43,7 +43,6 @@ import {
 import { sourceComponentGuard } from './shared/guards';
 import { supportsPartialDelete, pathIsInFolder, ensureRelative } from './shared/functions';
 import { registrySupportsType } from './shared/metadataKeys';
-import { hasSfdxTrackingFiles } from './compatibility';
 import { populateFilePaths } from './shared/populateFilePaths';
 import { populateTypesAndNames } from './shared/populateTypesAndNames';
 import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray';
@@ -89,7 +88,6 @@ export class SourceTracking extends AsyncCreatable {
   private localRepo!: ShadowRepo;
   private remoteSourceTrackingService!: RemoteSourceTrackingService;
   private forceIgnore!: ForceIgnore;
-  private hasSfdxTrackingFiles: boolean;
   private ignoreConflicts: boolean;
   private subscribeSDREvents: boolean;
   private ignoreLocalCache: boolean;
@@ -106,7 +104,6 @@ export class SourceTracking extends AsyncCreatable {
     this.ignoreConflicts = options.ignoreConflicts ?? false;
     this.ignoreLocalCache = options.ignoreLocalCache ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
-    this.hasSfdxTrackingFiles = hasSfdxTrackingFiles(this.orgId, this.projectPath);
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -459,7 +456,6 @@ export class SourceTracking extends AsyncCreatable {
       orgId: this.orgId,
       projectPath: normalize(this.projectPath),
       packageDirs: this.packagesDirs,
-      hasSfdxTrackingFiles: this.hasSfdxTrackingFiles,
     });
     // loads the status from file so that it's cached
     await this.localRepo.getStatus();
@@ -479,7 +475,6 @@ export class SourceTracking extends AsyncCreatable {
     this.remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({
       org: this.org,
       projectPath: this.projectPath,
-      useSfdxTrackingFiles: this.hasSfdxTrackingFiles,
     });
     if (initializeWithQuery) {
       await this.remoteSourceTrackingService.retrieveUpdates();
@@ -516,7 +511,7 @@ export class SourceTracking extends AsyncCreatable {
    * Deletes the remote tracking files
    */
   public async clearRemoteTracking(): Promise<string> {
-    return RemoteSourceTrackingService.delete(this.orgId, this.hasSfdxTrackingFiles);
+    return RemoteSourceTrackingService.delete(this.orgId);
   }
 
   /**

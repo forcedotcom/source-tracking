@@ -35,7 +35,6 @@ export namespace RemoteSourceTrackingService {
   export interface Options extends ConfigFile.Options {
     org: Org;
     projectPath: string;
-    useSfdxTrackingFiles: boolean;
   }
 }
 
@@ -107,8 +106,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     return 'maxRevision.json';
   }
 
-  public static getFilePath(orgId: string, useSfdxTrackingFiles = false): string {
-    return path.join(useSfdxTrackingFiles ? '.sfdx' : '.sf', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
+  public static getFilePath(orgId: string): string {
+    return path.join('.sf', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
   }
 
   /**
@@ -117,8 +116,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * @param orgId
    * @returns the path of the deleted source tracking file
    */
-  public static async delete(orgId: string, useSfdxTrackingFiles = false): Promise<string> {
-    const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId, useSfdxTrackingFiles);
+  public static async delete(orgId: string): Promise<string> {
+    const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId);
     // the file might not exist, in which case we don't need to delete it
     if (fs.existsSync(fileToDelete)) {
       await fs.promises.unlink(fileToDelete);
@@ -135,7 +134,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     this.logger = await Logger.child(this.constructor.name);
     this.options = {
       ...this.options,
-      stateFolder: this.options.useSfdxTrackingFiles ? '.sfdx' : '.sf',
+      stateFolder: '.sf',
       filename: RemoteSourceTrackingService.getFileName(),
       filePath: path.join('orgs', this.org.getOrgId()),
     };
@@ -557,7 +556,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   private async query(query: string, quiet = false): Promise<SourceMember[]> {
     if (!(await this.org.tracksSource())) {
       Messages.importMessagesDirectory(__dirname);
-      const messages = Messages.load('@salesforce/source-tracking', 'source', ['NonSourceTrackedOrgError']);
+      const messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
       throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
     }
     if (!quiet) {
@@ -578,12 +577,12 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
  * Useful for correcing bundle types where the files show change results with types but aren't resolvable
  */
 export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): ChangeResult => ({
-    ...rce,
-    ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
-      ? {
-          name: rce.name.split('/')[0],
-          type: mappingsForSourceMemberTypesToMetadataType.get(rce.type),
-        }
-      : {}),
-    origin: 'remote', // we know they're remote
-  });
+  ...rce,
+  ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
+    ? {
+        name: rce.name.split('/')[0],
+        type: mappingsForSourceMemberTypesToMetadataType.get(rce.type),
+      }
+    : {}),
+  origin: 'remote', // we know they're remote
+});
