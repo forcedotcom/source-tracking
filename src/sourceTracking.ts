@@ -385,7 +385,7 @@ export class SourceTracking extends AsyncCreatable {
             });
             // and then write that json back to xml and back to the fs
             const xml = builder.build(customLabels) as string;
-            fs.writeFileSync(filename, xml);
+            return fs.promises.writeFile(filename, xml);
           }
         } else {
           return fs.promises.unlink(filename);
