@@ -7,7 +7,7 @@
 import * as fs from 'fs';
 import { resolve, sep, normalize } from 'path';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
-import { AsyncCreatable } from '@salesforce/kit';
+import { AsyncCreatable, ensureArray } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
 import {
   ComponentSet,
@@ -366,7 +366,7 @@ export class SourceTracking extends AsyncCreatable {
             CustomLabels: { labels: Array<{ fullName: string }> };
           };
           // delete the label from the json based on it's fullName
-          customLabels.CustomLabels.labels = customLabels.CustomLabels.labels.filter(
+          customLabels.CustomLabels.labels = ensureArray(customLabels.CustomLabels.labels).filter(
             (label) => label.fullName !== sourceComponentByFileName.get(filename)?.fullName
           );
 
