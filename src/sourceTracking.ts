@@ -28,6 +28,7 @@ import {
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
 
+import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
@@ -351,7 +352,38 @@ export class SourceTracking extends AsyncCreatable {
     );
     const filenames = Array.from(sourceComponentByFileName.keys());
     // delete the files
-    await Promise.all(filenames.map((filename) => fs.promises.unlink(filename)));
+    await Promise.all(
+      filenames.map((filename) => {
+        if (sourceComponentByFileName.get(filename)?.type.id === 'customlabel') {
+          // for custom labels, we need to remove the individual label from the xml file
+          // so we'll parse the xml
+          const parser = new XMLParser({
+            ignoreDeclaration: false,
+            ignoreAttributes: false,
+            attributeNamePrefix: '@_',
+          });
+          const customLabels = parser.parse(fs.readFileSync(filename, 'utf8')) as {
+            CustomLabels: { labels: Array<{ fullName: string }> };
+          };
+          // delete the label from the json based on it's fullName
+          customLabels.CustomLabels.labels = customLabels.CustomLabels.labels.filter(
+            (label) => label.fullName !== sourceComponentByFileName.get(filename)?.fullName
+          );
+
+          const builder = new XMLBuilder({
+            attributeNamePrefix: '@_',
+            ignoreAttributes: false,
+            format: true,
+            indentBy: '    ',
+          });
+          // and then write that json back to xml and back to the fs
+          const xml = builder.build(customLabels) as string;
+          fs.writeFileSync(filename, xml);
+        } else {
+          return fs.promises.unlink(filename);
+        }
+      })
+    );
 
     // update the tracking files.  We're simulating SDR-style fileResponse
     await Promise.all([
