@@ -7,7 +7,7 @@
 import * as fs from 'fs';
 import { resolve, sep, normalize } from 'path';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
-import { AsyncCreatable, ensureArray } from '@salesforce/kit';
+import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
 import {
   ComponentSet,
@@ -363,22 +363,30 @@ export class SourceTracking extends AsyncCreatable {
             attributeNamePrefix: '@_',
           });
           const customLabels = parser.parse(fs.readFileSync(filename, 'utf8')) as {
-            CustomLabels: { labels: Array<{ fullName: string }> };
+            CustomLabels: { labels: Array<{ fullName: string }> | { fullName: string } };
           };
-          // delete the label from the json based on it's fullName
-          customLabels.CustomLabels.labels = ensureArray(customLabels.CustomLabels.labels).filter(
-            (label) => label.fullName !== sourceComponentByFileName.get(filename)?.fullName
-          );
+          if ('fullName' in customLabels.CustomLabels.labels) {
+            // a single custom label remains, delete the entire file
+            return fs.promises.unlink(filename);
+          } else {
+            const customLabelsToDelete = changesToDelete
+              .filter((change) => change.type.name === 'CustomLabel')
+              .map((change) => change.fullName);
+            // delete the label from the json based on it's fullName
+            customLabels.CustomLabels.labels = customLabels.CustomLabels.labels.filter(
+              (label) => !customLabelsToDelete.includes(label.fullName)
+            );
 
-          const builder = new XMLBuilder({
-            attributeNamePrefix: '@_',
-            ignoreAttributes: false,
-            format: true,
-            indentBy: '    ',
-          });
-          // and then write that json back to xml and back to the fs
-          const xml = builder.build(customLabels) as string;
-          fs.writeFileSync(filename, xml);
+            const builder = new XMLBuilder({
+              attributeNamePrefix: '@_',
+              ignoreAttributes: false,
+              format: true,
+              indentBy: '    ',
+            });
+            // and then write that json back to xml and back to the fs
+            const xml = builder.build(customLabels) as string;
+            fs.writeFileSync(filename, xml);
+          }
         } else {
           return fs.promises.unlink(filename);
         }
@@ -397,16 +405,14 @@ export class SourceTracking extends AsyncCreatable {
         true // skip polling because it's a pull
       ),
     ]);
-    return filenames.reduce<FileResponse[]>((result, filename) => {
-      const component = sourceComponentByFileName.get(filename);
-      if (component) {
-        result.push({
-          state: ComponentStatus.Deleted,
-          filePath: filename,
-          type: component.type.name,
-          fullName: component.fullName,
-        });
-      }
+
+    return changesToDelete.reduce<FileResponse[]>((result, component) => {
+      result.push({
+        state: ComponentStatus.Deleted,
+        filePath: component.content ?? (component.xml as string),
+        type: component.type.name,
+        fullName: component.fullName,
+      });
 
       return result;
     }, []);
