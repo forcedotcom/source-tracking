@@ -372,7 +372,7 @@ export class SourceTracking extends AsyncCreatable {
             const customLabelsToDelete = changesToDelete
               .filter((change) => change.type.name === 'CustomLabel')
               .map((change) => change.fullName);
-            // delete the label from the json based on it's fullName
+            // delete the labels from the json based on their fullName's
             customLabels.CustomLabels.labels = customLabels.CustomLabels.labels.filter(
               (label) => !customLabelsToDelete.includes(label.fullName)
             );
