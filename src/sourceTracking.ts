@@ -107,6 +107,54 @@ export class SourceTracking extends AsyncCreatable {
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
   }
 
+  /**
+   * A static method to help delete custom labels from a file, or the entire file if there are no more labels
+   *
+   * @param filename - a path to a custom labels file
+   * @param customLabels - an array of SourceComponents representing the custom labels to delete
+   */
+  public static async deleteCustomLabels(filename: string, customLabels: SourceComponent[]): Promise<void> {
+    // for custom labels, we need to remove the individual label from the xml file
+    // so we'll parse the xml
+    const parser = new XMLParser({
+      ignoreDeclaration: false,
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+    });
+    const cls = parser.parse(fs.readFileSync(filename, 'utf8')) as {
+      CustomLabels: { labels: Array<{ fullName: string }> | { fullName: string } };
+    };
+    if ('fullName' in cls.CustomLabels.labels) {
+      // a single custom label remains, delete the entire file
+      return fs.promises.unlink(filename);
+    } else {
+      // in theory, we should only have custom labels passed in, but filter just to make sure
+      const customLabelsToDelete = customLabels
+        .filter((label) => label.type.id === 'customlabel')
+        .map((change) => change.fullName);
+      // delete the labels from the json based on their fullName's
+      cls.CustomLabels.labels = cls.CustomLabels.labels.filter(
+        (label) => !customLabelsToDelete.includes(label.fullName)
+      );
+
+      if (cls.CustomLabels.labels.length === 0) {
+        // we've deleted everything, so let's delete the file
+        return fs.promises.unlink(filename);
+      } else {
+        // we need to write the file json back to xml back to the fs
+        const builder = new XMLBuilder({
+          attributeNamePrefix: '@_',
+          ignoreAttributes: false,
+          format: true,
+          indentBy: '    ',
+        });
+        // and then write that json back to xml and back to the fs
+        const xml = builder.build(cls) as string;
+        return fs.promises.writeFile(filename, xml);
+      }
+    }
+  }
+
   // eslint-disable-next-line class-methods-use-this
   public async init(): Promise<void> {
     await this.maybeSubscribeLifecycleEvents();
@@ -370,44 +418,10 @@ export class SourceTracking extends AsyncCreatable {
     await Promise.all(
       filenames.map((filename) => {
         if (sourceComponentByFileName.get(filename)?.type.id === 'customlabel') {
-          // for custom labels, we need to remove the individual label from the xml file
-          // so we'll parse the xml
-          const parser = new XMLParser({
-            ignoreDeclaration: false,
-            ignoreAttributes: false,
-            attributeNamePrefix: '@_',
-          });
-          const customLabels = parser.parse(fs.readFileSync(filename, 'utf8')) as {
-            CustomLabels: { labels: Array<{ fullName: string }> | { fullName: string } };
-          };
-          if ('fullName' in customLabels.CustomLabels.labels) {
-            // a single custom label remains, delete the entire file
-            return fs.promises.unlink(filename);
-          } else {
-            const customLabelsToDelete = changesToDelete
-              .filter((change) => change.type.name === 'CustomLabel')
-              .map((change) => change.fullName);
-            // delete the labels from the json based on their fullName's
-            customLabels.CustomLabels.labels = customLabels.CustomLabels.labels.filter(
-              (label) => !customLabelsToDelete.includes(label.fullName)
-            );
-
-            if (customLabels.CustomLabels.labels.length === 0) {
-              // we've deleted everything, so let's delete the file
-              return fs.promises.unlink(filename);
-            } else {
-              // we need to write the file json back to xml back to the fs
-              const builder = new XMLBuilder({
-                attributeNamePrefix: '@_',
-                ignoreAttributes: false,
-                format: true,
-                indentBy: '    ',
-              });
-              // and then write that json back to xml and back to the fs
-              const xml = builder.build(customLabels) as string;
-              return fs.promises.writeFile(filename, xml);
-            }
-          }
+          return SourceTracking.deleteCustomLabels(
+            filename,
+            changesToDelete.filter((change) => change.type.id === 'customlabel')
+          );
         } else {
           return fs.promises.unlink(filename);
         }
