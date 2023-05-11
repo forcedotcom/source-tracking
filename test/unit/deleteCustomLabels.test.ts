@@ -8,9 +8,9 @@ import * as fs from 'fs';
 import * as sinon from 'sinon';
 import { SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
-import { SourceTracking } from '../../src';
+import { deleteCustomLabels } from '../../src/';
 
-describe('SourceTracking', () => {
+describe('deleteCustomLabels', () => {
   const sandbox = sinon.createSandbox();
   let fsReadStub: sinon.SinonStub;
   let fsWriteStub: sinon.SinonStub;
@@ -54,7 +54,7 @@ describe('SourceTracking', () => {
   });
 
   describe('deleteCustomLabels', () => {
-    it('will delete a singular custom label from a file', async () => {
+    it('will delete a singular custom label from a file', () => {
       const labels = [
         {
           type: { id: 'customlabel', name: 'CustomLabel' },
@@ -62,13 +62,13 @@ describe('SourceTracking', () => {
         } as SourceComponent,
       ];
 
-      await SourceTracking.deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
       expect(fsWriteStub.firstCall.args[1]).to.not.include('DeleteMe');
       expect(fsWriteStub.firstCall.args[1]).to.include('KeepMe1');
       expect(fsWriteStub.firstCall.args[1]).to.include('KeepMe2');
       expect(fsReadStub.callCount).to.equal(1);
     });
-    it('will delete a multiple custom labels from a file', async () => {
+    it('will delete a multiple custom labels from a file', () => {
       const labels = [
         {
           type: { id: 'customlabel', name: 'CustomLabel' },
@@ -80,14 +80,14 @@ describe('SourceTracking', () => {
         },
       ] as SourceComponent[];
 
-      await SourceTracking.deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
       expect(fsWriteStub.firstCall.args[1]).to.include('DeleteMe');
       expect(fsWriteStub.firstCall.args[1]).to.not.include('KeepMe1');
       expect(fsWriteStub.firstCall.args[1]).to.not.include('KeepMe2');
       expect(fsReadStub.callCount).to.equal(1);
     });
 
-    it('will delete the file when everything is deleted', async () => {
+    it('will delete the file when everything is deleted', () => {
       const labels = [
         {
           type: { id: 'customlabel', name: 'CustomLabel' },
@@ -103,12 +103,12 @@ describe('SourceTracking', () => {
         },
       ] as SourceComponent[];
 
-      await SourceTracking.deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
       expect(fsUnlinkStub.callCount).to.equal(1);
       expect(fsReadStub.callCount).to.equal(1);
     });
 
-    it('will delete the file when only a single label is present and deleted', async () => {
+    it('will delete the file when only a single label is present and deleted', () => {
       fsReadStub.returns(
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
           '<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">\n' +
@@ -128,12 +128,12 @@ describe('SourceTracking', () => {
         },
       ] as SourceComponent[];
 
-      await SourceTracking.deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
       expect(fsUnlinkStub.callCount).to.equal(1);
       expect(fsReadStub.callCount).to.equal(1);
     });
 
-    it('will not delete custom labels', async () => {
+    it('no custom labels, quick exit and do nothing', () => {
       const labels = [
         {
           type: { id: 'apexclass', name: 'ApexClass' },
@@ -141,10 +141,10 @@ describe('SourceTracking', () => {
         },
       ] as SourceComponent[];
 
-      await SourceTracking.deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
       expect(fsUnlinkStub.callCount).to.equal(0);
-      expect(fsWriteStub.firstCall.args[1]).to.include('DeleteMe');
-      expect(fsReadStub.callCount).to.equal(1);
+      expect(fsWriteStub.callCount).to.equal(0);
+      expect(fsReadStub.callCount).to.equal(0);
     });
   });
 });
