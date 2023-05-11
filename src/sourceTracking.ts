@@ -350,6 +350,21 @@ export class SourceTracking extends AsyncCreatable {
         .filter((filename) => filename)
         .map((filename) => sourceComponentByFileName.set(filename, component))
     );
+
+    // calculate what to return before we delete any files and .walkContent is no longer valid
+    const changedToBeDeleted = changesToDelete.reduce<FileResponse[]>((result, component) => {
+      [...component.walkContent(), component.xml].flatMap((file) => {
+        result.push({
+          state: ComponentStatus.Deleted,
+          filePath: file,
+          type: component.type.name,
+          fullName: component.fullName,
+        });
+      });
+
+      return result;
+    }, []);
+
     const filenames = Array.from(sourceComponentByFileName.keys());
     // delete the files
     await Promise.all(
@@ -377,15 +392,21 @@ export class SourceTracking extends AsyncCreatable {
               (label) => !customLabelsToDelete.includes(label.fullName)
             );
 
-            const builder = new XMLBuilder({
-              attributeNamePrefix: '@_',
-              ignoreAttributes: false,
-              format: true,
-              indentBy: '    ',
-            });
-            // and then write that json back to xml and back to the fs
-            const xml = builder.build(customLabels) as string;
-            return fs.promises.writeFile(filename, xml);
+            if (customLabels.CustomLabels.labels.length === 0) {
+              // we've deleted everything, so let's delete the file
+              return fs.promises.unlink(filename);
+            } else {
+              // we need to write the file json back to xml back to the fs
+              const builder = new XMLBuilder({
+                attributeNamePrefix: '@_',
+                ignoreAttributes: false,
+                format: true,
+                indentBy: '    ',
+              });
+              // and then write that json back to xml and back to the fs
+              const xml = builder.build(customLabels) as string;
+              return fs.promises.writeFile(filename, xml);
+            }
           }
         } else {
           return fs.promises.unlink(filename);
@@ -406,16 +427,7 @@ export class SourceTracking extends AsyncCreatable {
       ),
     ]);
 
-    return changesToDelete.reduce<FileResponse[]>((result, component) => {
-      result.push({
-        state: ComponentStatus.Deleted,
-        filePath: component.content ?? (component.xml as string),
-        type: component.type.name,
-        fullName: component.fullName,
-      });
-
-      return result;
-    }, []);
+    return changedToBeDeleted;
   }
 
   /**
