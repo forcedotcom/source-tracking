@@ -1,3 +1,12 @@
+## [3.1.2](https://github.com/forcedotcom/source-tracking/compare/3.1.1...3.1.2) (2023-05-12)
+
+
+### Bug Fixes
+
+* enable tsconfig strict null checks in tests ([#372](https://github.com/forcedotcom/source-tracking/issues/372)) ([e4c7b60](https://github.com/forcedotcom/source-tracking/commit/e4c7b60278d86ef54c095031f1502f0fa34ea7f7))
+
+
+
 ## [3.1.1](https://github.com/forcedotcom/source-tracking/compare/3.1.0...3.1.1) (2023-04-15)
 
 
