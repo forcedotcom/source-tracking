@@ -43,15 +43,15 @@
     "/oclif.manifest.json"
   ],
   "dependencies": {
-    "@salesforce/core": "^3.34.7",
+    "@salesforce/core": "^3.36.1",
     "@salesforce/kit": "^1.9.2",
-    "@salesforce/source-deploy-retrieve": "^8.0.2",
+    "@salesforce/source-deploy-retrieve": "^8.4.0",
     "graceful-fs": "^4.2.11",
     "isomorphic-git": "1.23.0",
     "ts-retry-promise": "^0.7.0"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^3.3.3",
+    "@salesforce/cli-plugins-testkit": "^3.3.6",
     "@salesforce/dev-config": "^3.1.0",
     "@salesforce/dev-scripts": "^4.3.0",
     "@salesforce/prettier-config": "^0.0.2",
