@@ -54,7 +54,7 @@ describe('deleteCustomLabels', () => {
   });
 
   describe('deleteCustomLabels', () => {
-    it('will delete a singular custom label from a file', () => {
+    it('will delete a singular custom label from a file', async () => {
       const labels = [
         {
           type: { id: 'customlabel', name: 'CustomLabel' },
@@ -62,13 +62,12 @@ describe('deleteCustomLabels', () => {
         } as SourceComponent,
       ];
 
-      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
-      expect(fsWriteStub.firstCall.args[1]).to.not.include('DeleteMe');
-      expect(fsWriteStub.firstCall.args[1]).to.include('KeepMe1');
-      expect(fsWriteStub.firstCall.args[1]).to.include('KeepMe2');
+      const result = await deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      const resultLabels = result?.CustomLabels.labels.map((label) => label.fullName);
+      expect(resultLabels).to.deep.equal(['KeepMe1', 'KeepMe2']);
       expect(fsReadStub.callCount).to.equal(1);
     });
-    it('will delete a multiple custom labels from a file', () => {
+    it('will delete a multiple custom labels from a file', async () => {
       const labels = [
         {
           type: { id: 'customlabel', name: 'CustomLabel' },
@@ -80,14 +79,13 @@ describe('deleteCustomLabels', () => {
         },
       ] as SourceComponent[];
 
-      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
-      expect(fsWriteStub.firstCall.args[1]).to.include('DeleteMe');
-      expect(fsWriteStub.firstCall.args[1]).to.not.include('KeepMe1');
-      expect(fsWriteStub.firstCall.args[1]).to.not.include('KeepMe2');
+      const result = await deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      const resultLabels = result?.CustomLabels.labels.map((label) => label.fullName);
+      expect(resultLabels).to.deep.equal(['DeleteMe']);
       expect(fsReadStub.callCount).to.equal(1);
     });
 
-    it('will delete the file when everything is deleted', () => {
+    it('will delete the file when everything is deleted', async () => {
       const labels = [
         {
           type: { id: 'customlabel', name: 'CustomLabel' },
@@ -103,12 +101,13 @@ describe('deleteCustomLabels', () => {
         },
       ] as SourceComponent[];
 
-      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      const result = await deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      expect(result).to.equal(undefined);
       expect(fsUnlinkStub.callCount).to.equal(1);
       expect(fsReadStub.callCount).to.equal(1);
     });
 
-    it('will delete the file when only a single label is present and deleted', () => {
+    it('will delete the file when only a single label is present and deleted', async () => {
       fsReadStub.returns(
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
           '<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">\n' +
@@ -128,12 +127,13 @@ describe('deleteCustomLabels', () => {
         },
       ] as SourceComponent[];
 
-      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      const result = await deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      expect(result).to.equal(undefined);
       expect(fsUnlinkStub.callCount).to.equal(1);
       expect(fsReadStub.callCount).to.equal(1);
     });
 
-    it('no custom labels, quick exit and do nothing', () => {
+    it('no custom labels, quick exit and do nothing', async () => {
       const labels = [
         {
           type: { id: 'apexclass', name: 'ApexClass' },
@@ -141,7 +141,8 @@ describe('deleteCustomLabels', () => {
         },
       ] as SourceComponent[];
 
-      void deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      const result = await deleteCustomLabels('labels/CustomLabels.labels-meta.xml', labels);
+      expect(result).to.equal(undefined);
       expect(fsUnlinkStub.callCount).to.equal(0);
       expect(fsWriteStub.callCount).to.equal(0);
       expect(fsReadStub.callCount).to.equal(0);
