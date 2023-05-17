@@ -1,3 +1,12 @@
+## [3.1.3](https://github.com/forcedotcom/source-tracking/compare/3.1.2...3.1.3) (2023-05-17)
+
+
+### Bug Fixes
+
+* **deps:** bump vm2 from 3.9.16 to 3.9.19 ([0b114b9](https://github.com/forcedotcom/source-tracking/commit/0b114b93cfa156bd2dbcda7285d0575749b03f76))
+
+
+
 ## [3.1.2](https://github.com/forcedotcom/source-tracking/compare/3.1.1...3.1.2) (2023-05-12)
 
 
