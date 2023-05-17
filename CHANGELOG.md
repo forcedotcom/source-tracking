@@ -1,3 +1,12 @@
+## [3.1.4](https://github.com/forcedotcom/source-tracking/compare/3.1.3...3.1.4) (2023-05-17)
+
+
+### Bug Fixes
+
+* deletes singular CL when from CLs when specified ([#381](https://github.com/forcedotcom/source-tracking/issues/381)) ([26fbdb0](https://github.com/forcedotcom/source-tracking/commit/26fbdb0cede99b7e327630482eb3588bc0aeecec)), closes [#388](https://github.com/forcedotcom/source-tracking/issues/388)
+
+
+
 ## [3.1.3](https://github.com/forcedotcom/source-tracking/compare/3.1.2...3.1.3) (2023-05-17)
 
 
