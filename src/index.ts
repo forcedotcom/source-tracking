@@ -16,4 +16,4 @@ export {
   ConflictResponse,
   SourceConflictError,
 } from './shared/types';
-export { getKeyFromObject } from './shared/functions';
+export { getKeyFromObject, deleteCustomLabels } from './shared/functions';

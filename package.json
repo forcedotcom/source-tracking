@@ -46,6 +46,7 @@
     "@salesforce/core": "^3.36.1",
     "@salesforce/kit": "^1.9.2",
     "@salesforce/source-deploy-retrieve": "^8.4.0",
+    "fast-xml-parser": "^4.2.2",
     "graceful-fs": "^4.2.11",
     "isomorphic-git": "1.23.0",
     "ts-retry-promise": "^0.7.0"
@@ -56,6 +57,7 @@
     "@salesforce/dev-scripts": "^4.3.0",
     "@salesforce/prettier-config": "^0.0.2",
     "@salesforce/ts-sinon": "^1.4.6",
+    "@types/graceful-fs": "^4.1.6",
     "@types/shelljs": "^0.8.11",
     "@typescript-eslint/eslint-plugin": "^5.59.0",
     "@typescript-eslint/parser": "^5.59.0",
