@@ -49,20 +49,28 @@ export const chunkArray = <T>(arr: T[], size: number): T[][] =>
 export const ensureRelative = (filePath: string, projectPath: string): string =>
   isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;
 
+export type ParsedCustomLabels = {
+  CustomLabels: { labels: Array<{ fullName: string }> };
+};
+
 /**
  * A method to help delete custom labels from a file, or the entire file if there are no more labels
  *
  * @param filename - a path to a custom labels file
  * @param customLabels - an array of SourceComponents representing the custom labels to delete
+ * @returns -json equivalent of the custom labels file's contents OR undefined if the file was deleted/not written
  */
-export const deleteCustomLabels = (filename: string, customLabels: SourceComponent[]): Promise<void> => {
+export const deleteCustomLabels = async (
+  filename: string,
+  customLabels: SourceComponent[]
+): Promise<ParsedCustomLabels | undefined> => {
   const customLabelsToDelete = customLabels
     .filter((label) => label.type.id === 'customlabel')
     .map((change) => change.fullName);
 
   // if we don't have custom labels, we don't need to do anything
   if (!customLabelsToDelete.length) {
-    return Promise.resolve();
+    return undefined;
   }
   // for custom labels, we need to remove the individual label from the xml file
   // so we'll parse the xml
@@ -71,9 +79,7 @@ export const deleteCustomLabels = (filename: string, customLabels: SourceCompone
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
   });
-  const cls = parser.parse(fs.readFileSync(filename, 'utf8')) as {
-    CustomLabels: { labels: Array<{ fullName: string }> };
-  };
+  const cls = parser.parse(fs.readFileSync(filename, 'utf8')) as ParsedCustomLabels;
 
   // delete the labels from the json based on their fullName's
   cls.CustomLabels.labels = ensureArray(cls.CustomLabels.labels).filter(
@@ -82,7 +88,8 @@ export const deleteCustomLabels = (filename: string, customLabels: SourceCompone
 
   if (cls.CustomLabels.labels.length === 0) {
     // we've deleted everything, so let's delete the file
-    return fs.promises.unlink(filename);
+    await fs.promises.unlink(filename);
+    return undefined;
   } else {
     // we need to write the file json back to xml back to the fs
     const builder = new XMLBuilder({
@@ -93,6 +100,7 @@ export const deleteCustomLabels = (filename: string, customLabels: SourceCompone
     });
     // and then write that json back to xml and back to the fs
     const xml = builder.build(cls) as string;
-    return fs.promises.writeFile(filename, xml);
+    await fs.promises.writeFile(filename, xml);
+    return cls;
   }
 };
