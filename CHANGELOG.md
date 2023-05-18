@@ -1,3 +1,12 @@
+## [3.1.5](https://github.com/forcedotcom/source-tracking/compare/3.1.4...3.1.5) (2023-05-18)
+
+
+### Bug Fixes
+
+* pull all deleted CLs will delete file ([#391](https://github.com/forcedotcom/source-tracking/issues/391)) ([f084fb0](https://github.com/forcedotcom/source-tracking/commit/f084fb0cc9700a03d4caf5bae808f58ffc75736e)), closes [#392](https://github.com/forcedotcom/source-tracking/issues/392)
+
+
+
 ## [3.1.4](https://github.com/forcedotcom/source-tracking/compare/3.1.3...3.1.4) (2023-05-17)
 
 
