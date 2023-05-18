@@ -24,6 +24,7 @@ import {
   ScopedPostDeploy,
   RetrieveResult,
   RegistryAccess,
+  FileResponseSuccess,
 } from '@salesforce/source-deploy-retrieve';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
@@ -350,18 +351,17 @@ export class SourceTracking extends AsyncCreatable {
     );
 
     // calculate what to return before we delete any files and .walkContent is no longer valid
-    const changedToBeDeleted = changesToDelete.reduce<FileResponse[]>((result, component) => {
-      [...component.walkContent(), component.xml].flatMap((file) => {
-        result.push({
+    const changedToBeDeleted = changesToDelete.flatMap((component) =>
+      [...component.walkContent(), component.xml].map(
+        (file): FileResponseSuccess => ({
           state: ComponentStatus.Deleted,
           filePath: file,
           type: component.type.name,
           fullName: component.fullName,
-        });
-      });
+        })
+      )
+    );
 
-      return result;
-    }, []);
     const filenames = Array.from(sourceComponentByFileName.keys());
     // delete the files
     await Promise.all(
