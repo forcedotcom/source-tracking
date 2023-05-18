@@ -24,6 +24,7 @@ import {
   ScopedPostDeploy,
   RetrieveResult,
   RegistryAccess,
+  FileResponseSuccess,
 } from '@salesforce/source-deploy-retrieve';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
@@ -40,7 +41,7 @@ import {
   RemoteChangeElement,
 } from './shared/types';
 import { sourceComponentGuard } from './shared/guards';
-import { supportsPartialDelete, pathIsInFolder, ensureRelative } from './shared/functions';
+import { supportsPartialDelete, pathIsInFolder, ensureRelative, deleteCustomLabels } from './shared/functions';
 import { registrySupportsType } from './shared/metadataKeys';
 import { populateFilePaths } from './shared/populateFilePaths';
 import { populateTypesAndNames } from './shared/populateTypesAndNames';
@@ -348,9 +349,33 @@ export class SourceTracking extends AsyncCreatable {
         .filter((filename) => filename)
         .map((filename) => sourceComponentByFileName.set(filename, component))
     );
+
+    // calculate what to return before we delete any files and .walkContent is no longer valid
+    const changedToBeDeleted = changesToDelete.flatMap((component) =>
+      [...component.walkContent(), component.xml].map(
+        (file): FileResponseSuccess => ({
+          state: ComponentStatus.Deleted,
+          filePath: file,
+          type: component.type.name,
+          fullName: component.fullName,
+        })
+      )
+    );
+
     const filenames = Array.from(sourceComponentByFileName.keys());
     // delete the files
-    await Promise.all(filenames.map((filename) => fs.promises.unlink(filename)));
+    await Promise.all(
+      filenames.map(async (filename) => {
+        if (sourceComponentByFileName.get(filename)?.type.id === 'customlabel') {
+          await deleteCustomLabels(
+            filename,
+            changesToDelete.filter((c) => c.type.id === 'customlabel')
+          );
+        } else {
+          return fs.promises.unlink(filename);
+        }
+      })
+    );
 
     // update the tracking files.  We're simulating SDR-style fileResponse
     await Promise.all([
@@ -364,19 +389,7 @@ export class SourceTracking extends AsyncCreatable {
         true // skip polling because it's a pull
       ),
     ]);
-    return filenames.reduce<FileResponse[]>((result, filename) => {
-      const component = sourceComponentByFileName.get(filename);
-      if (component) {
-        result.push({
-          state: ComponentStatus.Deleted,
-          filePath: filename,
-          type: component.type.name,
-          fullName: component.fullName,
-        });
-      }
-
-      return result;
-    }, []);
+    return changedToBeDeleted;
   }
 
   /**
