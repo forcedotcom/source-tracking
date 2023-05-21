@@ -106,7 +106,6 @@ export class SourceTracking extends AsyncCreatable {
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
   }
 
-  // eslint-disable-next-line class-methods-use-this
   public async init(): Promise<void> {
     await this.maybeSubscribeLifecycleEvents();
   }

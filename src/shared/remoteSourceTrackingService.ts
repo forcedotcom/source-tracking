@@ -160,7 +160,6 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         contents.sourceMembers = {};
         await this.write();
       } catch (e) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
         if (
           e instanceof SfError &&
           e.name === 'INVALID_TYPE' &&
