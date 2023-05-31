@@ -437,7 +437,7 @@ export class SourceTracking extends AsyncCreatable {
 
   /**
    * Mark remote source tracking files so say that we have received the latest version from the server
-   * Optionall skip polling for the SourceMembers to exist on the server and be updated in local files
+   * Optional skip polling for the SourceMembers to exist on the server and be updated in local files
    */
   public async updateRemoteTracking(fileResponses: RemoteSyncInput[], skipPolling = false): Promise<void> {
     // false to explicitly NOT query until we do the polling

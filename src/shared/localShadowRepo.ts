@@ -50,10 +50,10 @@ export class ShadowRepo {
   private packageDirs!: NamedPackageDir[];
   private status!: StatusRow[];
   private logger!: Logger;
-  private isWindows: boolean;
+  private readonly isWindows: boolean;
 
   /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
-  private maxFileAdd: number;
+  private readonly maxFileAdd: number;
 
   private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
@@ -61,7 +61,10 @@ export class ShadowRepo {
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';
 
-    this.maxFileAdd = env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', this.isWindows ? 8000 : 15000);
+    this.maxFileAdd = env.getNumber(
+      'SF_SOURCE_TRACKING_BATCH_SIZE',
+      env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', this.isWindows ? 8000 : 15000)
+    );
   }
 
   // think of singleton behavior but unique to the projectPath

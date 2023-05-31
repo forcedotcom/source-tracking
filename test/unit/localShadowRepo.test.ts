@@ -50,4 +50,75 @@ describe('localShadowRepo', () => {
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
   });
+  it('respects SFDX_SOURCE_TRACKING_BATCH_SIZE env var', async () => {
+    expect(process.env.SFDX_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
+    process.env.SFDX_SOURCE_TRACKING_BATCH_SIZE = '1';
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
+
+    const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
+      orgId: '00D456789012345',
+      projectPath: projectDir,
+      packageDirs: [
+        {
+          name: 'dummy',
+          fullPath: 'dummy',
+          path: path.join(projectDir, 'force-app'),
+        },
+      ],
+    });
+    // private property maxFileAdd
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    expect(shadowRepo.maxFileAdd).to.equal(1);
+    delete process.env.SFDX_SOURCE_TRACKING_BATCH_SIZE;
+    expect(process.env.SFDX_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
+  });
+
+  it('respects SF_SOURCE_TRACKING_BATCH_SIZE env var', async () => {
+    expect(process.env.SF_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
+    process.env.SF_SOURCE_TRACKING_BATCH_SIZE = '1';
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
+
+    const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
+      orgId: '00D456789012345',
+      projectPath: projectDir,
+      packageDirs: [
+        {
+          name: 'dummy',
+          fullPath: 'dummy',
+          path: path.join(projectDir, 'force-app'),
+        },
+      ],
+    });
+    // private property maxFileAdd
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    expect(shadowRepo.maxFileAdd).to.equal(1);
+    delete process.env.SF_SOURCE_TRACKING_BATCH_SIZE;
+    expect(process.env.SF_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
+  });
+
+  it('respects undefined SF_SOURCE_TRACKING_BATCH_SIZE env var and uses default', async () => {
+    expect(process.env.SF_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
+    expect(process.env.SFDX_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
+
+    const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
+      orgId: '00D456789012345',
+      projectPath: projectDir,
+      packageDirs: [
+        {
+          name: 'dummy',
+          fullPath: 'dummy',
+          path: path.join(projectDir, 'force-app'),
+        },
+      ],
+    });
+    // private property maxFileAdd
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    expect(shadowRepo.maxFileAdd).to.equal(os.type() === 'Windows_NT' ? 8000 : 15000);
+    expect(process.env.SF_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
+    expect(process.env.SFDX_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
+  });
 });
