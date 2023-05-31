@@ -1,3 +1,12 @@
+# [4.1.0](https://github.com/forcedotcom/source-tracking/compare/3.1.5...4.1.0) (2023-05-31)
+
+
+### Features
+
+* drop node 14/15 support, core 4, sdr9 ([8a5895f](https://github.com/forcedotcom/source-tracking/commit/8a5895f68a3ff54ef2e5d5bf76cb2bf71df5dd43))
+
+
+
 ## [3.1.5](https://github.com/forcedotcom/source-tracking/compare/3.1.4...3.1.5) (2023-05-18)
 
 
