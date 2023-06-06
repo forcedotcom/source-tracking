@@ -557,16 +557,16 @@
     strip-ansi "6.0.1"
     ts-retry-promise "^0.7.0"
 
-"@salesforce/core@^4.0.1":
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-4.0.1.tgz#d843c86cfd59f74e33e70d9558e0fe3ee9b49a53"
-  integrity sha512-BjHM3C3QfjW0wSrt0q2+5JOwa/9edg/18TT2C3iykmPxeDXAum/2W/S+7ctyefEJ0/VYlh/DvzLaEc74MadKnA==
+"@salesforce/core@^4.0.1", "@salesforce/core@^4.1.2", "@salesforce/core@^4.1.3":
+  version "4.1.3"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-4.1.3.tgz#b5093b6596520ea64e93ccb02dffc23031854ec8"
+  integrity sha512-OeSHraBz+2lZltVaKJjRwY1Wi/fn4A3JcLGoNB5iRtDt2GZzHQ9A+oD2uaPKKIbGeNr/xY2NPqZsp+EhyKYmtQ==
   dependencies:
     "@salesforce/bunyan" "^2.0.0"
-    "@salesforce/kit" "^3.0.0"
+    "@salesforce/kit" "^3.0.2"
     "@salesforce/schemas" "^1.5.1"
     "@salesforce/ts-types" "^2.0.1"
-    "@types/semver" "^7.3.13"
+    "@types/semver" "^7.5.0"
     ajv "^8.12.0"
     archiver "^5.3.0"
     change-case "^4.1.2"
@@ -576,6 +576,7 @@
     js2xmlparser "^4.0.1"
     jsforce "^2.0.0-beta.23"
     jsonwebtoken "9.0.0"
+    proper-lockfile "^4.1.2"
     ts-retry-promise "^0.7.0"
 
 "@salesforce/dev-config@^4.0.1":
@@ -622,10 +623,10 @@
     typescript "^4.9.5"
     wireit "^0.9.5"
 
-"@salesforce/kit@^3.0.0", "@salesforce/kit@^3.0.1", "@salesforce/kit@^3.0.2":
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/@salesforce/kit/-/kit-3.0.2.tgz#6474c3e9905290bbcfb3455388b140eee3ff84db"
-  integrity sha512-/TbqjmxThz3+ZeLrYZFEcvn7kbK7DW0aHzotazyKsoGbqsHiiXIMNS1Cc5rfJRKQV7bKp84vMF/WCyBZJFHZKA==
+"@salesforce/kit@^3.0.2", "@salesforce/kit@^3.0.3":
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/@salesforce/kit/-/kit-3.0.3.tgz#7144bf4d135b45d9f7a0a52365ec5e55b380b4e0"
+  integrity sha512-je1x5wt2+BVcGuFvd6anodqSFQY68cDnSosAfxYCQfuQsknTNp+QorliATurpKfucOJ6yAKCxP8nxGjZzcAX0w==
   dependencies:
     "@salesforce/ts-types" "^2.0.1"
     tslib "^2.5.2"
@@ -640,13 +641,13 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.5.1.tgz#2d1bfdcf593caaa04cd4b3e6fe621097ff7f28fe"
   integrity sha512-MRqU+tn8w5IFvZ0Lm9YKLgxYxr2MQMI+fXXsTrwfUnijsps+ybF9IOTu6MOMxxl2vCUkO8XDjA435wXlWSLI6g==
 
-"@salesforce/source-deploy-retrieve@^9.1.0":
-  version "9.1.0"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-9.1.0.tgz#61cc4dbde890a8160409e748c4ac59e6f698930d"
-  integrity sha512-ZD5dIZPwPGqP+N/HvQLieV4QhzXZw5dvvhA6Vpgdbt7SpFjjncYnvaOLh6+GdnIKMcA/jWpEXym51vwj6jZb1A==
+"@salesforce/source-deploy-retrieve@^9.2.1":
+  version "9.2.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-9.2.1.tgz#cd3b4915d8c2dd73d4a7890706b5c93abab687d7"
+  integrity sha512-00gcrzpcPfMctqY5mqQIWN6q2TQXhH+YqRF5liFm1MXZodb/lDGh9X18A4pVXbQs5FV/IpRo/p8okipeTr2HaQ==
   dependencies:
-    "@salesforce/core" "^4.0.1"
-    "@salesforce/kit" "^3.0.1"
+    "@salesforce/core" "^4.1.2"
+    "@salesforce/kit" "^3.0.2"
     "@salesforce/ts-types" "^2.0.2"
     fast-levenshtein "^3.0.0"
     fast-xml-parser "^4.2.2"
@@ -916,10 +917,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/semver@^7.3.12", "@types/semver@^7.3.13":
-  version "7.3.13"
-  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-7.3.13.tgz#da4bfd73f49bd541d28920ab0e2bf0ee80f71c91"
-  integrity sha512-21cFJr9z3g5dW8B0CVI9g2O9beqaThGQ6ZFBqHfwhzLDKUxaqTIy3vnfah/UPkfOiF2pLq+tGz+W8RyCskuslw==
+"@types/semver@^7.3.12", "@types/semver@^7.5.0":
+  version "7.5.0"
+  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-7.5.0.tgz#591c1ce3a702c45ee15f47a42ade72c2fd78978a"
+  integrity sha512-G8hZ6XJiHnuhQKR7ZmysCeJWE08o8T0AXtk5darsCaTVsYZhhgUrq53jizaR2FvsoeCwJhlmwTjkXBY5Pn/ZHw==
 
 "@types/shelljs@^0.8.11", "@types/shelljs@^0.8.12":
   version "0.8.12"
