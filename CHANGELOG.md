@@ -1,3 +1,12 @@
+## [4.1.2](https://github.com/forcedotcom/source-tracking/compare/4.1.1...4.1.2) (2023-06-07)
+
+
+### Bug Fixes
+
+* **deps:** bump isomorphic-git from 1.23.0 to 1.24.0 ([e6e459d](https://github.com/forcedotcom/source-tracking/commit/e6e459d79b230728dba34e99caca5f705f4033bf))
+
+
+
 ## [4.1.1](https://github.com/forcedotcom/source-tracking/compare/4.1.0...4.1.1) (2023-06-05)
 
 
