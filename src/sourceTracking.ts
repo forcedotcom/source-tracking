@@ -41,6 +41,7 @@ import {
   RemoteChangeElement,
 } from './shared/types';
 import { sourceComponentGuard } from './shared/guards';
+import { remoteChangeToMetadataMember, removeIgnored } from './shared/remoteChangeIgnoring';
 import { supportsPartialDelete, pathIsInFolder, ensureRelative, deleteCustomLabels } from './shared/functions';
 import { registrySupportsType } from './shared/metadataKeys';
 import { populateFilePaths } from './shared/populateFilePaths';
@@ -146,7 +147,13 @@ export class SourceTracking extends AsyncCreatable {
     return getComponentSets(groupings, sourceApiVersion);
   }
 
-  public async remoteNonDeletesAsComponentSet(): Promise<ComponentSet> {
+  /** reads tracking files for remote changes.  It DOES NOT consider the effects of .forceignore unless told to */
+  public async remoteNonDeletesAsComponentSet({
+    applyIgnore = false,
+  }: { applyIgnore?: boolean } = {}): Promise<ComponentSet> {
+    if (applyIgnore) {
+      this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    }
     const [changeResults, sourceBackedComponents] = await Promise.all([
       // all changes based on remote tracking
       this.getChanges({
@@ -161,15 +168,17 @@ export class SourceTracking extends AsyncCreatable {
         format: 'SourceComponent',
       }),
     ]);
-    const componentSet = new ComponentSet(sourceBackedComponents);
+    const componentSet = new ComponentSet(
+      applyIgnore
+        ? sourceBackedComponents.filter((sc) => ![sc.content, sc.xml].some((f) => f && this.forceIgnore.denies(f)))
+        : sourceBackedComponents
+    );
     // there may be remote adds not in the SBC.  So we add those manually
-    changeResults.forEach((cr) => {
-      if (cr.type && cr.name && !componentSet.has({ type: cr.type, fullName: cr.name })) {
-        componentSet.add({
-          type: cr.type,
-          fullName: cr.name,
-        });
-      }
+    (applyIgnore
+      ? removeIgnored(changeResults, this.forceIgnore, this.project.getDefaultPackage().fullPath)
+      : changeResults.map(remoteChangeToMetadataMember)
+    ).forEach((mm) => {
+      componentSet.add(mm);
     });
 
     return componentSet;
@@ -328,8 +337,11 @@ export class SourceTracking extends AsyncCreatable {
     const changesToDelete = await this.getChanges({ origin: 'remote', state: 'delete', format: 'SourceComponent' });
     const fileResponsesFromDelete = await this.deleteFilesAndUpdateTracking(changesToDelete);
     return returnDeleteFileResponses
-      ? { componentSetFromNonDeletes: await this.remoteNonDeletesAsComponentSet(), fileResponsesFromDelete }
-      : this.remoteNonDeletesAsComponentSet();
+      ? {
+          componentSetFromNonDeletes: await this.remoteNonDeletesAsComponentSet({ applyIgnore: true }),
+          fileResponsesFromDelete,
+        }
+      : this.remoteNonDeletesAsComponentSet({ applyIgnore: true });
   }
   /**
    *
@@ -747,7 +759,10 @@ export class SourceTracking extends AsyncCreatable {
   // reserve the right to do something more sophisticated in the future
   // via async for figuring out hypothetical filenames (ex: getting default packageDir)
   // eslint-disable-next-line @typescript-eslint/require-await
-  private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
+  private async remoteChangesToOutputRows(
+    input: ChangeResult,
+    registry = new RegistryAccess()
+  ): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     const baseObject: StatusOutputRow = {
@@ -772,7 +787,7 @@ export class SourceTracking extends AsyncCreatable {
           ...baseObject,
           ignored: filePathsFromMetadataComponent({
             fullName: input.name,
-            type: new RegistryAccess().getTypeByName(input.type),
+            type: registry.getTypeByName(input.type),
           }).some((hypotheticalFilePath) => this.forceIgnore.denies(hypotheticalFilePath)),
         },
       ];
