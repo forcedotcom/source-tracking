@@ -1,3 +1,12 @@
+## [4.1.3](https://github.com/forcedotcom/source-tracking/compare/4.1.2...4.1.3) (2023-06-08)
+
+
+### Bug Fixes
+
+* ignore remote changes using hypothetical paths ([1c61e6e](https://github.com/forcedotcom/source-tracking/commit/1c61e6ec1053bd9dd43db0c886be7bb6064809ae))
+
+
+
 ## [4.1.2](https://github.com/forcedotcom/source-tracking/compare/4.1.1...4.1.2) (2023-06-07)
 
 
