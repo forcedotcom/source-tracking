@@ -2,6 +2,12 @@
 
 JavaScript library for tracking local and remote Salesforce metadata changes.
 
+## Issues
+
+Please report all issues to [issues only repository](https://github.com/forcedotcom/cli/issues).
+
+## Usage
+
 You should use the class named SourceTracking.
 
 Start like this:
