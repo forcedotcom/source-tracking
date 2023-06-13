@@ -18,6 +18,9 @@ import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataT
 import { getMetadataKey } from './functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 // represents the contents of the config file stored in 'maxRevision.json'
+Messages.importMessagesDirectory(__dirname);
+const messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
+
 type Contents = {
   serverMaxRevisionCounter: number;
   sourceMembers: Dictionary<MemberRevision>;
@@ -554,8 +557,6 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
   private async query(query: string, quiet = false): Promise<SourceMember[]> {
     if (!(await this.org.tracksSource())) {
-      Messages.importMessagesDirectory(__dirname);
-      const messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
       throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
     }
     if (!quiet) {
