@@ -11,8 +11,6 @@ import { ChangeResult } from './types';
 import { metadataMemberGuard } from './guards';
 import { getKeyFromObject, getMetadataKey } from './functions';
 
-const logger = Logger.childFromRoot('SourceTracking.PopulateFilePaths');
-
 /**
  * Will build a component set, crawling your local directory, to get paths for remote changes
  *
@@ -24,7 +22,7 @@ export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: str
   if (elements.length === 0) {
     return [];
   }
-
+  const logger = Logger.childFromRoot('SourceTracking.PopulateFilePaths');
   logger.debug('populateFilePaths for change elements', elements);
   // component set generated from an array of MetadataMember from all the remote changes
   // but exclude the ones that aren't in the registry
