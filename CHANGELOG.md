@@ -1,3 +1,12 @@
+# [4.2.0](https://github.com/forcedotcom/source-tracking/compare/4.1.3...4.2.0) (2023-06-14)
+
+
+### Features
+
+* compile inlines messages ([4b3dcf7](https://github.com/forcedotcom/source-tracking/commit/4b3dcf724266d98628b47bb3e72fcb614d8aa873))
+
+
+
 ## [4.1.3](https://github.com/forcedotcom/source-tracking/compare/4.1.2...4.1.3) (2023-06-08)
 
 
