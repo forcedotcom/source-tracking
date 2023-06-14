@@ -10,7 +10,6 @@ import { MetadataResolver, VirtualTreeContainer, ForceIgnore } from '@salesforce
 import { ChangeResult } from './types';
 import { sourceComponentGuard } from './guards';
 import { ensureRelative, isLwcLocalOnlyTest } from './functions';
-const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
 
 /**
  * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
@@ -37,7 +36,7 @@ export const populateTypesAndNames = ({
   if (elements.length === 0) {
     return [];
   }
-
+  const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
   logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
   const filenames = elements.flatMap((element) => element.filenames).filter(isString);
 
