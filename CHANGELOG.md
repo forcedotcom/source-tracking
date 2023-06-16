@@ -1,3 +1,12 @@
+## [4.2.1](https://github.com/forcedotcom/source-tracking/compare/4.2.0...4.2.1) (2023-06-16)
+
+
+### Bug Fixes
+
+* use previous iso-git version ([e5462be](https://github.com/forcedotcom/source-tracking/commit/e5462be1f9080775b18af24467bc533f3fefe931))
+
+
+
 # [4.2.0](https://github.com/forcedotcom/source-tracking/compare/4.1.3...4.2.0) (2023-06-14)
 
 
