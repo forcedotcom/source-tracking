@@ -126,7 +126,7 @@ export class ShadowRepo {
         .map((dir) => path.relative(this.projectPath, dir.fullPath))
         .map((p) => (this.isWindows ? p.split(path.sep).join(path.posix.sep) : p));
 
-      // status hasn't been initalized yet
+      // status hasn't been initialized yet
       this.status = await git.statusMatrix({
         fs,
         dir: this.projectPath,

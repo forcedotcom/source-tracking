@@ -54,7 +54,7 @@ export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): s
       getMetadataKey(fileResponse.type, fileResponse.fullName),
     ];
   }
-  // CustomLabels (file) => CustomLabel[] (how they're storedin SourceMembers)
+  // CustomLabels (file) => CustomLabel[] (how they're stored in SourceMembers)
   if (fileResponse.type === 'CustomLabels' && fileResponse.filePath) {
     return ComponentSet.fromSource(fileResponse.filePath)
       .getSourceComponents()
