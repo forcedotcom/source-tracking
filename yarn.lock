@@ -557,7 +557,7 @@
     strip-ansi "6.0.1"
     ts-retry-promise "^0.7.0"
 
-"@salesforce/core@^4.1.0", "@salesforce/core@^4.1.3", "@salesforce/core@^4.2.2", "@salesforce/core@^4.3.1":
+"@salesforce/core@^4.1.0", "@salesforce/core@^4.1.3", "@salesforce/core@^4.3.1":
   version "4.3.1"
   resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-4.3.1.tgz#d4f16ce7a89e90d456a9407e5994f155b7d05134"
   integrity sha512-mqlVWVQiy24sdHR3DvBlSlg3QDCqVj4AIhcgvcVSTu3BtKMLaR2C6himtTdKIH/Fl6wLkxPcy+LufQ8J3+HBEw==
@@ -641,12 +641,12 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.5.1.tgz#2d1bfdcf593caaa04cd4b3e6fe621097ff7f28fe"
   integrity sha512-MRqU+tn8w5IFvZ0Lm9YKLgxYxr2MQMI+fXXsTrwfUnijsps+ybF9IOTu6MOMxxl2vCUkO8XDjA435wXlWSLI6g==
 
-"@salesforce/source-deploy-retrieve@^9.2.2":
-  version "9.2.2"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-9.2.2.tgz#cc24ffb943e980fbb48e12533b61f8bbb18c2989"
-  integrity sha512-15ibLDyKR1YF38+5Wk2/eu59A5PC3ywgJYZu7Su6N0ZBpPtxjjvfEaf6U1OV/5vKUyhrBww6FmRvoNONFQ86SA==
+"@salesforce/source-deploy-retrieve@^9.2.5":
+  version "9.2.5"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-9.2.5.tgz#cee39f8bd905f6b753f25e7ab48d41ed857112f3"
+  integrity sha512-5Gs9uZSiKSp1zySyPBMsfZVQIDZpiYaEhu0aGTz/w9vYm50q7bkdESuSPgIoo/nN8BG77Vn2W6LVPSwRkH6Nag==
   dependencies:
-    "@salesforce/core" "^4.2.2"
+    "@salesforce/core" "^4.3.1"
     "@salesforce/kit" "^3.0.3"
     "@salesforce/ts-types" "^2.0.3"
     fast-levenshtein "^3.0.0"
@@ -669,14 +669,7 @@
     sinon "^5.1.1"
     tslib "^2.5.3"
 
-"@salesforce/ts-types@^2.0.1", "@salesforce/ts-types@^2.0.2":
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/@salesforce/ts-types/-/ts-types-2.0.2.tgz#44c2ab3a765b57a9a285f2be31a661ac5b373ac3"
-  integrity sha512-FxQnTtdn9mcnGpc6qxQbpP+0CnDY1OcMNM+QL+TgC5uSyxnzo6vBrK7OenrK9jdgfvJZAKH1PjeAj2QahbpBwQ==
-  dependencies:
-    tslib "^2.5.2"
-
-"@salesforce/ts-types@^2.0.3":
+"@salesforce/ts-types@^2.0.1", "@salesforce/ts-types@^2.0.2", "@salesforce/ts-types@^2.0.3":
   version "2.0.3"
   resolved "https://registry.yarnpkg.com/@salesforce/ts-types/-/ts-types-2.0.3.tgz#ae944fce71e3fc4c154592f3ee56496d2b6c9d5e"
   integrity sha512-PWxNB1GhlX045GN6TQ8HRvJudVpm3SE/v3520itBSCXSM+iBSQ09YIxT6EO2XXGwofQBXlQqN5hsXVI5+uFazg==
