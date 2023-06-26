@@ -199,7 +199,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
     // so we de-dupe via a set
     Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(element)))).map((metadataKey) => {
-      const revision = revisions[decodeURI(metadataKey)];
+      const revision = revisions[metadataKey] ?? revisions[decodeURI(metadataKey)];
       if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
         if (!quiet) {
           this.logger.debug(
