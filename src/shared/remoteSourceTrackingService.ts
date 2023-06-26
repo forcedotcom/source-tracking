@@ -4,8 +4,6 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable @typescript-eslint/member-ordering */
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -77,7 +75,6 @@ export namespace RemoteSourceTrackingService {
  * from the `lastRetrievedFromServer`. When a pull is performed, all of the pulled members will have their counters set
  * to the corresponding `RevisionCounter` from the `SourceMember` of the org.
  */
-// eslint-disable-next-line no-redeclare
 export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTrackingService.Options, Contents> {
   private static remoteSourceTrackingServiceDictionary: Dictionary<RemoteSourceTrackingService> = {};
   protected logger!: Logger;
@@ -127,7 +124,13 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
     return path.isAbsolute(fileToDelete) ? fileToDelete : path.join(process.cwd(), fileToDelete);
   }
-
+  private static convertRevisionToChange(memberKey: string, memberRevision: MemberRevision): RemoteChangeElement {
+    return {
+      type: memberRevision.memberType,
+      name: memberKey.replace(`${memberRevision.memberType}__`, ''),
+      deleted: memberRevision.isNameObsolete,
+    };
+  }
   /**
    * Initializes the service with existing remote source tracking data, or sets
    * the state to begin source tracking of metadata changes in the org.
@@ -196,7 +199,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
     // so we de-dupe via a set
     Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(element)))).map((metadataKey) => {
-      const revision = revisions[metadataKey];
+      const revision = revisions[metadataKey] ?? revisions[decodeURI(metadataKey)];
       if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
         if (!quiet) {
           this.logger.debug(
@@ -259,44 +262,6 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     await this.trackSourceMembers(members, true);
     return members.map((member) => getMetadataKey(member.MemberType, member.MemberName));
   }
-
-  //
-  //  * * * * *  P R I V A T E    M E T H O D S  * * * * *
-  //
-
-  private static convertRevisionToChange(memberKey: string, memberRevision: MemberRevision): RemoteChangeElement {
-    return {
-      type: memberRevision.memberType,
-      name: memberKey.replace(`${memberRevision.memberType}__`, ''),
-      deleted: memberRevision.isNameObsolete,
-    };
-  }
-
-  private getServerMaxRevision(): number {
-    return this.getContents().serverMaxRevisionCounter;
-  }
-
-  private setServerMaxRevision(revision = 0): void {
-    (this['contents'] as Contents).serverMaxRevisionCounter = revision;
-  }
-
-  private getSourceMembers(): Dictionary<MemberRevision> {
-    return this.getContents().sourceMembers;
-  }
-
-  private initSourceMembers(): void {
-    this.getContents().sourceMembers = {};
-  }
-
-  // Return a tracked element as MemberRevision data.
-  private getSourceMember(key: string): Optional<MemberRevision> {
-    return this.getSourceMembers()[key];
-  }
-
-  private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    this.getContents().sourceMembers[key] = sourceMember;
-  }
-
   // Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
   // the lastRetrievedFromServer field (sync), and persists the changes to maxRevision.json.
   public async trackSourceMembers(sourceMembers: SourceMember[], sync = false): Promise<void> {
@@ -353,7 +318,6 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
     await this.write();
   }
-
   /**
    * Queries the org for any new, updated, or deleted metadata and updates
    * source tracking state.  All `ChangeElements` not in sync with the org
@@ -509,6 +473,34 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         members: Array.from(outstandingSourceMembers.keys()).join(','),
       });
     }
+  }
+  //
+  //  * * * * *  P R I V A T E    M E T H O D S  * * * * *
+  //
+
+  private getServerMaxRevision(): number {
+    return this.getContents().serverMaxRevisionCounter;
+  }
+
+  private setServerMaxRevision(revision = 0): void {
+    (this['contents'] as Contents).serverMaxRevisionCounter = revision;
+  }
+
+  private getSourceMembers(): Dictionary<MemberRevision> {
+    return this.getContents().sourceMembers;
+  }
+
+  private initSourceMembers(): void {
+    this.getContents().sourceMembers = {};
+  }
+
+  // Return a tracked element as MemberRevision data.
+  private getSourceMember(key: string): Optional<MemberRevision> {
+    return this.getSourceMembers()[key];
+  }
+
+  private setMemberRevision(key: string, sourceMember: MemberRevision): void {
+    this.getContents().sourceMembers[key] = sourceMember;
   }
 
   private calculateTimeout(memberCount: number): Duration {

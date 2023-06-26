@@ -14,7 +14,6 @@ import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from
 import { Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
-import { SinonStub } from 'sinon';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService } from '../../src/shared/remoteSourceTrackingService';
 import { RemoteSyncInput, SourceMember, MemberRevision } from '../../src/shared/types';
@@ -66,9 +65,9 @@ describe('remoteSourceTrackingService', () => {
   });
 
   describe('getServerMaxRevision', () => {
-    it('should return 0 if file does not exist', async () => {
+    it('should return 0 if file does not exist', () => {
       // @ts-ignore
-      const max = await remoteSourceTrackingService.getServerMaxRevision();
+      const max = remoteSourceTrackingService.getServerMaxRevision();
       expect(max).to.equal(0);
     });
   });
@@ -80,7 +79,7 @@ describe('remoteSourceTrackingService', () => {
         serverMaxRevisionCounter: null,
         // @ts-ignore
         sourceMembers: null,
-      }) as SinonStub;
+      });
       // @ts-ignore
       const queryMembersFromSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersFrom');
       await remoteSourceTrackingService.init();
@@ -214,6 +213,44 @@ describe('remoteSourceTrackingService', () => {
         getServerMaxRevisionStub.calledOnce,
         `getServerMaxRevisionStub was not called once.  it was called ${queryStub.callCount} times`
       ).to.equal(true);
+    });
+    it('should sync specific elements', async () => {
+      const contents = remoteSourceTrackingService.getContents();
+      expect(contents).to.deep.equal({
+        serverMaxRevisionCounter: 0,
+        sourceMembers: {},
+      });
+      remoteSourceTrackingService.setContents({
+        serverMaxRevisionCounter: 1,
+        sourceMembers: {
+          'Profile__my(awesome)profile': {
+            isNameObsolete: false,
+            serverRevisionCounter: 1,
+            lastRetrievedFromServer: null,
+            memberType: 'Profile',
+          },
+        },
+      });
+      await remoteSourceTrackingService.syncSpecifiedElements([
+        {
+          fullName: 'my(awesome)profile',
+          type: 'Profile',
+          filePath: 'my%28awesome%29profile.profile-meta.xml',
+          state: ComponentStatus.Changed,
+        },
+      ]);
+      // lastRetrievedFromServer should be set to the serverRevisionCounter
+      expect(await remoteSourceTrackingService.getContents()).to.deep.equal({
+        serverMaxRevisionCounter: 1,
+        sourceMembers: {
+          'Profile__my(awesome)profile': {
+            isNameObsolete: false,
+            lastRetrievedFromServer: 1,
+            memberType: 'Profile',
+            serverRevisionCounter: 1,
+          },
+        },
+      });
     });
     it('should not poll when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
       const getBooleanStub = $$.SANDBOX.stub(kit.env, 'getBoolean').callsFake(() => true);
