@@ -1,3 +1,12 @@
+## [4.2.2](https://github.com/forcedotcom/source-tracking/compare/4.2.1...4.2.2) (2023-06-26)
+
+
+### Bug Fixes
+
+* decode filepaths when comparing to the RSST for accurate results ([#421](https://github.com/forcedotcom/source-tracking/issues/421)) ([59c2d56](https://github.com/forcedotcom/source-tracking/commit/59c2d56574a7eb6141108478ed626bfa7547cbe8))
+
+
+
 ## [4.2.1](https://github.com/forcedotcom/source-tracking/compare/4.2.0...4.2.1) (2023-06-16)
 
 
