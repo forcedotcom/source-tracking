@@ -3229,7 +3229,7 @@ isexe@^2.0.0:
   resolved "https://registry.yarnpkg.com/isexe/-/isexe-2.0.0.tgz#e8fbf374dc556ff8947a10dcb0572d633f2cfa10"
   integrity sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==
 
-isomorphic-git@1.24.2:
+isomorphic-git@^1.24.2:
   version "1.24.2"
   resolved "https://registry.yarnpkg.com/isomorphic-git/-/isomorphic-git-1.24.2.tgz#16ee555f1cc8a812bb1337fa6d90def7f7ad03e6"
   integrity sha512-J3TU97JENWUnOgpVMwaRP9a3OQXJq/8fCIzA4yrJ7+ko1IPJwXCYeA69CeC8GtHeBVhcOQrbZGw6fpIpz54Vpw==
