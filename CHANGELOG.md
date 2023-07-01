@@ -1,3 +1,12 @@
+## [4.2.3](https://github.com/forcedotcom/source-tracking/compare/4.2.2...4.2.3) (2023-07-01)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve from 9.2.6 to 9.3.0 ([1d46710](https://github.com/forcedotcom/source-tracking/commit/1d46710dd0698b9f731c420d658f95883bb489e5))
+
+
+
 ## [4.2.2](https://github.com/forcedotcom/source-tracking/compare/4.2.1...4.2.2) (2023-06-26)
 
 
