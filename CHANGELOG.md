@@ -1,3 +1,12 @@
+## [4.2.4](https://github.com/forcedotcom/source-tracking/compare/4.2.3...4.2.4) (2023-07-01)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 4.3.2 to 4.3.5 ([ccf5490](https://github.com/forcedotcom/source-tracking/commit/ccf54907219ac50cbe13ab68234c1b1fe5d952ad))
+
+
+
 ## [4.2.3](https://github.com/forcedotcom/source-tracking/compare/4.2.2...4.2.3) (2023-07-01)
 
 
