@@ -1,3 +1,12 @@
+## [4.2.5](https://github.com/forcedotcom/source-tracking/compare/4.2.4...4.2.5) (2023-07-06)
+
+
+### Bug Fixes
+
+* bump SDR to 9.3.2 for latest registry ([6f7585d](https://github.com/forcedotcom/source-tracking/commit/6f7585ddd8a76df5583e7ba5c2e0fb7e71c7c1d3))
+
+
+
 ## [4.2.4](https://github.com/forcedotcom/source-tracking/compare/4.2.3...4.2.4) (2023-07-01)
 
 
