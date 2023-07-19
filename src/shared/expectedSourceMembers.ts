@@ -21,6 +21,10 @@ const typesToNoPollFor = [
   'GlobalValueSetTranslation',
   'AssignmentRules',
   'InstalledPackage',
+  'DataCategoryGroup',
+  'ManagedContentType',
+  'CustomObjectTranslation',
+  'TopicsForObjects',
 ];
 
 const typesNotToPollForIfNamespace = ['CustomLabels', 'CustomMetadata', 'DuplicateRule', 'WebLink'];
@@ -39,6 +43,20 @@ const isSpecialAuraXml = (filePath?: string): boolean =>
         filePath.endsWith('.app-meta.xml') ||
         filePath.endsWith('.intf-meta.xml'))
   );
+
+// things that never have SourceMembers
+const excludedKeys = [
+  'AppMenu__Salesforce1',
+  'Profile__Standard',
+  'Profile__Guest License User',
+  'CustomTab__standard-home',
+  'Profile__Minimum Access - Salesforce',
+  'Profile__Salesforce API Only System Integrations',
+  'AssignmentRules__Case',
+  'ListView__CollaborationGroup.All_ChatterGroups',
+  'CustomTab__standard-mailapp',
+  'ApexEmailNotifications__apexEmailNotifications',
+];
 
 export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> => {
   const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
@@ -60,6 +78,7 @@ export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[
         !(fileResponse.type === 'ReportType' && fileResponse.filePath?.includes('screen_flows_prebuilt_crt')) &&
         // they're settings to mdapi, and FooSettings in sourceMembers
         !fileResponse.type.includes('Settings') &&
+        !(fileResponse.type === 'NavigationMenu' && fileResponse.fullName.startsWith('SFDC_Default_Navigation_')) &&
         // mdapi encodes these, sourceMembers don't have encoding
         !isEncodedTypeWithPercentSign(fileResponse.type, fileResponse.filePath) &&
         !(typesNotToPollForIfNamespace.includes(fileResponse.type) && fileResponse.filePath?.includes('__')) &&
@@ -73,11 +92,7 @@ export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[
         .filter(
           (key) =>
             // CustomObject could have been re-added by the key generator from one of its fields
-            !key.startsWith('CustomObject__') &&
-            key !== 'Profile__Standard' &&
-            key !== 'CustomTab__standard-home' &&
-            key !== 'AssignmentRules__Case' &&
-            key !== 'ListView__CollaborationGroup.All_ChatterGroups'
+            !key.startsWith('CustomObject__') && !excludedKeys.includes(key)
         )
         .map((key) => outstandingSourceMembers.set(key, member));
     });
