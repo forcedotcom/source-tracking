@@ -1,3 +1,12 @@
+## [4.2.6](https://github.com/forcedotcom/source-tracking/compare/4.2.5...4.2.6) (2023-07-20)
+
+
+### Bug Fixes
+
+* reduce sourceMember polling timeouts ([8e03967](https://github.com/forcedotcom/source-tracking/commit/8e03967fa3f09c1e07bccbfe2039f04536bfcc64))
+
+
+
 ## [4.2.5](https://github.com/forcedotcom/source-tracking/compare/4.2.4...4.2.5) (2023-07-06)
 
 
