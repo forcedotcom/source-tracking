@@ -1,3 +1,12 @@
+## [4.2.7](https://github.com/forcedotcom/source-tracking/compare/4.2.6...4.2.7) (2023-07-22)
+
+
+### Bug Fixes
+
+* **deps:** bump word-wrap from 1.2.3 to 1.2.4 ([1c8fb4a](https://github.com/forcedotcom/source-tracking/commit/1c8fb4a18e0308acd321cb2f2178666a1d9c5d96))
+
+
+
 ## [4.2.6](https://github.com/forcedotcom/source-tracking/compare/4.2.5...4.2.6) (2023-07-20)
 
 
