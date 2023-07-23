@@ -1,3 +1,12 @@
+## [4.2.8](https://github.com/forcedotcom/source-tracking/compare/4.2.7...4.2.8) (2023-07-23)
+
+
+### Bug Fixes
+
+* **deps:** bump semver from 5.7.1 to 5.7.2 ([270d617](https://github.com/forcedotcom/source-tracking/commit/270d6174650e2ba180865a9aff4124a2fd09cd33))
+
+
+
 ## [4.2.7](https://github.com/forcedotcom/source-tracking/compare/4.2.6...4.2.7) (2023-07-22)
 
 
