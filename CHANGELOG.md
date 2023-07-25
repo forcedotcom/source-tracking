@@ -1,3 +1,12 @@
+## [4.2.9](https://github.com/forcedotcom/source-tracking/compare/4.2.8...4.2.9) (2023-07-25)
+
+
+### Bug Fixes
+
+* always ask at least once for sourceMembers ([3dc275c](https://github.com/forcedotcom/source-tracking/commit/3dc275cac57a184fecff7b9ac0971025f7fa725f))
+
+
+
 ## [4.2.8](https://github.com/forcedotcom/source-tracking/compare/4.2.7...4.2.8) (2023-07-23)
 
 
