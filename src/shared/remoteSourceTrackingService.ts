@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { ConfigFile, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
-import { Dictionary, Optional } from '@salesforce/ts-types';
+import { Dictionary, Optional, definiteEntriesOf } from '@salesforce/ts-types';
 import { env, Duration } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
@@ -124,13 +124,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     }
     return path.isAbsolute(fileToDelete) ? fileToDelete : path.join(process.cwd(), fileToDelete);
   }
-  private static convertRevisionToChange(memberKey: string, memberRevision: MemberRevision): RemoteChangeElement {
-    return {
-      type: memberRevision.memberType,
-      name: memberKey.replace(`${memberRevision.memberType}__`, ''),
-      deleted: memberRevision.isNameObsolete,
-    };
-  }
+
   /**
    * Initializes the service with existing remote source tracking data, or sets
    * the state to begin source tracking of metadata changes in the org.
@@ -225,7 +219,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   public getTrackedElement(key: string): RemoteChangeElement | undefined {
     const memberRevision = this.getSourceMembers()[key];
     if (memberRevision) {
-      return RemoteSourceTrackingService.convertRevisionToChange(key, memberRevision);
+      return convertRevisionToChange(key, memberRevision);
     }
   }
 
@@ -337,21 +331,15 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
     // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
     // does not match the serverRevisionCounter.
-    const trackedRevisions = this.getSourceMembers();
-    const returnElements: RemoteChangeElement[] = [];
+    const returnElements = definiteEntriesOf(this.getSourceMembers())
+      .filter(([, member]) => member.serverRevisionCounter !== member.lastRetrievedFromServer)
+      .map(([key, member]) => convertRevisionToChange(key, member));
 
-    for (const key of Object.keys(trackedRevisions)) {
-      const member = trackedRevisions[key];
-      if (member && member.serverRevisionCounter !== member.lastRetrievedFromServer) {
-        returnElements.push(RemoteSourceTrackingService.convertRevisionToChange(key, member));
-      }
-    }
-
-    if (returnElements.length) {
-      this.logger.debug(`Found ${returnElements.length} elements not synced with org`);
-    } else {
-      this.logger.debug('Remote source tracking is up to date');
-    }
+    this.logger.debug(
+      returnElements.length
+        ? `Found ${returnElements.length} elements not synced with org`
+        : 'Remote source tracking is up to date'
+    );
 
     return returnElements;
   }
@@ -370,11 +358,11 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       return;
     }
 
-    const outstandingSourceMembers = calculateExpectedSourceMembers(expectedMembers);
-    if (expectedMembers.length === 0 || outstandingSourceMembers.size === 0) {
-      // Don't bother polling if we're not matching SourceMembers
+    if (expectedMembers.length === 0) {
       return;
     }
+
+    const outstandingSourceMembers = calculateExpectedSourceMembers(expectedMembers);
 
     const originalOutstandingSize = outstandingSourceMembers.size;
     // this will be the absolute timeout from the start of the poll.  We can also exit early if it doesn't look like more results are coming in
@@ -383,6 +371,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     let pollAttempts = 0;
     let consecutiveEmptyResults = 0;
     let someResultsReturned = false;
+    /** we weren't expecting these SourceMembers, based on the deployment results  */
+    const bonusTypes = new Set<string>();
 
     this.logger.debug(
       `Polling for ${outstandingSourceMembers.size} SourceMembers from revision ${highestRevisionSoFar} with timeout of ${pollingTimeout.seconds}s`
@@ -402,7 +392,11 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       if (queriedMembers.length) {
         queriedMembers.map((member) => {
           // remove anything returned from the query list
-          outstandingSourceMembers.delete(getMetadataKey(member.MemberType, member.MemberName));
+          const metadataKey = getMetadataKey(member.MemberType, member.MemberName);
+          const deleted = outstandingSourceMembers.delete(metadataKey);
+          if (!deleted) {
+            bonusTypes.add(metadataKey);
+          }
           highestRevisionSoFar = Math.max(highestRevisionSoFar, member.RevisionCounter);
         });
         consecutiveEmptyResults = 0;
@@ -446,6 +440,15 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     try {
       await pollingFunction();
       this.logger.debug(`Retrieved all SourceMember data after ${pollAttempts} attempts`);
+      // find places where the expectedSourceMembers might be too pruning too aggressively
+      if (bonusTypes.size) {
+        void Lifecycle.getInstance().emitTelemetry({
+          eventName: 'sourceMemberBonusTypes',
+          library: 'SourceTracking',
+          deploymentSize: expectedMembers.length,
+          bonusTypes: Array.from(bonusTypes).sort().join(','),
+        });
+      }
     } catch {
       this.logger.warn(
         `Polling for SourceMembers timed out after ${pollAttempts} attempts (last ${consecutiveEmptyResults} were empty) )`
@@ -467,6 +470,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         consecutiveEmptyResults,
         missingQuantity: outstandingSourceMembers.size,
         deploymentSize: expectedMembers.length,
+        bonusTypes: Array.from(bonusTypes).sort().join(','),
         types: [...new Set(Array.from(outstandingSourceMembers.values()).map((member) => member.type))]
           .sort()
           .join(','),
@@ -577,4 +581,10 @@ export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): Cha
       }
     : {}),
   origin: 'remote', // we know they're remote
+});
+
+const convertRevisionToChange = (memberKey: string, memberRevision: MemberRevision): RemoteChangeElement => ({
+  type: memberRevision.memberType,
+  name: memberKey.replace(`${memberRevision.memberType}__`, ''),
+  deleted: memberRevision.isNameObsolete,
 });
