@@ -1,3 +1,12 @@
+## [4.2.10](https://github.com/forcedotcom/source-tracking/compare/4.2.9...4.2.10) (2023-08-07)
+
+
+### Bug Fixes
+
+* **deps:** core5 ([#456](https://github.com/forcedotcom/source-tracking/issues/456)) ([13420ca](https://github.com/forcedotcom/source-tracking/commit/13420ca5397c1d9262457233efc4f131c7321c3a))
+
+
+
 ## [4.2.9](https://github.com/forcedotcom/source-tracking/compare/4.2.8...4.2.9) (2023-07-25)
 
 
