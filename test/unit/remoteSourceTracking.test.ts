@@ -166,6 +166,154 @@ describe('remoteSourceTrackingService', () => {
         deleted: true,
       });
     });
+
+    it('will match decoded SourceMember keys on get', async () => {
+      const maxJson = {
+        serverMaxRevisionCounter: 2,
+        sourceMembers: {
+          'Layout__Broker__c-Broker Layout': {
+            serverRevisionCounter: 1,
+            lastRetrievedFromServer: 1,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+          'Layout__Broker__c-v1.1 Broker Layout': {
+            serverRevisionCounter: 2,
+            lastRetrievedFromServer: 2,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+        },
+      };
+      await remoteSourceTrackingService.setContentsFromObject(maxJson);
+
+      // @ts-ignore getSourceMember is private
+      expect(remoteSourceTrackingService.getSourceMember('Layout__Broker__c-v1%2E1 Broker Layout')).to.deep.equal({
+        serverRevisionCounter: 2,
+        lastRetrievedFromServer: 2,
+        memberType: 'Layout',
+        isNameObsolete: false,
+      });
+    });
+
+    it('will match encoded SourceMember keys on get', async () => {
+      const maxJson = {
+        serverMaxRevisionCounter: 2,
+        sourceMembers: {
+          'Layout__Broker__c-Broker Layout': {
+            serverRevisionCounter: 1,
+            lastRetrievedFromServer: 1,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+          'Layout__Broker__c-v1%2E1 Broker Layout': {
+            serverRevisionCounter: 2,
+            lastRetrievedFromServer: 2,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+        },
+      };
+      await remoteSourceTrackingService.setContentsFromObject(maxJson);
+
+      // @ts-ignore getSourceMember is private
+      expect(remoteSourceTrackingService.getSourceMember('Layout__Broker__c-v1.1 Broker Layout')).to.deep.equal({
+        serverRevisionCounter: 2,
+        lastRetrievedFromServer: 2,
+        memberType: 'Layout',
+        isNameObsolete: false,
+      });
+    });
+
+    it('will match/update decoded SourceMember keys on set', async () => {
+      const maxJson = {
+        serverMaxRevisionCounter: 2,
+        sourceMembers: {
+          'Layout__Broker__c-Broker Layout': {
+            serverRevisionCounter: 1,
+            lastRetrievedFromServer: 1,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+          'Layout__Broker__c-v1.1 Broker Layout': {
+            serverRevisionCounter: 2,
+            lastRetrievedFromServer: 2,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+        },
+      };
+      await remoteSourceTrackingService.setContentsFromObject(maxJson);
+
+      // @ts-ignore setMemberRevision is private
+      remoteSourceTrackingService.setMemberRevision('Layout__Broker__c-v1%2E1 Broker Layout', {
+        serverRevisionCounter: 3,
+        lastRetrievedFromServer: 3,
+        memberType: 'Layout',
+        isNameObsolete: false,
+      });
+
+      // @ts-ignore getSourceMembers is private
+      expect(remoteSourceTrackingService.getSourceMembers()).to.deep.equal({
+        'Layout__Broker__c-Broker Layout': {
+          serverRevisionCounter: 1,
+          lastRetrievedFromServer: 1,
+          memberType: 'Layout',
+          isNameObsolete: false,
+        },
+        'Layout__Broker__c-v1.1 Broker Layout': {
+          serverRevisionCounter: 3,
+          lastRetrievedFromServer: 3,
+          memberType: 'Layout',
+          isNameObsolete: false,
+        },
+      });
+    });
+
+    it('will match/update encoded SourceMember keys on set', async () => {
+      const maxJson = {
+        serverMaxRevisionCounter: 2,
+        sourceMembers: {
+          'Layout__Broker__c-Broker Layout': {
+            serverRevisionCounter: 1,
+            lastRetrievedFromServer: 1,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+          'Layout__Broker__c-v1%2E1 Broker Layout': {
+            serverRevisionCounter: 2,
+            lastRetrievedFromServer: 2,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+        },
+      };
+      await remoteSourceTrackingService.setContentsFromObject(maxJson);
+
+      // @ts-ignore setMemberRevision is private
+      remoteSourceTrackingService.setMemberRevision('Layout__Broker__c-v1.1 Broker Layout', {
+        serverRevisionCounter: 3,
+        lastRetrievedFromServer: 3,
+        memberType: 'Layout',
+        isNameObsolete: false,
+      });
+
+      // @ts-ignore getSourceMembers is private
+      expect(remoteSourceTrackingService.getSourceMembers()).to.deep.equal({
+        'Layout__Broker__c-Broker Layout': {
+          serverRevisionCounter: 1,
+          lastRetrievedFromServer: 1,
+          memberType: 'Layout',
+          isNameObsolete: false,
+        },
+        'Layout__Broker__c-v1%2E1 Broker Layout': {
+          serverRevisionCounter: 3,
+          lastRetrievedFromServer: 3,
+          memberType: 'Layout',
+          isNameObsolete: false,
+        },
+      });
+    });
   });
 
   describe('setServerMaxRevision', () => {

@@ -500,11 +500,38 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
   // Return a tracked element as MemberRevision data.
   private getSourceMember(key: string): Optional<MemberRevision> {
-    return this.getSourceMembers()[key];
+    const sourceMembers = this.getSourceMembers();
+    let sm = sourceMembers[key];
+    if (!sm) {
+      // Get all SourceMember keys in maxRevision, then iterate over them
+      // and compare their decoded value with the decoded key.
+      Object.keys(sourceMembers).some((memberKey) => {
+        if (decodeURI(memberKey) === decodeURI(key)) {
+          sm = sourceMembers[memberKey];
+          this.logger.debug(`${key} matches already tracked member: ${memberKey}`);
+          return true;
+        }
+      });
+    }
+    return sm;
   }
 
   private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    this.getContents().sourceMembers[key] = sourceMember;
+    const sourceMembers = this.getSourceMembers();
+    const sm = sourceMembers[key];
+    let matchingKey = key;
+    if (!sm) {
+      // Get all SourceMember keys in maxRevision, then iterate over them
+      // and compare their decoded value with the decoded key.
+      Object.keys(sourceMembers).some((memberKey) => {
+        if (decodeURI(memberKey) === decodeURI(key)) {
+          matchingKey = memberKey;
+          this.logger.debug(`${key} matches already tracked member: ${memberKey}`);
+          return true;
+        }
+      });
+    }
+    this.getContents().sourceMembers[matchingKey] = sourceMember;
   }
 
   private calculateTimeout(memberCount: number): Duration {
