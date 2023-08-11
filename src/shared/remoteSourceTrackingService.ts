@@ -610,8 +610,8 @@ function getDecodedKeyIfSourceMembersHas({
   key: string;
   logger: Logger;
 }): string {
-  const originalKeyDecoded = decodeURI(key);
-  const match = Object.keys(sourceMembers).find((memberKey) => decodeURI(memberKey) === originalKeyDecoded);
+  const originalKeyDecoded = decodeURIComponent(key);
+  const match = Object.keys(sourceMembers).find((memberKey) => decodeURIComponent(memberKey) === originalKeyDecoded);
   if (match) {
     logger.debug(`${match} matches already tracked member: ${key}`);
     return match;

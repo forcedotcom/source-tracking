@@ -79,7 +79,7 @@ export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: str
       );
       // Decode the key since local components can have encoded fullNames, but results from querying
       // SourceMembers have fullNames that are not encoded. See:  https://github.com/forcedotcom/cli/issues/1683
-      const key = decodeURI(getMetadataKey(matchingComponent.type.name, matchingComponent.fullName));
+      const key = decodeURIComponent(getMetadataKey(matchingComponent.type.name, matchingComponent.fullName));
       elementMap.set(key, {
         ...elementMap.get(key),
         modified: true,
