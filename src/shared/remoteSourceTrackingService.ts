@@ -500,11 +500,18 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
   // Return a tracked element as MemberRevision data.
   private getSourceMember(key: string): Optional<MemberRevision> {
-    return this.getSourceMembers()[key];
+    const sourceMembers = this.getSourceMembers();
+    return (
+      sourceMembers[key] ?? sourceMembers[getDecodedKeyIfSourceMembersHas({ sourceMembers, key, logger: this.logger })]
+    );
   }
 
   private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    this.getContents().sourceMembers[key] = sourceMember;
+    const sourceMembers = this.getSourceMembers();
+    const matchingKey = sourceMembers[key]
+      ? key
+      : getDecodedKeyIfSourceMembersHas({ sourceMembers, key, logger: this.logger });
+    this.getContents().sourceMembers[matchingKey] = sourceMember;
   }
 
   private calculateTimeout(memberCount: number): Duration {
@@ -588,3 +595,26 @@ const convertRevisionToChange = (memberKey: string, memberRevision: MemberRevisi
   name: memberKey.replace(`${memberRevision.memberType}__`, ''),
   deleted: memberRevision.isNameObsolete,
 });
+
+/**
+ *
+ * iterate SourceMember keys and compare their decoded value with the decoded key.
+ * if there's a match, return the matching decoded key, otherwise, return the original key
+ */
+function getDecodedKeyIfSourceMembersHas({
+  key,
+  sourceMembers,
+  logger,
+}: {
+  sourceMembers: Dictionary<MemberRevision>;
+  key: string;
+  logger: Logger;
+}): string {
+  const originalKeyDecoded = decodeURIComponent(key);
+  const match = Object.keys(sourceMembers).find((memberKey) => decodeURIComponent(memberKey) === originalKeyDecoded);
+  if (match) {
+    logger.debug(`${match} matches already tracked member: ${key}`);
+    return match;
+  }
+  return key;
+}
