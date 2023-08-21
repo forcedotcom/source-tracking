@@ -1,3 +1,15 @@
+## [4.2.11](https://github.com/forcedotcom/source-tracking/compare/4.2.10...4.2.11) (2023-08-21)
+
+
+### Bug Fixes
+
+* bump to lastest SDR and merge main ([3d62d11](https://github.com/forcedotcom/source-tracking/commit/3d62d11ac29ded0b5b915b6fb9487a3dd4f79fb6))
+* prefer const ([c233e2c](https://github.com/forcedotcom/source-tracking/commit/c233e2c88c947fe9b95320211e0af35e7b7b7243))
+* use decodeURIComponent() rather than decodeURI() ([2d42c6f](https://github.com/forcedotcom/source-tracking/commit/2d42c6fd895fda140014696c794f855b1921f7dc))
+* use latest SDR lib and bump cli-plugins-testkit ([5ce7285](https://github.com/forcedotcom/source-tracking/commit/5ce7285b981a5797aa82af131c9c034518a660cd))
+
+
+
 ## [4.2.10](https://github.com/forcedotcom/source-tracking/compare/4.2.9...4.2.10) (2023-08-07)
 
 
