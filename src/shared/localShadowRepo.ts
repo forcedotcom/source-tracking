@@ -20,6 +20,19 @@ const getGitDir = (orgId: string, projectPath: string): string =>
 // filenames were normalized when read from isogit
 const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
 
+// catch isogit's `InternalError` to avoid people report CLI issues in isogit repo.
+// See: https://github.com/forcedotcom/cli/issues/2416
+const redirectToCliRepoError = (e: Error): never => {
+  if (e instanceof git.Errors.InternalError) {
+    const error = new SfError(
+      `An internal error caused this command to fail. isomorphic-git error:${os.EOL}${e.data.message}`,
+      e.name
+    );
+    throw error;
+  }
+  throw e;
+};
+
 interface ShadowRepoOptions {
   orgId: string;
   projectPath: string;
@@ -93,7 +106,11 @@ export class ShadowRepo {
    */
   public async gitInit(): Promise<void> {
     await fs.promises.mkdir(this.gitDir, { recursive: true });
-    await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
+    try {
+      await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
+    } catch (e) {
+      redirectToCliRepoError(e as Error);
+    }
   }
 
   /**
@@ -126,23 +143,27 @@ export class ShadowRepo {
         .map((dir) => path.relative(this.projectPath, dir.fullPath))
         .map((p) => (this.isWindows ? p.split(path.sep).join(path.posix.sep) : p));
 
-      // status hasn't been initialized yet
-      this.status = await git.statusMatrix({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        filepaths,
-        ignored: true,
-        filter: (f) =>
-          // no hidden files
-          !f.includes(`${path.sep}.`) &&
-          // no lwc tests
-          !isLwcLocalOnlyTest(f) &&
-          // no gitignore files
-          !f.endsWith('.gitignore') &&
-          // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-          filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir)),
-      });
+      try {
+        // status hasn't been initialized yet
+        this.status = await git.statusMatrix({
+          fs,
+          dir: this.projectPath,
+          gitdir: this.gitDir,
+          filepaths,
+          ignored: true,
+          filter: (f) =>
+            // no hidden files
+            !f.includes(`${path.sep}.`) &&
+            // no lwc tests
+            !isLwcLocalOnlyTest(f) &&
+            // no gitignore files
+            !f.endsWith('.gitignore') &&
+            // isogit uses `startsWith` for filepaths so it's possible to get a false positive
+            filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir)),
+        });
+      } catch (e) {
+        redirectToCliRepoError(e as Error);
+      }
       // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
       if (this.isWindows) {
         this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
@@ -219,7 +240,7 @@ export class ShadowRepo {
     deletedFiles = [],
     message = 'sfdx source tracking',
     needsUpdatedStatus = true,
-  }: CommitRequest = {}): Promise<string> {
+  }: CommitRequest = {}): Promise<string | undefined> {
     // if no files are specified, commit all changes
     if (deployedFiles.length === 0 && deletedFiles.length === 0) {
       // this is valid, might not be an error
@@ -259,28 +280,36 @@ export class ShadowRepo {
             error.setData(e.errors);
             throw error;
           }
-          throw e;
+          redirectToCliRepoError(e as Error);
         }
       }
     }
 
     for (const filepath of [...new Set(deletedFiles)]) {
-      // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
-      // eslint-disable-next-line no-await-in-loop
-      await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
+      try {
+        // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
+        // eslint-disable-next-line no-await-in-loop
+        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
+      } catch (e) {
+        redirectToCliRepoError(e as Error);
+      }
     }
 
-    const sha = await git.commit({
-      fs,
-      dir: this.projectPath,
-      gitdir: this.gitDir,
-      message,
-      author: { name: 'sfdx source tracking' },
-    });
-    // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
-    if (needsUpdatedStatus) {
-      await this.getStatus(true);
+    try {
+      const sha = await git.commit({
+        fs,
+        dir: this.projectPath,
+        gitdir: this.gitDir,
+        message,
+        author: { name: 'sfdx source tracking' },
+      });
+      // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
+      if (needsUpdatedStatus) {
+        await this.getStatus(true);
+      }
+      return sha;
+    } catch (e) {
+      redirectToCliRepoError(e as Error);
     }
-    return sha;
   }
 }
