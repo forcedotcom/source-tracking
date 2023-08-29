@@ -1,3 +1,12 @@
+## [4.2.12](https://github.com/forcedotcom/source-tracking/compare/4.2.11...4.2.12) (2023-08-29)
+
+
+### Bug Fixes
+
+* catch isogit internal error ([032103f](https://github.com/forcedotcom/source-tracking/commit/032103f85c6286b5659082caf0f82185115e26b1))
+
+
+
 ## [4.2.11](https://github.com/forcedotcom/source-tracking/compare/4.2.10...4.2.11) (2023-08-21)
 
 
