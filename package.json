@@ -60,7 +60,7 @@
     "@salesforce/dev-config": "^4.0.1",
     "@salesforce/dev-scripts": "^5.5.0",
     "@salesforce/prettier-config": "^0.0.3",
-    "@salesforce/ts-sinon": "^1.4.8",
+    "@salesforce/ts-sinon": "^1.4.15",
     "@types/graceful-fs": "^4.1.6",
     "@types/shelljs": "^0.8.11",
     "@typescript-eslint/eslint-plugin": "^5.60.0",
