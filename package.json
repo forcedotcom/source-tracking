@@ -65,7 +65,7 @@
     "@types/shelljs": "^0.8.11",
     "@typescript-eslint/eslint-plugin": "^5.60.0",
     "@typescript-eslint/parser": "^5.62.0",
-    "chai": "^4.3.7",
+    "chai": "^4.3.8",
     "eslint": "^8.45.0",
     "eslint-config-prettier": "^8.8.0",
     "eslint-config-salesforce": "^2.0.1",
