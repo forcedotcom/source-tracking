@@ -1,3 +1,9 @@
+## [4.2.14](https://github.com/forcedotcom/source-tracking/compare/4.2.13...4.2.14) (2023-09-23)
+
+### Bug Fixes
+
+- **deps:** bump @salesforce/source-deploy-retrieve from 9.7.13 to 9.7.15 ([4dbabe7](https://github.com/forcedotcom/source-tracking/commit/4dbabe79756b3cc63a53746ad4773a1d4a7d341f))
+
 ## [4.2.13](https://github.com/forcedotcom/source-tracking/compare/4.2.12...4.2.13) (2023-09-16)
 
 ### Bug Fixes
