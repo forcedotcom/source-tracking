@@ -28,6 +28,7 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
+import { Performance } from '@oclif/core';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/localShadowRepo';
 import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
@@ -409,6 +410,9 @@ export class SourceTracking extends AsyncCreatable {
    * @param options the files to update
    */
   public async updateLocalTracking(options: LocalUpdateOptions): Promise<void> {
+    this.logger.trace('start: updateLocalTracking', options);
+    const marker = Performance.mark('@salesforce/source-tracking', 'SourceTracking.updateLocalTracking');
+    marker?.addDetails({ nonDeletes: options.files?.length ?? 0, deletes: options.deletedFiles?.length ?? 0 });
     await this.ensureLocalTracking();
 
     // relative paths make smaller trees AND isogit wants them relative
@@ -444,6 +448,8 @@ export class SourceTracking extends AsyncCreatable {
         )
       ),
     });
+    marker?.stop();
+    this.logger.trace('done: updateLocalTracking', options);
   }
 
   /**
@@ -451,6 +457,8 @@ export class SourceTracking extends AsyncCreatable {
    * Optional skip polling for the SourceMembers to exist on the server and be updated in local files
    */
   public async updateRemoteTracking(fileResponses: RemoteSyncInput[], skipPolling = false): Promise<void> {
+    const marker = Performance.mark('@salesforce/source-tracking', 'SourceTracking.updateRemoteTracking');
+    marker?.addDetails({ fileResponseCount: fileResponses.length, skipPolling });
     // false to explicitly NOT query until we do the polling
     await this.ensureRemoteTracking(false);
     if (!skipPolling) {
@@ -458,6 +466,7 @@ export class SourceTracking extends AsyncCreatable {
       await this.remoteSourceTrackingService.pollForSourceTracking(fileResponses);
     }
     await this.remoteSourceTrackingService.syncSpecifiedElements(fileResponses);
+    marker?.stop();
   }
 
   public async reReadLocalTrackingCache(): Promise<void> {
@@ -550,6 +559,8 @@ export class SourceTracking extends AsyncCreatable {
    * Compares local and remote changes to detect conflicts
    */
   public async getConflicts(): Promise<ChangeResult[]> {
+    const marker = Performance.mark('@salesforce/source-tracking', 'SourceTracking.getConflicts');
+
     // we're going to need have both initialized
     await Promise.all([this.ensureRemoteTracking(), this.ensureLocalTracking()]);
 
@@ -574,12 +585,15 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
 
-    return getDedupedConflictsFromChanges({
+    const result = getDedupedConflictsFromChanges({
       localChanges,
       remoteChanges,
       projectPath: this.projectPath,
       forceIgnore: this.forceIgnore,
     });
+
+    marker?.stop();
+    return result;
   }
 
   /**

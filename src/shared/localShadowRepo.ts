@@ -11,6 +11,7 @@ import * as fs from 'graceful-fs';
 import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import * as git from 'isomorphic-git';
+import { Performance } from '@oclif/core';
 import { chunkArray, isLwcLocalOnlyTest, pathIsInFolder } from './functions';
 
 /** returns the full path to where we store the shadow repo */
@@ -105,6 +106,7 @@ export class ShadowRepo {
    *
    */
   public async gitInit(): Promise<void> {
+    this.logger.trace(`initializing git repo at ${this.gitDir}`);
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     try {
       await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
@@ -135,7 +137,10 @@ export class ShadowRepo {
    * @returns StatusRow[]
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
+    this.logger.trace(`start: getStatus (noCache = ${noCache})`);
+
     if (!this.status || noCache) {
+      const marker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.getStatus#withoutCache');
       // iso-git uses relative, posix paths
       // but packageDirs has already resolved / normalized them
       // so we need to make them project-relative again and convert if windows
@@ -168,7 +173,9 @@ export class ShadowRepo {
       if (this.isWindows) {
         this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
       }
+      marker?.stop();
     }
+    this.logger.trace(`done: getStatus (noCache = ${noCache})`);
     return this.status;
   }
 
@@ -247,16 +254,23 @@ export class ShadowRepo {
       return 'no files to commit';
     }
 
+    const marker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.commitChanges', {
+      deployedFiles: deployedFiles.length,
+      deletedFiles: deletedFiles.length,
+    });
     // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
     if (os.type() === 'Windows_NT') {
+      this.logger.trace('start: transforming windows paths to posix');
       deployedFiles = deployedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
       deletedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
+      this.logger.trace('done: transforming windows paths to posix');
     }
 
     if (deployedFiles.length) {
       const chunks = chunkArray([...new Set(deployedFiles)], this.maxFileAdd);
       for (const chunk of chunks) {
         try {
+          this.logger.debug(`adding ${chunk.length} files of ${deployedFiles.length} deployedFiles to git`);
           // these need to be done sequentially (it's already batched) because isogit manages file locking
           // eslint-disable-next-line no-await-in-loop
           await git.add({
@@ -296,6 +310,8 @@ export class ShadowRepo {
     }
 
     try {
+      this.logger.trace('start: commitChanges git.commit');
+
       const sha = await git.commit({
         fs,
         dir: this.projectPath,
@@ -307,9 +323,11 @@ export class ShadowRepo {
       if (needsUpdatedStatus) {
         await this.getStatus(true);
       }
+      this.logger.trace('done: commitChanges git.commit');
       return sha;
     } catch (e) {
       redirectToCliRepoError(e as Error);
     }
+    marker?.stop();
   }
 }
