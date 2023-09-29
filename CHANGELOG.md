@@ -1,3 +1,9 @@
+## [4.2.15](https://github.com/forcedotcom/source-tracking/compare/4.2.14...4.2.15) (2023-09-29)
+
+### Bug Fixes
+
+- avoid duplicate STL listeners when multiple instances exist ([23044f1](https://github.com/forcedotcom/source-tracking/commit/23044f1101451abbdfc938637d1aea04c21458bf))
+
 ## [4.2.14](https://github.com/forcedotcom/source-tracking/compare/4.2.13...4.2.14) (2023-09-23)
 
 ### Bug Fixes
