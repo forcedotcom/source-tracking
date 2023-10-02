@@ -154,7 +154,7 @@ export class SourceTracking extends AsyncCreatable {
     if (applyIgnore) {
       this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     }
-    const [changeResults, sourceBackedComponents] = await Promise.all([
+    const [changeResults, sourceBackedComponents, projectConfig] = await Promise.all([
       // all changes based on remote tracking
       this.getChanges({
         origin: 'remote',
@@ -167,6 +167,9 @@ export class SourceTracking extends AsyncCreatable {
         state: 'nondelete',
         format: 'SourceComponent',
       }),
+      this.project.resolveProjectConfig() as {
+        sourceApiVersion?: string;
+      },
     ]);
     const componentSet = new ComponentSet(
       applyIgnore
@@ -181,6 +184,9 @@ export class SourceTracking extends AsyncCreatable {
       componentSet.add(mm);
     });
 
+    if (projectConfig.sourceApiVersion) {
+      componentSet.sourceApiVersion = projectConfig.sourceApiVersion;
+    }
     return componentSet;
   }
   /**
