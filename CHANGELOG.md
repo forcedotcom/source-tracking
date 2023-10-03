@@ -1,3 +1,9 @@
+## [4.2.16](https://github.com/forcedotcom/source-tracking/compare/4.2.15...4.2.16) (2023-10-03)
+
+### Bug Fixes
+
+- stl uses project api version ([268df38](https://github.com/forcedotcom/source-tracking/commit/268df38e30f1638cb213c27d386b03d279796ea9))
+
 ## [4.2.15](https://github.com/forcedotcom/source-tracking/compare/4.2.14...4.2.15) (2023-09-29)
 
 ### Bug Fixes
