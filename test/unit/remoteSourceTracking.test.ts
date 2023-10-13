@@ -66,7 +66,7 @@ describe('remoteSourceTrackingService', () => {
 
   describe('getServerMaxRevision', () => {
     it('should return 0 if file does not exist', () => {
-      // @ts-ignore
+      // @ts-expect-error it's private
       const max = remoteSourceTrackingService.getServerMaxRevision();
       expect(max).to.equal(0);
     });
@@ -74,20 +74,15 @@ describe('remoteSourceTrackingService', () => {
 
   describe('init', () => {
     it('should set initial state of contents', async () => {
-      $$.SANDBOX.stub(remoteSourceTrackingService, 'getContents').returns({
-        // @ts-ignore
-        serverMaxRevisionCounter: null,
-        // @ts-ignore
-        sourceMembers: null,
-      });
-      // @ts-ignore
+      // @ts-expect-error it's private
       const queryMembersFromSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersFrom');
       await remoteSourceTrackingService.init();
-      // @ts-ignore
+      // @ts-expect-error it's private
       expect(remoteSourceTrackingService.getServerMaxRevision()).to.equal(0);
-      // @ts-ignore
+      // @ts-expect-error it's private
       expect(remoteSourceTrackingService.getSourceMembers()).to.deep.equal({});
-      expect(queryMembersFromSpy.called).to.equal(true);
+      // this is run during the beforeEach, but doesn't run again because init already happened
+      expect(queryMembersFromSpy.called).to.equal(false);
     });
   });
 
@@ -100,11 +95,13 @@ describe('remoteSourceTrackingService', () => {
             memberType: 'CustomObject',
             serverRevisionCounter: 2,
             lastRetrievedFromServer: 3,
+            isNameObsolete: false,
           },
           ApexClass__abc: {
             memberType: 'ApexClass',
             serverRevisionCounter: 2,
             lastRetrievedFromServer: 2,
+            isNameObsolete: false,
           },
         },
       };
@@ -319,7 +316,7 @@ describe('remoteSourceTrackingService', () => {
   describe('setServerMaxRevision', () => {
     it('should set the initial serverMaxRevisionCounter to zero during file creation', async () => {
       await remoteSourceTrackingService.init();
-      const contents = await remoteSourceTrackingService.getContents();
+      const contents = remoteSourceTrackingService.getContents();
       expect(contents.serverMaxRevisionCounter).to.equal(0);
       expect(contents.sourceMembers).to.eql({});
     });
@@ -470,10 +467,8 @@ describe('remoteSourceTrackingService', () => {
   describe('reset', () => {
     it('should reset source tracking state to be synced with the max RevisionCounter on the org', async () => {
       // Set initial test state of 5 apex classes not yet synced.
-      remoteSourceTrackingService['contents'] = {
-        serverMaxRevisionCounter: 5,
-        sourceMembers: getMemberRevisionEntries(5),
-      };
+      remoteSourceTrackingService.set('serverMaxRevisionCounter', 5);
+      remoteSourceTrackingService.set('sourceMembers', getMemberRevisionEntries(5));
 
       // @ts-ignore
       const setMaxSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'setServerMaxRevision');
@@ -500,10 +495,8 @@ describe('remoteSourceTrackingService', () => {
 
     it('should reset source tracking state to be synced with the specified revision', async () => {
       // Set initial test state of 5 apex classes not yet synced.
-      remoteSourceTrackingService['contents'] = {
-        serverMaxRevisionCounter: 5,
-        sourceMembers: getMemberRevisionEntries(5),
-      };
+      remoteSourceTrackingService.set('serverMaxRevisionCounter', 5);
+      remoteSourceTrackingService.set('sourceMembers', getMemberRevisionEntries(5));
 
       // @ts-ignore
       const setMaxSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'setServerMaxRevision');
