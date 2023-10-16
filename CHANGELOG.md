@@ -1,3 +1,9 @@
+## [4.2.17](https://github.com/forcedotcom/source-tracking/compare/4.2.16...4.2.17) (2023-10-16)
+
+### Bug Fixes
+
+- bump to SDR 9.7.25 ([1dc60cc](https://github.com/forcedotcom/source-tracking/commit/1dc60ccb4715989ec81d3ba50a5a42758561cd1b))
+
 ## [4.2.16](https://github.com/forcedotcom/source-tracking/compare/4.2.15...4.2.16) (2023-10-03)
 
 ### Bug Fixes
