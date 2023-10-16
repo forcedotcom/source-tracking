@@ -145,19 +145,17 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       throw SfError.wrap(err as Error);
     }
 
-    const contents = this.getContents();
     // Initialize a new maxRevision.json if the file doesn't yet exist.
-    if (!contents.serverMaxRevisionCounter && !contents.sourceMembers) {
+    if (!this.has('serverMaxRevisionCounter') && !this.has('sourceMembers')) {
       try {
         // To find out if the associated org has source tracking enabled, we need to make a query
         // for SourceMembers.  If a certain error is thrown during the query we won't try to do
         // source tracking for this org.  Calling querySourceMembersFrom() has the extra benefit
         // of caching the query so we don't have to make an identical request in the same process.
         await this.querySourceMembersFrom({ fromRevision: 0 });
+        this.set('sourceMembers', {});
+        this.set('serverMaxRevisionCounter', 0);
 
-        this.logger.debug('Initializing source tracking state');
-        contents.serverMaxRevisionCounter = 0;
-        contents.sourceMembers = {};
         await this.write();
       } catch (e) {
         if (
@@ -483,19 +481,19 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   //
 
   private getServerMaxRevision(): number {
-    return this.getContents().serverMaxRevisionCounter;
+    return this.get('serverMaxRevisionCounter') ?? 0;
   }
 
   private setServerMaxRevision(revision = 0): void {
-    (this['contents'] as Contents).serverMaxRevisionCounter = revision;
+    this.set('serverMaxRevisionCounter', revision);
   }
 
   private getSourceMembers(): Dictionary<MemberRevision> {
-    return this.getContents().sourceMembers;
+    return this.get('sourceMembers');
   }
 
   private initSourceMembers(): void {
-    this.getContents().sourceMembers = {};
+    this.set('sourceMembers', {});
   }
 
   // Return a tracked element as MemberRevision data.
@@ -511,7 +509,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     const matchingKey = sourceMembers[key]
       ? key
       : getDecodedKeyIfSourceMembersHas({ sourceMembers, key, logger: this.logger });
-    this.getContents().sourceMembers[matchingKey] = sourceMember;
+    this.set('sourceMembers', { ...sourceMembers, [matchingKey]: sourceMember });
   }
 
   private calculateTimeout(memberCount: number): Duration {
