@@ -153,7 +153,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         // source tracking for this org.  Calling querySourceMembersFrom() has the extra benefit
         // of caching the query so we don't have to make an identical request in the same process.
         await this.querySourceMembersFrom({ fromRevision: 0 });
-        this.set('sourceMembers', {});
+        this.initSourceMembers();
         this.setServerMaxRevision(0);
 
         await this.write();
