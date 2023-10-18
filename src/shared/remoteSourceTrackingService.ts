@@ -513,7 +513,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private calculateTimeout(memberCount: number): Duration {
-    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0) ?? 0;
+    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
     if (overriddenTimeout > 0) {
       this.logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
       return Duration.seconds(overriddenTimeout);
