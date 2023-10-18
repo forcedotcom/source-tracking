@@ -153,8 +153,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         // source tracking for this org.  Calling querySourceMembersFrom() has the extra benefit
         // of caching the query so we don't have to make an identical request in the same process.
         await this.querySourceMembersFrom({ fromRevision: 0 });
-        this.set('sourceMembers', {});
-        this.set('serverMaxRevisionCounter', 0);
+        this.initSourceMembers();
+        this.setServerMaxRevision(0);
 
         await this.write();
       } catch (e) {
@@ -247,7 +247,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     this.initSourceMembers();
 
     const members =
-      toRevision != null
+      toRevision !== undefined && toRevision !== null
         ? await this.querySourceMembersTo(toRevision)
         : await this.querySourceMembersFrom({ fromRevision: 0 });
 
@@ -513,7 +513,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
   }
 
   private calculateTimeout(memberCount: number): Duration {
-    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0) ?? 0;
+    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
     if (overriddenTimeout > 0) {
       this.logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
       return Duration.seconds(overriddenTimeout);
@@ -532,7 +532,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     quiet = false,
     useCache = true,
   }: { fromRevision?: number; quiet?: boolean; useCache?: boolean } = {}): Promise<SourceMember[]> {
-    const rev = fromRevision != null ? fromRevision : this.getServerMaxRevision();
+    const rev = fromRevision ?? this.getServerMaxRevision();
 
     if (useCache) {
       // Check cache first and return if found.
