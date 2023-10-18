@@ -247,7 +247,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     this.initSourceMembers();
 
     const members =
-      toRevision !== undefined
+      toRevision !== undefined && toRevision !== null
         ? await this.querySourceMembersTo(toRevision)
         : await this.querySourceMembersFrom({ fromRevision: 0 });
 
