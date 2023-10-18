@@ -154,7 +154,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
         // of caching the query so we don't have to make an identical request in the same process.
         await this.querySourceMembersFrom({ fromRevision: 0 });
         this.set('sourceMembers', {});
-        this.set('serverMaxRevisionCounter', 0);
+        this.setServerMaxRevision(0);
 
         await this.write();
       } catch (e) {
@@ -247,7 +247,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     this.initSourceMembers();
 
     const members =
-      toRevision != null
+      toRevision !== undefined
         ? await this.querySourceMembersTo(toRevision)
         : await this.querySourceMembersFrom({ fromRevision: 0 });
 
@@ -532,7 +532,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     quiet = false,
     useCache = true,
   }: { fromRevision?: number; quiet?: boolean; useCache?: boolean } = {}): Promise<SourceMember[]> {
-    const rev = fromRevision != null ? fromRevision : this.getServerMaxRevision();
+    const rev = fromRevision ?? this.getServerMaxRevision();
 
     if (useCache) {
       // Check cache first and return if found.
