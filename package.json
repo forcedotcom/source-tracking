@@ -47,7 +47,7 @@
   },
   "dependencies": {
     "@salesforce/core": "^5.3.9",
-    "@salesforce/kit": "^3.0.13",
+    "@salesforce/kit": "^3.0.14",
     "@salesforce/source-deploy-retrieve": "^9.7.27",
     "@salesforce/ts-types": "^2.0.9",
     "fast-xml-parser": "^4.2.5",
