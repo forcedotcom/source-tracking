@@ -1,3 +1,12 @@
+## [4.2.19](https://github.com/forcedotcom/source-tracking/compare/4.2.18...4.2.19) (2023-10-21)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/kit from 3.0.13 to 3.0.14 ([7be2683](https://github.com/forcedotcom/source-tracking/commit/7be2683c5c9f613b23d4f796e67c7b46d8c66ba6))
+
+
+
 ## [4.2.18](https://github.com/forcedotcom/source-tracking/compare/4.2.17...4.2.18) (2023-10-18)
 
 
