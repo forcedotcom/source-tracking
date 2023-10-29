@@ -9,7 +9,7 @@
 /* eslint-disable camelcase */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
-import { sep } from 'path';
+import { sep } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
 import { Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';

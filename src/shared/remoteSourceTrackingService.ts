@@ -5,8 +5,8 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
-import * as path from 'path';
-import * as fs from 'fs';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { ConfigFile, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { Dictionary, Optional, definiteEntriesOf } from '@salesforce/ts-types';
