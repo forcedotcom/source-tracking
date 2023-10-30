@@ -46,9 +46,9 @@
     "node": ">=16.0.0"
   },
   "dependencies": {
-    "@salesforce/core": "^5.3.9",
-    "@salesforce/kit": "^3.0.14",
-    "@salesforce/source-deploy-retrieve": "^9.7.27",
+    "@salesforce/core": "^5.3.16",
+    "@salesforce/kit": "^3.0.15",
+    "@salesforce/source-deploy-retrieve": "^9.8.0",
     "@salesforce/ts-types": "^2.0.9",
     "fast-xml-parser": "^4.2.5",
     "graceful-fs": "^4.2.11",
@@ -56,7 +56,7 @@
     "ts-retry-promise": "^0.7.0"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^4.4.7",
+    "@salesforce/cli-plugins-testkit": "^4.4.11",
     "@salesforce/dev-config": "^4.0.1",
     "@salesforce/dev-scripts": "^5.12.2",
     "@salesforce/prettier-config": "^0.0.3",
