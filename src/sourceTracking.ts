@@ -4,8 +4,8 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import * as fs from 'fs';
-import { resolve, sep, normalize } from 'path';
+import * as fs from 'node:fs';
+import { resolve, sep, normalize } from 'node:path';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
