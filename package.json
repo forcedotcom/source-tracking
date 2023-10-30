@@ -84,8 +84,8 @@
     "shx": "^0.3.4",
     "sinon": "^10.0.0",
     "ts-node": "^10.9.1",
+    "ts-patch": "^3.0.2",
     "ts-prune": "^0.10.3",
-    "ttypescript": "^1.5.15",
     "typescript": "^5.2.2",
     "wireit": "^0.14.1"
   },
@@ -101,7 +101,7 @@
       ]
     },
     "compile": {
-      "command": "ttsc -p . --pretty --incremental",
+      "command": "tspc -p . --pretty --incremental",
       "files": [
         "src/**/*.ts",
         "tsconfig.json",
