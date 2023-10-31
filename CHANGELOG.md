@@ -1,3 +1,12 @@
+## [4.2.20](https://github.com/forcedotcom/source-tracking/compare/4.2.19...4.2.20) (2023-10-31)
+
+
+### Bug Fixes
+
+* bump sdr to 9.8.1 ([b73a6bf](https://github.com/forcedotcom/source-tracking/commit/b73a6bffbb0430be1fef743c1442d338ef1e15e2))
+
+
+
 ## [4.2.19](https://github.com/forcedotcom/source-tracking/compare/4.2.18...4.2.19) (2023-10-21)
 
 
