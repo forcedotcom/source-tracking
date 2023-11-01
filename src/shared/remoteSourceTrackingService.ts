@@ -15,7 +15,7 @@ import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataT
 import { getMetadataKey } from './functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 
-// represents the contents of the config file stored in 'maxRevision.json'
+/** represents the contents of the config file stored in 'maxRevision.json' */
 type Contents = {
   serverMaxRevisionCounter: number;
   sourceMembers: Record<string, MemberRevision>;
@@ -29,7 +29,8 @@ const FILENAME = 'maxRevision.json';
 const POLLING_DELAY_MS = 1000;
 const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
   (env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
-// Constructor Options for RemoteSourceTrackingService.
+
+/** Options for RemoteSourceTrackingService.getInstance */
 export interface RemoteSourceTrackingServiceOptions {
   org: Org;
   projectPath: string;
