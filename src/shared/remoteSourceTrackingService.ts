@@ -75,13 +75,13 @@ export interface RemoteSourceTrackingServiceOptions {
 export class RemoteSourceTrackingService {
   /** map of constructed, init'ed instances; key is orgId.  It's like a singleton at the org level */
   private static instanceMap = new Map<string, RemoteSourceTrackingService>();
-  protected logger!: Logger;
+  public readonly filePath: string;
 
+  private logger!: Logger;
   private serverMaxRevisionCounter = 0;
   private sourceMembers = new Map<string, MemberRevision>();
 
   private org: Org;
-  private filePath: string;
 
   // A short term cache (within the same process) of query results based on a revision.
   // Useful for source:pull, which makes 3 of the same queries; during status, building manifests, after pull success.
@@ -422,7 +422,7 @@ export class RemoteSourceTrackingService {
     this.logger = await Logger.child(this.constructor.name);
     // read the file contents and turn it into the map
     const rawContents = await readFileContents(this.filePath);
-    if (this.serverMaxRevisionCounter && this.sourceMembers) {
+    if (rawContents.serverMaxRevisionCounter && rawContents.sourceMembers) {
       this.serverMaxRevisionCounter = rawContents.serverMaxRevisionCounter;
       this.sourceMembers = new Map(Object.entries(rawContents.sourceMembers ?? {}));
     }

@@ -7,7 +7,8 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable camelcase */
 
-import { sep } from 'node:path';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
 import { Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
@@ -107,6 +108,46 @@ describe('remoteSourceTrackingService', () => {
       expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(new Map());
       // this is run during the beforeEach, but doesn't run again because init already happened
       expect(queryMembersFromSpy.called).to.equal(false);
+    });
+
+    it('should set initial state of contents when a file exists', async () => {
+      const maxJson = {
+        serverMaxRevisionCounter: 2,
+        sourceMembers: {
+          'Layout__Broker__c-Broker Layout': {
+            serverRevisionCounter: 1,
+            lastRetrievedFromServer: 1,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+          'Layout__Broker__c-v1.1 Broker Layout': {
+            serverRevisionCounter: 2,
+            lastRetrievedFromServer: 2,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+        },
+      };
+      await mkdir(dirname(remoteSourceTrackingService.filePath), { recursive: true });
+      await writeFile(remoteSourceTrackingService.filePath, JSON.stringify(maxJson));
+      // @ts-expect-error it's private
+      await remoteSourceTrackingService.init();
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.serverMaxRevisionCounter).to.equal(2);
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.sourceMembers.size).to.deep.equal(2);
+    });
+
+    it('should set initial state of contents when a file exists', async () => {
+      const maxJson = {};
+      await mkdir(dirname(remoteSourceTrackingService.filePath), { recursive: true });
+      await writeFile(remoteSourceTrackingService.filePath, JSON.stringify(maxJson));
+      // @ts-expect-error it's private
+      await remoteSourceTrackingService.init();
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.serverMaxRevisionCounter).to.equal(0);
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.sourceMembers.size).to.deep.equal(0);
     });
   });
 
@@ -513,7 +554,6 @@ describe('remoteSourceTrackingService', () => {
 
   describe('file location support', () => {
     it('should return the correct file location (base case)', () => {
-      // @ts-expect-error filePath is private
       expect(remoteSourceTrackingService.filePath).to.include(`.sf${sep}`);
     });
   });
