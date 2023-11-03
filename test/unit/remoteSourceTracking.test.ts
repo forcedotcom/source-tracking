@@ -7,14 +7,15 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable camelcase */
 
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
 import { Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { RemoteSourceTrackingService, calculateTimeout } from '../../src/shared/remoteSourceTrackingService';
+import { RemoteSourceTrackingService, calculateTimeout, Contents } from '../../src/shared/remoteSourceTrackingService';
 import { RemoteSyncInput, SourceMember, MemberRevision } from '../../src/shared/types';
 import * as mocks from '../../src/shared/remoteSourceTrackingService';
 
@@ -108,6 +109,11 @@ describe('remoteSourceTrackingService', () => {
       expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(new Map());
       // this is run during the beforeEach, but doesn't run again because init already happened
       expect(queryMembersFromSpy.called).to.equal(false);
+      // the file should exist after init, with its initial state
+      expect(existsSync(remoteSourceTrackingService.filePath)).to.equal(true);
+      const fileContents = JSON.parse(await readFile(remoteSourceTrackingService.filePath, 'utf8')) as Contents;
+      expect(fileContents.serverMaxRevisionCounter).to.equal(0);
+      expect(fileContents.sourceMembers).to.deep.equal({});
     });
 
     it('should set initial state of contents when a file exists', async () => {

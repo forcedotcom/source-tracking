@@ -16,7 +16,7 @@ import { getMetadataKey } from './functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 
 /** represents the contents of the config file stored in 'maxRevision.json' */
-type Contents = {
+export type Contents = {
   serverMaxRevisionCounter: number;
   sourceMembers: Record<string, MemberRevision>;
 };
@@ -420,11 +420,16 @@ export class RemoteSourceTrackingService {
       throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
     }
     this.logger = await Logger.child(this.constructor.name);
-    // read the file contents and turn it into the map
-    const rawContents = await readFileContents(this.filePath);
-    if (rawContents.serverMaxRevisionCounter && rawContents.sourceMembers) {
-      this.serverMaxRevisionCounter = rawContents.serverMaxRevisionCounter;
-      this.sourceMembers = new Map(Object.entries(rawContents.sourceMembers ?? {}));
+    if (fs.existsSync(this.filePath)) {
+      // read the file contents and turn it into the map
+      const rawContents = await readFileContents(this.filePath);
+      if (rawContents.serverMaxRevisionCounter && rawContents.sourceMembers) {
+        this.serverMaxRevisionCounter = rawContents.serverMaxRevisionCounter;
+        this.sourceMembers = new Map(Object.entries(rawContents.sourceMembers ?? {}));
+      }
+    } else {
+      // we need to init the file
+      await this.write();
     }
     return this;
   }
