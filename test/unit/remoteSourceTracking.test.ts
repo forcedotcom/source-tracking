@@ -144,7 +144,7 @@ describe('remoteSourceTrackingService', () => {
       expect(remoteSourceTrackingService.sourceMembers.size).to.deep.equal(2);
     });
 
-    it('should set initial state of contents when a file exists', async () => {
+    it('should set initial state of contents when a file exists but has nothing in it', async () => {
       const maxJson = {};
       await mkdir(dirname(remoteSourceTrackingService.filePath), { recursive: true });
       await writeFile(remoteSourceTrackingService.filePath, JSON.stringify(maxJson));
@@ -468,7 +468,6 @@ describe('remoteSourceTrackingService', () => {
       await remoteSourceTrackingService.pollForSourceTracking(memberNames, 2);
       expect(trackSpy.called).to.equal(false);
       expect(getBooleanStub.calledOnce).to.equal(true);
-      // expect(getServerMaxRevisionStub.notCalled).to.equal(true);
     });
 
     describe('timeout handling', () => {

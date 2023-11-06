@@ -104,13 +104,12 @@ export class RemoteSourceTrackingService {
    */
   public static async getInstance(options: RemoteSourceTrackingServiceOptions): Promise<RemoteSourceTrackingService> {
     const orgId = options.org.getOrgId();
-    const existing = this.instanceMap.get(orgId);
-    if (!existing) {
-      this.instanceMap.set(orgId, await new RemoteSourceTrackingService(options).init());
+    let service = this.instanceMap.get(orgId);
+    if (!service) {
+      service = await new RemoteSourceTrackingService(options).init();
+      this.instanceMap.set(orgId, service);
     }
-    // non-null because we made sure it was set above
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return this.instanceMap.get(orgId)!;
+    return service;
   }
 
   /**
@@ -548,6 +547,11 @@ const readFileContents = async (filePath: string): Promise<Contents | Record<str
     const contents = await fs.promises.readFile(filePath, 'utf8');
     return parseJsonMap<Contents>(contents, filePath);
   } catch (e) {
+    Logger.childFromRoot('remoteSourceTrackingService:readFileContents').debug(
+      `Error reading or parsing file file at ${filePath}.  Will treat as an empty file.`,
+      e
+    );
+
     return {};
   }
 };
