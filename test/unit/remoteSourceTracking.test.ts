@@ -4,19 +4,21 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-/* eslint-disable @typescript-eslint/await-thenable */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable camelcase */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
-import { sep } from 'node:path';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
 import { Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { RemoteSourceTrackingService } from '../../src/shared/remoteSourceTrackingService';
+import { RemoteSourceTrackingService, calculateTimeout, Contents } from '../../src/shared/remoteSourceTrackingService';
 import { RemoteSyncInput, SourceMember, MemberRevision } from '../../src/shared/types';
+import * as mocks from '../../src/shared/remoteSourceTrackingService';
+
 Messages.importMessagesDirectory(__dirname);
 
 const getSourceMember = (revision: number, deleted = false): SourceMember => ({
@@ -41,24 +43,47 @@ const getMemberRevisionEntries = (revision: number, synced = false): { [key: str
 
 describe('remoteSourceTrackingService', () => {
   const username = 'foo@bar.com';
-  const orgId = '00D456789012345';
+  let orgId: string;
   const $$ = instantiateContext();
   let remoteSourceTrackingService: RemoteSourceTrackingService;
 
-  afterEach(() => {
+  /** a shared "cheater" method to do illegal operations for test setup purposes */
+  const setContents = (contents: {
+    serverMaxRevisionCounter: number;
+    sourceMembers: { [key: string]: MemberRevision };
+  }): void => {
+    // @ts-expect-error it's private
+    remoteSourceTrackingService.serverMaxRevisionCounter = contents.serverMaxRevisionCounter;
+    // @ts-expect-error it's private
+    remoteSourceTrackingService.sourceMembers = new Map(Object.entries(contents.sourceMembers));
+  };
+
+  /** a shared "cheater" method to do illegal operations for test assertion purposes */
+  const getContents = (): {
+    serverMaxRevisionCounter: number;
+    sourceMembers: { [key: string]: MemberRevision };
+  } => ({
+    // @ts-expect-error it's private
+    serverMaxRevisionCounter: remoteSourceTrackingService.serverMaxRevisionCounter,
+    // @ts-expect-error it's private
+    sourceMembers: Object.fromEntries(remoteSourceTrackingService.sourceMembers),
+  });
+
+  afterEach(async () => {
+    await RemoteSourceTrackingService.delete(orgId);
     restoreContext($$);
   });
 
   beforeEach(async () => {
     stubContext($$);
     const orgData = new MockTestOrgData();
+    orgId = orgData.orgId;
     orgData.username = username;
-    orgData.orgId = orgId;
     orgData.tracksSource = true;
     await $$.stubAuths(orgData);
     const org = await Org.create({ aliasOrUsername: username });
     $$.SANDBOX.stub(org.getConnection().tooling, 'query').resolves({ records: [], done: true, totalSize: 0 });
-    remoteSourceTrackingService = await RemoteSourceTrackingService.create({
+    remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({
       org,
       projectPath: await $$.localPathRetriever($$.id),
     });
@@ -67,7 +92,7 @@ describe('remoteSourceTrackingService', () => {
   describe('getServerMaxRevision', () => {
     it('should return 0 if file does not exist', () => {
       // @ts-expect-error it's private
-      const max = remoteSourceTrackingService.getServerMaxRevision();
+      const max = remoteSourceTrackingService.serverMaxRevisionCounter;
       expect(max).to.equal(0);
     });
   });
@@ -76,13 +101,59 @@ describe('remoteSourceTrackingService', () => {
     it('should set initial state of contents', async () => {
       // @ts-expect-error it's private
       const queryMembersFromSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersFrom');
+      // @ts-expect-error it's private
       await remoteSourceTrackingService.init();
       // @ts-expect-error it's private
-      expect(remoteSourceTrackingService.getServerMaxRevision()).to.equal(0);
+      expect(remoteSourceTrackingService.serverMaxRevisionCounter).to.equal(0);
       // @ts-expect-error it's private
-      expect(remoteSourceTrackingService.getSourceMembers()).to.deep.equal({});
+      expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(new Map());
       // this is run during the beforeEach, but doesn't run again because init already happened
       expect(queryMembersFromSpy.called).to.equal(false);
+      // the file should exist after init, with its initial state
+      expect(existsSync(remoteSourceTrackingService.filePath)).to.equal(true);
+      const fileContents = JSON.parse(await readFile(remoteSourceTrackingService.filePath, 'utf8')) as Contents;
+      expect(fileContents.serverMaxRevisionCounter).to.equal(0);
+      expect(fileContents.sourceMembers).to.deep.equal({});
+    });
+
+    it('should set initial state of contents when a file exists', async () => {
+      const maxJson = {
+        serverMaxRevisionCounter: 2,
+        sourceMembers: {
+          'Layout__Broker__c-Broker Layout': {
+            serverRevisionCounter: 1,
+            lastRetrievedFromServer: 1,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+          'Layout__Broker__c-v1.1 Broker Layout': {
+            serverRevisionCounter: 2,
+            lastRetrievedFromServer: 2,
+            memberType: 'Layout',
+            isNameObsolete: false,
+          },
+        },
+      };
+      await mkdir(dirname(remoteSourceTrackingService.filePath), { recursive: true });
+      await writeFile(remoteSourceTrackingService.filePath, JSON.stringify(maxJson));
+      // @ts-expect-error it's private
+      await remoteSourceTrackingService.init();
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.serverMaxRevisionCounter).to.equal(2);
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.sourceMembers.size).to.deep.equal(2);
+    });
+
+    it('should set initial state of contents when a file exists but has nothing in it', async () => {
+      const maxJson = {};
+      await mkdir(dirname(remoteSourceTrackingService.filePath), { recursive: true });
+      await writeFile(remoteSourceTrackingService.filePath, JSON.stringify(maxJson));
+      // @ts-expect-error it's private
+      await remoteSourceTrackingService.init();
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.serverMaxRevisionCounter).to.equal(0);
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.sourceMembers.size).to.deep.equal(0);
     });
   });
 
@@ -105,8 +176,7 @@ describe('remoteSourceTrackingService', () => {
           },
         },
       };
-      await remoteSourceTrackingService.setContentsFromObject(maxJson);
-
+      setContents(maxJson);
       const changes = await remoteSourceTrackingService.retrieveUpdates();
       expect(changes.length).to.equal(1);
       expect(changes[0].name).to.equal('test__c');
@@ -144,11 +214,6 @@ describe('remoteSourceTrackingService', () => {
         memberType: 'ApexClass',
         isNameObsolete: false,
       });
-      expect(remoteSourceTrackingService.getTrackedElement('ApexClass__test1__c')).to.deep.equal({
-        name: 'test1__c',
-        type: 'ApexClass',
-        deleted: false,
-      });
 
       // @ts-ignore getSourceMember is private
       expect(remoteSourceTrackingService.getSourceMember('ApexClass__test2__c')).to.deep.equal({
@@ -157,14 +222,9 @@ describe('remoteSourceTrackingService', () => {
         memberType: 'ApexClass',
         isNameObsolete: true,
       });
-      expect(remoteSourceTrackingService.getTrackedElement('ApexClass__test2__c')).to.deep.equal({
-        name: 'test2__c',
-        type: 'ApexClass',
-        deleted: true,
-      });
     });
 
-    it('will match decoded SourceMember keys on get', async () => {
+    it('will match decoded SourceMember keys on get', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
@@ -182,7 +242,7 @@ describe('remoteSourceTrackingService', () => {
           },
         },
       };
-      await remoteSourceTrackingService.setContentsFromObject(maxJson);
+      setContents(maxJson);
 
       // @ts-ignore getSourceMember is private
       expect(remoteSourceTrackingService.getSourceMember('Layout__Broker__c-v1%2E1 Broker Layout')).to.deep.equal({
@@ -193,7 +253,7 @@ describe('remoteSourceTrackingService', () => {
       });
     });
 
-    it('will match encoded SourceMember keys on get', async () => {
+    it('will match encoded SourceMember keys on get', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
@@ -211,7 +271,7 @@ describe('remoteSourceTrackingService', () => {
           },
         },
       };
-      await remoteSourceTrackingService.setContentsFromObject(maxJson);
+      setContents(maxJson);
 
       // @ts-ignore getSourceMember is private
       expect(remoteSourceTrackingService.getSourceMember('Layout__Broker__c-v1.1 Broker Layout')).to.deep.equal({
@@ -222,7 +282,7 @@ describe('remoteSourceTrackingService', () => {
       });
     });
 
-    it('will match/update decoded SourceMember keys on set', async () => {
+    it('will match/update decoded SourceMember keys on set', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
@@ -240,7 +300,7 @@ describe('remoteSourceTrackingService', () => {
           },
         },
       };
-      await remoteSourceTrackingService.setContentsFromObject(maxJson);
+      setContents(maxJson);
 
       // @ts-ignore setMemberRevision is private
       remoteSourceTrackingService.setMemberRevision('Layout__Broker__c-v1%2E1 Broker Layout', {
@@ -250,24 +310,28 @@ describe('remoteSourceTrackingService', () => {
         isNameObsolete: false,
       });
 
-      // @ts-ignore getSourceMembers is private
-      expect(remoteSourceTrackingService.getSourceMembers()).to.deep.equal({
-        'Layout__Broker__c-Broker Layout': {
-          serverRevisionCounter: 1,
-          lastRetrievedFromServer: 1,
-          memberType: 'Layout',
-          isNameObsolete: false,
-        },
-        'Layout__Broker__c-v1.1 Broker Layout': {
-          serverRevisionCounter: 3,
-          lastRetrievedFromServer: 3,
-          memberType: 'Layout',
-          isNameObsolete: false,
-        },
-      });
+      // @ts-expect-error getSourceMembers is private
+      expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(
+        new Map(
+          Object.entries({
+            'Layout__Broker__c-Broker Layout': {
+              serverRevisionCounter: 1,
+              lastRetrievedFromServer: 1,
+              memberType: 'Layout',
+              isNameObsolete: false,
+            },
+            'Layout__Broker__c-v1.1 Broker Layout': {
+              serverRevisionCounter: 3,
+              lastRetrievedFromServer: 3,
+              memberType: 'Layout',
+              isNameObsolete: false,
+            },
+          })
+        )
+      );
     });
 
-    it('will match/update encoded SourceMember keys on set', async () => {
+    it('will match/update encoded SourceMember keys on set', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
@@ -285,7 +349,7 @@ describe('remoteSourceTrackingService', () => {
           },
         },
       };
-      await remoteSourceTrackingService.setContentsFromObject(maxJson);
+      setContents(maxJson);
 
       // @ts-ignore setMemberRevision is private
       remoteSourceTrackingService.setMemberRevision('Layout__Broker__c-v1.1 Broker Layout', {
@@ -295,30 +359,34 @@ describe('remoteSourceTrackingService', () => {
         isNameObsolete: false,
       });
 
-      // @ts-ignore getSourceMembers is private
-      expect(remoteSourceTrackingService.getSourceMembers()).to.deep.equal({
-        'Layout__Broker__c-Broker Layout': {
-          serverRevisionCounter: 1,
-          lastRetrievedFromServer: 1,
-          memberType: 'Layout',
-          isNameObsolete: false,
-        },
-        'Layout__Broker__c-v1%2E1 Broker Layout': {
-          serverRevisionCounter: 3,
-          lastRetrievedFromServer: 3,
-          memberType: 'Layout',
-          isNameObsolete: false,
-        },
-      });
+      // @ts-expect-error getSourceMembers is private
+      expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(
+        new Map(
+          Object.entries({
+            'Layout__Broker__c-Broker Layout': {
+              serverRevisionCounter: 1,
+              lastRetrievedFromServer: 1,
+              memberType: 'Layout',
+              isNameObsolete: false,
+            },
+            'Layout__Broker__c-v1%2E1 Broker Layout': {
+              serverRevisionCounter: 3,
+              lastRetrievedFromServer: 3,
+              memberType: 'Layout',
+              isNameObsolete: false,
+            },
+          })
+        )
+      );
     });
   });
 
   describe('setServerMaxRevision', () => {
-    it('should set the initial serverMaxRevisionCounter to zero during file creation', async () => {
-      await remoteSourceTrackingService.init();
-      const contents = remoteSourceTrackingService.getContents();
-      expect(contents.serverMaxRevisionCounter).to.equal(0);
-      expect(contents.sourceMembers).to.eql({});
+    it('should set the initial serverMaxRevisionCounter to zero during file creation', () => {
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.serverMaxRevisionCounter).to.equal(0);
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.sourceMembers).to.eql(new Map());
     });
   });
 
@@ -333,14 +401,12 @@ describe('remoteSourceTrackingService', () => {
     it('should sync SourceMembers when query results match', async () => {
       // @ts-ignore
       const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom');
-      // @ts-ignore
-      const getServerMaxRevisionStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'getServerMaxRevision');
-      const maxRev = 9;
-      getServerMaxRevisionStub.returns(maxRev);
+      // @ts-expect-error it's private
+      remoteSourceTrackingService.serverMaxRevisionCounter = 9;
 
-      // @ts-ignore
       queryStub.onFirstCall().resolves([]);
       const queryResult = [1, 2, 3].map((rev) => getSourceMember(rev));
+      // @ts-ignore
       queryStub.onSecondCall().resolves(queryResult);
 
       // @ts-ignore
@@ -354,18 +420,13 @@ describe('remoteSourceTrackingService', () => {
         `trackSourceMembers was not called twice.  it was called ${trackSpy.callCount} times`
       ).to.equal(true);
       expect(queryStub.called).to.equal(true);
-      expect(
-        getServerMaxRevisionStub.calledOnce,
-        `getServerMaxRevisionStub was not called once.  it was called ${queryStub.callCount} times`
-      ).to.equal(true);
     });
     it('should sync specific elements', async () => {
-      const contents = remoteSourceTrackingService.getContents();
-      expect(contents).to.deep.equal({
+      expect(getContents()).to.deep.equal({
         serverMaxRevisionCounter: 0,
         sourceMembers: {},
       });
-      remoteSourceTrackingService.setContents({
+      setContents({
         serverMaxRevisionCounter: 1,
         sourceMembers: {
           'Profile__my(awesome)profile': {
@@ -385,7 +446,7 @@ describe('remoteSourceTrackingService', () => {
         },
       ]);
       // lastRetrievedFromServer should be set to the serverRevisionCounter
-      expect(await remoteSourceTrackingService.getContents()).to.deep.equal({
+      expect(getContents()).to.deep.equal({
         serverMaxRevisionCounter: 1,
         sourceMembers: {
           'Profile__my(awesome)profile': {
@@ -399,8 +460,6 @@ describe('remoteSourceTrackingService', () => {
     });
     it('should not poll when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
       const getBooleanStub = $$.SANDBOX.stub(kit.env, 'getBoolean').callsFake(() => true);
-      // @ts-ignore
-      const getServerMaxRevisionStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'getServerMaxRevision');
 
       // @ts-ignore
       const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -409,7 +468,6 @@ describe('remoteSourceTrackingService', () => {
       await remoteSourceTrackingService.pollForSourceTracking(memberNames, 2);
       expect(trackSpy.called).to.equal(false);
       expect(getBooleanStub.calledOnce).to.equal(true);
-      expect(getServerMaxRevisionStub.notCalled).to.equal(true);
     });
 
     describe('timeout handling', () => {
@@ -417,10 +475,6 @@ describe('remoteSourceTrackingService', () => {
         // @ts-ignore
         const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
         const warnSpy = $$.SANDBOX.spy($$.TEST_LOGGER, 'warn');
-        // @ts-ignore
-        const getServerMaxRevisionStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'getServerMaxRevision');
-        const maxRev = 9;
-        getServerMaxRevisionStub.returns(maxRev);
 
         // @ts-ignore
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -433,7 +487,6 @@ describe('remoteSourceTrackingService', () => {
         const expectedMsg = 'Polling for SourceMembers timed out after 6 attempts';
         expect(warnSpy.calledWithMatch(expectedMsg)).to.equal(true);
         expect(queryStub.called).to.equal(true);
-        expect(getServerMaxRevisionStub.calledOnce).to.equal(true);
       }).timeout(10000);
 
       it('should stop if SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is exceeded', async () => {
@@ -442,10 +495,6 @@ describe('remoteSourceTrackingService', () => {
         // @ts-ignore
         const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
         const warnSpy = $$.SANDBOX.spy($$.TEST_LOGGER, 'warn');
-        // @ts-ignore
-        const getServerMaxRevisionStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'getServerMaxRevision');
-        const maxRev = 9;
-        getServerMaxRevisionStub.returns(maxRev);
 
         // @ts-ignore
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -459,7 +508,6 @@ describe('remoteSourceTrackingService', () => {
         expect(warnSpy.calledWithMatch(expectedMsg)).to.equal(true);
         expect(warnSpy.calledOnce).to.equal(true);
         expect(queryStub.called).to.equal(true);
-        expect(getServerMaxRevisionStub.calledOnce).to.equal(true);
       });
     });
   });
@@ -467,55 +515,42 @@ describe('remoteSourceTrackingService', () => {
   describe('reset', () => {
     it('should reset source tracking state to be synced with the max RevisionCounter on the org', async () => {
       // Set initial test state of 5 apex classes not yet synced.
-      remoteSourceTrackingService.set('serverMaxRevisionCounter', 5);
-      remoteSourceTrackingService.set('sourceMembers', getMemberRevisionEntries(5));
-
+      setContents({
+        serverMaxRevisionCounter: 5,
+        sourceMembers: getMemberRevisionEntries(5),
+      });
       // @ts-ignore
-      const setMaxSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'setServerMaxRevision');
-      // @ts-ignore
-      const initMembersSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'initSourceMembers');
-      // @ts-ignore
-      const queryToSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersTo');
+      const queryToSpy = $$.SANDBOX.spy(mocks, 'querySourceMembersTo');
       const sourceMembers = [1, 2, 3, 4, 5, 6, 7].map((rev) => getSourceMember(rev));
       // @ts-ignore
       $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
 
       await remoteSourceTrackingService.reset();
 
-      expect(setMaxSpy.calledTwice).to.equal(true);
-      expect(setMaxSpy.firstCall.args[0]).to.equal(0);
-      expect(setMaxSpy.secondCall.args[0]).to.equal(7);
-      expect(initMembersSpy.called).to.equal(true);
       expect(queryToSpy.called).to.equal(false);
-      const contents = remoteSourceTrackingService.getContents();
-      expect(contents.serverMaxRevisionCounter).to.equal(7);
+      const contents = getContents();
+      // @ts-expect-error it's private
+      expect(remoteSourceTrackingService.serverMaxRevisionCounter).to.equal(7);
       const expectedMemberRevisions = getMemberRevisionEntries(7, true);
       expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
     });
 
     it('should reset source tracking state to be synced with the specified revision', async () => {
       // Set initial test state of 5 apex classes not yet synced.
-      remoteSourceTrackingService.set('serverMaxRevisionCounter', 5);
-      remoteSourceTrackingService.set('sourceMembers', getMemberRevisionEntries(5));
-
-      // @ts-ignore
-      const setMaxSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'setServerMaxRevision');
-      // @ts-ignore
-      const initMembersSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'initSourceMembers');
+      setContents({
+        serverMaxRevisionCounter: 5,
+        sourceMembers: getMemberRevisionEntries(5),
+      });
       // @ts-ignore
       const queryFromSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersFrom');
       const sourceMembers = [1, 2, 3].map((rev) => getSourceMember(rev));
       // @ts-ignore
-      $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersTo').resolves(sourceMembers);
+      $$.SANDBOX.stub(mocks, 'querySourceMembersTo').resolves(sourceMembers);
 
       await remoteSourceTrackingService.reset(3);
 
-      expect(setMaxSpy.calledTwice).to.equal(true);
-      expect(setMaxSpy.firstCall.args[0]).to.equal(0);
-      expect(setMaxSpy.secondCall.args[0]).to.equal(3);
-      expect(initMembersSpy.called).to.equal(true);
       expect(queryFromSpy.called).to.equal(false);
-      const contents = remoteSourceTrackingService.getContents();
+      const contents = getContents();
       expect(contents.serverMaxRevisionCounter).to.equal(3);
       const expectedMemberRevisions = getMemberRevisionEntries(3, true);
       expect(contents.sourceMembers).to.deep.equal(expectedMemberRevisions);
@@ -524,8 +559,27 @@ describe('remoteSourceTrackingService', () => {
 
   describe('file location support', () => {
     it('should return the correct file location (base case)', () => {
-      const fileLocation = remoteSourceTrackingService.getPath();
-      expect(fileLocation).to.include(`.sf${sep}`);
+      expect(remoteSourceTrackingService.filePath).to.include(`.sf${sep}`);
     });
+  });
+});
+
+describe('calculateTimeout', () => {
+  afterEach(() => {
+    delete process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT;
+  });
+  it('0 members => 5 sec', () => {
+    expect(calculateTimeout(0).seconds).to.equal(5);
+  });
+  it('10000 members => 505 sec', () => {
+    expect(calculateTimeout(10000).seconds).to.equal(505);
+  });
+  it('override 60 in env', () => {
+    process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT = '60';
+    expect(calculateTimeout(10000).seconds).to.equal(60);
+  });
+  it('override 0 in env has no effect', () => {
+    process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT = '0';
+    expect(calculateTimeout(10000).seconds).to.equal(505);
   });
 });

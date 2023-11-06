@@ -8,21 +8,19 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { ConfigFile, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
-import { Dictionary, Optional, definiteEntriesOf } from '@salesforce/ts-types';
-import { env, Duration } from '@salesforce/kit';
+import { Logger, Org, Messages, Lifecycle, SfError, Connection } from '@salesforce/core';
+import { env, Duration, parseJsonMap } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
-// represents the contents of the config file stored in 'maxRevision.json'
-Messages.importMessagesDirectory(__dirname);
-const messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
 
-type Contents = {
+/** represents the contents of the config file stored in 'maxRevision.json' */
+export type Contents = {
   serverMaxRevisionCounter: number;
-  sourceMembers: Dictionary<MemberRevision>;
+  sourceMembers: Record<string, MemberRevision>;
 };
+const FILENAME = 'maxRevision.json';
 
 /*
  * after some results have returned, how many times should we poll for missing sourcemembers
@@ -31,12 +29,11 @@ type Contents = {
 const POLLING_DELAY_MS = 1000;
 const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
   (env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
-export namespace RemoteSourceTrackingService {
-  // Constructor Options for RemoteSourceTrackingService.
-  export interface Options extends ConfigFile.Options {
-    org: Org;
-    projectPath: string;
-  }
+
+/** Options for RemoteSourceTrackingService.getInstance */
+export interface RemoteSourceTrackingServiceOptions {
+  org: Org;
+  projectPath: string;
 }
 
 /**
@@ -75,39 +72,44 @@ export namespace RemoteSourceTrackingService {
  * from the `lastRetrievedFromServer`. When a pull is performed, all of the pulled members will have their counters set
  * to the corresponding `RevisionCounter` from the `SourceMember` of the org.
  */
-export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTrackingService.Options, Contents> {
-  private static remoteSourceTrackingServiceDictionary: Dictionary<RemoteSourceTrackingService> = {};
-  protected logger!: Logger;
-  private org!: Org;
+export class RemoteSourceTrackingService {
+  /** map of constructed, init'ed instances; key is orgId.  It's like a singleton at the org level */
+  private static instanceMap = new Map<string, RemoteSourceTrackingService>();
+  public readonly filePath: string;
+
+  private logger!: Logger;
+  private serverMaxRevisionCounter = 0;
+  private sourceMembers = new Map<string, MemberRevision>();
+
+  private org: Org;
 
   // A short term cache (within the same process) of query results based on a revision.
   // Useful for source:pull, which makes 3 of the same queries; during status, building manifests, after pull success.
   private queryCache = new Map<number, SourceMember[]>();
 
-  //
-  //  * * * * *  P U B L I C    M E T H O D S  * * * * *
-  //
+  /**
+   * Initializes the service with existing remote source tracking data, or sets
+   * the state to begin source tracking of metadata changes in the org.
+   */
+  private constructor(options: RemoteSourceTrackingServiceOptions) {
+    this.org = options.org;
+    this.filePath = path.join(options.projectPath, '.sf', 'orgs', this.org.getOrgId(), FILENAME);
+  }
 
   /**
    * Get the singleton instance for a given user.
    *
-   * @param {RemoteSourceTrackingService.Options} options that contain the org's username
+   * @param {RemoteSourceTrackingService.Options} options that contain the org
    * @returns {Promise<RemoteSourceTrackingService>} the remoteSourceTrackingService object for the given username
    */
-  public static async getInstance(options: RemoteSourceTrackingService.Options): Promise<RemoteSourceTrackingService> {
+  public static async getInstance(options: RemoteSourceTrackingServiceOptions): Promise<RemoteSourceTrackingService> {
     const orgId = options.org.getOrgId();
-    if (!this.remoteSourceTrackingServiceDictionary[orgId]) {
-      this.remoteSourceTrackingServiceDictionary[orgId] = await RemoteSourceTrackingService.create(options);
+    let service = this.instanceMap.get(orgId);
+    if (!service) {
+      service = await new RemoteSourceTrackingService(options).init();
+      this.instanceMap.set(orgId, service);
     }
-    return this.remoteSourceTrackingServiceDictionary[orgId] as RemoteSourceTrackingService;
-  }
-
-  public static getFileName(): string {
-    return 'maxRevision.json';
-  }
-
-  public static getFilePath(orgId: string): string {
-    return path.join('.sf', 'orgs', orgId, RemoteSourceTrackingService.getFileName());
+    return service;
   }
 
   /**
@@ -117,59 +119,12 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    * @returns the path of the deleted source tracking file
    */
   public static async delete(orgId: string): Promise<string> {
-    const fileToDelete = RemoteSourceTrackingService.getFilePath(orgId);
+    const fileToDelete = getFilePath(orgId);
     // the file might not exist, in which case we don't need to delete it
     if (fs.existsSync(fileToDelete)) {
       await fs.promises.unlink(fileToDelete);
     }
     return path.isAbsolute(fileToDelete) ? fileToDelete : path.join(process.cwd(), fileToDelete);
-  }
-
-  /**
-   * Initializes the service with existing remote source tracking data, or sets
-   * the state to begin source tracking of metadata changes in the org.
-   */
-  public async init(): Promise<void> {
-    this.org = this.options.org;
-    this.logger = await Logger.child(this.constructor.name);
-    this.options = {
-      ...this.options,
-      stateFolder: '.sf',
-      filename: RemoteSourceTrackingService.getFileName(),
-      filePath: path.join('orgs', this.org.getOrgId()),
-    };
-
-    try {
-      await super.init();
-    } catch (err) {
-      throw SfError.wrap(err as Error);
-    }
-
-    // Initialize a new maxRevision.json if the file doesn't yet exist.
-    if (!this.has('serverMaxRevisionCounter') && !this.has('sourceMembers')) {
-      try {
-        // To find out if the associated org has source tracking enabled, we need to make a query
-        // for SourceMembers.  If a certain error is thrown during the query we won't try to do
-        // source tracking for this org.  Calling querySourceMembersFrom() has the extra benefit
-        // of caching the query so we don't have to make an identical request in the same process.
-        await this.querySourceMembersFrom({ fromRevision: 0 });
-        this.initSourceMembers();
-        this.setServerMaxRevision(0);
-
-        await this.write();
-      } catch (e) {
-        if (
-          e instanceof SfError &&
-          e.name === 'INVALID_TYPE' &&
-          e.message.includes("sObject type 'SourceMember' is not supported")
-        ) {
-          // non-source-tracked org E.G. DevHub or trailhead playground
-          await this.org.setTracksSource(false);
-        } else {
-          throw e;
-        }
-      }
-    }
   }
 
   /**
@@ -185,49 +140,24 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       this.logger.debug(`Syncing ${elements.length} Revisions by key`);
     }
 
-    const revisions = this.getSourceMembers();
-
     // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
     // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
     // so we de-dupe via a set
     Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(element)))).map((metadataKey) => {
-      const revision = revisions[metadataKey] ?? revisions[decodeURI(metadataKey)];
-      if (revision && revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
+      const revision = this.sourceMembers.get(metadataKey) ?? this.sourceMembers.get(decodeURI(metadataKey));
+      if (!revision) {
+        this.logger.warn(`found no matching revision for ${metadataKey}`);
+      } else if (revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
         if (!quiet) {
           this.logger.debug(
             `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
           );
         }
-        revision.lastRetrievedFromServer = revision.serverRevisionCounter;
-        this.setMemberRevision(metadataKey, revision);
-      } else {
-        this.logger.warn(`found no matching revision for ${metadataKey}`);
+        this.setMemberRevision(metadataKey, { ...revision, lastRetrievedFromServer: revision.serverRevisionCounter });
       }
     });
 
     await this.write();
-  }
-
-  /**
-   * Returns the `ChangeElement` currently being tracked given a metadata key,
-   * or `undefined` if not found.
-   *
-   * @param key string of the form, `<type>__<name>` e.g.,`ApexClass__MyClass`
-   */
-  public getTrackedElement(key: string): RemoteChangeElement | undefined {
-    const memberRevision = this.getSourceMembers()[key];
-    if (memberRevision) {
-      return convertRevisionToChange(key, memberRevision);
-    }
-  }
-
-  /**
-   * Returns an array of `ChangeElements` currently being tracked.
-   */
-  public getTrackedElements(): RemoteChangeElement[] {
-    return Object.keys(this.getSourceMembers())
-      .map((key) => this.getTrackedElement(key))
-      .filter(Boolean) as RemoteChangeElement[];
   }
 
   /**
@@ -243,73 +173,18 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
    */
   public async reset(toRevision?: number): Promise<string[]> {
     // Called during a source:tracking:reset
-    this.setServerMaxRevision(0);
-    this.initSourceMembers();
+    this.serverMaxRevisionCounter = 0;
+    this.sourceMembers = new Map<string, MemberRevision>();
 
     const members =
       toRevision !== undefined && toRevision !== null
-        ? await this.querySourceMembersTo(toRevision)
+        ? await querySourceMembersTo(this.org.getConnection(), toRevision)
         : await this.querySourceMembersFrom({ fromRevision: 0 });
 
     await this.trackSourceMembers(members, true);
     return members.map((member) => getMetadataKey(member.MemberType, member.MemberName));
   }
-  // Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
-  // the lastRetrievedFromServer field (sync), and persists the changes to maxRevision.json.
-  public async trackSourceMembers(sourceMembers: SourceMember[], sync = false): Promise<void> {
-    if (sourceMembers.length === 0) {
-      return;
-    }
-    const quiet = sourceMembers.length > 100;
-    if (quiet) {
-      this.logger.debug(`Upserting ${sourceMembers.length} SourceMembers to maxRevision.json`);
-    }
 
-    let serverMaxRevisionCounter = this.getServerMaxRevision();
-    sourceMembers.forEach((change) => {
-      // try accessing the sourceMembers object at the index of the change's name
-      // if it exists, we'll update the fields - if it doesn't, we'll create and insert it
-      const key = getMetadataKey(change.MemberType, change.MemberName);
-      const sourceMember = this.getSourceMember(key) ?? {
-        serverRevisionCounter: change.RevisionCounter,
-        lastRetrievedFromServer: null,
-        memberType: change.MemberType,
-        isNameObsolete: change.IsNameObsolete,
-      };
-      if (sourceMember.lastRetrievedFromServer) {
-        // We are already tracking this element so we'll update it
-        if (!quiet) {
-          this.logger.debug(
-            `Updating ${key} to RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
-          );
-        }
-        sourceMember.serverRevisionCounter = change.RevisionCounter;
-        sourceMember.isNameObsolete = change.IsNameObsolete;
-      } else if (!quiet) {
-        // We are not yet tracking it so we'll insert a new record
-        this.logger.debug(
-          `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
-        );
-      }
-
-      // If we are syncing changes then we need to update the lastRetrievedFromServer field to
-      // match the RevisionCounter from the SourceMember.
-      if (sync) {
-        sourceMember.lastRetrievedFromServer = change.RevisionCounter;
-      }
-      // Keep track of the highest RevisionCounter for setting the serverMaxRevisionCounter
-      if (change.RevisionCounter > serverMaxRevisionCounter) {
-        serverMaxRevisionCounter = change.RevisionCounter;
-      }
-      // Update the state with the latest SourceMember data
-      this.setMemberRevision(key, sourceMember);
-    });
-    // Update the serverMaxRevisionCounter to the highest RevisionCounter
-    this.setServerMaxRevision(serverMaxRevisionCounter);
-    this.logger.debug(`Updating serverMaxRevisionCounter to ${serverMaxRevisionCounter}`);
-
-    await this.write();
-  }
   /**
    * Queries the org for any new, updated, or deleted metadata and updates
    * source tracking state.  All `ChangeElements` not in sync with the org
@@ -329,7 +204,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
     // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
     // does not match the serverRevisionCounter.
-    const returnElements = definiteEntriesOf(this.getSourceMembers())
+    const returnElements = Array.from(this.sourceMembers.entries())
       .filter(([, member]) => member.serverRevisionCounter !== member.lastRetrievedFromServer)
       .map(([key, member]) => convertRevisionToChange(key, member));
 
@@ -364,8 +239,8 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
     const originalOutstandingSize = outstandingSourceMembers.size;
     // this will be the absolute timeout from the start of the poll.  We can also exit early if it doesn't look like more results are coming in
-    const pollingTimeout = this.calculateTimeout(outstandingSourceMembers.size);
-    let highestRevisionSoFar = this.getServerMaxRevision();
+    const pollingTimeout = calculateTimeout(outstandingSourceMembers.size);
+    let highestRevisionSoFar = this.serverMaxRevisionCounter;
     let pollAttempts = 0;
     let consecutiveEmptyResults = 0;
     let someResultsReturned = false;
@@ -476,55 +351,104 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
       });
     }
   }
-  //
-  //  * * * * *  P R I V A T E    M E T H O D S  * * * * *
-  //
 
-  private getServerMaxRevision(): number {
-    return this.get('serverMaxRevisionCounter') ?? 0;
+  /**
+   * Adds the given SourceMembers to the list of tracked MemberRevisions,  optionally updating
+   * the lastRetrievedFromServer field (sync), and persists the changes to maxRevision.json.
+   */
+  private async trackSourceMembers(sourceMembers: SourceMember[], sync = false): Promise<void> {
+    if (sourceMembers.length === 0) {
+      return;
+    }
+    const quiet = sourceMembers.length > 100;
+    if (quiet) {
+      this.logger.debug(`Upserting ${sourceMembers.length} SourceMembers to maxRevision.json`);
+    }
+
+    let serverMaxRevisionCounter = this.serverMaxRevisionCounter;
+    sourceMembers.forEach((change) => {
+      // try accessing the sourceMembers object at the index of the change's name
+      // if it exists, we'll update the fields - if it doesn't, we'll create and insert it
+      const key = getMetadataKey(change.MemberType, change.MemberName);
+      const sourceMember = this.getSourceMember(key) ?? {
+        serverRevisionCounter: change.RevisionCounter,
+        lastRetrievedFromServer: null,
+        memberType: change.MemberType,
+        isNameObsolete: change.IsNameObsolete,
+      };
+      if (sourceMember.lastRetrievedFromServer) {
+        // We are already tracking this element so we'll update it
+        if (!quiet) {
+          this.logger.debug(
+            `Updating ${key} to RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
+          );
+        }
+        sourceMember.serverRevisionCounter = change.RevisionCounter;
+        sourceMember.isNameObsolete = change.IsNameObsolete;
+      } else if (!quiet) {
+        // We are not yet tracking it so we'll insert a new record
+        this.logger.debug(
+          `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
+        );
+      }
+
+      // If we are syncing changes then we need to update the lastRetrievedFromServer field to
+      // match the RevisionCounter from the SourceMember.
+      if (sync) {
+        sourceMember.lastRetrievedFromServer = change.RevisionCounter;
+      }
+      // Keep track of the highest RevisionCounter for setting the serverMaxRevisionCounter
+      if (change.RevisionCounter > serverMaxRevisionCounter) {
+        serverMaxRevisionCounter = change.RevisionCounter;
+      }
+      // Update the state with the latest SourceMember data
+      this.setMemberRevision(key, sourceMember);
+    });
+    // Update the serverMaxRevisionCounter to the highest RevisionCounter
+    this.serverMaxRevisionCounter = serverMaxRevisionCounter;
+    this.logger.debug(`Updating serverMaxRevisionCounter to ${serverMaxRevisionCounter}`);
+
+    await this.write();
   }
 
-  private setServerMaxRevision(revision = 0): void {
-    this.set('serverMaxRevisionCounter', revision);
+  /** reads the tracking file and inits the logger and contents */
+  private async init(): Promise<RemoteSourceTrackingService> {
+    if (!(await this.org.supportsSourceTracking())) {
+      Messages.importMessagesDirectory(__dirname);
+      const messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
+      throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
+    }
+    this.logger = await Logger.child(this.constructor.name);
+    if (fs.existsSync(this.filePath)) {
+      // read the file contents and turn it into the map
+      const rawContents = await readFileContents(this.filePath);
+      if (rawContents.serverMaxRevisionCounter && rawContents.sourceMembers) {
+        this.serverMaxRevisionCounter = rawContents.serverMaxRevisionCounter;
+        this.sourceMembers = new Map(Object.entries(rawContents.sourceMembers ?? {}));
+      }
+    } else {
+      // we need to init the file
+      await this.write();
+    }
+    return this;
   }
 
-  private getSourceMembers(): Dictionary<MemberRevision> {
-    return this.get('sourceMembers');
-  }
-
-  private initSourceMembers(): void {
-    this.set('sourceMembers', {});
-  }
-
-  // Return a tracked element as MemberRevision data.
-  private getSourceMember(key: string): Optional<MemberRevision> {
-    const sourceMembers = this.getSourceMembers();
+  /** Return a tracked element as MemberRevision data.*/
+  private getSourceMember(key: string): MemberRevision | undefined {
     return (
-      sourceMembers[key] ?? sourceMembers[getDecodedKeyIfSourceMembersHas({ sourceMembers, key, logger: this.logger })]
+      this.sourceMembers.get(key) ??
+      this.sourceMembers.get(
+        getDecodedKeyIfSourceMembersHas({ sourceMembers: this.sourceMembers, key, logger: this.logger })
+      )
     );
   }
 
   private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    const sourceMembers = this.getSourceMembers();
-    const matchingKey = sourceMembers[key]
+    const sourceMembers = this.sourceMembers;
+    const matchingKey = sourceMembers.get(key)
       ? key
       : getDecodedKeyIfSourceMembersHas({ sourceMembers, key, logger: this.logger });
-    this.set('sourceMembers', { ...sourceMembers, [matchingKey]: sourceMember });
-  }
-
-  private calculateTimeout(memberCount: number): Duration {
-    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
-    if (overriddenTimeout > 0) {
-      this.logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
-      return Duration.seconds(overriddenTimeout);
-    }
-
-    // Calculate a polling timeout for SourceMembers based on the number of
-    // member names being polled plus a buffer of 5 seconds.  This will
-    // wait 50s for each 1000 components, plus 5s.
-    const pollingTimeout = Math.ceil(memberCount * 0.05) + 5;
-    this.logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
-    return Duration.seconds(pollingTimeout);
+    this.sourceMembers.set(matchingKey, sourceMember);
   }
 
   private async querySourceMembersFrom({
@@ -532,7 +456,7 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
     quiet = false,
     useCache = true,
   }: { fromRevision?: number; quiet?: boolean; useCache?: boolean } = {}): Promise<SourceMember[]> {
-    const rev = fromRevision ?? this.getServerMaxRevision();
+    const rev = fromRevision ?? this.serverMaxRevisionCounter;
 
     if (useCache) {
       // Check cache first and return if found.
@@ -545,31 +469,28 @@ export class RemoteSourceTrackingService extends ConfigFile<RemoteSourceTracking
 
     // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
     const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter > ${rev}`;
-    const queryResult = await this.query(query, quiet);
+    if (!quiet) {
+      this.logger.debug(`Query: ${query}`);
+    }
+    const queryResult = await queryFn(this.org.getConnection(), query);
     this.queryCache.set(rev, queryResult);
 
     return queryResult;
   }
 
-  private async querySourceMembersTo(toRevision: number, quiet = false): Promise<SourceMember[]> {
-    const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
-    return this.query(query, quiet);
-  }
-
-  private async query(query: string, quiet = false): Promise<SourceMember[]> {
-    if (!(await this.org.tracksSource())) {
-      throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
-    }
-    if (!quiet) {
-      this.logger.debug(query);
-    }
-
-    try {
-      return (await this.org.getConnection().tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50000 }))
-        .records;
-    } catch (error) {
-      throw SfError.wrap(error as Error);
-    }
+  private async write(): Promise<void> {
+    await fs.promises.mkdir(path.dirname(this.filePath), { recursive: true });
+    return fs.promises.writeFile(
+      this.filePath,
+      JSON.stringify(
+        {
+          serverMaxRevisionCounter: this.serverMaxRevisionCounter,
+          sourceMembers: Object.fromEntries(this.sourceMembers),
+        },
+        null,
+        4
+      )
+    );
   }
 }
 
@@ -604,15 +525,63 @@ function getDecodedKeyIfSourceMembersHas({
   sourceMembers,
   logger,
 }: {
-  sourceMembers: Dictionary<MemberRevision>;
+  sourceMembers: Map<string, MemberRevision>;
   key: string;
   logger: Logger;
 }): string {
   const originalKeyDecoded = decodeURIComponent(key);
-  const match = Object.keys(sourceMembers).find((memberKey) => decodeURIComponent(memberKey) === originalKeyDecoded);
+  const match = Array.from(sourceMembers.keys()).find(
+    (memberKey) => decodeURIComponent(memberKey) === originalKeyDecoded
+  );
   if (match) {
     logger.debug(`${match} matches already tracked member: ${key}`);
     return match;
   }
   return key;
 }
+
+const getFilePath = (orgId: string): string => path.join('.sf', 'orgs', orgId, FILENAME);
+
+const readFileContents = async (filePath: string): Promise<Contents | Record<string, never>> => {
+  try {
+    const contents = await fs.promises.readFile(filePath, 'utf8');
+    return parseJsonMap<Contents>(contents, filePath);
+  } catch (e) {
+    Logger.childFromRoot('remoteSourceTrackingService:readFileContents').debug(
+      `Error reading or parsing file file at ${filePath}.  Will treat as an empty file.`,
+      e
+    );
+
+    return {};
+  }
+};
+
+export const calculateTimeout = (memberCount: number): Duration => {
+  const logger = Logger.childFromRoot('remoteSourceTrackingService:calculateTimeout');
+  const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
+  if (overriddenTimeout > 0) {
+    logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
+    return Duration.seconds(overriddenTimeout);
+  }
+
+  // Calculate a polling timeout for SourceMembers based on the number of
+  // member names being polled plus a buffer of 5 seconds.  This will
+  // wait 50s for each 1000 components, plus 5s.
+  const pollingTimeout = Math.ceil(memberCount * 0.05) + 5;
+  logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
+  return Duration.seconds(pollingTimeout);
+};
+
+/** exported only for spy/mock  */
+export const querySourceMembersTo = async (conn: Connection, toRevision: number): Promise<SourceMember[]> => {
+  const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
+  return queryFn(conn, query);
+};
+
+const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
+  try {
+    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50000 })).records;
+  } catch (error) {
+    throw SfError.wrap(error as Error);
+  }
+};
