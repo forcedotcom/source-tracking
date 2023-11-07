@@ -1,3 +1,45 @@
+# [4.3.0](https://github.com/forcedotcom/source-tracking/compare/4.2.20...4.3.0) (2023-11-06)
+
+### Features
+
+- no configFile in remoteSourceTracking ([f347144](https://github.com/forcedotcom/source-tracking/commit/f347144b3f86f9516edf533830c94361c1b5a277))
+
+## [4.2.20](https://github.com/forcedotcom/source-tracking/compare/4.2.19...4.2.20) (2023-10-31)
+
+### Bug Fixes
+
+- bump sdr to 9.8.1 ([b73a6bf](https://github.com/forcedotcom/source-tracking/commit/b73a6bffbb0430be1fef743c1442d338ef1e15e2))
+
+## [4.2.19](https://github.com/forcedotcom/source-tracking/compare/4.2.18...4.2.19) (2023-10-21)
+
+### Bug Fixes
+
+- **deps:** bump @salesforce/kit from 3.0.13 to 3.0.14 ([7be2683](https://github.com/forcedotcom/source-tracking/commit/7be2683c5c9f613b23d4f796e67c7b46d8c66ba6))
+
+## [4.2.18](https://github.com/forcedotcom/source-tracking/compare/4.2.17...4.2.18) (2023-10-18)
+
+### Bug Fixes
+
+- undefined handling in remote tracking ([#489](https://github.com/forcedotcom/source-tracking/issues/489)) ([eacfeac](https://github.com/forcedotcom/source-tracking/commit/eacfeac976e32afd720b8aa1dfc945d63d8a5a7a))
+
+## [4.2.17](https://github.com/forcedotcom/source-tracking/compare/4.2.16...4.2.17) (2023-10-16)
+
+### Bug Fixes
+
+- bump to SDR 9.7.25 ([1dc60cc](https://github.com/forcedotcom/source-tracking/commit/1dc60ccb4715989ec81d3ba50a5a42758561cd1b))
+
+## [4.2.16](https://github.com/forcedotcom/source-tracking/compare/4.2.15...4.2.16) (2023-10-03)
+
+### Bug Fixes
+
+- stl uses project api version ([268df38](https://github.com/forcedotcom/source-tracking/commit/268df38e30f1638cb213c27d386b03d279796ea9))
+
+## [4.2.15](https://github.com/forcedotcom/source-tracking/compare/4.2.14...4.2.15) (2023-09-29)
+
+### Bug Fixes
+
+- avoid duplicate STL listeners when multiple instances exist ([23044f1](https://github.com/forcedotcom/source-tracking/commit/23044f1101451abbdfc938637d1aea04c21458bf))
+
 ## [4.2.14](https://github.com/forcedotcom/source-tracking/compare/4.2.13...4.2.14) (2023-09-23)
 
 ### Bug Fixes

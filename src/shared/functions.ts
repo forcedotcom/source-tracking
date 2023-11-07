@@ -5,8 +5,8 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 
-import { sep, normalize, isAbsolute, relative } from 'path';
-import * as fs from 'fs';
+import { sep, normalize, isAbsolute, relative } from 'node:path';
+import * as fs from 'node:fs';
 import { isString } from '@salesforce/ts-types';
 import { SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';

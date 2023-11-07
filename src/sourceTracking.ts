@@ -4,8 +4,8 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import * as fs from 'fs';
-import { resolve, sep, normalize } from 'path';
+import * as fs from 'node:fs';
+import { resolve, sep, normalize } from 'node:path';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
@@ -155,7 +155,7 @@ export class SourceTracking extends AsyncCreatable {
     if (applyIgnore) {
       this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     }
-    const [changeResults, sourceBackedComponents] = await Promise.all([
+    const [changeResults, sourceBackedComponents, projectConfig] = await Promise.all([
       // all changes based on remote tracking
       this.getChanges({
         origin: 'remote',
@@ -168,6 +168,9 @@ export class SourceTracking extends AsyncCreatable {
         state: 'nondelete',
         format: 'SourceComponent',
       }),
+      this.project.resolveProjectConfig() as {
+        sourceApiVersion?: string;
+      },
     ]);
     const componentSet = new ComponentSet(
       applyIgnore
@@ -182,6 +185,9 @@ export class SourceTracking extends AsyncCreatable {
       componentSet.add(mm);
     });
 
+    if (projectConfig.sourceApiVersion) {
+      componentSet.sourceApiVersion = projectConfig.sourceApiVersion;
+    }
     return componentSet;
   }
   /**
@@ -674,35 +680,51 @@ export class SourceTracking extends AsyncCreatable {
       if (!this.ignoreConflicts) {
         this.logger.debug('subscribing to predeploy/retrieve events');
         // subscribe to SDR `pre` events to handle conflicts before deploy/retrieve
-        lifecycle.on('scopedPreDeploy', async (e: ScopedPreDeploy) => {
-          this.logger.debug('received scopedPreDeploy event');
-          if (e.orgId === this.orgId) {
-            throwIfConflicts(findConflictsInComponentSet(e.componentSet, await this.getConflicts()));
-          }
-        });
-        lifecycle.on('scopedPreRetrieve', async (e: ScopedPreRetrieve) => {
-          this.logger.debug('received scopedPreRetrieve event');
-          if (e.orgId === this.orgId) {
-            throwIfConflicts(findConflictsInComponentSet(e.componentSet, await this.getConflicts()));
-          }
-        });
+        lifecycle.on(
+          'scopedPreDeploy',
+          async (e: ScopedPreDeploy) => {
+            this.logger.debug('received scopedPreDeploy event');
+            if (e.orgId === this.orgId) {
+              throwIfConflicts(findConflictsInComponentSet(e.componentSet, await this.getConflicts()));
+            }
+          },
+          `stl#scopedPreDeploy-${this.orgId}`
+        );
+        lifecycle.on(
+          'scopedPreRetrieve',
+          async (e: ScopedPreRetrieve) => {
+            this.logger.debug('received scopedPreRetrieve event');
+            if (e.orgId === this.orgId) {
+              throwIfConflicts(findConflictsInComponentSet(e.componentSet, await this.getConflicts()));
+            }
+          },
+          `stl#scopedPreRetrieve-${this.orgId}`
+        );
       }
       // subscribe to SDR post-deploy event
       this.logger.debug('subscribing to postdeploy/retrieve events');
 
       // yes, the post hooks really have different payloads!
-      lifecycle.on('scopedPostDeploy', async (e: ScopedPostDeploy) => {
-        this.logger.debug('received scopedPostDeploy event');
-        if (e.orgId === this.orgId && e.deployResult.response.success) {
-          await this.updateTrackingFromDeploy(e.deployResult);
-        }
-      });
-      lifecycle.on('scopedPostRetrieve', async (e: ScopedPostRetrieve) => {
-        this.logger.debug('received scopedPostRetrieve event');
-        if (e.orgId === this.orgId && e.retrieveResult.response.success) {
-          await this.updateTrackingFromRetrieve(e.retrieveResult);
-        }
-      });
+      lifecycle.on(
+        'scopedPostDeploy',
+        async (e: ScopedPostDeploy) => {
+          this.logger.debug('received scopedPostDeploy event');
+          if (e.orgId === this.orgId && e.deployResult.response.success) {
+            await this.updateTrackingFromDeploy(e.deployResult);
+          }
+        },
+        `stl#scopedPostDeploy-${this.orgId}`
+      );
+      lifecycle.on(
+        'scopedPostRetrieve',
+        async (e: ScopedPostRetrieve) => {
+          this.logger.debug('received scopedPostRetrieve event');
+          if (e.orgId === this.orgId && e.retrieveResult.response.success) {
+            await this.updateTrackingFromRetrieve(e.retrieveResult);
+          }
+        },
+        `stl#scopedPostRetrieve-${this.orgId}`
+      );
     }
   }
 
