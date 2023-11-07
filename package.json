@@ -45,7 +45,7 @@
     "node": ">=16.0.0"
   },
   "dependencies": {
-    "@oclif/core": "^2.15.0",
+    "@oclif/core": "^3.10.6",
     "@salesforce/core": "^5.3.18",
     "@salesforce/kit": "^3.0.15",
     "@salesforce/source-deploy-retrieve": "^9.8.4",
