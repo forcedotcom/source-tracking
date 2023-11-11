@@ -1,3 +1,12 @@
+## [4.4.2](https://github.com/forcedotcom/source-tracking/compare/4.4.1...4.4.2) (2023-11-11)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 3.10.6 to 3.10.8 ([cb1a690](https://github.com/forcedotcom/source-tracking/commit/cb1a6908a193c1d674bf1ba01c96b3dd13870a8f))
+
+
+
 ## [4.4.1](https://github.com/forcedotcom/source-tracking/compare/4.4.0...4.4.1) (2023-11-11)
 
 
