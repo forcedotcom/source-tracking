@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "@oclif/core": "^3.10.8",
-    "@salesforce/core": "^5.3.18",
+    "@salesforce/core": "^5.3.20",
     "@salesforce/kit": "^3.0.15",
     "@salesforce/source-deploy-retrieve": "^9.8.5",
     "@salesforce/ts-types": "^2.0.9",
