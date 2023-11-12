@@ -1,3 +1,12 @@
+## [4.4.3](https://github.com/forcedotcom/source-tracking/compare/4.4.2...4.4.3) (2023-11-12)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 5.3.18 to 5.3.20 ([e308f14](https://github.com/forcedotcom/source-tracking/commit/e308f14566a5db0c28eb90dfb2b7dc6a7094cd7b))
+
+
+
 ## [4.4.2](https://github.com/forcedotcom/source-tracking/compare/4.4.1...4.4.2) (2023-11-11)
 
 
