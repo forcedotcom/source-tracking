@@ -597,21 +597,21 @@
     semver "^7.5.4"
     ts-retry-promise "^0.7.1"
 
-"@salesforce/dev-config@^4.0.1":
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/@salesforce/dev-config/-/dev-config-4.0.1.tgz#662ffaa4409713553aaf68eed93e7d2429c3ff0e"
-  integrity sha512-0zMjXG4Vjlu/mB7zbuKSXfXiP7CEZBwsPtYqNgburk/wZIU9KcMspLwVBDUxmUj9ltRksD9o1ubRUblN5M3Z0g==
+"@salesforce/dev-config@^4.1.0":
+  version "4.1.0"
+  resolved "https://registry.yarnpkg.com/@salesforce/dev-config/-/dev-config-4.1.0.tgz#e529576466d074e7a5f1441236510fef123da01e"
+  integrity sha512-2iDDepiIwjXHS5IVY7pwv8jMo4xWosJ7p/UTj+lllpB/gnJiYLhjJPE4Z3FCGFKyvfg5jGaimCd8Ca6bLGsCQA==
 
-"@salesforce/dev-scripts@^6.0.3":
-  version "6.0.3"
-  resolved "https://registry.yarnpkg.com/@salesforce/dev-scripts/-/dev-scripts-6.0.3.tgz#6cf4504fd0ec8b4685e729b26685eed60f9c8b26"
-  integrity sha512-WLl1N07oNeRywdypwUrebX/kCkSm3IzmAQpUt4q4Sk8r4vTWv5b6F0pHLv0pGS8/QWNJT7xWGZDF1lgJBHOsmA==
+"@salesforce/dev-scripts@^6.0.4":
+  version "6.0.4"
+  resolved "https://registry.yarnpkg.com/@salesforce/dev-scripts/-/dev-scripts-6.0.4.tgz#0043b8ef4b970f8c2f945cc74eada3b1db52fa9a"
+  integrity sha512-/kdl99bHaNeCoVwfeQhIaKzorcmgpe/nZhlT7ru+If+18NRvBgW5OGmh++Q/NsraaYbsQ/0cDcGNz1dnQ11weA==
   dependencies:
     "@commitlint/cli" "^17.1.2"
     "@commitlint/config-conventional" "^17.1.0"
-    "@salesforce/dev-config" "^4.0.1"
+    "@salesforce/dev-config" "^4.1.0"
     "@salesforce/prettier-config" "^0.0.3"
-    "@types/chai" "^4.2.11"
+    "@types/chai" "^4.3.9"
     "@types/mocha" "^10.0.3"
     "@types/node" "^18"
     "@types/sinon" "^10.0.20"
@@ -751,10 +751,10 @@
     "@types/node" "*"
     "@types/responselike" "^1.0.0"
 
-"@types/chai@^4.2.11":
-  version "4.3.4"
-  resolved "https://registry.yarnpkg.com/@types/chai/-/chai-4.3.4.tgz#e913e8175db8307d78b4e8fa690408ba6b65dee4"
-  integrity sha512-KnRanxnpfpjUTqTCXslZSEdLfXExwgNxYPdiO2WGUj8+HDjFi8R3k5RVKPeSCzLjCcshCAtVO2QBbVuAV4kTnw==
+"@types/chai@^4.3.9":
+  version "4.3.10"
+  resolved "https://registry.yarnpkg.com/@types/chai/-/chai-4.3.10.tgz#2ad2959d1767edee5b0e4efb1a0cd2b500747317"
+  integrity sha512-of+ICnbqjmFCiixUnqRulbylyXQrPqIGf/B3Jax1wIF3DvSheysQxAWvqHhZiW3IQrycvokcLcFQlveGp+vyNg==
 
 "@types/glob@~7.2.0":
   version "7.2.0"
