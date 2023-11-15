@@ -10,7 +10,6 @@
   "repository": "forcedotcom/source-tracking",
   "scripts": {
     "build": "wireit",
-    "ci-docs": "yarn sf-ci-docs",
     "clean": "sf-clean",
     "clean-all": "sf-clean all",
     "compile": "wireit",
