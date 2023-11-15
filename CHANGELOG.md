@@ -1,3 +1,18 @@
+# [5.0.0](https://github.com/forcedotcom/source-tracking/compare/4.4.3...5.0.0) (2023-11-15)
+
+
+* feat!: use core 6 ([40d8565](https://github.com/forcedotcom/source-tracking/commit/40d8565b2fdbd0fe9329e608fbcba2d852714787))
+
+
+### BREAKING CHANGES
+
+* core6 types for configFile
+
+* feat!: node18
+* require node 18+
+
+
+
 ## [4.4.3](https://github.com/forcedotcom/source-tracking/compare/4.4.2...4.4.3) (2023-11-12)
 
 
