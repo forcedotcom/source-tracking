@@ -12,9 +12,7 @@ import { populateTypesAndNames } from './populateTypesAndNames';
 
 export const throwIfConflicts = (conflicts: ConflictResponse[]): void => {
   if (conflicts.length > 0) {
-    const conflictError = new SourceConflictError(`${conflicts.length} conflicts detected`, 'SourceConflictError');
-    conflictError.setData(conflicts);
-    throw conflictError;
+    throw new SourceConflictError(`${conflicts.length} conflicts detected`, conflicts);
   }
 };
 
