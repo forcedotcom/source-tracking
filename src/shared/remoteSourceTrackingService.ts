@@ -7,6 +7,7 @@
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { EOL } from 'node:os';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { Logger, Org, Messages, Lifecycle, SfError, Connection } from '@salesforce/core';
 import { env, Duration, parseJsonMap } from '@salesforce/kit';
@@ -239,8 +240,8 @@ export class RemoteSourceTrackingService {
 
     const originalOutstandingSize = outstandingSourceMembers.size;
     // this will be the absolute timeout from the start of the poll.  We can also exit early if it doesn't look like more results are coming in
-    const pollingTimeout = calculateTimeout(outstandingSourceMembers.size);
     let highestRevisionSoFar = this.serverMaxRevisionCounter;
+    const pollingTimeout = calculateTimeout(outstandingSourceMembers.size);
     let pollAttempts = 0;
     let consecutiveEmptyResults = 0;
     let someResultsReturned = false;
@@ -323,32 +324,32 @@ export class RemoteSourceTrackingService {
         });
       }
     } catch {
-      this.logger.warn(
-        `Polling for SourceMembers timed out after ${pollAttempts} attempts (last ${consecutiveEmptyResults} were empty) )`
-      );
-      if (outstandingSourceMembers.size < 51) {
-        this.logger.debug(
-          `Could not find ${outstandingSourceMembers.size} SourceMembers: ${Array.from(outstandingSourceMembers).join(
-            ','
-          )}`
-        );
-      } else {
-        this.logger.debug(`Could not find SourceMembers for ${outstandingSourceMembers.size} components`);
-      }
-      void Lifecycle.getInstance().emitTelemetry({
-        eventName: 'sourceMemberPollingTimeout',
-        library: 'SourceTracking',
-        timeoutSeconds: pollingTimeout.seconds,
-        attempts: pollAttempts,
-        consecutiveEmptyResults,
-        missingQuantity: outstandingSourceMembers.size,
-        deploymentSize: expectedMembers.length,
-        bonusTypes: Array.from(bonusTypes).sort().join(','),
-        types: [...new Set(Array.from(outstandingSourceMembers.values()).map((member) => member.type))]
-          .sort()
-          .join(','),
-        members: Array.from(outstandingSourceMembers.keys()).join(','),
-      });
+      const lc = Lifecycle.getInstance();
+      await Promise.all([
+        lc.emitWarning(
+          `Polling for ${
+            outstandingSourceMembers.size
+          } timed out after ${pollAttempts} attempts (last ${consecutiveEmptyResults} were empty).
+
+Missing SourceMembers:
+${formatSourceMemberWarnings(outstandingSourceMembers)}        
+        `
+        ),
+        lc.emitTelemetry({
+          eventName: 'sourceMemberPollingTimeout',
+          library: 'SourceTracking',
+          timeoutSeconds: pollingTimeout.seconds,
+          attempts: pollAttempts,
+          consecutiveEmptyResults,
+          missingQuantity: outstandingSourceMembers.size,
+          deploymentSize: expectedMembers.length,
+          bonusTypes: Array.from(bonusTypes).sort().join(','),
+          types: [...new Set(Array.from(outstandingSourceMembers.values()).map((member) => member.type))]
+            .sort()
+            .join(','),
+          members: Array.from(outstandingSourceMembers.keys()).join(','),
+        }),
+      ]);
     }
   }
 
@@ -584,4 +585,16 @@ const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]>
   } catch (error) {
     throw SfError.wrap(error as Error);
   }
+};
+
+/** organize by type and format for warning output */
+const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, RemoteSyncInput>): string => {
+  // ex: CustomObject : [Foo__c, Bar__c]
+  const mapByType = Array.from(outstandingSourceMembers.values()).reduce<Map<string, string[]>>((acc, value) => {
+    acc.set(value.type, [...(acc.get(value.type) ?? []), value.fullName]);
+    return acc;
+  }, new Map());
+  return Array.from(mapByType.entries())
+    .map(([type, names]) => `  - ${type}: ${names.join(', ')}`)
+    .join(EOL);
 };
