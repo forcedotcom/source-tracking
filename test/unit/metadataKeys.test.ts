@@ -118,13 +118,17 @@ describe('registrySupportsType', () => {
     expect(registrySupportsType('ApexClass')).to.equal(true);
   });
   it('bad type returns false and emits warning', () => {
-    let warningEmitted = false;
+    const warningEmitted: string[] = [];
     const badType = 'NotARealType';
-    // eslint-disable-next-line @typescript-eslint/require-await
     Lifecycle.getInstance().onWarning(async (w): Promise<void> => {
-      warningEmitted = w.includes(badType);
+      console.log(w);
+      warningEmitted.push(w);
+      return Promise.resolve();
     });
     expect(registrySupportsType(badType)).to.equal(false);
-    expect(warningEmitted, 'warning not emitted').to.equal(true);
+    expect(
+      warningEmitted.some((w) => w.includes(badType)),
+      'warning not emitted'
+    ).to.equal(true);
   });
 });
