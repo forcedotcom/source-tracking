@@ -121,7 +121,6 @@ describe('registrySupportsType', () => {
     const warningEmitted: string[] = [];
     const badType = 'NotARealType';
     Lifecycle.getInstance().onWarning(async (w): Promise<void> => {
-      console.log(w);
       warningEmitted.push(w);
       return Promise.resolve();
     });
