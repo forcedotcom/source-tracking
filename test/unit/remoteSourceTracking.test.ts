@@ -11,7 +11,7 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
-import { Messages, Org } from '@salesforce/core';
+import { Messages, Org, Lifecycle } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
@@ -471,10 +471,20 @@ describe('remoteSourceTrackingService', () => {
     });
 
     describe('timeout handling', () => {
+      const lc = Lifecycle.getInstance();
+      const warns = new Set<string>();
+      lc.onWarning((w) => {
+        warns.add(w);
+        return Promise.resolve();
+      });
+
+      beforeEach(() => {
+        warns.clear();
+      });
+
       it('should stop if the computed pollingTimeout is exceeded', async () => {
         // @ts-ignore
         const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
-        const warnSpy = $$.SANDBOX.spy($$.TEST_LOGGER, 'warn');
 
         // @ts-ignore
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -483,9 +493,9 @@ describe('remoteSourceTrackingService', () => {
         await remoteSourceTrackingService.pollForSourceTracking(memberNames);
         // changed from toolbelt because each query result goes to tracking
         expect(trackSpy.callCount).to.equal(6);
-        expect(warnSpy.called).to.equal(true);
-        const expectedMsg = 'Polling for SourceMembers timed out after 6 attempts';
-        expect(warnSpy.calledWithMatch(expectedMsg)).to.equal(true);
+        expect(warns.size).to.be.greaterThan(0);
+        const expectedMsg = 'Polling for 3 SourceMembers timed out after 6 attempts';
+        expect(Array.from(warns).some((w) => w.includes(expectedMsg))).to.equal(true);
         expect(queryStub.called).to.equal(true);
       }).timeout(10000);
 
@@ -494,7 +504,6 @@ describe('remoteSourceTrackingService', () => {
         $$.SANDBOX.stub(kit.env, 'getString').callsFake(() => '3');
         // @ts-ignore
         const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
-        const warnSpy = $$.SANDBOX.spy($$.TEST_LOGGER, 'warn');
 
         // @ts-ignore
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -503,10 +512,9 @@ describe('remoteSourceTrackingService', () => {
         await remoteSourceTrackingService.pollForSourceTracking(memberNames);
         expect(trackSpy.called).to.equal(true);
 
-        expect(warnSpy.called).to.equal(true);
-        const expectedMsg = 'Polling for SourceMembers timed out after 3 attempts';
-        expect(warnSpy.calledWithMatch(expectedMsg)).to.equal(true);
-        expect(warnSpy.calledOnce).to.equal(true);
+        expect(warns.size).to.be.greaterThan(0);
+        const expectedMsg = 'Polling for 3 SourceMembers timed out after 3 attempts';
+        expect(Array.from(warns).some((w) => w.includes(expectedMsg))).to.equal(true);
         expect(queryStub.called).to.equal(true);
       });
     });

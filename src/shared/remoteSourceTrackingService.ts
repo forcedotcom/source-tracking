@@ -329,11 +329,10 @@ export class RemoteSourceTrackingService {
         lc.emitWarning(
           `Polling for ${
             outstandingSourceMembers.size
-          } timed out after ${pollAttempts} attempts (last ${consecutiveEmptyResults} were empty).
+          } SourceMembers timed out after ${pollAttempts} attempts (last ${consecutiveEmptyResults} were empty).
 
 Missing SourceMembers:
-${formatSourceMemberWarnings(outstandingSourceMembers)}        
-        `
+${formatSourceMemberWarnings(outstandingSourceMembers)}`
         ),
         lc.emitTelemetry({
           eventName: 'sourceMemberPollingTimeout',
