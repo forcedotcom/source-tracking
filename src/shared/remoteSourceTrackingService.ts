@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { EOL } from 'node:os';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { Logger, Org, Messages, Lifecycle, SfError, Connection } from '@salesforce/core';
+import { Logger, Org, Messages, Lifecycle, SfError, Connection, lockInit } from '@salesforce/core';
 import { env, Duration, parseJsonMap } from '@salesforce/kit';
 import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
@@ -311,12 +311,13 @@ export class RemoteSourceTrackingService {
       delay: POLLING_DELAY_MS,
       retries: 'INFINITELY',
     });
+    const lc = Lifecycle.getInstance();
     try {
       await pollingFunction();
       this.logger.debug(`Retrieved all SourceMember data after ${pollAttempts} attempts`);
       // find places where the expectedSourceMembers might be too pruning too aggressively
       if (bonusTypes.size) {
-        void Lifecycle.getInstance().emitTelemetry({
+        void lc.emitTelemetry({
           eventName: 'sourceMemberBonusTypes',
           library: 'SourceTracking',
           deploymentSize: expectedMembers.length,
@@ -324,7 +325,6 @@ export class RemoteSourceTrackingService {
         });
       }
     } catch {
-      const lc = Lifecycle.getInstance();
       await Promise.all([
         lc.emitWarning(
           `Polling for ${
@@ -480,9 +480,8 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}
   }
 
   private async write(): Promise<void> {
-    await fs.promises.mkdir(path.dirname(this.filePath), { recursive: true });
-    return fs.promises.writeFile(
-      this.filePath,
+    const lockResult = await lockInit(this.filePath);
+    await lockResult.writeAndUnlock(
       JSON.stringify(
         {
           serverMaxRevisionCounter: this.serverMaxRevisionCounter,
