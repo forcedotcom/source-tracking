@@ -4,7 +4,6 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import { Lifecycle } from '@salesforce/core';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { getMetadataKeyFromFileResponse, registrySupportsType } from '../../src/shared/metadataKeys';
@@ -117,9 +116,10 @@ describe('registrySupportsType', () => {
     expect(registrySupportsType('CustomObject')).to.equal(true);
     expect(registrySupportsType('ApexClass')).to.equal(true);
   });
-  it('bad type returns false and emits warning', () => {
+  it('bad type returns false and emits warning', async () => {
     const warningEmitted: string[] = [];
     const badType = 'NotARealType';
+    const { Lifecycle } = await import('@salesforce/core');
     Lifecycle.getInstance().onWarning(async (w): Promise<void> => {
       warningEmitted.push(w);
       return Promise.resolve();

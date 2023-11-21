@@ -11,7 +11,7 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
-import { Messages, Org, Lifecycle } from '@salesforce/core';
+import { Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
@@ -471,15 +471,16 @@ describe('remoteSourceTrackingService', () => {
     });
 
     describe('timeout handling', () => {
-      const lc = Lifecycle.getInstance();
       const warns = new Set<string>();
-      lc.onWarning((w) => {
-        warns.add(w);
-        return Promise.resolve();
-      });
 
-      beforeEach(() => {
+      beforeEach(async () => {
         warns.clear();
+        const { Lifecycle } = await import('@salesforce/core');
+        const lc = Lifecycle.getInstance();
+        lc.onWarning((w) => {
+          warns.add(w);
+          return Promise.resolve();
+        });
       });
 
       it('should stop if the computed pollingTimeout is exceeded', async () => {
