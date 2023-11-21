@@ -81,3 +81,10 @@ export class SourceConflictError extends SfError<ConflictResponse[]> implements 
 }
 
 export type ChangeOptionType = ChangeResult | SourceComponent | string;
+
+export type SourceMemberPollingEvent = {
+  original: number;
+  remaining: number;
+  attempts: number;
+  consecutiveEmptyResults: number;
+};

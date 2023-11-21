@@ -15,5 +15,6 @@ export {
   StatusOutputRow,
   ConflictResponse,
   SourceConflictError,
+  SourceMemberPollingEvent,
 } from './shared/types';
 export { getKeyFromObject, deleteCustomLabels } from './shared/functions';

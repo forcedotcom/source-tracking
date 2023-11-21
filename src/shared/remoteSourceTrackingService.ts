@@ -11,7 +11,14 @@ import { EOL } from 'node:os';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { Logger, Org, Messages, Lifecycle, SfError, Connection, lockInit } from '@salesforce/core';
 import { env, Duration, parseJsonMap } from '@salesforce/kit';
-import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
+import {
+  ChangeResult,
+  RemoteChangeElement,
+  MemberRevision,
+  SourceMember,
+  RemoteSyncInput,
+  SourceMemberPollingEvent,
+} from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
@@ -279,6 +286,13 @@ export class RemoteSourceTrackingService {
       } else {
         consecutiveEmptyResults++;
       }
+
+      await Lifecycle.getInstance().emit('sourceMemberPollingEvent', {
+        original: originalOutstandingSize,
+        remaining: outstandingSourceMembers.size,
+        attempts: pollAttempts,
+        consecutiveEmptyResults,
+      } satisfies SourceMemberPollingEvent);
 
       this.logger.debug(
         `[${pollAttempts}] Found ${
