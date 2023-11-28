@@ -7,10 +7,18 @@
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { EOL } from 'node:os';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { Logger, Org, Messages, Lifecycle, SfError, Connection } from '@salesforce/core';
+import { Logger, Org, Messages, Lifecycle, SfError, Connection, lockInit } from '@salesforce/core';
 import { env, Duration, parseJsonMap } from '@salesforce/kit';
-import { ChangeResult, RemoteChangeElement, MemberRevision, SourceMember, RemoteSyncInput } from './types';
+import {
+  ChangeResult,
+  RemoteChangeElement,
+  MemberRevision,
+  SourceMember,
+  RemoteSyncInput,
+  SourceMemberPollingEvent,
+} from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
 import { getMetadataKey } from './functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
@@ -239,8 +247,8 @@ export class RemoteSourceTrackingService {
 
     const originalOutstandingSize = outstandingSourceMembers.size;
     // this will be the absolute timeout from the start of the poll.  We can also exit early if it doesn't look like more results are coming in
-    const pollingTimeout = calculateTimeout(outstandingSourceMembers.size);
     let highestRevisionSoFar = this.serverMaxRevisionCounter;
+    const pollingTimeout = calculateTimeout(outstandingSourceMembers.size);
     let pollAttempts = 0;
     let consecutiveEmptyResults = 0;
     let someResultsReturned = false;
@@ -279,6 +287,13 @@ export class RemoteSourceTrackingService {
         consecutiveEmptyResults++;
       }
 
+      await Lifecycle.getInstance().emit('sourceMemberPollingEvent', {
+        original: originalOutstandingSize,
+        remaining: outstandingSourceMembers.size,
+        attempts: pollAttempts,
+        consecutiveEmptyResults,
+      } satisfies SourceMemberPollingEvent);
+
       this.logger.debug(
         `[${pollAttempts}] Found ${
           originalOutstandingSize - outstandingSourceMembers.size
@@ -310,12 +325,13 @@ export class RemoteSourceTrackingService {
       delay: POLLING_DELAY_MS,
       retries: 'INFINITELY',
     });
+    const lc = Lifecycle.getInstance();
     try {
       await pollingFunction();
       this.logger.debug(`Retrieved all SourceMember data after ${pollAttempts} attempts`);
       // find places where the expectedSourceMembers might be too pruning too aggressively
       if (bonusTypes.size) {
-        void Lifecycle.getInstance().emitTelemetry({
+        void lc.emitTelemetry({
           eventName: 'sourceMemberBonusTypes',
           library: 'SourceTracking',
           deploymentSize: expectedMembers.length,
@@ -323,32 +339,30 @@ export class RemoteSourceTrackingService {
         });
       }
     } catch {
-      this.logger.warn(
-        `Polling for SourceMembers timed out after ${pollAttempts} attempts (last ${consecutiveEmptyResults} were empty) )`
-      );
-      if (outstandingSourceMembers.size < 51) {
-        this.logger.debug(
-          `Could not find ${outstandingSourceMembers.size} SourceMembers: ${Array.from(outstandingSourceMembers).join(
-            ','
-          )}`
-        );
-      } else {
-        this.logger.debug(`Could not find SourceMembers for ${outstandingSourceMembers.size} components`);
-      }
-      void Lifecycle.getInstance().emitTelemetry({
-        eventName: 'sourceMemberPollingTimeout',
-        library: 'SourceTracking',
-        timeoutSeconds: pollingTimeout.seconds,
-        attempts: pollAttempts,
-        consecutiveEmptyResults,
-        missingQuantity: outstandingSourceMembers.size,
-        deploymentSize: expectedMembers.length,
-        bonusTypes: Array.from(bonusTypes).sort().join(','),
-        types: [...new Set(Array.from(outstandingSourceMembers.values()).map((member) => member.type))]
-          .sort()
-          .join(','),
-        members: Array.from(outstandingSourceMembers.keys()).join(','),
-      });
+      await Promise.all([
+        lc.emitWarning(
+          `Polling for ${
+            outstandingSourceMembers.size
+          } SourceMembers timed out after ${pollAttempts} attempts (last ${consecutiveEmptyResults} were empty).
+
+Missing SourceMembers:
+${formatSourceMemberWarnings(outstandingSourceMembers)}`
+        ),
+        lc.emitTelemetry({
+          eventName: 'sourceMemberPollingTimeout',
+          library: 'SourceTracking',
+          timeoutSeconds: pollingTimeout.seconds,
+          attempts: pollAttempts,
+          consecutiveEmptyResults,
+          missingQuantity: outstandingSourceMembers.size,
+          deploymentSize: expectedMembers.length,
+          bonusTypes: Array.from(bonusTypes).sort().join(','),
+          types: [...new Set(Array.from(outstandingSourceMembers.values()).map((member) => member.type))]
+            .sort()
+            .join(','),
+          members: Array.from(outstandingSourceMembers.keys()).join(','),
+        }),
+      ]);
     }
   }
 
@@ -479,9 +493,8 @@ export class RemoteSourceTrackingService {
   }
 
   private async write(): Promise<void> {
-    await fs.promises.mkdir(path.dirname(this.filePath), { recursive: true });
-    return fs.promises.writeFile(
-      this.filePath,
+    const lockResult = await lockInit(this.filePath);
+    await lockResult.writeAndUnlock(
       JSON.stringify(
         {
           serverMaxRevisionCounter: this.serverMaxRevisionCounter,
@@ -584,4 +597,16 @@ const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]>
   } catch (error) {
     throw SfError.wrap(error as Error);
   }
+};
+
+/** organize by type and format for warning output */
+const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, RemoteSyncInput>): string => {
+  // ex: CustomObject : [Foo__c, Bar__c]
+  const mapByType = Array.from(outstandingSourceMembers.values()).reduce<Map<string, string[]>>((acc, value) => {
+    acc.set(value.type, [...(acc.get(value.type) ?? []), value.fullName]);
+    return acc;
+  }, new Map());
+  return Array.from(mapByType.entries())
+    .map(([type, names]) => `  - ${type}: ${names.join(', ')}`)
+    .join(EOL);
 };

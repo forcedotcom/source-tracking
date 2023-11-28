@@ -64,11 +64,27 @@ export interface ConflictResponse {
   filePath: string;
 }
 
-export interface SourceConflictError extends SfError {
+// this and the related class are not enforced but a convention of this library.
+// This helps the consumers get correct typing--if the error name matches SourceConflictError,
+// there will be a data property of type ConflictResponse[]
+export interface SourceConflictErrorType extends SfError<ConflictResponse[]> {
   name: 'SourceConflictError';
-  data: ConflictResponse[];
 }
 
-export class SourceConflictError extends SfError implements SourceConflictError {}
+export class SourceConflictError extends SfError<ConflictResponse[]> implements SourceConflictErrorType {
+  public readonly name: SourceConflictErrorType['name'];
+  public constructor(message: string, data: ConflictResponse[]) {
+    super(message);
+    this.name = 'SourceConflictError';
+    this.data = data;
+  }
+}
 
 export type ChangeOptionType = ChangeResult | SourceComponent | string;
+
+export type SourceMemberPollingEvent = {
+  original: number;
+  remaining: number;
+  attempts: number;
+  consecutiveEmptyResults: number;
+};

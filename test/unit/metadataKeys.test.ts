@@ -4,7 +4,6 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import { Lifecycle } from '@salesforce/core';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { getMetadataKeyFromFileResponse, registrySupportsType } from '../../src/shared/metadataKeys';
@@ -117,14 +116,18 @@ describe('registrySupportsType', () => {
     expect(registrySupportsType('CustomObject')).to.equal(true);
     expect(registrySupportsType('ApexClass')).to.equal(true);
   });
-  it('bad type returns false and emits warning', () => {
-    let warningEmitted = false;
+  it('bad type returns false and emits warning', async () => {
+    const warningEmitted: string[] = [];
     const badType = 'NotARealType';
-    // eslint-disable-next-line @typescript-eslint/require-await
+    const { Lifecycle } = await import('@salesforce/core');
     Lifecycle.getInstance().onWarning(async (w): Promise<void> => {
-      warningEmitted = w.includes(badType);
+      warningEmitted.push(w);
+      return Promise.resolve();
     });
     expect(registrySupportsType(badType)).to.equal(false);
-    expect(warningEmitted, 'warning not emitted').to.equal(true);
+    expect(
+      warningEmitted.some((w) => w.includes(badType)),
+      'warning not emitted'
+    ).to.equal(true);
   });
 });
