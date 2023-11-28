@@ -1,3 +1,12 @@
+# [5.1.0](https://github.com/forcedotcom/source-tracking/compare/5.0.1...5.1.0) (2023-11-28)
+
+
+### Features
+
+* warn about missing sourceMembers ([#511](https://github.com/forcedotcom/source-tracking/issues/511)) ([950d15c](https://github.com/forcedotcom/source-tracking/commit/950d15cd32a587fe3c330b01c14bca7ee4387a42))
+
+
+
 ## [5.0.1](https://github.com/forcedotcom/source-tracking/compare/5.0.0...5.0.1) (2023-11-18)
 
 
