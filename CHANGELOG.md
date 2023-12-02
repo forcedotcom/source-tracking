@@ -1,3 +1,12 @@
+## [5.1.2](https://github.com/forcedotcom/source-tracking/compare/5.1.1...5.1.2) (2023-12-02)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 6.2.0 to 6.2.2 ([d01cad7](https://github.com/forcedotcom/source-tracking/commit/d01cad7fa6338d163398051c1a1f50671e5f0d23))
+
+
+
 ## [5.1.1](https://github.com/forcedotcom/source-tracking/compare/5.1.0...5.1.1) (2023-12-02)
 
 
