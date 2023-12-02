@@ -1,3 +1,12 @@
+## [5.1.1](https://github.com/forcedotcom/source-tracking/compare/5.1.0...5.1.1) (2023-12-02)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve from 10.0.2 to 10.0.3 ([744473c](https://github.com/forcedotcom/source-tracking/commit/744473c86f0455c41100ba46f8e3438abd99e5c3))
+
+
+
 # [5.1.0](https://github.com/forcedotcom/source-tracking/compare/5.0.1...5.1.0) (2023-11-28)
 
 
