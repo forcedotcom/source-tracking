@@ -15,6 +15,7 @@
     "compile": "wireit",
     "docs": "sf-docs",
     "format": "wireit",
+    "link-check": "wireit",
     "lint": "wireit",
     "lint-fix": "yarn sf-lint --fix",
     "postpack": "shx rm -f oclif.manifest.json",
@@ -56,7 +57,7 @@
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^5.0.4",
-    "@salesforce/dev-scripts": "^7.1.1",
+    "@salesforce/dev-scripts": "^8.1.0",
     "@types/graceful-fs": "^4.1.8",
     "eslint-plugin-sf-plugin": "^1.16.15",
     "shx": "^0.3.4",
@@ -121,7 +122,8 @@
     "test": {
       "dependencies": [
         "test:only",
-        "test:compile"
+        "test:compile",
+        "link-check"
       ]
     },
     "test:only": {
@@ -136,6 +138,15 @@
         ".mocha*",
         "!*.nut.ts",
         ".nycrc"
+      ],
+      "output": []
+    },
+    "link-check": {
+      "command": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || linkinator \"**/*.md\" --skip \"CHANGELOG.md|node_modules|test/|confluence.internal.salesforce.com|%s\" --markdown --retry --directory-listing --verbosity error",
+      "files": [
+        "./*.md",
+        "./!(CHANGELOG).md",
+        "messages/**/*.md"
       ],
       "output": []
     }
