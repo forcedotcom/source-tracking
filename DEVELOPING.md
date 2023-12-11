@@ -34,10 +34,6 @@ This cleans all generated files and directories. Run `yarn clean-all` to also cl
 
 This tests the typescript using ts-node.
 
-### `yarn docs`
-
-This generates documentation into [docs](docs).
-
 ### `yarn lint`
 
 This lints all the typescript. If there are no errors/warnings
