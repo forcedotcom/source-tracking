@@ -15,9 +15,9 @@
     "compile": "wireit",
     "docs": "sf-docs",
     "format": "wireit",
+    "link-check": "wireit",
     "lint": "wireit",
     "lint-fix": "yarn sf-lint --fix",
-    "postpack": "shx rm -f oclif.manifest.json",
     "prepack": "sf-prepack",
     "prepare": "sf-install",
     "test": "wireit",
@@ -45,9 +45,9 @@
   },
   "dependencies": {
     "@oclif/core": "^3.10.8",
-    "@salesforce/core": "^6.2.2",
+    "@salesforce/core": "^6.4.0",
     "@salesforce/kit": "^3.0.15",
-    "@salesforce/source-deploy-retrieve": "^10.0.3",
+    "@salesforce/source-deploy-retrieve": "^10.2.1",
     "@salesforce/ts-types": "^2.0.9",
     "fast-xml-parser": "^4.2.5",
     "graceful-fs": "^4.2.11",
@@ -55,11 +55,10 @@
     "ts-retry-promise": "^0.7.0"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^5.0.4",
-    "@salesforce/dev-scripts": "^7.1.1",
+    "@salesforce/cli-plugins-testkit": "^5.1.1",
+    "@salesforce/dev-scripts": "^8.1.0",
     "@types/graceful-fs": "^4.1.8",
     "eslint-plugin-sf-plugin": "^1.16.15",
-    "shx": "^0.3.4",
     "ts-node": "^10.9.1",
     "ts-patch": "^3.0.2",
     "typescript": "^5.2.2"
@@ -121,7 +120,8 @@
     "test": {
       "dependencies": [
         "test:only",
-        "test:compile"
+        "test:compile",
+        "link-check"
       ]
     },
     "test:only": {
@@ -136,6 +136,15 @@
         ".mocha*",
         "!*.nut.ts",
         ".nycrc"
+      ],
+      "output": []
+    },
+    "link-check": {
+      "command": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || linkinator \"**/*.md\" --skip \"CHANGELOG.md|node_modules|test/|confluence.internal.salesforce.com|%s\" --markdown --retry --directory-listing --verbosity error",
+      "files": [
+        "./*.md",
+        "./!(CHANGELOG).md",
+        "messages/**/*.md"
       ],
       "output": []
     }
