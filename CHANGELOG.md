@@ -1,3 +1,12 @@
+## [5.1.3](https://github.com/forcedotcom/source-tracking/compare/5.1.2...5.1.3) (2023-12-11)
+
+
+### Bug Fixes
+
+* **deps:** devScripts update ([#518](https://github.com/forcedotcom/source-tracking/issues/518)) ([0c628c2](https://github.com/forcedotcom/source-tracking/commit/0c628c2fd8940b9fc30734fd505c576f2151593c))
+
+
+
 ## [5.1.2](https://github.com/forcedotcom/source-tracking/compare/5.1.1...5.1.2) (2023-12-02)
 
 
