@@ -44,10 +44,10 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@oclif/core": "^3.10.8",
-    "@salesforce/core": "^6.4.0",
+    "@oclif/core": "^3.15.1",
+    "@salesforce/core": "^6.4.2",
     "@salesforce/kit": "^3.0.15",
-    "@salesforce/source-deploy-retrieve": "^10.2.1",
+    "@salesforce/source-deploy-retrieve": "^10.2.5",
     "@salesforce/ts-types": "^2.0.9",
     "fast-xml-parser": "^4.2.5",
     "graceful-fs": "^4.2.11",
