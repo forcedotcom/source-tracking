@@ -1,3 +1,12 @@
+## [5.1.4](https://github.com/forcedotcom/source-tracking/compare/5.1.3...5.1.4) (2024-01-16)
+
+
+### Bug Fixes
+
+* clearer library message ([#530](https://github.com/forcedotcom/source-tracking/issues/530)) ([4786cd8](https://github.com/forcedotcom/source-tracking/commit/4786cd83f5b004e54d8345693b557552e8d4142c))
+
+
+
 ## [5.1.3](https://github.com/forcedotcom/source-tracking/compare/5.1.2...5.1.3) (2023-12-11)
 
 
