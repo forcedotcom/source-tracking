@@ -1,3 +1,12 @@
+## [5.1.5](https://github.com/forcedotcom/source-tracking/compare/5.1.4...5.1.5) (2024-01-18)
+
+
+### Bug Fixes
+
+* catch URI Malformed error ([c0c80f7](https://github.com/forcedotcom/source-tracking/commit/c0c80f7a3b228f0a7ca2dcd291ce3cf382ed1772))
+
+
+
 ## [5.1.4](https://github.com/forcedotcom/source-tracking/compare/5.1.3...5.1.4) (2024-01-16)
 
 
