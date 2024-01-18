@@ -11,6 +11,7 @@ import { EOL } from 'node:os';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { Logger, Org, Messages, Lifecycle, SfError, Connection, lockInit } from '@salesforce/core';
 import { env, Duration, parseJsonMap } from '@salesforce/kit';
+import { isString } from '@salesforce/ts-types';
 import {
   ChangeResult,
   RemoteChangeElement,
@@ -542,13 +543,19 @@ function getDecodedKeyIfSourceMembersHas({
   key: string;
   logger: Logger;
 }): string {
-  const originalKeyDecoded = decodeURIComponent(key);
-  const match = Array.from(sourceMembers.keys()).find(
-    (memberKey) => decodeURIComponent(memberKey) === originalKeyDecoded
-  );
-  if (match) {
-    logger.debug(`${match} matches already tracked member: ${key}`);
-    return match;
+  try {
+    const originalKeyDecoded = decodeURIComponent(key);
+    const match = Array.from(sourceMembers.keys()).find(
+      (memberKey) => decodeURIComponent(memberKey) === originalKeyDecoded
+    );
+    if (match) {
+      logger.debug(`${match} matches already tracked member: ${key}`);
+      return match;
+    }
+  } catch (e: unknown) {
+    // Log the error and the key
+    const errMsg = e instanceof Error ? e.message : isString(e) ? e : 'unknown';
+    logger.debug(`Could not decode metadata key: ${key} due to: ${errMsg}`);
   }
   return key;
 }

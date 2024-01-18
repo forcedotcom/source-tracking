@@ -331,6 +331,15 @@ describe('remoteSourceTrackingService', () => {
       );
     });
 
+    it('should not throw for non-decodeable key missing from SourceMember map on get', () => {
+      // trying to decode '%E0%A4%A' throws a URIError so getDecodedKeyIfSourceMembersHas()
+      // should not throw when a non-decodeable key is encountered.
+      const sourceMemberKey = 'Layout__Broker__c-%E0%A4%A';
+
+      // @ts-ignore getSourceMember is private
+      expect(remoteSourceTrackingService.getSourceMember(sourceMemberKey)).to.equal(undefined);
+    });
+
     it('will match/update encoded SourceMember keys on set', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
