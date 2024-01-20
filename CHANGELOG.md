@@ -1,3 +1,12 @@
+## [5.1.6](https://github.com/forcedotcom/source-tracking/compare/5.1.5...5.1.6) (2024-01-20)
+
+
+### Bug Fixes
+
+* **deps:** bump ts-retry-promise from 0.7.1 to 0.8.0 ([fd06561](https://github.com/forcedotcom/source-tracking/commit/fd0656127ec7d1dca518cae93e71ac184658e9f2))
+
+
+
 ## [5.1.5](https://github.com/forcedotcom/source-tracking/compare/5.1.4...5.1.5) (2024-01-18)
 
 
