@@ -1,3 +1,12 @@
+## [5.1.13](https://github.com/forcedotcom/source-tracking/compare/5.1.12...5.1.13) (2024-03-06)
+
+
+### Bug Fixes
+
+* **deps:** bump ip from 1.1.8 to 1.1.9 ([3978964](https://github.com/forcedotcom/source-tracking/commit/397896408ba4e860c51e69ca90f1fabadd0c6100))
+
+
+
 ## [5.1.12](https://github.com/forcedotcom/source-tracking/compare/5.1.11...5.1.12) (2024-03-05)
 
 
