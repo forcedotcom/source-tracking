@@ -12,6 +12,7 @@ import {
   MetadataResolver,
   VirtualTreeContainer,
   DestructiveChangesType,
+  RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
 import { sourceComponentGuard } from './guards';
 import { supportsPartialDelete, pathIsInFolder } from './functions';
@@ -51,11 +52,19 @@ const getNonSequential = ({
   },
 ];
 
-export const getComponentSets = (groupings: GroupedFile[], sourceApiVersion?: string): ComponentSet[] => {
+export const getComponentSets = ({
+  groupings,
+  sourceApiVersion,
+  registry = new RegistryAccess(),
+}: {
+  groupings: GroupedFile[];
+  sourceApiVersion?: string;
+  registry: RegistryAccess;
+}): ComponentSet[] => {
   const logger = Logger.childFromRoot('localComponentSetArray');
 
   // optimistic resolution...some files may not be possible to resolve
-  const resolverForNonDeletes = new MetadataResolver();
+  const resolverForNonDeletes = new MetadataResolver(registry);
 
   return groupings
     .map((grouping) => {
@@ -63,14 +72,14 @@ export const getComponentSets = (groupings: GroupedFile[], sourceApiVersion?: st
         `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
       );
 
-      const componentSet = new ComponentSet();
+      const componentSet = new ComponentSet(undefined, registry);
       if (sourceApiVersion) {
         componentSet.sourceApiVersion = sourceApiVersion;
       }
 
       // we need virtual components for the deletes.
       // TODO: could we use the same for the non-deletes?
-      const resolverForDeletes = new MetadataResolver(undefined, VirtualTreeContainer.fromFilePaths(grouping.deletes));
+      const resolverForDeletes = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(grouping.deletes));
 
       grouping.deletes
         .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))

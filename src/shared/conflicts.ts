@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import { resolve } from 'node:path';
-import { ComponentSet, ForceIgnore } from '@salesforce/source-deploy-retrieve';
+import { ComponentSet, ForceIgnore, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ConflictResponse, ChangeResult, SourceConflictError } from './types';
 import { getMetadataKey } from './functions';
 import { populateTypesAndNames } from './populateTypesAndNames';
@@ -48,11 +48,13 @@ export const getDedupedConflictsFromChanges = ({
   remoteChanges = [],
   projectPath,
   forceIgnore,
+  registry,
 }: {
   localChanges: ChangeResult[];
   remoteChanges: ChangeResult[];
   projectPath: string;
   forceIgnore: ForceIgnore;
+  registry: RegistryAccess;
 }): ChangeResult[] => {
   const metadataKeyIndex = new Map(
     remoteChanges
@@ -65,7 +67,7 @@ export const getDedupedConflictsFromChanges = ({
 
   const conflicts = new Set<ChangeResult>();
 
-  populateTypesAndNames({ elements: localChanges, excludeUnresolvable: true, projectPath, forceIgnore })
+  populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
     .filter(isChangeResultWithNameAndType)
     .map((change) => {
       const metadataKey = getMetadataKey(change.name, change.type);

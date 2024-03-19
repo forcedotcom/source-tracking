@@ -7,7 +7,7 @@
 import * as path from 'node:path';
 import * as sinon from 'sinon';
 import { expect } from 'chai';
-import { ForceIgnore, ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { ForceIgnore, ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts';
 import { ChangeResult } from '../../src/shared/types';
 
@@ -54,13 +54,18 @@ describe('conflicts functions', () => {
     });
   });
   describe('dedupe', () => {
+    const registry = new RegistryAccess();
+    const base = {
+      registry,
+      forceIgnore: forceIgnoreStub,
+      projectPath: 'foo',
+    };
     it('works on empty changes', () => {
       expect(
         getDedupedConflictsFromChanges({
           localChanges: [],
           remoteChanges: [],
-          projectPath: 'foo',
-          forceIgnore: forceIgnoreStub,
+          ...base,
         })
       ).to.deep.equal([]);
     });
@@ -69,8 +74,7 @@ describe('conflicts functions', () => {
         getDedupedConflictsFromChanges({
           localChanges: [class1Local],
           remoteChanges: [],
-          projectPath: 'foo',
-          forceIgnore: forceIgnoreStub,
+          ...base,
         })
       ).to.deep.equal([]);
     });
@@ -86,8 +90,7 @@ describe('conflicts functions', () => {
               filenames: ['foo/classes/OtherClass.cls', 'foo/classes/OtherClass.cls-meta.xml'],
             },
           ],
-          projectPath: 'foo',
-          forceIgnore: forceIgnoreStub,
+          ...base,
         })
       ).to.deep.equal([]);
     });
@@ -99,8 +102,7 @@ describe('conflicts functions', () => {
         getDedupedConflictsFromChanges({
           localChanges: [class1Local],
           remoteChanges: [{ origin: 'remote', name: 'MyClass', type: 'ApexClass' }],
-          projectPath: 'foo',
-          forceIgnore: forceIgnoreStub,
+          ...base,
         })
       ).to.deep.equal([{ ...simplifiedResult, origin: 'remote' }]);
     });

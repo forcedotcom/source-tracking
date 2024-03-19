@@ -110,6 +110,7 @@ export class SourceTracking extends AsyncCreatable {
   private subscribeSDREvents: boolean;
   private ignoreLocalCache: boolean;
   private orgId: string;
+  private registry: RegistryAccess;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
@@ -122,6 +123,7 @@ export class SourceTracking extends AsyncCreatable {
     this.ignoreConflicts = options.ignoreConflicts ?? false;
     this.ignoreLocalCache = options.ignoreLocalCache ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
+    this.registry = new RegistryAccess(undefined, this.projectPath);
   }
 
   public async init(): Promise<void> {
@@ -161,7 +163,7 @@ export class SourceTracking extends AsyncCreatable {
     ); // if the users specified true or false for the param, that overrides the project config
     this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
 
-    return getComponentSets(groupings, sourceApiVersion);
+    return getComponentSets({ groupings, sourceApiVersion, registry: this.registry });
   }
 
   /** reads tracking files for remote changes.  It DOES NOT consider the effects of .forceignore unless told to */
@@ -189,7 +191,8 @@ export class SourceTracking extends AsyncCreatable {
       },
     ]);
     const componentSet = new ComponentSet(
-      applyIgnore ? sourceBackedComponents.filter(noFileIsIgnored(this.forceIgnore)) : sourceBackedComponents
+      applyIgnore ? sourceBackedComponents.filter(noFileIsIgnored(this.forceIgnore)) : sourceBackedComponents,
+      this.registry
     );
     // there may be remote adds not in the SBC.  So we add those manually
     (applyIgnore
@@ -272,6 +275,7 @@ export class SourceTracking extends AsyncCreatable {
   public async getChanges(
     options: ChangeOptions & { format: 'ChangeResultWithPaths' }
   ): Promise<Array<ChangeResult & { filename: string[] }>>;
+
   public async getChanges(options?: ChangeOptions): Promise<ChangeOptionType[]> {
     if (options?.origin === 'local') {
       await this.ensureLocalTracking();
@@ -286,10 +290,10 @@ export class SourceTracking extends AsyncCreatable {
         }));
       }
       if (options.format === 'SourceComponent') {
-        const resolver =
-          options.state === 'delete'
-            ? new MetadataResolver(undefined, VirtualTreeContainer.fromFilePaths(filenames))
-            : new MetadataResolver();
+        const resolver = new MetadataResolver(
+          this.registry,
+          options.state === 'delete' ? VirtualTreeContainer.fromFilePaths(filenames) : undefined
+        );
 
         return filenames
           .flatMap((filename) => {
@@ -316,17 +320,19 @@ export class SourceTracking extends AsyncCreatable {
         return filteredChanges.map(remoteChangeElementToChangeResult);
       }
       if (options.format === 'ChangeResultWithPaths') {
-        return populateFilePaths(
-          filteredChanges.map(remoteChangeElementToChangeResult),
-          this.project.getPackageDirectories().map((pkgDir) => pkgDir.path)
-        );
+        return populateFilePaths({
+          elements: filteredChanges.map(remoteChangeElementToChangeResult),
+          packageDirPaths: this.project.getPackageDirectories().map((pkgDir) => pkgDir.path),
+          registry: this.registry,
+        });
       }
       // turn it into a componentSet to resolve filenames
       const remoteChangesAsComponentSet = new ComponentSet(
         filteredChanges.map((element) => ({
           type: element?.type,
           fullName: element?.name,
-        }))
+        })),
+        this.registry
       );
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
         fsPaths: this.packagesDirs.map((dir) => resolve(dir.fullPath)),
@@ -600,6 +606,7 @@ export class SourceTracking extends AsyncCreatable {
       remoteChanges,
       projectPath: this.projectPath,
       forceIgnore: this.forceIgnore,
+      registry: this.registry,
     });
 
     marker?.stop();
@@ -720,50 +727,22 @@ export class SourceTracking extends AsyncCreatable {
 
   private async getLocalStatusRows(): Promise<StatusOutputRow[]> {
     await this.ensureLocalTracking();
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path); // ensure forceignore is initialized
 
-    let results: StatusOutputRow[] = [];
-    const localDeletes = populateTypesAndNames({
-      elements: await this.getChanges({ origin: 'local', state: 'delete', format: 'ChangeResult' }),
-      excludeUnresolvable: true,
-      resolveDeleted: true,
-      projectPath: this.projectPath,
-    });
-
-    const localAdds = populateTypesAndNames({
-      elements: await this.getChanges({ origin: 'local', state: 'add', format: 'ChangeResult' }),
-      excludeUnresolvable: true,
-      projectPath: this.projectPath,
-    });
-
-    const localModifies = populateTypesAndNames({
-      elements: await this.getChanges({ origin: 'local', state: 'modify', format: 'ChangeResult' }),
-      excludeUnresolvable: true,
-      projectPath: this.projectPath,
-    });
-
-    results = results.concat(
-      localAdds.flatMap((item) => this.localChangesToOutputRow(item, 'add')),
-      localModifies.flatMap((item) => this.localChangesToOutputRow(item, 'modify')),
-      localDeletes.flatMap((item) => this.localChangesToOutputRow(item, 'delete'))
+    const [adds, modifies, deletes] = await Promise.all(
+      (['add', 'modify', 'delete'] as const).map((state) =>
+        this.getChanges({ origin: 'local', state, format: 'ChangeResult' })
+      )
     );
-    return results;
-  }
 
-  private localChangesToOutputRow(input: ChangeResult, localType: 'delete' | 'modify' | 'add'): StatusOutputRow[] {
-    this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    const base = { projectPath: this.projectPath, registry: this.registry, excludeUnresolvable: true };
+    const toOutput = localChangesToOutputRow(this.logger)(this.forceIgnore);
 
-    if (input.filenames) {
-      return input.filenames.map((filename) => ({
-        type: input.type ?? '',
-        state: localType,
-        fullName: input.name ?? '',
-        filePath: filename,
-        origin: 'local',
-        ignored: this.forceIgnore.denies(filename),
-      }));
-    }
-    throw new Error('no filenames found for local ChangeResult');
+    return [
+      ...populateTypesAndNames(base)(adds).flatMap(toOutput('add')),
+      ...populateTypesAndNames(base)(modifies).flatMap(toOutput('modify')),
+      ...populateTypesAndNames({ ...base, resolveDeleted: true })(deletes).flatMap(toOutput('delete')),
+    ];
   }
 
   // reserve the right to do something more sophisticated in the future
@@ -844,3 +823,23 @@ const noFileIsIgnored =
   (forceIgnore: ForceIgnore) =>
   (cmp: SourceComponent): boolean =>
     !getAllFiles(cmp).some(forceIgnoreDenies(forceIgnore));
+
+const localChangesToOutputRow =
+  (logger: Logger) =>
+  (forceIgnore: ForceIgnore) =>
+  (localType: 'delete' | 'modify' | 'add') =>
+  (input: ChangeResult): StatusOutputRow[] => {
+    logger.debug('converting ChangeResult to a row', input);
+
+    if (input.filenames) {
+      return input.filenames.map((filename) => ({
+        type: input.type ?? '',
+        state: localType,
+        fullName: input.name ?? '',
+        filePath: filename,
+        origin: 'local',
+        ignored: forceIgnore.denies(filename),
+      }));
+    }
+    throw new Error('no filenames found for local ChangeResult');
+  };

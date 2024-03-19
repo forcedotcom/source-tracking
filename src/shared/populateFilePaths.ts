@@ -6,7 +6,7 @@
  */
 import { EOL } from 'node:os';
 import { Logger } from '@salesforce/core';
-import { ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
 import { isChangeResultWithNameAndType } from './guards';
 import {
@@ -24,7 +24,15 @@ import {
  * @param packageDirPaths Array of paths from PackageDirectories
  * @returns
  */
-export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: string[]): ChangeResult[] => {
+export const populateFilePaths = ({
+  elements,
+  packageDirPaths,
+  registry,
+}: {
+  elements: ChangeResult[];
+  packageDirPaths: string[];
+  registry: RegistryAccess;
+}): ChangeResult[] => {
   if (elements.length === 0) {
     return [];
   }
@@ -36,7 +44,7 @@ export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: str
     .filter(isChangeResultWithNameAndType)
     .map(remoteChangeToMetadataMember);
 
-  const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsMetadataMember);
+  const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsMetadataMember, registry);
 
   logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
   if (remoteChangesAsComponentSet.size < elements.length) {
