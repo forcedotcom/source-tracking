@@ -11,7 +11,7 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
-import { Messages, Org } from '@salesforce/core';
+import { Logger, Messages, Org } from '@salesforce/core';
 import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
@@ -507,7 +507,7 @@ describe('remoteSourceTrackingService', () => {
         const expectedMsg = 'Polling for 3 SourceMembers timed out after 6 attempts';
         expect(Array.from(warns).some((w) => w.includes(expectedMsg))).to.equal(true);
         expect(queryStub.called).to.equal(true);
-      }).timeout(10000);
+      }).timeout(10_000);
 
       it('should stop if SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is exceeded', async () => {
         // @ts-ignore
@@ -583,21 +583,23 @@ describe('remoteSourceTrackingService', () => {
 });
 
 describe('calculateTimeout', () => {
+  const logger = new Logger({ useMemoryLogger: true, name: 'test' });
+  const functionUnderTest = calculateTimeout(logger);
   afterEach(() => {
     delete process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT;
   });
   it('0 members => 5 sec', () => {
-    expect(calculateTimeout(0).seconds).to.equal(5);
+    expect(functionUnderTest(0).seconds).to.equal(5);
   });
   it('10000 members => 505 sec', () => {
-    expect(calculateTimeout(10000).seconds).to.equal(505);
+    expect(functionUnderTest(10_000).seconds).to.equal(505);
   });
   it('override 60 in env', () => {
     process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT = '60';
-    expect(calculateTimeout(10000).seconds).to.equal(60);
+    expect(functionUnderTest(10_000).seconds).to.equal(60);
   });
   it('override 0 in env has no effect', () => {
     process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT = '0';
-    expect(calculateTimeout(10000).seconds).to.equal(505);
+    expect(functionUnderTest(10_000).seconds).to.equal(505);
   });
 });

@@ -8,10 +8,17 @@
 import { sep, normalize, isAbsolute, relative } from 'node:path';
 import * as fs from 'node:fs';
 import { isString } from '@salesforce/ts-types';
-import { SourceComponent } from '@salesforce/source-deploy-retrieve';
+import {
+  ForceIgnore,
+  MetadataComponent,
+  MetadataMember,
+  RegistryAccess,
+  SourceComponent,
+} from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
-import { RemoteChangeElement, ChangeResult } from './types';
+import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType } from './types';
+import { ensureNameAndType } from './remoteChangeIgnoring';
 
 export const getMetadataKey = (metadataType: string, metadataName: string): string =>
   `${metadataType}__${metadataName}`;
@@ -25,20 +32,28 @@ export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): s
 
 export const supportsPartialDelete = (cmp: SourceComponent): boolean => !!cmp.type.supportsPartialDelete;
 
-export const isLwcLocalOnlyTest = (filePath: string): boolean =>
-  filePath.includes('__utam__') || filePath.includes('__tests__');
+export const excludeLwcLocalOnlyTest = (filePath: string): boolean =>
+  !(filePath.includes('__utam__') || filePath.includes('__tests__'));
 
 /**
  * Verify that a filepath starts exactly with a complete parent path
  * ex: '/foo/bar-extra/baz'.startsWith('foo/bar') would be true, but this function understands that they are not in the same folder
  */
-export const pathIsInFolder = (filePath: string, folder: string): boolean => {
-  const biggerStringParts = normalize(filePath).split(sep).filter(nonEmptyStringFilter);
-  return normalize(folder)
-    .split(sep)
-    .filter(nonEmptyStringFilter)
-    .every((part, index) => part === biggerStringParts[index]);
-};
+export const pathIsInFolder =
+  (folder: string) =>
+  (filePath: string): boolean => {
+    const biggerStringParts = normalize(filePath).split(sep).filter(nonEmptyStringFilter);
+    return normalize(folder)
+      .split(sep)
+      .filter(nonEmptyStringFilter)
+      .every((part, index) => part === biggerStringParts[index]);
+  };
+
+/** just like pathIsInFolder but with the parameter order reversed for iterating a single file against an array of folders */
+export const folderContainsPath =
+  (filePath: string) =>
+  (folder: string): boolean =>
+    pathIsInFolder(folder)(filePath);
 
 const nonEmptyStringFilter = (value: string): boolean => isString(value) && value.length > 0;
 
@@ -46,8 +61,10 @@ const nonEmptyStringFilter = (value: string): boolean => isString(value) && valu
 export const chunkArray = <T>(arr: T[], size: number): T[][] =>
   Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
 
-export const ensureRelative = (filePath: string, projectPath: string): string =>
-  isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;
+export const ensureRelative =
+  (projectPath: string) =>
+  (filePath: string): string =>
+    isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;
 
 export type ParsedCustomLabels = {
   CustomLabels: { labels: Array<{ fullName: string }> };
@@ -64,12 +81,12 @@ export const deleteCustomLabels = async (
   filename: string,
   customLabels: SourceComponent[]
 ): Promise<ParsedCustomLabels | undefined> => {
-  const customLabelsToDelete = customLabels
-    .filter((label) => label.type.id === 'customlabel')
-    .map((change) => change.fullName);
+  const customLabelsToDelete = new Set(
+    customLabels.filter(sourceComponentIsCustomLabel).map((change) => change.fullName)
+  );
 
   // if we don't have custom labels, we don't need to do anything
-  if (!customLabelsToDelete.length) {
+  if (!customLabelsToDelete.size) {
     return undefined;
   }
   // for custom labels, we need to remove the individual label from the xml file
@@ -83,7 +100,7 @@ export const deleteCustomLabels = async (
 
   // delete the labels from the json based on their fullName's
   cls.CustomLabels.labels = ensureArray(cls.CustomLabels.labels).filter(
-    (label) => !customLabelsToDelete.includes(label.fullName)
+    (label) => !customLabelsToDelete.has(label.fullName)
   );
 
   if (cls.CustomLabels.labels.length === 0) {
@@ -104,3 +121,30 @@ export const deleteCustomLabels = async (
     return cls;
   }
 };
+
+/** returns true if forceIgnore denies a path OR if there is no forceIgnore provided */
+export const forceIgnoreDenies =
+  (forceIgnore?: ForceIgnore) =>
+  (filePath: string): boolean =>
+    forceIgnore?.denies(filePath) ?? false;
+
+export const sourceComponentIsCustomLabel = (input: SourceComponent): boolean => input.type.id === 'customlabel';
+
+export const sourceComponentHasFullNameAndType = (input: SourceComponent): boolean =>
+  typeof input.fullName === 'string' && typeof input.type.name === 'string';
+
+export const getAllFiles = (sc: SourceComponent): string[] => [sc.xml, ...sc.walkContent()].filter(isString);
+export const remoteChangeToMetadataMember = (cr: ChangeResult): MetadataMember => {
+  const checked = ensureNameAndType(cr);
+
+  return {
+    fullName: checked.name,
+    type: checked.type,
+  };
+};
+export const changeResultToMetadataComponent =
+  (registry: RegistryAccess = new RegistryAccess()) =>
+  (cr: ChangeResultWithNameAndType): MetadataComponent => ({
+    fullName: cr.name,
+    type: registry.getTypeByName(cr.type),
+  });

@@ -117,7 +117,7 @@ describe('localShadowRepo', () => {
     // private property maxFileAdd
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    expect(shadowRepo.maxFileAdd).to.equal(os.type() === 'Windows_NT' ? 8000 : 15000);
+    expect(shadowRepo.maxFileAdd).to.equal(os.type() === 'Windows_NT' ? 8000 : 15_000);
     expect(process.env.SF_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
     expect(process.env.SFDX_SOURCE_TRACKING_BATCH_SIZE).to.be.undefined;
   });

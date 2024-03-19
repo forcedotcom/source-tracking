@@ -10,27 +10,27 @@ import { pathIsInFolder } from '../../src/shared/functions';
 
 describe('pathIsInFolder', () => {
   it('does not misidentify partial strings', () => {
-    expect(pathIsInFolder(normalize('/foo/bar-extra/baz'), normalize('/foo/bar'))).to.equal(false);
+    expect(pathIsInFolder(normalize('/foo/bar'))(normalize('/foo/bar-extra/baz'))).to.equal(false);
   });
 
   it('does not misidentify partial strings (inverse)', () => {
-    expect(pathIsInFolder(normalize('/foo/bar-extra/baz'), normalize('/foo/bar-extra'))).to.equal(true);
+    expect(pathIsInFolder(normalize('/foo/bar-extra'))(normalize('/foo/bar-extra/baz'))).to.equal(true);
   });
 
   it('single top-level dir is ok', () => {
-    expect(pathIsInFolder(normalize('/foo/bar-extra/baz'), normalize('/foo'))).to.equal(true);
+    expect(pathIsInFolder(normalize('/foo'))(normalize('/foo/bar-extra/baz'))).to.equal(true);
   });
 
   it('no initial separator on 1st arg is ok', () => {
-    expect(pathIsInFolder(normalize('/foo/bar-extra/baz'), 'foo')).to.equal(true);
+    expect(pathIsInFolder('foo')(normalize('/foo/bar-extra/baz'))).to.equal(true);
   });
 
   it('no initial separator on 2nd arg is ok', () => {
-    expect(pathIsInFolder(normalize('foo/bar-extra/baz'), normalize('/foo'))).to.equal(true);
+    expect(pathIsInFolder(normalize('/foo'))(normalize('foo/bar-extra/baz'))).to.equal(true);
   });
 
   it('works for deep children', () => {
-    expect(pathIsInFolder(normalize('/foo/bar-extra/baz/some/deep/path'), normalize('/foo/bar-extra/baz'))).to.equal(
+    expect(pathIsInFolder(normalize('/foo/bar-extra/baz'))(normalize('/foo/bar-extra/baz/some/deep/path'))).to.equal(
       true
     );
   });

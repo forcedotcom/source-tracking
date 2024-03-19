@@ -9,6 +9,7 @@ import { ComponentSet, ForceIgnore } from '@salesforce/source-deploy-retrieve';
 import { ConflictResponse, ChangeResult, SourceConflictError } from './types';
 import { getMetadataKey } from './functions';
 import { populateTypesAndNames } from './populateTypesAndNames';
+import { isChangeResultWithNameAndType } from './guards';
 
 export const throwIfConflicts = (conflicts: ConflictResponse[]): void => {
   if (conflicts.length > 0) {
@@ -26,15 +27,14 @@ export const findConflictsInComponentSet = (cs: ComponentSet, conflicts: ChangeR
   // map do dedupe by name-type-filename
   const conflictMap = new Map<string, ConflictResponse>();
   conflicts
-    .filter((cr) => cr.name && cr.type && cs.has({ fullName: cr.name, type: cr.type }))
+    .filter(isChangeResultWithNameAndType)
+    .filter((cr) => cs.has({ fullName: cr.name, type: cr.type }))
     .forEach((cr) => {
       cr.filenames?.forEach((f) => {
         conflictMap.set(`${cr.name}#${cr.type}#${f}`, {
           state: 'Conflict',
-          // the following 2 type assertions are valid because of previous filter statement
-          // they can be removed once TS is smarter about filtering
-          fullName: cr.name as string,
-          type: cr.type as string,
+          fullName: cr.name,
+          type: cr.type,
           filePath: resolve(f),
         });
       });
@@ -54,23 +54,21 @@ export const getDedupedConflictsFromChanges = ({
   projectPath: string;
   forceIgnore: ForceIgnore;
 }): ChangeResult[] => {
-  // index the remoteChanges by filename
-  const fileNameIndex = new Map<string, ChangeResult>();
-  const metadataKeyIndex = new Map<string, ChangeResult>();
-  remoteChanges.map((change) => {
-    if (change.name && change.type) {
-      metadataKeyIndex.set(getMetadataKey(change.name, change.type), change);
-    }
-    change.filenames?.map((filename) => {
-      fileNameIndex.set(filename, change);
-    });
-  });
+  const metadataKeyIndex = new Map(
+    remoteChanges
+      .filter(isChangeResultWithNameAndType)
+      .map((change) => [getMetadataKey(change.name, change.type), change])
+  );
+  const fileNameIndex = new Map(
+    remoteChanges.flatMap((change) => (change.filenames ?? []).map((filename) => [filename, change]))
+  );
 
   const conflicts = new Set<ChangeResult>();
 
-  populateTypesAndNames({ elements: localChanges, excludeUnresolvable: true, projectPath, forceIgnore }).map(
-    (change) => {
-      const metadataKey = getMetadataKey(change.name as string, change.type as string);
+  populateTypesAndNames({ elements: localChanges, excludeUnresolvable: true, projectPath, forceIgnore })
+    .filter(isChangeResultWithNameAndType)
+    .map((change) => {
+      const metadataKey = getMetadataKey(change.name, change.type);
       // option 1: name and type match
       if (metadataKeyIndex.has(metadataKey)) {
         conflicts.add({ ...(metadataKeyIndex.get(metadataKey) as ChangeResult) });
@@ -82,8 +80,7 @@ export const getDedupedConflictsFromChanges = ({
           }
         });
       }
-    }
-  );
+    });
   // deeply de-dupe
   return Array.from(conflicts);
 };

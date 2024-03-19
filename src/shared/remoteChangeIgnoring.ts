@@ -8,20 +8,9 @@ import { ForceIgnore, MetadataComponent, MetadataMember, RegistryAccess } from '
 import { SfError } from '@salesforce/core';
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
 import { ChangeResult } from './types';
-
-export const changeResultToMetadataComponent = (
-  cr: ChangeResult,
-  registry: RegistryAccess = new RegistryAccess()
-): MetadataComponent => {
-  if (!cr.name || !cr.type) {
-    throw new SfError(`Change Result is missing name or type: ${JSON.stringify(cr)}`);
-  }
-
-  return {
-    fullName: cr.name,
-    type: registry.getTypeByName(cr.type),
-  };
-};
+import { isChangeResultWithNameAndType } from './guards';
+import { ChangeResultWithNameAndType } from './types';
+import { forceIgnoreDenies, changeResultToMetadataComponent } from './functions';
 
 export const removeIgnored = (
   changeResults: ChangeResult[],
@@ -30,18 +19,20 @@ export const removeIgnored = (
 ): MetadataMember[] => {
   const registry = new RegistryAccess();
   return changeResults
-    .map((cr) => changeResultToMetadataComponent(cr, registry))
-    .filter((mc) => !filePathsFromMetadataComponent(mc, defaultPkgDir).some((f) => forceIgnore.denies(f)))
-    .map((mc) => ({ type: mc.type.name, fullName: mc.fullName }));
+    .map(ensureNameAndType)
+    .map(changeResultToMetadataComponent(registry))
+    .filter((mc) => !filePathsFromMetadataComponent(mc, defaultPkgDir).some(forceIgnoreDenies(forceIgnore)))
+    .map(metadataComponentToMetadataMember);
 };
 
-export const remoteChangeToMetadataMember = (cr: ChangeResult): MetadataMember => {
-  if (!cr.name || !cr.type) {
-    throw new SfError(`Change Result is missing name or type: ${JSON.stringify(cr)}`);
-  }
+const metadataComponentToMetadataMember = (mc: MetadataComponent): MetadataMember => ({
+  type: mc.type.name,
+  fullName: mc.fullName,
+});
 
-  return {
-    fullName: cr.name,
-    type: cr.type,
-  };
+export const ensureNameAndType = (cr: ChangeResult): ChangeResultWithNameAndType => {
+  if (isChangeResultWithNameAndType(cr)) {
+    return cr;
+  }
+  throw new SfError(`Change Result is missing name or type: ${JSON.stringify(cr)}`);
 };

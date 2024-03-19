@@ -156,7 +156,7 @@ export class RemoteSourceTrackingService {
       const revision = this.sourceMembers.get(metadataKey) ?? this.sourceMembers.get(decodeURI(metadataKey));
       if (!revision) {
         this.logger.warn(`found no matching revision for ${metadataKey}`);
-      } else if (revision.lastRetrievedFromServer !== revision.serverRevisionCounter) {
+      } else if (doesNotMatchServer(revision)) {
         if (!quiet) {
           this.logger.debug(
             `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
@@ -214,8 +214,8 @@ export class RemoteSourceTrackingService {
     // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
     // does not match the serverRevisionCounter.
     const returnElements = Array.from(this.sourceMembers.entries())
-      .filter(([, member]) => member.serverRevisionCounter !== member.lastRetrievedFromServer)
-      .map(([key, member]) => convertRevisionToChange(key, member));
+      .filter(revisionDoesNotMatch)
+      .map(convertRevisionToChange);
 
     this.logger.debug(
       returnElements.length
@@ -249,7 +249,7 @@ export class RemoteSourceTrackingService {
     const originalOutstandingSize = outstandingSourceMembers.size;
     // this will be the absolute timeout from the start of the poll.  We can also exit early if it doesn't look like more results are coming in
     let highestRevisionSoFar = this.serverMaxRevisionCounter;
-    const pollingTimeout = calculateTimeout(outstandingSourceMembers.size);
+    const pollingTimeout = calculateTimeout(this.logger)(outstandingSourceMembers.size);
     let pollAttempts = 0;
     let consecutiveEmptyResults = 0;
     let someResultsReturned = false;
@@ -523,7 +523,10 @@ export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): Cha
   origin: 'remote', // we know they're remote
 });
 
-const convertRevisionToChange = (memberKey: string, memberRevision: MemberRevision): RemoteChangeElement => ({
+const convertRevisionToChange = ([memberKey, memberRevision]: [
+  memberKey: string,
+  memberRevision: MemberRevision
+]): RemoteChangeElement => ({
   type: memberRevision.memberType,
   name: memberKey.replace(`${memberRevision.memberType}__`, ''),
   deleted: memberRevision.isNameObsolete,
@@ -576,21 +579,22 @@ const readFileContents = async (filePath: string): Promise<Contents | Record<str
   }
 };
 
-export const calculateTimeout = (memberCount: number): Duration => {
-  const logger = Logger.childFromRoot('remoteSourceTrackingService:calculateTimeout');
-  const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
-  if (overriddenTimeout > 0) {
-    logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
-    return Duration.seconds(overriddenTimeout);
-  }
+export const calculateTimeout =
+  (logger: Logger) =>
+  (memberCount: number): Duration => {
+    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
+    if (overriddenTimeout > 0) {
+      logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
+      return Duration.seconds(overriddenTimeout);
+    }
 
-  // Calculate a polling timeout for SourceMembers based on the number of
-  // member names being polled plus a buffer of 5 seconds.  This will
-  // wait 50s for each 1000 components, plus 5s.
-  const pollingTimeout = Math.ceil(memberCount * 0.05) + 5;
-  logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
-  return Duration.seconds(pollingTimeout);
-};
+    // Calculate a polling timeout for SourceMembers based on the number of
+    // member names being polled plus a buffer of 5 seconds.  This will
+    // wait 50s for each 1000 components, plus 5s.
+    const pollingTimeout = Math.ceil(memberCount * 0.05) + 5;
+    logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
+    return Duration.seconds(pollingTimeout);
+  };
 
 /** exported only for spy/mock  */
 export const querySourceMembersTo = async (conn: Connection, toRevision: number): Promise<SourceMember[]> => {
@@ -600,9 +604,9 @@ export const querySourceMembersTo = async (conn: Connection, toRevision: number)
 
 const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
   try {
-    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50000 })).records;
+    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records;
   } catch (error) {
-    throw SfError.wrap(error as Error);
+    throw error instanceof Error ? SfError.wrap(error) : error;
   }
 };
 
@@ -617,3 +621,8 @@ const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, Remote
     .map(([type, names]) => `  - ${type}: ${names.join(', ')}`)
     .join(EOL);
 };
+
+const revisionDoesNotMatch = ([, member]: [_: unknown, member: MemberRevision]): boolean => doesNotMatchServer(member);
+
+const doesNotMatchServer = (member: MemberRevision): boolean =>
+  member.serverRevisionCounter !== member.lastRetrievedFromServer;

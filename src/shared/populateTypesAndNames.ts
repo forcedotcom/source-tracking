@@ -8,8 +8,14 @@ import { Logger } from '@salesforce/core';
 import { isString } from '@salesforce/ts-types';
 import { MetadataResolver, VirtualTreeContainer, ForceIgnore } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
-import { sourceComponentGuard } from './guards';
-import { ensureRelative, isLwcLocalOnlyTest } from './functions';
+import { isChangeResultWithNameAndType, sourceComponentGuard } from './guards';
+import {
+  ensureRelative,
+  excludeLwcLocalOnlyTest,
+  forceIgnoreDenies,
+  getAllFiles,
+  sourceComponentHasFullNameAndType,
+} from './functions';
 
 /**
  * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
@@ -59,37 +65,28 @@ export const populateTypesAndNames = ({
 
   logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
 
-  // make it simpler to find things later
-  const elementMap = new Map<string, ChangeResult>();
-  elements.map((element) => {
-    element.filenames?.map((filename) => {
-      elementMap.set(ensureRelative(filename, projectPath), element);
-    });
-  });
+  const elementMap = new Map(
+    elements.flatMap((e) => (e.filenames ?? []).map((f) => [ensureRelative(projectPath)(f), e]))
+  );
 
   // iterates the local components and sets their filenames
-  sourceComponents.map((matchingComponent) => {
-    if (matchingComponent?.fullName && matchingComponent?.type.name) {
-      const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
-      const ignored = filenamesFromMatchingComponent
-        .filter(isString)
-        .filter((f) => !isLwcLocalOnlyTest(f))
-        .some((f) => forceIgnore?.denies(f));
-      filenamesFromMatchingComponent.map((filename) => {
-        if (filename && elementMap.has(filename)) {
-          // add the type/name from the componentSet onto the element
-          elementMap.set(filename, {
-            origin: 'remote',
-            ...elementMap.get(filename),
-            type: matchingComponent.type.name,
-            name: matchingComponent.fullName,
-            ignored,
-          });
-        }
-      });
-    }
+  sourceComponents.filter(sourceComponentHasFullNameAndType).map((matchingComponent) => {
+    const filenamesFromMatchingComponent = getAllFiles(matchingComponent);
+    const ignored = filenamesFromMatchingComponent.filter(excludeLwcLocalOnlyTest).some(forceIgnoreDenies(forceIgnore));
+    filenamesFromMatchingComponent.map((filename) => {
+      if (filename && elementMap.has(filename)) {
+        // add the type/name from the componentSet onto the element
+        elementMap.set(filename, {
+          origin: 'remote',
+          ...elementMap.get(filename),
+          type: matchingComponent.type.name,
+          name: matchingComponent.fullName,
+          ignored,
+        });
+      }
+    });
   });
   return excludeUnresolvable
-    ? Array.from(new Set(elementMap.values())).filter((changeResult) => changeResult.name && changeResult.type)
+    ? Array.from(new Set(elementMap.values())).filter(isChangeResultWithNameAndType)
     : Array.from(new Set(elementMap.values()));
 };

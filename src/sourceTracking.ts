@@ -41,13 +41,29 @@ import {
   LocalUpdateOptions,
   RemoteChangeElement,
 } from './shared/types';
-import { sourceComponentGuard } from './shared/guards';
-import { remoteChangeToMetadataMember, removeIgnored } from './shared/remoteChangeIgnoring';
-import { supportsPartialDelete, pathIsInFolder, ensureRelative, deleteCustomLabels } from './shared/functions';
+import {
+  FileResponseHasPath,
+  FileResponseIsDeleted,
+  FileResponseIsNotDeleted,
+  isChangeResultWithNameAndType,
+  isSdrSuccess,
+  sourceComponentGuard,
+} from './shared/guards';
+import { removeIgnored } from './shared/remoteChangeIgnoring';
+import { changeResultToMetadataComponent, remoteChangeToMetadataMember } from './shared/functions';
+import {
+  supportsPartialDelete,
+  ensureRelative,
+  deleteCustomLabels,
+  getAllFiles,
+  folderContainsPath,
+  forceIgnoreDenies,
+} from './shared/functions';
 import { registrySupportsType } from './shared/metadataKeys';
 import { populateFilePaths } from './shared/populateFilePaths';
 import { populateTypesAndNames } from './shared/populateTypesAndNames';
 import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray';
+import { sourceComponentIsCustomLabel } from './shared/functions';
 export interface SourceTrackingOptions {
   org: Org;
   project: SfProject;
@@ -173,15 +189,13 @@ export class SourceTracking extends AsyncCreatable {
       },
     ]);
     const componentSet = new ComponentSet(
-      applyIgnore
-        ? sourceBackedComponents.filter((sc) => ![sc.content, sc.xml].some((f) => f && this.forceIgnore.denies(f)))
-        : sourceBackedComponents
+      applyIgnore ? sourceBackedComponents.filter(noFileIsIgnored(this.forceIgnore)) : sourceBackedComponents
     );
     // there may be remote adds not in the SBC.  So we add those manually
     (applyIgnore
       ? removeIgnored(changeResults, this.forceIgnore, this.project.getDefaultPackage().fullPath)
       : changeResults.map(remoteChangeToMetadataMember)
-    ).forEach((mm) => {
+    ).map((mm) => {
       componentSet.add(mm);
     });
 
@@ -218,10 +232,12 @@ export class SourceTracking extends AsyncCreatable {
     }
     if (local && remote) {
       // keys like ApexClass__MyClass.cls
-      const conflictFiles = (await this.getConflicts()).flatMap((conflict) => conflict.filenames).filter(isString);
+      const conflictFiles = new Set(
+        (await this.getConflicts()).flatMap((conflict) => conflict.filenames).filter(isString)
+      );
       results = results.map((row) => ({
         ...row,
-        conflict: !!row.filePath && conflictFiles.includes(row.filePath),
+        conflict: !!row.filePath && conflictFiles.has(row.filePath),
       }));
     }
     return results;
@@ -259,7 +275,7 @@ export class SourceTracking extends AsyncCreatable {
   public async getChanges(options?: ChangeOptions): Promise<ChangeOptionType[]> {
     if (options?.origin === 'local') {
       await this.ensureLocalTracking();
-      const filenames: string[] = await this.getLocalChangesAsFilenames(options.state);
+      const filenames = await getLocalChangesAsFilenames(this.localRepo)(options.state);
       if (options.format === 'string') {
         return filenames;
       }
@@ -297,11 +313,11 @@ export class SourceTracking extends AsyncCreatable {
         // skip any remote types not in the registry.  Will emit warnings
         .filter((rce) => registrySupportsType(rce.type));
       if (options.format === 'ChangeResult') {
-        return filteredChanges.map((change) => remoteChangeElementToChangeResult(change));
+        return filteredChanges.map(remoteChangeElementToChangeResult);
       }
       if (options.format === 'ChangeResultWithPaths') {
         return populateFilePaths(
-          filteredChanges.map((change) => remoteChangeElementToChangeResult(change)),
+          filteredChanges.map(remoteChangeElementToChangeResult),
           this.project.getPackageDirectories().map((pkgDir) => pkgDir.path)
         );
       }
@@ -317,10 +333,7 @@ export class SourceTracking extends AsyncCreatable {
         include: remoteChangesAsComponentSet,
       });
       if (options.format === 'string') {
-        return matchingLocalSourceComponentsSet
-          .getSourceComponents()
-          .toArray()
-          .flatMap((component) => [component.xml as string, ...component.walkContent()].filter((filename) => filename));
+        return matchingLocalSourceComponentsSet.getSourceComponents().toArray().flatMap(getAllFiles);
       } else if (options.format === 'SourceComponent') {
         return matchingLocalSourceComponentsSet.getSourceComponents().toArray();
       }
@@ -361,16 +374,12 @@ export class SourceTracking extends AsyncCreatable {
       return [];
     }
 
-    const sourceComponentByFileName = new Map<string, SourceComponent>();
-    changesToDelete.flatMap((component) =>
-      [component.xml as string, ...component.walkContent()]
-        .filter((filename) => filename)
-        .map((filename) => sourceComponentByFileName.set(filename, component))
+    const sourceComponentByFileName = new Map<string, SourceComponent>(
+      changesToDelete.flatMap((component) => getAllFiles(component).map((filename) => [filename, component]))
     );
-
     // calculate what to return before we delete any files and .walkContent is no longer valid
     const changedToBeDeleted = changesToDelete.flatMap((component) =>
-      [...component.walkContent(), component.xml].map(
+      getAllFiles(component).map(
         (file): FileResponseSuccess => ({
           state: ComponentStatus.Deleted,
           filePath: file,
@@ -383,16 +392,11 @@ export class SourceTracking extends AsyncCreatable {
     const filenames = Array.from(sourceComponentByFileName.keys());
     // delete the files
     await Promise.all(
-      filenames.map(async (filename) => {
-        if (sourceComponentByFileName.get(filename)?.type.id === 'customlabel') {
-          await deleteCustomLabels(
-            filename,
-            changesToDelete.filter((c) => c.type.id === 'customlabel')
-          );
-        } else {
-          return fs.promises.unlink(filename);
-        }
-      })
+      filenames.map((filename) =>
+        sourceComponentByFileName.get(filename)?.type.id === 'customlabel'
+          ? deleteCustomLabels(filename, changesToDelete.filter(sourceComponentIsCustomLabel))
+          : fs.promises.unlink(filename)
+      )
     );
 
     // update the tracking files.  We're simulating SDR-style fileResponse
@@ -423,8 +427,8 @@ export class SourceTracking extends AsyncCreatable {
 
     // relative paths make smaller trees AND isogit wants them relative
     const relativeOptions = {
-      files: (options.files ?? []).map((file) => ensureRelative(file, this.projectPath)),
-      deletedFiles: (options.deletedFiles ?? []).map((file) => ensureRelative(file, this.projectPath)),
+      files: (options.files ?? []).map(ensureRelative(this.projectPath)),
+      deletedFiles: (options.deletedFiles ?? []).map(ensureRelative(this.projectPath)),
     };
     // plot twist: if you delete a member of a bundle (ex: lwc/foo/foo.css) and push, it'll not be in the fileResponses (deployedFiles) or deletedFiles
     // what got deleted?  Any local changes NOT in the fileResponses but part of a successfully deployed bundle
@@ -449,7 +453,7 @@ export class SourceTracking extends AsyncCreatable {
           await this.localRepo.getDeleteFilenames()
         ).filter(
           (deployedFile) =>
-            bundlesWithDeletedFiles.some((bundlePath) => pathIsInFolder(deployedFile, bundlePath)) &&
+            bundlesWithDeletedFiles.some(folderContainsPath(deployedFile)) &&
             !relativeOptions.files.includes(deployedFile)
         )
       ),
@@ -608,9 +612,7 @@ export class SourceTracking extends AsyncCreatable {
    * @param result FileResponse[]
    */
   public async updateTrackingFromDeploy(deployResult: DeployResult): Promise<void> {
-    const successes = deployResult
-      .getFileResponses()
-      .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed && fileResponse.filePath);
+    const successes = deployResult.getFileResponses().filter(isSdrSuccess).filter(FileResponseHasPath);
     if (!successes.length) {
       return;
     }
@@ -618,12 +620,8 @@ export class SourceTracking extends AsyncCreatable {
     await Promise.all([
       this.updateLocalTracking({
         // assertions allowed because filtered above
-        files: successes
-          .filter((fileResponse) => fileResponse.state !== ComponentStatus.Deleted)
-          .map((fileResponse) => fileResponse.filePath as string),
-        deletedFiles: successes
-          .filter((fileResponse) => fileResponse.state === ComponentStatus.Deleted)
-          .map((fileResponse) => fileResponse.filePath as string),
+        files: successes.filter(FileResponseIsNotDeleted).map(filePathFromFileResponse),
+        deletedFiles: successes.filter(FileResponseIsDeleted).map(filePathFromFileResponse),
       }),
       this.updateRemoteTracking(
         successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath }))
@@ -637,9 +635,7 @@ export class SourceTracking extends AsyncCreatable {
    * @param result FileResponse[]
    */
   public async updateTrackingFromRetrieve(retrieveResult: RetrieveResult): Promise<void> {
-    const successes = retrieveResult
-      .getFileResponses()
-      .filter((fileResponse) => fileResponse.state !== ComponentStatus.Failed);
+    const successes = retrieveResult.getFileResponses().filter(isSdrSuccess);
     if (!successes.length) {
       return;
     }
@@ -647,14 +643,8 @@ export class SourceTracking extends AsyncCreatable {
     await Promise.all([
       this.updateLocalTracking({
         // assertion allowed because it's filtering out undefined
-        files: successes
-          .filter((fileResponse) => fileResponse.state !== ComponentStatus.Deleted)
-          .map((fileResponse) => fileResponse.filePath as string)
-          .filter(Boolean),
-        deletedFiles: successes
-          .filter((fileResponse) => fileResponse.state === ComponentStatus.Deleted)
-          .map((fileResponse) => fileResponse.filePath as string)
-          .filter(Boolean),
+        files: successes.filter(FileResponseIsNotDeleted).filter(FileResponseHasPath).map(filePathFromFileResponse),
+        deletedFiles: successes.filter(FileResponseIsDeleted).filter(FileResponseHasPath).map(filePathFromFileResponse),
       }),
       this.updateRemoteTracking(
         successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath })),
@@ -759,22 +749,6 @@ export class SourceTracking extends AsyncCreatable {
     return results;
   }
 
-  private async getLocalChangesAsFilenames(state: ChangeOptions['state']): Promise<string[]> {
-    if (state === 'modify') {
-      return this.localRepo.getModifyFilenames();
-    }
-    if (state === 'nondelete') {
-      return this.localRepo.getNonDeleteFilenames();
-    }
-    if (state === 'delete') {
-      return this.localRepo.getDeleteFilenames();
-    }
-    if (state === 'add') {
-      return this.localRepo.getAddFilenames();
-    }
-    throw new Error(`unable to get local changes for state ${state as string}`);
-  }
-
   private localChangesToOutputRow(input: ChangeResult, localType: 'delete' | 'modify' | 'add'): StatusOutputRow[] {
     this.logger.debug('converting ChangeResult to a row', input);
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
@@ -817,14 +791,14 @@ export class SourceTracking extends AsyncCreatable {
     }
     // when the file doesn't exist locally, there are no filePaths
     // SDR can generate the hypothetical place it *would* go and check that
-    if (input.name && input.type) {
+    if (isChangeResultWithNameAndType(input)) {
+      const ignored = filePathsFromMetadataComponent(changeResultToMetadataComponent(registry)(input)).some(
+        forceIgnoreDenies(this.forceIgnore)
+      );
       return [
         {
           ...baseObject,
-          ignored: filePathsFromMetadataComponent({
-            fullName: input.name,
-            type: registry.getTypeByName(input.type),
-          }).some((hypotheticalFilePath) => this.forceIgnore.denies(hypotheticalFilePath)),
+          ignored,
         },
       ];
     }
@@ -848,3 +822,25 @@ const stateFromChangeResult = (input: ChangeResult): 'add' | 'delete' | 'modify'
   }
   return 'add';
 };
+
+const getLocalChangesAsFilenames =
+  (localRepo: ShadowRepo) =>
+  async (state: ChangeOptions['state']): Promise<string[]> => {
+    switch (state) {
+      case 'modify':
+        return localRepo.getModifyFilenames();
+      case 'nondelete':
+        return localRepo.getNonDeleteFilenames();
+      case 'delete':
+        return localRepo.getDeleteFilenames();
+      case 'add':
+        return localRepo.getAddFilenames();
+    }
+  };
+
+const filePathFromFileResponse = (input: FileResponse & { filePath: string }): string => input.filePath;
+
+const noFileIsIgnored =
+  (forceIgnore: ForceIgnore) =>
+  (cmp: SourceComponent): boolean =>
+    !getAllFiles(cmp).some(forceIgnoreDenies(forceIgnore));

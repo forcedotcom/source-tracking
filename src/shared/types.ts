@@ -88,3 +88,4 @@ export type SourceMemberPollingEvent = {
   attempts: number;
   consecutiveEmptyResults: number;
 };
+export type ChangeResultWithNameAndType = ChangeResult & Required<Pick<ChangeResult, 'name' | 'type'>>;
