@@ -1,3 +1,12 @@
+## [5.1.18](https://github.com/forcedotcom/source-tracking/compare/5.1.17...5.1.18) (2024-03-19)
+
+
+### Bug Fixes
+
+* bump sdr to 10.5.3 ([fa8e729](https://github.com/forcedotcom/source-tracking/commit/fa8e729b32151d6287f0281746e118e25da0e34c))
+
+
+
 ## [5.1.17](https://github.com/forcedotcom/source-tracking/compare/5.1.16...5.1.17) (2024-03-17)
 
 
