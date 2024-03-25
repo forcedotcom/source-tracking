@@ -134,6 +134,7 @@ export const sourceComponentHasFullNameAndType = (input: SourceComponent): boole
   typeof input.fullName === 'string' && typeof input.type.name === 'string';
 
 export const getAllFiles = (sc: SourceComponent): string[] => [sc.xml, ...sc.walkContent()].filter(isString);
+
 export const remoteChangeToMetadataMember = (cr: ChangeResult): MetadataMember => {
   const checked = ensureNameAndType(cr);
 
@@ -142,6 +143,7 @@ export const remoteChangeToMetadataMember = (cr: ChangeResult): MetadataMember =
     type: checked.type,
   };
 };
+
 export const changeResultToMetadataComponent =
   (registry: RegistryAccess = new RegistryAccess()) =>
   (cr: ChangeResultWithNameAndType): MetadataComponent => ({

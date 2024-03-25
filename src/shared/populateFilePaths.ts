@@ -67,6 +67,7 @@ export const populateFilePaths = ({
   const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
     fsPaths: packageDirPaths,
     include: remoteChangesAsComponentSet,
+    registry,
   });
   logger.debug(
     ` local source-backed component set has ${matchingLocalSourceComponentsSet.size.toString()} items from remote`

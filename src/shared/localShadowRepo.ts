@@ -144,7 +144,7 @@ export class ShadowRepo {
       // iso-git uses relative, posix paths
       // but packageDirs has already resolved / normalized them
       // so we need to make them project-relative again and convert if windows
-      const filepaths = this.packageDirs.map(packageDirToRelativePath(this.isWindows)(this.projectPath));
+      const filepaths = this.packageDirs.map(packageDirToRelativePosixPath(this.isWindows)(this.projectPath));
 
       try {
         // status hasn't been initialized yet
@@ -330,7 +330,7 @@ export class ShadowRepo {
   }
 }
 
-const packageDirToRelativePath =
+const packageDirToRelativePosixPath =
   (isWindows: boolean) =>
   (projectPath: string) =>
   (packageDir: NamedPackageDir): string =>

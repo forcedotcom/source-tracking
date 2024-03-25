@@ -25,7 +25,7 @@ const registry = new RegistryAccess();
 // only compute once
 const aliasTypes: Array<[string, string]> = registry
   .getAliasTypes()
-  // allow assertion because
+  // allow assertion because aliasTypes are defined as having that property
   .map((aliasType) => [aliasType.name, registry.getTypeByName(aliasType.aliasFor!).name]);
 
 const reverseAliasTypes = new Map(aliasTypes.map(([alias, type]) => [type, alias]));

@@ -65,24 +65,16 @@ export const getDedupedConflictsFromChanges = ({
     remoteChanges.flatMap((change) => (change.filenames ?? []).map((filename) => [filename, change]))
   );
 
-  const conflicts = new Set<ChangeResult>();
-
-  populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
+  return populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
     .filter(isChangeResultWithNameAndType)
-    .map((change) => {
+    .flatMap((change) => {
       const metadataKey = getMetadataKey(change.name, change.type);
-      // option 1: name and type match
-      if (metadataKeyIndex.has(metadataKey)) {
-        conflicts.add({ ...(metadataKeyIndex.get(metadataKey) as ChangeResult) });
-      } else {
-        // option 2: some of the filenames match
-        change.filenames?.map((filename) => {
-          if (fileNameIndex.has(filename)) {
-            conflicts.add({ ...(fileNameIndex.get(filename) as ChangeResult) });
-          }
-        });
-      }
+      return metadataKeyIndex.has(metadataKey)
+        ? // option 1: name and type match
+          [metadataKeyIndex.get(metadataKey)!]
+        : // option 2: some of the filenames match
+          (change.filenames ?? [])
+            .filter((filename) => fileNameIndex.has(filename))
+            .map((filename) => fileNameIndex.get(filename)!);
     });
-  // deeply de-dupe
-  return Array.from(conflicts);
 };

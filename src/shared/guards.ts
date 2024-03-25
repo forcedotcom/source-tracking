@@ -40,5 +40,5 @@ export const FileResponseHasPath = (
 ): fileResponse is FileResponseSuccess & Required<Pick<FileResponseSuccess, 'filePath'>> =>
   fileResponse.filePath !== undefined;
 
-export const isChangeResultWithNameAndType = (cr: ChangeResult): cr is ChangeResultWithNameAndType =>
-  typeof cr.name === 'string' && typeof cr.type === 'string';
+export const isChangeResultWithNameAndType = (cr?: ChangeResult): cr is ChangeResultWithNameAndType =>
+  typeof cr === 'object' && typeof cr.name === 'string' && typeof cr.type === 'string';

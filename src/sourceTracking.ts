@@ -97,9 +97,11 @@ type RemoteChangesResults = {
  *
  */
 export class SourceTracking extends AsyncCreatable {
+  public readonly registry: RegistryAccess;
+  public readonly projectPath: string;
+
   private org: Org;
   private project: SfProject;
-  private projectPath: string;
   private packagesDirs: NamedPackageDir[];
   private logger: Logger;
   // remote and local tracking may not exist if not initialized
@@ -110,7 +112,6 @@ export class SourceTracking extends AsyncCreatable {
   private subscribeSDREvents: boolean;
   private ignoreLocalCache: boolean;
   private orgId: string;
-  private registry: RegistryAccess;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
@@ -337,6 +338,7 @@ export class SourceTracking extends AsyncCreatable {
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
         fsPaths: this.packagesDirs.map((dir) => resolve(dir.fullPath)),
         include: remoteChangesAsComponentSet,
+        registry: this.registry,
       });
       if (options.format === 'string') {
         return matchingLocalSourceComponentsSet.getSourceComponents().toArray().flatMap(getAllFiles);
@@ -431,6 +433,7 @@ export class SourceTracking extends AsyncCreatable {
     marker?.addDetails({ nonDeletes: options.files?.length ?? 0, deletes: options.deletedFiles?.length ?? 0 });
     await this.ensureLocalTracking();
 
+    this.logger.trace('files', options.files);
     // relative paths make smaller trees AND isogit wants them relative
     const relativeOptions = {
       files: (options.files ?? []).map(ensureRelative(this.projectPath)),
@@ -442,6 +445,7 @@ export class SourceTracking extends AsyncCreatable {
       // resolve from highest possible level.  TODO: can we use [.]
       fsPaths: relativeOptions.files.length ? [relativeOptions.files[0].split(sep)[0]] : [],
       tree: VirtualTreeContainer.fromFilePaths(relativeOptions.files),
+      registry: this.registry,
     });
     // these are top-level bundle paths like lwc/foo
     const bundlesWithDeletedFiles = (

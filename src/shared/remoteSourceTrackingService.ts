@@ -29,6 +29,8 @@ export type Contents = {
   serverMaxRevisionCounter: number;
   sourceMembers: Record<string, MemberRevision>;
 };
+type MemberRevisionMapEntry = [string, MemberRevision];
+
 const FILENAME = 'maxRevision.json';
 
 /*
@@ -215,7 +217,7 @@ export class RemoteSourceTrackingService {
     // does not match the serverRevisionCounter.
     const returnElements = Array.from(this.sourceMembers.entries())
       .filter(revisionDoesNotMatch)
-      .map(convertRevisionToChange);
+      .map(revisionToRemoteChangeElement);
 
     this.logger.debug(
       returnElements.length
@@ -523,10 +525,7 @@ export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): Cha
   origin: 'remote', // we know they're remote
 });
 
-const convertRevisionToChange = ([memberKey, memberRevision]: [
-  memberKey: string,
-  memberRevision: MemberRevision
-]): RemoteChangeElement => ({
+const revisionToRemoteChangeElement = ([memberKey, memberRevision]: MemberRevisionMapEntry): RemoteChangeElement => ({
   type: memberRevision.memberType,
   name: memberKey.replace(`${memberRevision.memberType}__`, ''),
   deleted: memberRevision.isNameObsolete,
@@ -622,7 +621,7 @@ const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, Remote
     .join(EOL);
 };
 
-const revisionDoesNotMatch = ([, member]: [_: unknown, member: MemberRevision]): boolean => doesNotMatchServer(member);
+const revisionDoesNotMatch = ([, member]: MemberRevisionMapEntry): boolean => doesNotMatchServer(member);
 
 const doesNotMatchServer = (member: MemberRevision): boolean =>
   member.serverRevisionCounter !== member.lastRetrievedFromServer;
