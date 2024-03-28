@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import * as sinon from 'sinon';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { getComponentSets } from '../../../src/shared/localComponentSetArray';
 
 describe('Bundle-like types delete', () => {
@@ -26,7 +27,7 @@ describe('Bundle-like types delete', () => {
   // We need a sinon sandbox to stub the file system to make it look like we
   // deleted some files.
   const sandbox = sinon.createSandbox();
-
+  const registry = new RegistryAccess();
   after(async () => {
     await session?.clean();
   });
@@ -41,13 +42,16 @@ describe('Bundle-like types delete', () => {
     const lwcJsFile = path.join(lwcTestCompDir, 'myComp.js');
     const lwcMetaFile = path.join(lwcTestCompDir, 'myComp.js-meta.xml');
 
-    const compSets = getComponentSets([
-      {
-        path: path.join(session.project.dir, 'force-app', 'lwc'),
-        nonDeletes: [lwcJsFile, lwcMetaFile],
-        deletes: [lwcHtmlFile],
-      },
-    ]);
+    const compSets = getComponentSets({
+      groupings: [
+        {
+          path: path.join(session.project.dir, 'force-app', 'lwc'),
+          nonDeletes: [lwcJsFile, lwcMetaFile],
+          deletes: [lwcHtmlFile],
+        },
+      ],
+      registry,
+    });
 
     expect(compSets.length).to.equal(1);
     compSets.forEach((cs) => {
@@ -65,13 +69,16 @@ describe('Bundle-like types delete', () => {
     const lwcJsFile = path.join(lwcTestCompDir, 'myComp.js');
     const lwcMetaFile = path.join(lwcTestCompDir, 'myComp.js-meta.xml');
 
-    const compSets = getComponentSets([
-      {
-        path: path.join(session.project.dir, 'force-app', 'lwc'),
-        nonDeletes: [],
-        deletes: [lwcHtmlFile, lwcJsFile, lwcMetaFile],
-      },
-    ]);
+    const compSets = getComponentSets({
+      groupings: [
+        {
+          path: path.join(session.project.dir, 'force-app', 'lwc'),
+          nonDeletes: [],
+          deletes: [lwcHtmlFile, lwcJsFile, lwcMetaFile],
+        },
+      ],
+      registry,
+    });
 
     expect(compSets.length).to.equal(1);
     compSets.forEach((cs) => {
@@ -87,13 +94,16 @@ describe('Bundle-like types delete', () => {
     const srFile2 = path.join(srDir, 'ZippedResource', 'file2.json');
     const srMetaFile = path.join(srDir, 'ZippedResource.resource-meta.xml');
 
-    const compSets = getComponentSets([
-      {
-        path: srDir,
-        nonDeletes: [srMetaFile, srFile2],
-        deletes: [srFile1],
-      },
-    ]);
+    const compSets = getComponentSets({
+      groupings: [
+        {
+          path: srDir,
+          nonDeletes: [srMetaFile, srFile2],
+          deletes: [srFile1],
+        },
+      ],
+      registry,
+    });
 
     expect(compSets.length).to.equal(1);
     compSets.forEach((cs) => {
@@ -111,13 +121,16 @@ describe('Bundle-like types delete', () => {
     const srFile2 = path.join(srDir, 'ZippedResource', 'file2.json');
     const srMetaFile = path.join(srDir, 'ZippedResource.resource-meta.xml');
 
-    const compSets = getComponentSets([
-      {
-        path: srDir,
-        nonDeletes: [],
-        deletes: [srFile1, srFile2, srMetaFile],
-      },
-    ]);
+    const compSets = getComponentSets({
+      groupings: [
+        {
+          path: srDir,
+          nonDeletes: [],
+          deletes: [srFile1, srFile2, srMetaFile],
+        },
+      ],
+      registry,
+    });
 
     expect(compSets.length).to.equal(1);
     compSets.forEach((cs) => {
@@ -131,13 +144,16 @@ describe('Bundle-like types delete', () => {
     const debDir = path.join(session.project.dir, 'force-app', 'digitalExperiences', 'site', 'Xcel_Energy1');
     const deFile1 = path.join(debDir, 'sfdc_cms__view', 'home', 'content.json');
 
-    const compSets = getComponentSets([
-      {
-        path: debDir,
-        nonDeletes: [],
-        deletes: [deFile1],
-      },
-    ]);
+    const compSets = getComponentSets({
+      groupings: [
+        {
+          path: debDir,
+          nonDeletes: [],
+          deletes: [deFile1],
+        },
+      ],
+      registry,
+    });
 
     expect(compSets.length).to.equal(1);
     compSets.forEach((cs) => {
@@ -152,13 +168,16 @@ describe('Bundle-like types delete', () => {
     const eFile1 = path.join(ebDir, 'views', 'login.json');
     const eFile2 = path.join(ebDir, 'routes', 'login.json');
 
-    const compSets = getComponentSets([
-      {
-        path: ebDir,
-        nonDeletes: [eFile2],
-        deletes: [eFile1],
-      },
-    ]);
+    const compSets = getComponentSets({
+      groupings: [
+        {
+          path: ebDir,
+          nonDeletes: [eFile2],
+          deletes: [eFile1],
+        },
+      ],
+      registry,
+    });
 
     expect(compSets.length).to.equal(1);
     compSets.forEach((cs) => {

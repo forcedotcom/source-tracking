@@ -6,10 +6,16 @@
  */
 import { EOL } from 'node:os';
 import { Logger } from '@salesforce/core';
-import { ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
-import { metadataMemberGuard } from './guards';
-import { getKeyFromObject, getMetadataKey } from './functions';
+import { isChangeResultWithNameAndType } from './guards';
+import {
+  getAllFiles,
+  getKeyFromObject,
+  getMetadataKey,
+  sourceComponentHasFullNameAndType,
+  remoteChangeToMetadataMember,
+} from './functions';
 
 /**
  * Will build a component set, crawling your local directory, to get paths for remote changes
@@ -18,7 +24,15 @@ import { getKeyFromObject, getMetadataKey } from './functions';
  * @param packageDirPaths Array of paths from PackageDirectories
  * @returns
  */
-export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: string[]): ChangeResult[] => {
+export const populateFilePaths = ({
+  elements,
+  packageDirPaths,
+  registry,
+}: {
+  elements: ChangeResult[];
+  packageDirPaths: string[];
+  registry: RegistryAccess;
+}): ChangeResult[] => {
   if (elements.length === 0) {
     return [];
   }
@@ -27,27 +41,19 @@ export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: str
   // component set generated from an array of MetadataMember from all the remote changes
   // but exclude the ones that aren't in the registry
   const remoteChangesAsMetadataMember = elements
-    .map((element) => {
-      if (typeof element.type === 'string' && typeof element.name === 'string') {
-        return {
-          type: element.type,
-          fullName: element.name,
-        };
-      }
-    })
-    .filter(metadataMemberGuard);
+    .filter(isChangeResultWithNameAndType)
+    .map(remoteChangeToMetadataMember);
 
-  const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsMetadataMember);
+  const remoteChangesAsComponentSet = new ComponentSet(remoteChangesAsMetadataMember, registry);
 
   logger.debug(` the generated component set has ${remoteChangesAsComponentSet.size.toString()} items`);
   if (remoteChangesAsComponentSet.size < elements.length) {
     // there *could* be something missing
     // some types (ex: LWC) show up as multiple files in the remote changes, but only one in the component set
     // iterate the elements to see which ones didn't make it into the component set
-    const missingComponents = elements.filter(
-      (element) =>
-        !remoteChangesAsComponentSet.has({ type: element?.type as string, fullName: element?.name as string })
-    );
+    const missingComponents = elements
+      .filter(isChangeResultWithNameAndType)
+      .filter((element) => !remoteChangesAsComponentSet.has({ type: element.type, fullName: element.name }));
     // Throw if anything was actually missing
     if (missingComponents.length > 0) {
       throw new Error(
@@ -61,6 +67,7 @@ export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: str
   const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
     fsPaths: packageDirPaths,
     include: remoteChangesAsComponentSet,
+    registry,
   });
   logger.debug(
     ` local source-backed component set has ${matchingLocalSourceComponentsSet.size.toString()} items from remote`
@@ -70,8 +77,11 @@ export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: str
   const elementMap = new Map<string, ChangeResult>(elements.map((e) => [getKeyFromObject(e), e]));
 
   // iterates the local components and sets their filenames
-  for (const matchingComponent of matchingLocalSourceComponentsSet.getSourceComponents().toArray()) {
-    if (matchingComponent.fullName && matchingComponent.type.name) {
+  matchingLocalSourceComponentsSet
+    .getSourceComponents()
+    .toArray()
+    .filter(sourceComponentHasFullNameAndType)
+    .map((matchingComponent) => {
       logger.debug(
         `${matchingComponent.fullName}|${matchingComponent.type.name} matches ${
           matchingComponent.xml
@@ -84,10 +94,9 @@ export const populateFilePaths = (elements: ChangeResult[], packageDirPaths: str
         ...elementMap.get(key),
         modified: true,
         origin: 'remote',
-        filenames: [matchingComponent.xml as string, ...matchingComponent.walkContent()].filter((filename) => filename),
+        filenames: getAllFiles(matchingComponent),
       });
-    }
-  }
+    });
 
   return Array.from(elementMap.values());
 };

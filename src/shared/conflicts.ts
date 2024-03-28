@@ -5,10 +5,11 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import { resolve } from 'node:path';
-import { ComponentSet, ForceIgnore } from '@salesforce/source-deploy-retrieve';
+import { ComponentSet, ForceIgnore, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ConflictResponse, ChangeResult, SourceConflictError } from './types';
 import { getMetadataKey } from './functions';
 import { populateTypesAndNames } from './populateTypesAndNames';
+import { isChangeResultWithNameAndType } from './guards';
 
 export const throwIfConflicts = (conflicts: ConflictResponse[]): void => {
   if (conflicts.length > 0) {
@@ -26,15 +27,14 @@ export const findConflictsInComponentSet = (cs: ComponentSet, conflicts: ChangeR
   // map do dedupe by name-type-filename
   const conflictMap = new Map<string, ConflictResponse>();
   conflicts
-    .filter((cr) => cr.name && cr.type && cs.has({ fullName: cr.name, type: cr.type }))
+    .filter(isChangeResultWithNameAndType)
+    .filter((cr) => cs.has({ fullName: cr.name, type: cr.type }))
     .forEach((cr) => {
       cr.filenames?.forEach((f) => {
         conflictMap.set(`${cr.name}#${cr.type}#${f}`, {
           state: 'Conflict',
-          // the following 2 type assertions are valid because of previous filter statement
-          // they can be removed once TS is smarter about filtering
-          fullName: cr.name as string,
-          type: cr.type as string,
+          fullName: cr.name,
+          type: cr.type,
           filePath: resolve(f),
         });
       });
@@ -48,42 +48,33 @@ export const getDedupedConflictsFromChanges = ({
   remoteChanges = [],
   projectPath,
   forceIgnore,
+  registry,
 }: {
   localChanges: ChangeResult[];
   remoteChanges: ChangeResult[];
   projectPath: string;
   forceIgnore: ForceIgnore;
+  registry: RegistryAccess;
 }): ChangeResult[] => {
-  // index the remoteChanges by filename
-  const fileNameIndex = new Map<string, ChangeResult>();
-  const metadataKeyIndex = new Map<string, ChangeResult>();
-  remoteChanges.map((change) => {
-    if (change.name && change.type) {
-      metadataKeyIndex.set(getMetadataKey(change.name, change.type), change);
-    }
-    change.filenames?.map((filename) => {
-      fileNameIndex.set(filename, change);
-    });
-  });
-
-  const conflicts = new Set<ChangeResult>();
-
-  populateTypesAndNames({ elements: localChanges, excludeUnresolvable: true, projectPath, forceIgnore }).map(
-    (change) => {
-      const metadataKey = getMetadataKey(change.name as string, change.type as string);
-      // option 1: name and type match
-      if (metadataKeyIndex.has(metadataKey)) {
-        conflicts.add({ ...(metadataKeyIndex.get(metadataKey) as ChangeResult) });
-      } else {
-        // option 2: some of the filenames match
-        change.filenames?.map((filename) => {
-          if (fileNameIndex.has(filename)) {
-            conflicts.add({ ...(fileNameIndex.get(filename) as ChangeResult) });
-          }
-        });
-      }
-    }
+  const metadataKeyIndex = new Map(
+    remoteChanges
+      .filter(isChangeResultWithNameAndType)
+      .map((change) => [getMetadataKey(change.name, change.type), change])
   );
-  // deeply de-dupe
-  return Array.from(conflicts);
+  const fileNameIndex = new Map(
+    remoteChanges.flatMap((change) => (change.filenames ?? []).map((filename) => [filename, change]))
+  );
+
+  return populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
+    .filter(isChangeResultWithNameAndType)
+    .flatMap((change) => {
+      const metadataKey = getMetadataKey(change.name, change.type);
+      return metadataKeyIndex.has(metadataKey)
+        ? // option 1: name and type match
+          [metadataKeyIndex.get(metadataKey)!]
+        : // option 2: some of the filenames match
+          (change.filenames ?? [])
+            .filter((filename) => fileNameIndex.has(filename))
+            .map((filename) => fileNameIndex.get(filename)!);
+    });
 };

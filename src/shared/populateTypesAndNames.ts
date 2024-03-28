@@ -6,10 +6,21 @@
  */
 import { Logger } from '@salesforce/core';
 import { isString } from '@salesforce/ts-types';
-import { MetadataResolver, VirtualTreeContainer, ForceIgnore } from '@salesforce/source-deploy-retrieve';
+import {
+  MetadataResolver,
+  VirtualTreeContainer,
+  ForceIgnore,
+  RegistryAccess,
+} from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
-import { sourceComponentGuard } from './guards';
-import { ensureRelative, isLwcLocalOnlyTest } from './functions';
+import { isChangeResultWithNameAndType, sourceComponentGuard } from './guards';
+import {
+  ensureRelative,
+  excludeLwcLocalOnlyTest,
+  forceIgnoreDenies,
+  getAllFiles,
+  sourceComponentHasFullNameAndType,
+} from './functions';
 
 /**
  * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
@@ -20,61 +31,57 @@ import { ensureRelative, isLwcLocalOnlyTest } from './functions';
  * @input excludeUnresolvable: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
  * @input resolveDeleted: constructs a virtualTree instead of the actual filesystem--useful when the files no longer exist
  */
-export const populateTypesAndNames = ({
-  elements,
-  projectPath,
-  forceIgnore,
-  excludeUnresolvable = false,
-  resolveDeleted = false,
-}: {
-  elements: ChangeResult[];
-  projectPath: string;
-  forceIgnore?: ForceIgnore;
-  excludeUnresolvable?: boolean;
-  resolveDeleted?: boolean;
-}): ChangeResult[] => {
-  if (elements.length === 0) {
-    return [];
-  }
-  const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
-  logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-  const filenames = elements.flatMap((element) => element.filenames).filter(isString);
+export const populateTypesAndNames =
+  ({
+    projectPath,
+    forceIgnore,
+    excludeUnresolvable = false,
+    resolveDeleted = false,
+    registry,
+  }: {
+    projectPath: string;
+    forceIgnore?: ForceIgnore;
+    excludeUnresolvable?: boolean;
+    resolveDeleted?: boolean;
+    registry: RegistryAccess;
+  }) =>
+  (elements: ChangeResult[]): ChangeResult[] => {
+    if (elements.length === 0) {
+      return [];
+    }
+    const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
+    logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
+    const filenames = elements.flatMap((element) => element.filenames).filter(isString);
 
-  // component set generated from the filenames on all local changes
-  const resolver = new MetadataResolver(
-    undefined,
-    resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : undefined,
-    !!forceIgnore
-  );
-  const sourceComponents = filenames
-    .flatMap((filename) => {
-      try {
-        return resolver.getComponentsFromPath(filename);
-      } catch (e) {
-        logger.warn(`unable to resolve ${filename}`);
-        return undefined;
-      }
-    })
-    .filter(sourceComponentGuard);
+    // component set generated from the filenames on all local changes
+    const resolver = new MetadataResolver(
+      registry,
+      resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : undefined,
+      !!forceIgnore
+    );
+    const sourceComponents = filenames
+      .flatMap((filename) => {
+        try {
+          return resolver.getComponentsFromPath(filename);
+        } catch (e) {
+          logger.warn(`unable to resolve ${filename}`);
+          return undefined;
+        }
+      })
+      .filter(sourceComponentGuard);
 
-  logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
+    logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
 
-  // make it simpler to find things later
-  const elementMap = new Map<string, ChangeResult>();
-  elements.map((element) => {
-    element.filenames?.map((filename) => {
-      elementMap.set(ensureRelative(filename, projectPath), element);
-    });
-  });
+    const elementMap = new Map(
+      elements.flatMap((e) => (e.filenames ?? []).map((f) => [ensureRelative(projectPath)(f), e]))
+    );
 
-  // iterates the local components and sets their filenames
-  sourceComponents.map((matchingComponent) => {
-    if (matchingComponent?.fullName && matchingComponent?.type.name) {
-      const filenamesFromMatchingComponent = [matchingComponent.xml, ...matchingComponent.walkContent()];
+    // iterates the local components and sets their filenames
+    sourceComponents.filter(sourceComponentHasFullNameAndType).map((matchingComponent) => {
+      const filenamesFromMatchingComponent = getAllFiles(matchingComponent);
       const ignored = filenamesFromMatchingComponent
-        .filter(isString)
-        .filter((f) => !isLwcLocalOnlyTest(f))
-        .some((f) => forceIgnore?.denies(f));
+        .filter(excludeLwcLocalOnlyTest)
+        .some(forceIgnoreDenies(forceIgnore));
       filenamesFromMatchingComponent.map((filename) => {
         if (filename && elementMap.has(filename)) {
           // add the type/name from the componentSet onto the element
@@ -87,9 +94,8 @@ export const populateTypesAndNames = ({
           });
         }
       });
-    }
-  });
-  return excludeUnresolvable
-    ? Array.from(new Set(elementMap.values())).filter((changeResult) => changeResult.name && changeResult.type)
-    : Array.from(new Set(elementMap.values()));
-};
+    });
+    return excludeUnresolvable
+      ? Array.from(new Set(elementMap.values())).filter(isChangeResultWithNameAndType)
+      : Array.from(new Set(elementMap.values()));
+  };

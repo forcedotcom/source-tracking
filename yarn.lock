@@ -538,10 +538,10 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@oclif/core@^3.25.2":
-  version "3.25.2"
-  resolved "https://registry.yarnpkg.com/@oclif/core/-/core-3.25.2.tgz#a26d56abe5686c57c1e973957777bd2ae324e973"
-  integrity sha512-OkW/cNa/3DhoCz2YlSpymVe8DXqkoRaLY4SPTVqNVzR4R1dFBE5KoCtuwKwnhxYLCRCqaViPgRnB5K26f0MnjA==
+"@oclif/core@^3.26.0":
+  version "3.26.0"
+  resolved "https://registry.yarnpkg.com/@oclif/core/-/core-3.26.0.tgz#959d5e9f13f4ad6a4e98235ad125189df9ee4279"
+  integrity sha512-TpMdfD4tfA2tVVbd4l0PrP02o5KoUXYmudBbTC7CeguDo/GLoprw4uL8cMsaVA26+cbcy7WYtOEydQiHVtJixA==
   dependencies:
     "@types/cli-progress" "^3.11.5"
     ansi-escapes "^4.3.2"
@@ -577,12 +577,12 @@
   resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
   integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
 
-"@salesforce/cli-plugins-testkit@^5.1.10":
-  version "5.1.10"
-  resolved "https://registry.yarnpkg.com/@salesforce/cli-plugins-testkit/-/cli-plugins-testkit-5.1.10.tgz#949738717513b1518c09bd70690cb2963073a59d"
-  integrity sha512-zAyv6luZSjJFOa/v0IHYAfNcWSl1DTZ7l5cJalKTuu7oXfy0mskZO4KzPZ4vdyBSz54t6+yXgNA2C/uFyqe/CQ==
+"@salesforce/cli-plugins-testkit@^5.1.12":
+  version "5.1.12"
+  resolved "https://registry.yarnpkg.com/@salesforce/cli-plugins-testkit/-/cli-plugins-testkit-5.1.12.tgz#b453a7b99940d6f5c9e64d7432b60b44b682747b"
+  integrity sha512-dICcYW2dejeOtA8fMYCyTCl/PXfYLoNlVPL18ATpR3pEDUjlyI1JWY0GE8chhqCsr0TgDBkkd/MKuUiTSsGebQ==
   dependencies:
-    "@salesforce/core" "^6.7.0"
+    "@salesforce/core" "^6.7.3"
     "@salesforce/kit" "^3.0.15"
     "@salesforce/ts-types" "^2.0.9"
     "@types/shelljs" "^0.8.15"
@@ -592,10 +592,10 @@
     strip-ansi "6.0.1"
     ts-retry-promise "^0.8.0"
 
-"@salesforce/core@^6.7.0", "@salesforce/core@^6.7.1":
-  version "6.7.1"
-  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-6.7.1.tgz#4dcfb62bc3d488462ea6e9438ff092cf202c1696"
-  integrity sha512-SxscNdH2l+K5LmqH9XrosX+fjhPkMLN3hsG50sWQi7DbaI1Z0FGAKVOmVe6fZZsUsVNThKvZ+159IwwtxHWY6w==
+"@salesforce/core@^6.7.0", "@salesforce/core@^6.7.3":
+  version "6.7.3"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-6.7.3.tgz#5d8f30c40ac3cebb898c8e845fe9a067bc729268"
+  integrity sha512-uU+PuZZGXxByhvnXLH1V3eY5P1caw401dIZ/QvhzYxoP/alPLk7dpChnZNJYH5Rw3dc/AhSPw+eg0cvUyjhP1Q==
   dependencies:
     "@salesforce/kit" "^3.0.15"
     "@salesforce/schemas" "^1.6.1"
@@ -653,10 +653,10 @@
     typescript "^4.9.5"
     wireit "^0.14.4"
 
-"@salesforce/kit@^3.0.15":
-  version "3.0.15"
-  resolved "https://registry.yarnpkg.com/@salesforce/kit/-/kit-3.0.15.tgz#713df3f5767f874c70a2e731c7cb5ba677989559"
-  integrity sha512-XkA8jsuLvVnyP460dAbU3pBFP2IkmmmsVxMQVifcKKbNWaIBbZBzAfj+vdaQfnvZyflLhsrFT3q2xkb0vHouPg==
+"@salesforce/kit@^3.0.15", "@salesforce/kit@^3.1.0":
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/@salesforce/kit/-/kit-3.1.0.tgz#aa42533084c676e865f0f9c1907a16fb6f74dee7"
+  integrity sha512-X2d9O/U2wdQBXIrtVqQdMwo872Cv+qkYFzF0W+AQKG/LEe9cngnOzUVDYNkGD9tq3jcl+oenHXYuVDpkMhxTwA==
   dependencies:
     "@salesforce/ts-types" "^2.0.9"
     tslib "^2.6.2"
@@ -671,13 +671,13 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.6.1.tgz#7d1c071e1e509ca9d2d8a6e48ac7447dd67a534d"
   integrity sha512-eVy947ZMxCJReKJdgfddUIsBIbPTa/i8RwQGwxq4/ss38H5sLOAeSTaun9V7HpJ1hkpDznWKfgzYvjsst9K6ig==
 
-"@salesforce/source-deploy-retrieve@^10.5.3":
-  version "10.5.3"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-10.5.3.tgz#c994a5522ce187bfc59bbdb76edfb550453a8025"
-  integrity sha512-gw28Co2twQ6GSIF94DdWxx6htBLWKIsMhaKlydfymoAp3kZrFmALRPh8Dj8RDQWV8wrSmzWqDFX9iGoldHZDbg==
+"@salesforce/source-deploy-retrieve@^10.6.1":
+  version "10.6.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-10.6.1.tgz#d153168c5870ce051a6e397df00083da1e6a8106"
+  integrity sha512-AdX0rlMNw88kD4jTqdW7uxl6wTd+WTESHEH5Vj8e9Fj2cC8pZj5BwDMYbU/cVFFbQoEBjqqnxwJC6ziPw83Bsw==
   dependencies:
-    "@salesforce/core" "^6.7.0"
-    "@salesforce/kit" "^3.0.15"
+    "@salesforce/core" "^6.7.3"
+    "@salesforce/kit" "^3.1.0"
     "@salesforce/ts-types" "^2.0.9"
     fast-levenshtein "^3.0.0"
     fast-xml-parser "^4.3.5"
@@ -5664,10 +5664,10 @@ typedoc@^0.25.9:
     minimatch "^9.0.3"
     shiki "^0.14.7"
 
-"typescript@^4.6.4 || ^5.0.0", typescript@^5.4.2:
-  version "5.4.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.4.2.tgz#0ae9cebcfae970718474fe0da2c090cad6577372"
-  integrity sha512-+2/g0Fds1ERlP6JsakQQDXjZdZMM+rqpamFZJEKh4kwTIn3iDkgKtby0CeNd5ATNZ4Ry1ax15TMx0W2V+miizQ==
+"typescript@^4.6.4 || ^5.0.0", typescript@^5.4.3:
+  version "5.4.3"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.4.3.tgz#5c6fedd4c87bee01cd7a528a30145521f8e0feff"
+  integrity sha512-KrPd3PKaCLr78MalgiwJnA25Nm8HAmdwN3mYUYZgG/wizIo9EainNVQI9/yDavtVFRN2h3k8uf3GLHuhDMgEHg==
 
 typescript@^4.9.5:
   version "4.9.5"

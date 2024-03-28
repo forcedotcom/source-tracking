@@ -12,7 +12,7 @@ import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import * as git from 'isomorphic-git';
 import { Performance } from '@oclif/core';
-import { chunkArray, isLwcLocalOnlyTest, pathIsInFolder } from './functions';
+import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from './functions';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
@@ -23,7 +23,7 @@ const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]
 
 // catch isogit's `InternalError` to avoid people report CLI issues in isogit repo.
 // See: https://github.com/forcedotcom/cli/issues/2416
-const redirectToCliRepoError = (e: Error): never => {
+const redirectToCliRepoError = (e: unknown): never => {
   if (e instanceof git.Errors.InternalError) {
     const error = new SfError(
       `An internal error caused this command to fail. isomorphic-git error:${os.EOL}${e.data.message}`,
@@ -77,7 +77,7 @@ export class ShadowRepo {
 
     this.maxFileAdd = env.getNumber(
       'SF_SOURCE_TRACKING_BATCH_SIZE',
-      env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', this.isWindows ? 8000 : 15000)
+      env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', this.isWindows ? 8000 : 15_000)
     );
   }
 
@@ -111,7 +111,7 @@ export class ShadowRepo {
     try {
       await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
     } catch (e) {
-      redirectToCliRepoError(e as Error);
+      redirectToCliRepoError(e);
     }
   }
 
@@ -144,9 +144,7 @@ export class ShadowRepo {
       // iso-git uses relative, posix paths
       // but packageDirs has already resolved / normalized them
       // so we need to make them project-relative again and convert if windows
-      const filepaths = this.packageDirs
-        .map((dir) => path.relative(this.projectPath, dir.fullPath))
-        .map((p) => (this.isWindows ? p.split(path.sep).join(path.posix.sep) : p));
+      const pkgDirs = this.packageDirs.map(packageDirToRelativePosixPath(this.isWindows)(this.projectPath));
 
       try {
         // status hasn't been initialized yet
@@ -154,20 +152,20 @@ export class ShadowRepo {
           fs,
           dir: this.projectPath,
           gitdir: this.gitDir,
-          filepaths,
+          filepaths: pkgDirs,
           ignored: true,
           filter: (f) =>
             // no hidden files
             !f.includes(`${path.sep}.`) &&
             // no lwc tests
-            !isLwcLocalOnlyTest(f) &&
+            excludeLwcLocalOnlyTest(f) &&
             // no gitignore files
             !f.endsWith('.gitignore') &&
             // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-            filepaths.some((pkgDir) => pathIsInFolder(f, pkgDir)),
+            pkgDirs.some(folderContainsPath(f)),
         });
       } catch (e) {
-        redirectToCliRepoError(e as Error);
+        redirectToCliRepoError(e);
       }
       // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
       if (this.isWindows) {
@@ -259,10 +257,10 @@ export class ShadowRepo {
       deletedFiles: deletedFiles.length,
     });
     // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
-    if (os.type() === 'Windows_NT') {
+    if (this.isWindows) {
       this.logger.trace('start: transforming windows paths to posix');
-      deployedFiles = deployedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
-      deletedFiles = deletedFiles.map((filepath) => path.normalize(filepath).split(path.sep).join(path.posix.sep));
+      deployedFiles = deployedFiles.map(normalize).map(ensurePosix);
+      deletedFiles = deletedFiles.map(normalize).map(ensurePosix);
       this.logger.trace('done: transforming windows paths to posix');
     }
 
@@ -294,7 +292,7 @@ export class ShadowRepo {
             error.setData(e.errors);
             throw error;
           }
-          redirectToCliRepoError(e as Error);
+          redirectToCliRepoError(e);
         }
       }
     }
@@ -305,7 +303,7 @@ export class ShadowRepo {
         // eslint-disable-next-line no-await-in-loop
         await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
       } catch (e) {
-        redirectToCliRepoError(e as Error);
+        redirectToCliRepoError(e);
       }
     }
 
@@ -326,8 +324,19 @@ export class ShadowRepo {
       this.logger.trace('done: commitChanges git.commit');
       return sha;
     } catch (e) {
-      redirectToCliRepoError(e as Error);
+      redirectToCliRepoError(e);
     }
     marker?.stop();
   }
 }
+
+const packageDirToRelativePosixPath =
+  (isWindows: boolean) =>
+  (projectPath: string) =>
+  (packageDir: NamedPackageDir): string =>
+    isWindows
+      ? ensurePosix(path.relative(projectPath, packageDir.fullPath))
+      : path.relative(projectPath, packageDir.fullPath);
+
+const normalize = (filepath: string): string => path.normalize(filepath);
+const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);

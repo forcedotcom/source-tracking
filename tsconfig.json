@@ -3,7 +3,6 @@
   "compilerOptions": {
     "outDir": "./lib",
     "skipLibCheck": true,
-    "strictNullChecks": true,
     "plugins": [{ "transform": "@salesforce/core/lib/messageTransformer", "import": "messageTransformer" }]
   },
   "include": ["src/**/*.ts"]

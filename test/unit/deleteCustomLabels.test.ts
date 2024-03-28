@@ -6,9 +6,13 @@
  */
 import * as fs from 'node:fs';
 import * as sinon from 'sinon';
-import { SourceComponent } from '@salesforce/source-deploy-retrieve';
+import { SourceComponent, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
 import { deleteCustomLabels } from '../../src/';
+
+const registry = new RegistryAccess();
+// const customLabelsType = registry.getTypeByName('CustomLabels');
+const customLabelType = registry.getTypeByName('CustomLabel');
 
 describe('deleteCustomLabels', () => {
   const sandbox = sinon.createSandbox();
@@ -57,7 +61,7 @@ describe('deleteCustomLabels', () => {
     it('will delete a singular custom label from a file', async () => {
       const labels = [
         {
-          type: { id: 'customlabel', name: 'CustomLabel' },
+          type: customLabelType,
           fullName: 'DeleteMe',
         } as SourceComponent,
       ];
@@ -70,11 +74,11 @@ describe('deleteCustomLabels', () => {
     it('will delete a multiple custom labels from a file', async () => {
       const labels = [
         {
-          type: { id: 'customlabel', name: 'CustomLabel' },
+          type: customLabelType,
           fullName: 'KeepMe1',
         },
         {
-          type: { id: 'customlabel', name: 'CustomLabel' },
+          type: customLabelType,
           fullName: 'KeepMe2',
         },
       ] as SourceComponent[];
@@ -88,15 +92,15 @@ describe('deleteCustomLabels', () => {
     it('will delete the file when everything is deleted', async () => {
       const labels = [
         {
-          type: { id: 'customlabel', name: 'CustomLabel' },
+          type: customLabelType,
           fullName: 'KeepMe1',
         },
         {
-          type: { id: 'customlabel', name: 'CustomLabel' },
+          type: customLabelType,
           fullName: 'KeepMe2',
         },
         {
-          type: { id: 'customlabel', name: 'CustomLabel' },
+          type: customLabelType,
           fullName: 'DeleteMe',
         },
       ] as SourceComponent[];
@@ -122,7 +126,7 @@ describe('deleteCustomLabels', () => {
       );
       const labels = [
         {
-          type: { id: 'customlabel', name: 'CustomLabel' },
+          type: customLabelType,
           fullName: 'DeleteMe',
         },
       ] as SourceComponent[];
