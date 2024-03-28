@@ -128,7 +128,7 @@ export const forceIgnoreDenies =
   (filePath: string): boolean =>
     forceIgnore?.denies(filePath) ?? false;
 
-export const sourceComponentIsCustomLabel = (input: SourceComponent): boolean => input.type.id === 'customlabel';
+export const sourceComponentIsCustomLabel = (input: SourceComponent): boolean => input.type.name === 'CustomLabel';
 
 export const sourceComponentHasFullNameAndType = (input: SourceComponent): boolean =>
   typeof input.fullName === 'string' && typeof input.type.name === 'string';
