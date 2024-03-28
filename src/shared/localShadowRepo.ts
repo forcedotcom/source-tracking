@@ -144,7 +144,7 @@ export class ShadowRepo {
       // iso-git uses relative, posix paths
       // but packageDirs has already resolved / normalized them
       // so we need to make them project-relative again and convert if windows
-      const filepaths = this.packageDirs.map(packageDirToRelativePosixPath(this.isWindows)(this.projectPath));
+      const pkgDirs = this.packageDirs.map(packageDirToRelativePosixPath(this.isWindows)(this.projectPath));
 
       try {
         // status hasn't been initialized yet
@@ -152,7 +152,7 @@ export class ShadowRepo {
           fs,
           dir: this.projectPath,
           gitdir: this.gitDir,
-          filepaths,
+          filepaths: pkgDirs,
           ignored: true,
           filter: (f) =>
             // no hidden files
@@ -162,7 +162,7 @@ export class ShadowRepo {
             // no gitignore files
             !f.endsWith('.gitignore') &&
             // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-            filepaths.some(folderContainsPath),
+            pkgDirs.some(folderContainsPath(f)),
         });
       } catch (e) {
         redirectToCliRepoError(e);
