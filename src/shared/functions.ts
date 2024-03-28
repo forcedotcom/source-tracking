@@ -9,6 +9,7 @@ import { sep, normalize, isAbsolute, relative } from 'node:path';
 import * as fs from 'node:fs';
 import { isString } from '@salesforce/ts-types';
 import {
+  FileResponseSuccess,
   ForceIgnore,
   MetadataComponent,
   MetadataMember,
@@ -17,7 +18,7 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
-import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType } from './types';
+import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types';
 import { ensureNameAndType } from './remoteChangeIgnoring';
 
 export const getMetadataKey = (metadataType: string, metadataName: string): string =>
@@ -143,6 +144,9 @@ export const remoteChangeToMetadataMember = (cr: ChangeResult): MetadataMember =
     type: checked.type,
   };
 };
+
+// weird, right?  This is for oclif.table which allows types but not interfaces.  In this case, they are equivalent
+export const FileResponseSuccessToRemoteSyncInput = (fr: FileResponseSuccess): RemoteSyncInput => fr;
 
 export const changeResultToMetadataComponent =
   (registry: RegistryAccess = new RegistryAccess()) =>

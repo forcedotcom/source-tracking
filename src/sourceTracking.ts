@@ -50,7 +50,11 @@ import {
   sourceComponentGuard,
 } from './shared/guards';
 import { removeIgnored } from './shared/remoteChangeIgnoring';
-import { changeResultToMetadataComponent, remoteChangeToMetadataMember } from './shared/functions';
+import {
+  FileResponseSuccessToRemoteSyncInput,
+  changeResultToMetadataComponent,
+  remoteChangeToMetadataMember,
+} from './shared/functions';
 import {
   supportsPartialDelete,
   ensureRelative,
@@ -634,9 +638,7 @@ export class SourceTracking extends AsyncCreatable {
         files: successes.filter(FileResponseIsNotDeleted).map(filePathFromFileResponse),
         deletedFiles: successes.filter(FileResponseIsDeleted).map(filePathFromFileResponse),
       }),
-      this.updateRemoteTracking(
-        successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath }))
-      ),
+      this.updateRemoteTracking(successes.map(FileResponseSuccessToRemoteSyncInput)),
     ]);
   }
 
@@ -658,7 +660,7 @@ export class SourceTracking extends AsyncCreatable {
         deletedFiles: successes.filter(FileResponseIsDeleted).filter(FileResponseHasPath).map(filePathFromFileResponse),
       }),
       this.updateRemoteTracking(
-        successes.map(({ state, fullName, type, filePath }) => ({ state, fullName, type, filePath })),
+        successes.map(FileResponseSuccessToRemoteSyncInput),
         true // retrieves don't need to poll for SourceMembers
       ),
     ]);
