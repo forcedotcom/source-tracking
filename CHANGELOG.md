@@ -1,3 +1,12 @@
+## [5.2.2](https://github.com/forcedotcom/source-tracking/compare/5.2.1...5.2.2) (2024-03-30)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve from 10.6.1 to 10.7.0 ([c15fef3](https://github.com/forcedotcom/source-tracking/commit/c15fef3428daf33540a8fb795e36981487cabfad))
+
+
+
 ## [5.2.1](https://github.com/forcedotcom/source-tracking/compare/5.2.0...5.2.1) (2024-03-29)
 
 
