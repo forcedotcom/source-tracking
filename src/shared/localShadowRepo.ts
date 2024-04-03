@@ -280,7 +280,7 @@ export class ShadowRepo {
           });
         } catch (e) {
           if (e instanceof git.Errors.MultipleGitError) {
-            this.logger.error('multiple errors on git.add', e.errors.slice(0, 5));
+            this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
             const error = new SfError(
               e.message,
               e.name,
