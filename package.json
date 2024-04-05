@@ -58,7 +58,7 @@
     "@salesforce/cli-plugins-testkit": "^5.1.12",
     "@salesforce/dev-scripts": "^8.4.3",
     "@types/graceful-fs": "^4.1.9",
-    "eslint-plugin-sf-plugin": "^1.17.4",
+    "eslint-plugin-sf-plugin": "^1.17.5",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.1.2",
     "typescript": "^5.4.4"
