@@ -34,11 +34,11 @@ const redirectToCliRepoError = (e: unknown): never => {
   throw e;
 };
 
-interface ShadowRepoOptions {
+type ShadowRepoOptions = {
   orgId: string;
   projectPath: string;
   packageDirs: NamedPackageDir[];
-}
+};
 
 // https://isomorphic-git.org/docs/en/statusMatrix#docsNav
 type StatusRow = [file: string, head: number, workdir: number, stage: number];
@@ -48,12 +48,12 @@ const FILE = 0;
 const HEAD = 1;
 const WORKDIR = 2;
 
-interface CommitRequest {
+type CommitRequest = {
   deployedFiles?: string[];
   deletedFiles?: string[];
   message?: string;
   needsUpdatedStatus?: boolean;
-}
+};
 
 export class ShadowRepo {
   private static instanceMap = new Map<string, ShadowRepo>();
@@ -256,16 +256,13 @@ export class ShadowRepo {
       deployedFiles: deployedFiles.length,
       deletedFiles: deletedFiles.length,
     });
-    // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
-    if (this.isWindows) {
-      this.logger.trace('start: transforming windows paths to posix');
-      deployedFiles = deployedFiles.map(normalize).map(ensurePosix);
-      deletedFiles = deletedFiles.map(normalize).map(ensurePosix);
-      this.logger.trace('done: transforming windows paths to posix');
-    }
 
     if (deployedFiles.length) {
-      const chunks = chunkArray([...new Set(deployedFiles)], this.maxFileAdd);
+      const chunks = chunkArray(
+        // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
+        [...new Set(this.isWindows ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
+        this.maxFileAdd
+      );
       for (const chunk of chunks) {
         try {
           this.logger.debug(`adding ${chunk.length} files of ${deployedFiles.length} deployedFiles to git`);
@@ -297,7 +294,7 @@ export class ShadowRepo {
       }
     }
 
-    for (const filepath of [...new Set(deletedFiles)]) {
+    for (const filepath of [...new Set(this.isWindows ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
       try {
         // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
         // eslint-disable-next-line no-await-in-loop
