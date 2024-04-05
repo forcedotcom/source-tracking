@@ -8,11 +8,11 @@
 import { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { SfError } from '@salesforce/core';
 
-export interface ChangeOptions {
+export type ChangeOptions = {
   origin: 'local' | 'remote';
   state: 'add' | 'delete' | 'modify' | 'nondelete';
   format: 'ChangeResult' | 'SourceComponent' | 'string' | 'ChangeResultWithPaths';
-}
+};
 
 export type RemoteSyncInput = Pick<FileResponse, 'fullName' | 'filePath' | 'type' | 'state'>;
 
@@ -21,10 +21,10 @@ export type StatusOutputRow = Pick<FileResponse, 'fullName' | 'filePath' | 'type
   ignored?: boolean;
 } & Pick<ChangeOptions, 'origin' | 'state'>;
 
-export interface LocalUpdateOptions {
+export type LocalUpdateOptions = {
   files?: string[];
   deletedFiles?: string[];
-}
+};
 
 export type RemoteChangeElement = {
   name: string;
@@ -57,12 +57,12 @@ export type SourceMember = {
   ignored?: boolean;
 };
 
-export interface ConflictResponse {
+export type ConflictResponse = {
   state: 'Conflict';
   fullName: string;
   type: string;
   filePath: string;
-}
+};
 
 // this and the related class are not enforced but a convention of this library.
 // This helps the consumers get correct typing--if the error name matches SourceConflictError,

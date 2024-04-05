@@ -47,7 +47,7 @@
     "@oclif/core": "^3.26.0",
     "@salesforce/core": "^6.7.6",
     "@salesforce/kit": "^3.1.0",
-    "@salesforce/source-deploy-retrieve": "^10.9.0",
+    "@salesforce/source-deploy-retrieve": "^10.9.1",
     "@salesforce/ts-types": "^2.0.9",
     "fast-xml-parser": "^4.3.6",
     "graceful-fs": "^4.2.11",
@@ -61,7 +61,7 @@
     "eslint-plugin-sf-plugin": "^1.17.4",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.1.2",
-    "typescript": "^5.4.3"
+    "typescript": "^5.4.4"
   },
   "config": {},
   "publishConfig": {

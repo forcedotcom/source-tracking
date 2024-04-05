@@ -68,7 +68,7 @@ import { populateFilePaths } from './shared/populateFilePaths';
 import { populateTypesAndNames } from './shared/populateTypesAndNames';
 import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray';
 import { sourceComponentIsCustomLabel } from './shared/functions';
-export interface SourceTrackingOptions {
+export type SourceTrackingOptions = {
   org: Org;
   project: SfProject;
 
@@ -87,7 +87,7 @@ export interface SourceTrackingOptions {
    * If you're using STL as part of a long running process (ex: vscode extensions), set this to false
    */
   ignoreLocalCache?: boolean;
-}
+};
 
 type RemoteChangesResults = {
   componentSetFromNonDeletes: ComponentSet;

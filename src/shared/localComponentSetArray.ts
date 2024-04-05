@@ -17,16 +17,16 @@ import {
 import { sourceComponentGuard } from './guards';
 import { supportsPartialDelete, pathIsInFolder } from './functions';
 
-interface GroupedFileInput {
+type GroupedFileInput = {
   packageDirs: NamedPackageDir[];
   nonDeletes: string[];
   deletes: string[];
-}
-interface GroupedFile {
+};
+type GroupedFile = {
   path: string;
   nonDeletes: string[];
   deletes: string[];
-}
+};
 
 export const getGroupedFiles = (input: GroupedFileInput, byPackageDir = false): GroupedFile[] =>
   (byPackageDir ? getSequential(input) : getNonSequential(input)).filter(

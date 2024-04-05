@@ -42,10 +42,10 @@ const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
   (env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
 
 /** Options for RemoteSourceTrackingService.getInstance */
-export interface RemoteSourceTrackingServiceOptions {
+export type RemoteSourceTrackingServiceOptions = {
   org: Org;
   projectPath: string;
-}
+};
 
 /**
  * This service handles source tracking of metadata between a local project and an org.
