@@ -1,3 +1,12 @@
+## [5.2.4](https://github.com/forcedotcom/source-tracking/compare/5.2.3...5.2.4) (2024-04-05)
+
+
+### Bug Fixes
+
+* interfaces to types, no-param-reassign for windows normalization ([a4be02c](https://github.com/forcedotcom/source-tracking/commit/a4be02c000b09606b0c8b90ba87c5badc5b135fc))
+
+
+
 ## [5.2.3](https://github.com/forcedotcom/source-tracking/compare/5.2.2...5.2.3) (2024-04-05)
 
 
