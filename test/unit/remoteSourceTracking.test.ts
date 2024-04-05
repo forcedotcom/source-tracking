@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
 import { Logger, Messages, Org } from '@salesforce/core';
+// eslint-disable-next-line no-restricted-imports
 import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
