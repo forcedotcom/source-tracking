@@ -1,3 +1,12 @@
+## [5.2.3](https://github.com/forcedotcom/source-tracking/compare/5.2.2...5.2.3) (2024-04-05)
+
+
+### Bug Fixes
+
+* show iso-git err qty in logs ([#559](https://github.com/forcedotcom/source-tracking/issues/559)) ([09b5b75](https://github.com/forcedotcom/source-tracking/commit/09b5b75e2195f3622154822410d9dbb42a418f37))
+
+
+
 ## [5.2.2](https://github.com/forcedotcom/source-tracking/compare/5.2.1...5.2.2) (2024-03-30)
 
 
