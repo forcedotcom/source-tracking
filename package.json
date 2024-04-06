@@ -55,7 +55,7 @@
     "ts-retry-promise": "^0.8.0"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^5.1.12",
+    "@salesforce/cli-plugins-testkit": "^5.1.13",
     "@salesforce/dev-scripts": "^8.4.3",
     "@types/graceful-fs": "^4.1.9",
     "eslint-plugin-sf-plugin": "^1.17.5",
