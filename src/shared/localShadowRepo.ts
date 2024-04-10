@@ -278,16 +278,15 @@ export class ShadowRepo {
         } catch (e) {
           if (e instanceof git.Errors.MultipleGitError) {
             this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
-            const error = new SfError(
-              e.message,
-              e.name,
-              [
+            throw SfError.create({
+              message: e.message,
+              name: e.name,
+              data: e.errors.map((err) => err.message),
+              cause: e,
+              actions: [
                 `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${this.maxFileAdd}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
               ],
-              1
-            );
-            error.setData(e.errors);
-            throw error;
+            });
           }
           redirectToCliRepoError(e);
         }
