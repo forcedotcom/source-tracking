@@ -1,3 +1,17 @@
+# [6.0.0](https://github.com/forcedotcom/source-tracking/compare/5.2.4...6.0.0) (2024-04-10)
+
+
+* feat!: core7 (#564) ([d0d8f7b](https://github.com/forcedotcom/source-tracking/commit/d0d8f7b821e155653a6be8b652b77e1b313d4f08)), closes [#564](https://github.com/forcedotcom/source-tracking/issues/564)
+
+
+### BREAKING CHANGES
+
+* core7, sdr11, jsforce-node
+
+* chore: node16 module resolution
+
+
+
 ## [5.2.4](https://github.com/forcedotcom/source-tracking/compare/5.2.3...5.2.4) (2024-04-05)
 
 
