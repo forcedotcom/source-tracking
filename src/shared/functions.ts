@@ -6,7 +6,7 @@
  */
 
 import { sep, normalize, isAbsolute, relative } from 'node:path';
-import * as fs from 'node:fs';
+import fs from 'node:fs';
 import { isString } from '@salesforce/ts-types';
 import {
   FileResponseSuccess,
