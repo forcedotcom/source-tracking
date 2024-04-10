@@ -10,7 +10,7 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
-import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/lib/testSetup';
+import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { Logger, Messages, Org } from '@salesforce/core';
 // eslint-disable-next-line no-restricted-imports
 import * as kit from '@salesforce/kit';
