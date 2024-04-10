@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
-import { shouldThrow } from '@salesforce/core/lib/testSetup';
+import { shouldThrow } from '@salesforce/core/testSetup';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
 describe('end-to-end-test for local tracking', () => {

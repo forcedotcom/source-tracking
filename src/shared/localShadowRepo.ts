@@ -10,7 +10,8 @@ import * as os from 'node:os';
 import * as fs from 'graceful-fs';
 import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
-import * as git from 'isomorphic-git';
+// @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
+import git from 'isomorphic-git';
 import { Performance } from '@oclif/core';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from './functions';
 
