@@ -1,3 +1,12 @@
+## [6.0.3](https://github.com/forcedotcom/source-tracking/compare/6.0.2...6.0.3) (2024-04-16)
+
+
+### Bug Fixes
+
+* **deps:** devScripts update ([#568](https://github.com/forcedotcom/source-tracking/issues/568)) ([73ffa7e](https://github.com/forcedotcom/source-tracking/commit/73ffa7e27c54228a6faa6492d755832bdb1ec2e3))
+
+
+
 ## [6.0.2](https://github.com/forcedotcom/source-tracking/compare/6.0.1...6.0.2) (2024-04-13)
 
 
