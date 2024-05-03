@@ -8,7 +8,7 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'graceful-fs';
-import { NamedPackageDir, Logger, SfError } from '@salesforce/core';
+import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import * as git from 'isomorphic-git';
 import { Performance } from '@oclif/core';
@@ -47,6 +47,7 @@ type StatusRow = [file: string, head: number, workdir: number, stage: number];
 const FILE = 0;
 const HEAD = 1;
 const WORKDIR = 2;
+// We don't use STAGE (StatusRow[3]). Changes are added and committed in one step
 
 type CommitRequest = {
   deployedFiles?: string[];
@@ -164,6 +165,9 @@ export class ShadowRepo {
             // isogit uses `startsWith` for filepaths so it's possible to get a false positive
             pkgDirs.some(folderContainsPath(f)),
         });
+
+        // Check for moved files and update local git status accordingly
+        await this.detectMovedFiles();
       } catch (e) {
         redirectToCliRepoError(e);
       }
@@ -293,16 +297,19 @@ export class ShadowRepo {
         }
       }
     }
-
+    // Using a cache here speeds up the performance by ~24.4%
+    let cache = {};
     for (const filepath of [...new Set(this.isWindows ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
       try {
         // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
         // eslint-disable-next-line no-await-in-loop
-        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath });
+        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
       } catch (e) {
         redirectToCliRepoError(e);
       }
     }
+    // clear cache
+    cache = {};
 
     try {
       this.logger.trace('start: commitChanges git.commit');
@@ -324,6 +331,81 @@ export class ShadowRepo {
       redirectToCliRepoError(e);
     }
     marker?.stop();
+  }
+
+  private async detectMovedFiles(): Promise<void> {
+    // Check for moved files in incremental steps to avoid performance degradation
+    const addedFiles = this.status.filter((file) => file[HEAD] === 0 && file[WORKDIR] === 2);
+    const deletedFiles = this.status.filter((file) => file[WORKDIR] === 0);
+
+    // If both arrays have contents, look for matching basenames
+    if (deletedFiles.length && addedFiles.length) {
+      const addedFilenames = toFilenames(addedFiles);
+      const deletedFilenames = toFilenames(deletedFiles);
+
+      const addedFilenamesWithMatches = addedFilenames.filter((addFile) => deletedFilenames.some((delFile) => path.basename(addFile) === path.basename(delFile)));
+      const deletedFilenamesWithMatches = deletedFilenames.filter((delFile) => addedFilenames.some((addFile) => path.basename(addFile) === path.basename(delFile)));
+
+      // We found file adds and deletes with the same basename
+      // The have likely been moved, confirm by comparing their hashes (oids)
+      if (addedFilenamesWithMatches.length && deletedFilenamesWithMatches.length) {
+        // Collect hash information for each file
+        const getInfo = async (targetTree: git.Walker, filenameArray: string[]): Promise<Array<{ filename: string; hash: string; basename: string }>> => (
+          git.walk({
+            fs, dir: this.projectPath, gitdir: this.gitDir,
+            trees: [targetTree],
+            map: async (filepath, [tree]) => (
+              await tree?.type() === 'blob' && filenameArray.includes(filepath) ?
+              {
+                filename: filepath,
+                hash: await tree?.oid(),
+                basename: path.basename(filepath)
+              } : undefined
+            )
+          })
+        );
+
+        const addedInfo = await getInfo(git.WORKDIR(), addedFilenamesWithMatches);
+        const deletedInfo = await getInfo(git.TREE({ ref: 'HEAD' }), deletedFilenamesWithMatches);
+
+        // Iterate over the added files and find the matching deleted files (we want to compare the hash AND the basename)
+        // Push moved file details to the moveLogs array for later logging
+        const moveLogs: string[] = [];
+        const addedFilesWithMatches = addedInfo.filter((addedFile) => (
+          deletedInfo.find((deletedFile) => (
+            addedFile.basename === deletedFile.basename && addedFile.hash === deletedFile.hash) &&
+            !!moveLogs.push(`File '${deletedFile.filename}' was moved to '${addedFile.filename}'`
+          ))
+        )).map((addedFile) => addedFile.filename);
+
+        // Iterate over the deleted files also to look for matching added files
+        // We need to confirm that they do not match more than one added file
+        // If they do, we cannot determine which file was moved and will abort the commit
+        const deletedFilesWithMatches = deletedInfo.filter((deletedFile) => (
+          addedInfo.find((addedFile) => addedFile.basename === deletedFile.basename && addedFile.hash === deletedFile.hash)
+        )).map((deletedFile) => deletedFile.filename);
+
+        // Ensure file moves have been detected
+        if (addedFilesWithMatches.length && deletedFilesWithMatches.length) {
+          // If the length of these arrays are different, then we ran into a situation where multiple files have the same hash and basename
+          if (addedFilesWithMatches.length !== deletedFilesWithMatches.length) {
+            const message = 'File move detection failed. Multiple files have the same hash and basename. Skipping commit of moved files';
+            this.logger.warn(message);
+            await Lifecycle.getInstance().emitWarning(message);
+          } else {
+            this.logger.debug('Files have moved. Committing moved files:')
+            this.logger.debug(moveLogs.join('\n'))
+
+            // Commit the moved files and refresh the status
+            await this.commitChanges({
+              deletedFiles: deletedFilesWithMatches,
+              deployedFiles: addedFilesWithMatches,
+              message: 'Committing moved files',
+            });
+          }
+        }
+      }
+    }
   }
 }
 

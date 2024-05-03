@@ -23,6 +23,9 @@
     "test": "wireit",
     "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local": "mocha \"**/local/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts:local:moves": "mocha \"**/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts:local:moves:file": "mocha \"**/local/localTrackingFileMovesImage.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:unit": "nyc mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000",
     "test:only": "wireit"
   },
   "keywords": [
