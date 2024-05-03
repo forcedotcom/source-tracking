@@ -343,27 +343,37 @@ export class ShadowRepo {
       const addedFilenames = toFilenames(addedFiles);
       const deletedFilenames = toFilenames(deletedFiles);
 
-      const addedFilenamesWithMatches = addedFilenames.filter((addFile) => deletedFilenames.some((delFile) => path.basename(addFile) === path.basename(delFile)));
-      const deletedFilenamesWithMatches = deletedFilenames.filter((delFile) => addedFilenames.some((addFile) => path.basename(addFile) === path.basename(delFile)));
+      const addedFilenamesWithMatches = addedFilenames.filter((addFile) =>
+        deletedFilenames.some((delFile) => path.basename(addFile) === path.basename(delFile))
+      );
+      const deletedFilenamesWithMatches = deletedFilenames.filter((delFile) =>
+        addedFilenames.some((addFile) => path.basename(addFile) === path.basename(delFile))
+      );
 
       // We found file adds and deletes with the same basename
       // The have likely been moved, confirm by comparing their hashes (oids)
       if (addedFilenamesWithMatches.length && deletedFilenamesWithMatches.length) {
         // Collect hash information for each file
-        const getInfo = async (targetTree: git.Walker, filenameArray: string[]): Promise<Array<{ filename: string; hash: string; basename: string }>> => (
+        const getInfo = async (
+          targetTree: git.Walker,
+          filenameArray: string[]
+        ): Promise<Array<{ filename: string; hash: string; basename: string }>> =>
+          // Unable to properly type the return value of git.walk without using "as", so we'll just ignore the type check
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           git.walk({
-            fs, dir: this.projectPath, gitdir: this.gitDir,
+            fs,
+            dir: this.projectPath,
+            gitdir: this.gitDir,
             trees: [targetTree],
-            map: async (filepath, [tree]) => (
-              await tree?.type() === 'blob' && filenameArray.includes(filepath) ?
-              {
-                filename: filepath,
-                hash: await tree?.oid(),
-                basename: path.basename(filepath)
-              } : undefined
-            )
-          })
-        );
+            map: async (filepath, [tree]) =>
+              (await tree?.type()) === 'blob' && filenameArray.includes(filepath)
+                ? {
+                    filename: filepath,
+                    hash: await tree?.oid(),
+                    basename: path.basename(filepath),
+                  }
+                : undefined,
+          });
 
         const addedInfo = await getInfo(git.WORKDIR(), addedFilenamesWithMatches);
         const deletedInfo = await getInfo(git.TREE({ ref: 'HEAD' }), deletedFilenamesWithMatches);
@@ -371,30 +381,39 @@ export class ShadowRepo {
         // Iterate over the added files and find the matching deleted files (we want to compare the hash AND the basename)
         // Push moved file details to the moveLogs array for later logging
         const moveLogs: string[] = [];
-        const addedFilesWithMatches = addedInfo.filter((addedFile) => (
-          deletedInfo.find((deletedFile) => (
-            addedFile.basename === deletedFile.basename && addedFile.hash === deletedFile.hash) &&
-            !!moveLogs.push(`File '${deletedFile.filename}' was moved to '${addedFile.filename}'`
-          ))
-        )).map((addedFile) => addedFile.filename);
+        const addedFilesWithMatches = addedInfo
+          .filter((addedFile) =>
+            deletedInfo.find(
+              (deletedFile) =>
+                addedFile.basename === deletedFile.basename &&
+                addedFile.hash === deletedFile.hash &&
+                !!moveLogs.push(`File '${deletedFile.filename}' was moved to '${addedFile.filename}'`)
+            )
+          )
+          .map((addedFile) => addedFile.filename);
 
         // Iterate over the deleted files also to look for matching added files
         // We need to confirm that they do not match more than one added file
         // If they do, we cannot determine which file was moved and will abort the commit
-        const deletedFilesWithMatches = deletedInfo.filter((deletedFile) => (
-          addedInfo.find((addedFile) => addedFile.basename === deletedFile.basename && addedFile.hash === deletedFile.hash)
-        )).map((deletedFile) => deletedFile.filename);
+        const deletedFilesWithMatches = deletedInfo
+          .filter((deletedFile) =>
+            addedInfo.find(
+              (addedFile) => addedFile.basename === deletedFile.basename && addedFile.hash === deletedFile.hash
+            )
+          )
+          .map((deletedFile) => deletedFile.filename);
 
         // Ensure file moves have been detected
         if (addedFilesWithMatches.length && deletedFilesWithMatches.length) {
           // If the length of these arrays are different, then we ran into a situation where multiple files have the same hash and basename
           if (addedFilesWithMatches.length !== deletedFilesWithMatches.length) {
-            const message = 'File move detection failed. Multiple files have the same hash and basename. Skipping commit of moved files';
+            const message =
+              'File move detection failed. Multiple files have the same hash and basename. Skipping commit of moved files';
             this.logger.warn(message);
             await Lifecycle.getInstance().emitWarning(message);
           } else {
-            this.logger.debug('Files have moved. Committing moved files:')
-            this.logger.debug(moveLogs.join('\n'))
+            this.logger.debug('Files have moved. Committing moved files:');
+            this.logger.debug(moveLogs.join('\n'));
 
             // Commit the moved files and refresh the status
             await this.commitChanges({
