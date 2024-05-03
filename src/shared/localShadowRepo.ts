@@ -11,7 +11,7 @@ import * as fs from 'graceful-fs';
 import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 // @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
-import git from 'isomorphic-git';
+import git, { Walker } from 'isomorphic-git';
 import { Performance } from '@oclif/core';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from './functions';
 
@@ -355,7 +355,7 @@ export class ShadowRepo {
       if (addedFilenamesWithMatches.length && deletedFilenamesWithMatches.length) {
         // Collect hash information for each file
         const getInfo = async (
-          targetTree: git.Walker,
+          targetTree: Walker,
           filenameArray: string[]
         ): Promise<Array<{ filename: string; hash: string; basename: string }>> =>
           // Unable to properly type the return value of git.walk without using "as", so we'll just ignore the type check

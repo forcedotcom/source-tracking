@@ -7,7 +7,8 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
-import * as git from 'isomorphic-git';
+// @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
+import git from 'isomorphic-git';
 import { expect } from 'chai';
 import sinon = require('sinon');
 
@@ -49,7 +50,10 @@ describe('local detect moved files', () => {
       expect(gitAdd.calledOnce).to.be.true;
 
       // Move the file and refresh the status
-      fs.renameSync(path.join(projectDir, labelsFile), path.join(projectDir, 'force-app', 'new', 'CustomLabels.labels-meta.xml'));
+      fs.renameSync(
+        path.join(projectDir, labelsFile),
+        path.join(projectDir, 'force-app', 'new', 'CustomLabels.labels-meta.xml')
+      );
       await shadowRepo.getStatus(true);
 
       // Moved file should have been detected and committed
@@ -100,9 +104,15 @@ describe('local detect moved files', () => {
 
       // Make two copies of the same file that have the same filename and content hash
       // First copy the original file to a new location
-      fs.copyFileSync(path.join(projectDir, labelsFile), path.join(projectDir, 'force-app', 'foo', 'CustomLabels.labels-meta.xml'));
+      fs.copyFileSync(
+        path.join(projectDir, labelsFile),
+        path.join(projectDir, 'force-app', 'foo', 'CustomLabels.labels-meta.xml')
+      );
       // Then copy the original file to a second location
-      fs.renameSync(path.join(projectDir, labelsFile), path.join(projectDir, 'force-app', 'bar', 'CustomLabels.labels-meta.xml'));
+      fs.renameSync(
+        path.join(projectDir, labelsFile),
+        path.join(projectDir, 'force-app', 'bar', 'CustomLabels.labels-meta.xml')
+      );
       // Refresh the status
       await shadowRepo.getStatus(true);
 
@@ -110,7 +120,9 @@ describe('local detect moved files', () => {
       expect(gitAdd.calledOnce).to.be.true;
       // expect getChangedRows to return 3 rows. 1 deleted and 2 added
       expect(await shadowRepo.getChangedRows()).to.have.lengthOf(3);
-      expect(warningEmitted).to.include('File move detection failed. Multiple files have the same hash and basename. Skipping commit of moved files');
+      expect(warningEmitted).to.include(
+        'File move detection failed. Multiple files have the same hash and basename. Skipping commit of moved files'
+      );
     } finally {
       // Without this, the onWarning() test in metadataKeys.test.ts would fail
       lc.removeAllListeners('warning');
@@ -146,7 +158,10 @@ describe('local detect moved files', () => {
       expect(gitAdd.calledOnce).to.be.true;
 
       // Move the file
-      fs.renameSync(path.join(projectDir, labelsFile), path.join(projectDir, 'force-app', 'new', 'CustomLabels.labels-meta.xml'));
+      fs.renameSync(
+        path.join(projectDir, labelsFile),
+        path.join(projectDir, 'force-app', 'new', 'CustomLabels.labels-meta.xml')
+      );
       // Add some content to the moved file
       fs.appendFileSync(path.join(projectDir, 'force-app', 'new', 'CustomLabels.labels-meta.xml'), '<xml>foo</xml>');
       // Refresh the status
@@ -196,7 +211,10 @@ describe('local detect moved files', () => {
       expect(gitAdd.calledOnce).to.be.true;
 
       // Move the file this file
-      fs.renameSync(path.join(projectDir, moveFile), path.join(projectDir, 'force-app', 'new', 'CustomLabelsMove.labels-meta.xml'));
+      fs.renameSync(
+        path.join(projectDir, moveFile),
+        path.join(projectDir, 'force-app', 'new', 'CustomLabelsMove.labels-meta.xml')
+      );
       // Modify this file
       fs.appendFileSync(path.join(projectDir, modifyFile), '<xml>modify</xml>');
       // Delete this file
