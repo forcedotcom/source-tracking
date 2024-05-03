@@ -4,11 +4,11 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import * as fs from 'node:fs';
-import * as sinon from 'sinon';
+import fs from 'node:fs';
+import sinon from 'sinon';
 import { SourceComponent, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
-import { deleteCustomLabels } from '../../src/';
+import { deleteCustomLabels } from '../../src/shared/functions';
 
 const registry = new RegistryAccess();
 // const customLabelsType = registry.getTypeByName('CustomLabels');

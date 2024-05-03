@@ -1,3 +1,53 @@
+## [6.0.4](https://github.com/forcedotcom/source-tracking/compare/6.0.3...6.0.4) (2024-04-20)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 3.26.3 to 3.26.4 ([2afd28b](https://github.com/forcedotcom/source-tracking/commit/2afd28bd538e54bf3500a6557d75d4aed4d0de31))
+
+
+
+## [6.0.3](https://github.com/forcedotcom/source-tracking/compare/6.0.2...6.0.3) (2024-04-16)
+
+
+### Bug Fixes
+
+* **deps:** devScripts update ([#568](https://github.com/forcedotcom/source-tracking/issues/568)) ([73ffa7e](https://github.com/forcedotcom/source-tracking/commit/73ffa7e27c54228a6faa6492d755832bdb1ec2e3))
+
+
+
+## [6.0.2](https://github.com/forcedotcom/source-tracking/compare/6.0.1...6.0.2) (2024-04-13)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 3.26.0 to 3.26.2 ([827a3f1](https://github.com/forcedotcom/source-tracking/commit/827a3f13ada574b6b88b1ec8bb00fd5be59ebe0c))
+
+
+
+## [6.0.1](https://github.com/forcedotcom/source-tracking/compare/6.0.0...6.0.1) (2024-04-13)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 7.0.0 to 7.2.0 ([86d36ee](https://github.com/forcedotcom/source-tracking/commit/86d36eed47d11a2dc3daa6b614ef0be56c5ec381))
+
+
+
+# [6.0.0](https://github.com/forcedotcom/source-tracking/compare/5.2.4...6.0.0) (2024-04-10)
+
+
+* feat!: core7 (#564) ([d0d8f7b](https://github.com/forcedotcom/source-tracking/commit/d0d8f7b821e155653a6be8b652b77e1b313d4f08)), closes [#564](https://github.com/forcedotcom/source-tracking/issues/564)
+
+
+### BREAKING CHANGES
+
+* core7, sdr11, jsforce-node
+
+* chore: node16 module resolution
+
+
+
 ## [5.2.4](https://github.com/forcedotcom/source-tracking/compare/5.2.3...5.2.4) (2024-04-05)
 
 
