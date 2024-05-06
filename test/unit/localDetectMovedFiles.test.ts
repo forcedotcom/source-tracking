@@ -64,6 +64,51 @@ describe('local detect moved files', () => {
     }
   });
 
+  it('skips moved file detection if env var is set', async () => {
+    let projectDir!: string;
+    try {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
+      fs.mkdirSync(path.join(projectDir, 'force-app', 'new'), { recursive: true });
+      fs.writeFileSync(path.join(projectDir, 'force-app', 'CustomLabels.labels-meta.xml'), '<xml></xml>');
+
+      const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D456789012345',
+        projectPath: projectDir,
+        packageDirs: [
+          {
+            name: 'dummy',
+            fullPath: path.join(projectDir, 'force-app'),
+            path: path.join(projectDir, 'force-app'),
+          },
+        ],
+      });
+
+      const gitAdd = sinon.spy(git, 'add');
+
+      // Manually commit this first file
+      const labelsFile = path.join('force-app', 'CustomLabels.labels-meta.xml');
+      const sha = await shadowRepo.commitChanges({ deployedFiles: [labelsFile] });
+      expect(sha).to.not.be.empty;
+      expect(gitAdd.calledOnce).to.be.true;
+
+      // Move the file and refresh the status
+      fs.renameSync(
+        path.join(projectDir, labelsFile),
+        path.join(projectDir, 'force-app', 'new', 'CustomLabels.labels-meta.xml')
+      );
+
+      process.env.SF_DISABLE_MOVED_FILE_DETECTION = 'true';
+      await shadowRepo.getStatus(true);
+
+      // Moved file should NOT have been detected and committed
+      expect(gitAdd.calledTwice).to.be.false;
+      expect(await shadowRepo.getChangedRows()).to.have.lengthOf(2);
+    } finally {
+      delete process.env.SF_DISABLE_MOVED_FILE_DETECTION;
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
+    }
+  });
+
   it('ignores moved files if multiple matches are found', async () => {
     let projectDir!: string;
 
