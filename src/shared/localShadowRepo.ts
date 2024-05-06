@@ -352,6 +352,7 @@ export class ShadowRepo {
     if (!addedFiles.length) return;
 
     // Both arrays have contents, look for matching basenames
+    // TODO: get basenames onces and use them for both arrays
     const addedFilenames = toFilenames(addedFiles);
     const deletedFilenames = toFilenames(deletedFiles);
 
@@ -380,7 +381,7 @@ export class ShadowRepo {
         gitdir: this.gitDir,
         trees: [targetTree],
         map: async (filepath, [tree]) =>
-          (await tree?.type()) === 'blob' && filenameArray.includes(filepath)
+          filenameArray.includes(filepath) && (await tree?.type()) === 'blob'
             ? {
                 filename: filepath,
                 hash: await tree?.oid(),
