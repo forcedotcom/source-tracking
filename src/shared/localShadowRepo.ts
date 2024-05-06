@@ -345,7 +345,8 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
-    // Check for moved files in incremental steps to avoid performance degradation
+    // We check for moved files in incremental steps to avoid any performance degradation
+
     // Deleted files will be more rare than added files, so we'll check them first and exit early if there are none
     const deletedFiles = this.status.filter((file) => file[WORKDIR] === 0);
     if (!deletedFiles.length) return;
@@ -354,7 +355,6 @@ export class ShadowRepo {
     if (!addedFiles.length) return;
 
     // Both arrays have contents, look for matching basenames
-    // TODO: get basenames onces and use them for both arrays
     const addedFilenames = toFilenames(addedFiles);
     const deletedFilenames = toFilenames(deletedFiles);
 
@@ -362,6 +362,7 @@ export class ShadowRepo {
     const addedBasenames = new Set(addedFilenames.map((filename) => path.basename(filename)));
     const deletedBasenames = new Set(deletedFilenames.map((filename) => path.basename(filename)));
 
+    // Again, we filter over the deleted files first and exit early if there are no filename matches
     const deletedFilenamesWithMatches = deletedFilenames.filter((f) => addedBasenames.has(path.basename(f)));
     if (!deletedFilenamesWithMatches.length) return;
 
@@ -373,22 +374,21 @@ export class ShadowRepo {
     // The have likely been moved, confirm by comparing their hashes (oids)
     const getInfo = async (
       targetTree: Walker,
-      filenameArray: string[]
+      filenameSet: Set<string>
     ): Promise<Array<{ filename: string; hash: string; basename: string }>> =>
-      // Unable to properly type the return value of git.walk without using "as", so we'll just ignore the type check
+      // Unable to properly type the return value of git.walk without using "as", ignoring linter
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       git.walk({
         fs,
         dir: this.projectPath,
         gitdir: this.gitDir,
         trees: [targetTree],
-        // TODO - use Set?
-        map: async (filepath, [tree]) =>
-          filenameArray.includes(filepath) && (await tree?.type()) === 'blob'
+        map: async (filename, [tree]) =>
+          filenameSet.has(filename) && (await tree?.type()) === 'blob'
             ? {
-                filename: filepath,
+                filename,
                 hash: await tree?.oid(),
-                basename: path.basename(filepath),
+                basename: path.basename(filename),
               }
             : undefined,
       });
@@ -400,8 +400,8 @@ export class ShadowRepo {
     });
 
     const [addedInfo, deletedInfo] = await Promise.all([
-      getInfo(git.WORKDIR(), addedFilenamesWithMatches),
-      getInfo(git.TREE({ ref: 'HEAD' }), deletedFilenamesWithMatches),
+      getInfo(git.WORKDIR(), new Set(addedFilenamesWithMatches)),
+      getInfo(git.TREE({ ref: 'HEAD' }), new Set(deletedFilenamesWithMatches)),
     ]);
 
     getInfoMarker?.stop();
