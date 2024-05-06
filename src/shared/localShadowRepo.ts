@@ -358,14 +358,14 @@ export class ShadowRepo {
     const addedFilenames = toFilenames(addedFiles);
     const deletedFilenames = toFilenames(deletedFiles);
 
-    const deletedFilenamesWithMatches = deletedFilenames.filter((delFile) =>
-      addedFilenames.some((addFile) => path.basename(addFile) === path.basename(delFile))
-    );
+    // Build Sets of basenames for added and deleted files for quick lookups
+    const addedBasenames = new Set(addedFilenames.map((filename) => path.basename(filename)));
+    const deletedBasenames = new Set(deletedFilenames.map((filename) => path.basename(filename)));
+
+    const deletedFilenamesWithMatches = deletedFilenames.filter((f) => addedBasenames.has(path.basename(f)));
     if (!deletedFilenamesWithMatches.length) return;
 
-    const addedFilenamesWithMatches = addedFilenames.filter((addFile) =>
-      deletedFilenames.some((delFile) => path.basename(addFile) === path.basename(delFile))
-    );
+    const addedFilenamesWithMatches = addedFilenames.filter((f) => deletedBasenames.has(path.basename(f)));
     if (!addedFilenamesWithMatches.length) return;
 
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
