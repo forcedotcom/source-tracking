@@ -380,6 +380,7 @@ export class ShadowRepo {
         dir: this.projectPath,
         gitdir: this.gitDir,
         trees: [targetTree],
+        // TODO - use Set?
         map: async (filepath, [tree]) =>
           filenameArray.includes(filepath) && (await tree?.type()) === 'blob'
             ? {
@@ -395,8 +396,12 @@ export class ShadowRepo {
       addedFiles: addedFilenamesWithMatches.length,
       deletedFiles: deletedFilenamesWithMatches.length,
     });
-    const addedInfo = await getInfo(git.WORKDIR(), addedFilenamesWithMatches);
-    const deletedInfo = await getInfo(git.TREE({ ref: 'HEAD' }), deletedFilenamesWithMatches);
+
+    const [addedInfo, deletedInfo] = await Promise.all([
+      getInfo(git.WORKDIR(), addedFilenamesWithMatches),
+      getInfo(git.TREE({ ref: 'HEAD' }), deletedFilenamesWithMatches),
+    ]);
+
     getInfoMarker?.stop();
 
     // Iterate over the added files and find the matching deleted files (we want to compare the hash AND the basename)
