@@ -297,19 +297,28 @@ export class ShadowRepo {
         }
       }
     }
-    // Using a cache here speeds up the performance by ~24.4%
-    let cache = {};
-    for (const filepath of [...new Set(this.isWindows ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
-      try {
-        // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
-        // eslint-disable-next-line no-await-in-loop
-        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
-      } catch (e) {
-        redirectToCliRepoError(e);
+
+    if (deletedFiles.length) {
+      // Using a cache here speeds up the performance by ~24.4%
+      let cache = {};
+      const deleteMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.commitChanges#delete', {
+        deletedFiles: deletedFiles.length,
+      });
+      for (const filepath of [
+        ...new Set(this.isWindows ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles),
+      ]) {
+        try {
+          // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
+          // eslint-disable-next-line no-await-in-loop
+          await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
+        } catch (e) {
+          redirectToCliRepoError(e);
+        }
       }
+      // clear cache
+      cache = {};
+      deleteMarker?.stop();
     }
-    // clear cache
-    cache = {};
 
     try {
       this.logger.trace('start: commitChanges git.commit');
@@ -334,6 +343,7 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
+    const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
     // Check for moved files in incremental steps to avoid performance degradation
     const addedFiles = this.status.filter((file) => file[HEAD] === 0 && file[WORKDIR] === 2);
     const deletedFiles = this.status.filter((file) => file[WORKDIR] === 0);
@@ -375,8 +385,18 @@ export class ShadowRepo {
                 : undefined,
           });
 
+        // Track how long it takes to gather the oid information from the git trees
+        const getInfoMarker = Performance.mark(
+          '@salesforce/source-tracking',
+          'localShadowRepo.detectMovedFiles#getInfo',
+          {
+            addedFiles: addedFilenamesWithMatches.length,
+            deletedFiles: deletedFilenamesWithMatches.length,
+          }
+        );
         const addedInfo = await getInfo(git.WORKDIR(), addedFilenamesWithMatches);
         const deletedInfo = await getInfo(git.TREE({ ref: 'HEAD' }), deletedFilenamesWithMatches);
+        getInfoMarker?.stop();
 
         // Iterate over the added files and find the matching deleted files (we want to compare the hash AND the basename)
         // Push moved file details to the moveLogs array for later logging
@@ -414,6 +434,7 @@ export class ShadowRepo {
           } else {
             this.logger.debug('Files have moved. Committing moved files:');
             this.logger.debug(moveLogs.join('\n'));
+            movedFilesMarker?.addDetails({ filesMoved: moveLogs.length });
 
             // Commit the moved files and refresh the status
             await this.commitChanges({
@@ -425,6 +446,7 @@ export class ShadowRepo {
         }
       }
     }
+    movedFilesMarker?.stop();
   }
 }
 
