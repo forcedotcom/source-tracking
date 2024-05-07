@@ -109,7 +109,7 @@ describe('local detect moved files', () => {
     }
   });
 
-  it('ignores moved files if multiple matches are found', async () => {
+  it('ignores files if basename/hash matches are found', async () => {
     let projectDir!: string;
 
     // Catch the LifecycleWarning
@@ -125,7 +125,10 @@ describe('local detect moved files', () => {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
       fs.mkdirSync(path.join(projectDir, 'force-app', 'foo'), { recursive: true });
       fs.mkdirSync(path.join(projectDir, 'force-app', 'bar'));
-      fs.writeFileSync(path.join(projectDir, 'force-app', 'CustomLabels.labels-meta.xml'), '<xml></xml>');
+      fs.mkdirSync(path.join(projectDir, 'force-app', 'baz'));
+
+      fs.writeFileSync(path.join(projectDir, 'force-app', 'CustomLabelsSingleMatch.labels-meta.xml'), '<xml></xml>');
+      fs.writeFileSync(path.join(projectDir, 'force-app', 'CustomLabelsMultiMatch.labels-meta.xml'), '<xml></xml>');
 
       const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
         orgId: '00D456789012345',
@@ -141,32 +144,44 @@ describe('local detect moved files', () => {
 
       const gitAdd = sinon.spy(git, 'add');
 
-      // Manually commit this first file
-      const labelsFile = path.join('force-app', 'CustomLabels.labels-meta.xml');
-      const sha = await shadowRepo.commitChanges({ deployedFiles: [labelsFile] });
+      // Manually commit the two files first
+      const singleMatchFile = path.join('force-app', 'CustomLabelsSingleMatch.labels-meta.xml');
+      const multiMatchFile = path.join('force-app', 'CustomLabelsMultiMatch.labels-meta.xml');
+      const sha = await shadowRepo.commitChanges({ deployedFiles: [singleMatchFile, multiMatchFile] });
       expect(sha).to.not.be.empty;
       expect(gitAdd.calledOnce).to.be.true;
 
-      // Make two copies of the same file that have the same filename and content hash
-      // First copy the original file to a new location
+      // For the multi-match file, copy it to two different directories and then rename it
+      // The reason we create 3 new copies is to ensure the added/deletedIgnoredSet is working correctly
+      // These will all be ignored in the git commit
       fs.copyFileSync(
-        path.join(projectDir, labelsFile),
-        path.join(projectDir, 'force-app', 'foo', 'CustomLabels.labels-meta.xml')
+        path.join(projectDir, multiMatchFile),
+        path.join(projectDir, 'force-app', 'foo', 'CustomLabelsMultiMatch.labels-meta.xml')
       );
-      // Then copy the original file to a second location
+      fs.copyFileSync(
+        path.join(projectDir, multiMatchFile),
+        path.join(projectDir, 'force-app', 'baz', 'CustomLabelsMultiMatch.labels-meta.xml')
+      );
       fs.renameSync(
-        path.join(projectDir, labelsFile),
-        path.join(projectDir, 'force-app', 'bar', 'CustomLabels.labels-meta.xml')
+        path.join(projectDir, multiMatchFile),
+        path.join(projectDir, 'force-app', 'bar', 'CustomLabelsMultiMatch.labels-meta.xml')
+      );
+      // For the single-match file, rename it.
+      // This file move will be detected and committed
+      fs.renameSync(
+        path.join(projectDir, singleMatchFile),
+        path.join(projectDir, 'force-app', 'foo', 'CustomLabelsSingleMatch.labels-meta.xml')
       );
       // Refresh the status
       await shadowRepo.getStatus(true);
 
-      // Moved file should NOT have been detected and committed
-      expect(gitAdd.calledOnce).to.be.true;
-      // expect getChangedRows to return 3 rows. 1 deleted and 2 added
-      expect(await shadowRepo.getChangedRows()).to.have.lengthOf(3);
+      // The single moved file should have been detected and committed
+      expect(gitAdd.calledTwice).to.be.true;
+      // However, the ones with multiple matches should have been ignored
+      // - Expect getChangedRows to return 4 rows. 1 deleted and 3 added
+      expect(await shadowRepo.getChangedRows()).to.have.lengthOf(4);
       expect(warningEmitted).to.include(
-        'File move detection failed. Multiple files have the same hash and basename. Skipping commit of moved files'
+        'Files were found that have the same basename and hash. Skipping the commit of these files'
       );
     } finally {
       // Without this, the onWarning() test in metadataKeys.test.ts would fail

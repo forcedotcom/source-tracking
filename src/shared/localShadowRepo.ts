@@ -347,7 +347,7 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
-    // We check for moved files in incremental steps to avoid any performance degradation
+    // We check for moved files in incremental steps and exit as early as we can to avoid any performance degradation
 
     // Deleted files will be more rare than added files, so we'll check them first and exit early if there are none
     const deletedFiles = this.status.filter((file) => file[WORKDIR] === 0);
@@ -371,13 +371,13 @@ export class ShadowRepo {
     const addedFilenamesWithMatches = addedFilenames.filter((f) => deletedBasenames.has(path.basename(f)));
     if (!addedFilenamesWithMatches.length) return;
 
-    const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
     // We found file adds and deletes with the same basename
     // The have likely been moved, confirm by comparing their hashes (oids)
-    const getInfo = async (
-      targetTree: Walker,
-      filenameSet: Set<string>
-    ): Promise<Array<{ filename: string; hash: string; basename: string }>> =>
+    const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
+
+    type FileInfo = { filename: string; hash: string; basename: string };
+
+    const getInfo = async (targetTree: Walker, filenameSet: Set<string>): Promise<FileInfo[]> =>
       // Unable to properly type the return value of git.walk without using "as", ignoring linter
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       git.walk({
@@ -408,51 +408,62 @@ export class ShadowRepo {
 
     getInfoMarker?.stop();
 
-    // Iterate over the added files and find the matching deleted files (we want to compare the hash AND the basename)
-    // Push moved file details to the moveLogs array for later logging
-    const moveLogs: string[] = [];
-    const addedFilesWithMatches = addedInfo
-      .filter((addedFile) =>
-        deletedInfo.find(
-          (deletedFile) =>
-            addedFile.basename === deletedFile.basename &&
-            addedFile.hash === deletedFile.hash &&
-            !!moveLogs.push(`File '${deletedFile.filename}' was moved to '${addedFile.filename}'`)
-        )
-      )
-      .map((addedFile) => addedFile.filename);
+    const buildMaps = (info: FileInfo[]): Array<Map<string, string>> => {
+      const map: Map<string, string> = new Map();
+      const ignore: Map<string, string> = new Map();
+      info.forEach((i) => {
+        const key = `${i.hash}#${i.basename}`;
+        // If we find a duplicate key, we need to remove it and ignore it in the future.
+        // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
+        if (map.has(key) || ignore.has(key)) {
+          map.delete(key);
+          ignore.set(key, i.filename);
+        } else {
+          map.set(key, i.filename);
+        }
+      });
+      return [map, ignore];
+    };
 
-    // Iterate over the deleted files also to look for matching added files
-    // We need to confirm that they do not match more than one added file
-    // If they do, we cannot determine which file was moved and will abort the commit
-    const deletedFilesWithMatches = deletedInfo
-      .filter((deletedFile) =>
-        addedInfo.find(
-          (addedFile) => addedFile.basename === deletedFile.basename && addedFile.hash === deletedFile.hash
-        )
-      )
-      .map((deletedFile) => deletedFile.filename);
+    const [addedMap, addedIgnoredSet] = buildMaps(addedInfo);
+    const [deletedMap, deletedIgnoredSet] = buildMaps(deletedInfo);
 
-    // Ensure file moves have been detected
-    if (addedFilesWithMatches.length && deletedFilesWithMatches.length) {
-      // If the length of these arrays are different, then we ran into a situation where multiple files have the same hash and basename
-      if (addedFilesWithMatches.length !== deletedFilesWithMatches.length) {
-        const message =
-          'File move detection failed. Multiple files have the same hash and basename. Skipping commit of moved files';
-        this.logger.warn(message);
-        await Lifecycle.getInstance().emitWarning(message);
-      } else {
-        this.logger.debug('Files have moved. Committing moved files:');
-        this.logger.debug(moveLogs.join('\n'));
-        movedFilesMarker?.addDetails({ filesMoved: moveLogs.length });
+    const moveLogs = [];
+    const addedFilesWithMatches = [];
+    const deletedFilesWithMatches = [];
 
-        // Commit the moved files and refresh the status
-        await this.commitChanges({
-          deletedFiles: deletedFilesWithMatches,
-          deployedFiles: addedFilesWithMatches,
-          message: 'Committing moved files',
-        });
+    for (const [addedKey, addedValue] of addedMap) {
+      const deletedValue = deletedMap.get(addedKey);
+      if (deletedValue) {
+        addedFilesWithMatches.push(addedValue);
+        deletedFilesWithMatches.push(deletedValue);
+        moveLogs.push(`File '${deletedValue}' was moved to '${addedValue}'`);
       }
+    }
+
+    // If we detected any files that have the same basename and hash, emit a warning and send telemetry
+    // These files will still show up as expected in the `sf project deploy preview` output
+    // We could add more logic to determine and display filepaths that we ignored...
+    // but this is likely rare enough to not warrant the added complexity
+    // Telemetry will help us determine how often this occurs
+    if (addedIgnoredSet.size || deletedIgnoredSet.size) {
+      const message = 'Files were found that have the same basename and hash. Skipping the commit of these files';
+      this.logger.warn(message);
+      await Lifecycle.getInstance().emitWarning(message);
+      await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' });
+    }
+
+    if (addedFilesWithMatches.length && deletedFilesWithMatches.length) {
+      this.logger.debug('Files have moved. Committing moved files:');
+      this.logger.debug(moveLogs.join('\n'));
+      movedFilesMarker?.addDetails({ filesMoved: moveLogs.length });
+
+      // Commit the moved files and refresh the status
+      await this.commitChanges({
+        deletedFiles: deletedFilesWithMatches,
+        deployedFiles: addedFilesWithMatches,
+        message: 'Committing moved files',
+      });
     }
 
     movedFilesMarker?.stop();
