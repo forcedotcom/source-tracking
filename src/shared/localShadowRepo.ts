@@ -425,8 +425,8 @@ export class ShadowRepo {
       return [map, ignore];
     };
 
-    const [addedMap, addedIgnoredSet] = buildMaps(addedInfo);
-    const [deletedMap, deletedIgnoredSet] = buildMaps(deletedInfo);
+    const [addedMap, addedIgnoredMap] = buildMaps(addedInfo);
+    const [deletedMap, deletedIgnoredMap] = buildMaps(deletedInfo);
 
     const moveLogs = [];
     const addedFilesWithMatches = [];
@@ -446,7 +446,7 @@ export class ShadowRepo {
     // We could add more logic to determine and display filepaths that we ignored...
     // but this is likely rare enough to not warrant the added complexity
     // Telemetry will help us determine how often this occurs
-    if (addedIgnoredSet.size || deletedIgnoredSet.size) {
+    if (addedIgnoredMap.size || deletedIgnoredMap.size) {
       const message = 'Files were found that have the same basename and hash. Skipping the commit of these files';
       this.logger.warn(message);
       await Lifecycle.getInstance().emitWarning(message);
