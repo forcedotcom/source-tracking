@@ -168,7 +168,9 @@ export class ShadowRepo {
         });
 
         // Check for moved files and update local git status accordingly
-        if (env.getBoolean('SF_DISABLE_MOVED_FILE_DETECTION') !== true) {
+        if (env.getBoolean('SF_DISABLE_MOVED_FILE_DETECTION') === true) {
+          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
+        } else {
           await this.detectMovedFiles();
         }
       } catch (e) {
