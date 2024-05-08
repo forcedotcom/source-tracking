@@ -35,6 +35,8 @@ const redirectToCliRepoError = (e: unknown): never => {
   throw e;
 };
 
+type FileInfo = { filename: string; hash: string; basename: string };
+
 type ShadowRepoOptions = {
   orgId: string;
   projectPath: string;
@@ -201,7 +203,7 @@ export class ShadowRepo {
   }
 
   public async getDeletes(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter((file) => file[WORKDIR] === 0);
+    return (await this.getStatus()).filter(isDeleted);
   }
 
   public async getDeleteFilenames(): Promise<string[]> {
@@ -223,7 +225,7 @@ export class ShadowRepo {
   }
 
   public async getAdds(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter((file) => file[HEAD] === 0 && file[WORKDIR] === 2);
+    return (await this.getStatus()).filter(isAdded);
   }
 
   public async getAddFilenames(): Promise<string[]> {
@@ -347,35 +349,15 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
-    // We check for moved files in incremental steps and exit as early as we can to avoid any performance degradation
-
-    // Deleted files will be more rare than added files, so we'll check them first and exit early if there are none
-    const deletedFiles = this.status.filter((file) => file[WORKDIR] === 0);
-    if (!deletedFiles.length) return;
-
-    const addedFiles = this.status.filter((file) => file[HEAD] === 0 && file[WORKDIR] === 2);
-    if (!addedFiles.length) return;
-
-    // Both arrays have contents, look for matching basenames
-    const addedFilenames = toFilenames(addedFiles);
-    const deletedFilenames = toFilenames(deletedFiles);
-
-    // Build Sets of basenames for added and deleted files for quick lookups
-    const addedBasenames = new Set(addedFilenames.map((filename) => path.basename(filename)));
-    const deletedBasenames = new Set(deletedFilenames.map((filename) => path.basename(filename)));
-
-    // Again, we filter over the deleted files first and exit early if there are no filename matches
-    const deletedFilenamesWithMatches = deletedFilenames.filter((f) => addedBasenames.has(path.basename(f)));
-    if (!deletedFilenamesWithMatches.length) return;
-
-    const addedFilenamesWithMatches = addedFilenames.filter((f) => deletedBasenames.has(path.basename(f)));
-    if (!addedFilenamesWithMatches.length) return;
+    const matches = getMatches(await this.getStatus());
+    if (!matches) {
+      return;
+    }
+    const { deletedFilenamesWithMatches, addedFilenamesWithMatches } = matches;
 
     // We found file adds and deletes with the same basename
     // The have likely been moved, confirm by comparing their hashes (oids)
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
-
-    type FileInfo = { filename: string; hash: string; basename: string };
 
     const getInfo = async (targetTree: Walker, filenameSet: Set<string>): Promise<FileInfo[]> =>
       // Unable to properly type the return value of git.walk without using "as", ignoring linter
@@ -408,50 +390,7 @@ export class ShadowRepo {
 
     getInfoMarker?.stop();
 
-    const buildMaps = (info: FileInfo[]): Array<Map<string, string>> => {
-      const map: Map<string, string> = new Map();
-      const ignore: Map<string, string> = new Map();
-      info.forEach((i) => {
-        const key = `${i.hash}#${i.basename}`;
-        // If we find a duplicate key, we need to remove it and ignore it in the future.
-        // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
-        if (map.has(key) || ignore.has(key)) {
-          map.delete(key);
-          ignore.set(key, i.filename);
-        } else {
-          map.set(key, i.filename);
-        }
-      });
-      return [map, ignore];
-    };
-
-    const [addedMap, addedIgnoredMap] = buildMaps(addedInfo);
-    const [deletedMap, deletedIgnoredMap] = buildMaps(deletedInfo);
-
-    const moveLogs = [];
-    const addedFilesWithMatches = [];
-    const deletedFilesWithMatches = [];
-
-    for (const [addedKey, addedValue] of addedMap) {
-      const deletedValue = deletedMap.get(addedKey);
-      if (deletedValue) {
-        addedFilesWithMatches.push(addedValue);
-        deletedFilesWithMatches.push(deletedValue);
-        moveLogs.push(`File '${deletedValue}' was moved to '${addedValue}'`);
-      }
-    }
-
-    // If we detected any files that have the same basename and hash, emit a warning and send telemetry
-    // These files will still show up as expected in the `sf project deploy preview` output
-    // We could add more logic to determine and display filepaths that we ignored...
-    // but this is likely rare enough to not warrant the added complexity
-    // Telemetry will help us determine how often this occurs
-    if (addedIgnoredMap.size || deletedIgnoredMap.size) {
-      const message = 'Files were found that have the same basename and hash. Skipping the commit of these files';
-      this.logger.warn(message);
-      await Lifecycle.getInstance().emitWarning(message);
-      await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' });
-    }
+    const { moveLogs, addedFilesWithMatches, deletedFilesWithMatches } = await compareHashes(addedInfo, deletedInfo);
 
     if (addedFilesWithMatches.length && deletedFilesWithMatches.length) {
       this.logger.debug('Files have moved. Committing moved files:');
@@ -480,3 +419,96 @@ const packageDirToRelativePosixPath =
 
 const normalize = (filepath: string): string => path.normalize(filepath);
 const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);
+
+const buildMaps = (info: FileInfo[]): Array<Map<string, string>> => {
+  const map: Map<string, string> = new Map();
+  const ignore: Map<string, string> = new Map();
+  info.forEach((i) => {
+    const key = `${i.hash}#${i.basename}`;
+    // If we find a duplicate key, we need to remove it and ignore it in the future.
+    // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
+    if (map.has(key) || ignore.has(key)) {
+      map.delete(key);
+      ignore.set(key, i.filename);
+    } else {
+      map.set(key, i.filename);
+    }
+  });
+  return [map, ignore];
+};
+
+/** compare delete and adds from git.status, matching basenames of the files.  returns early when there's nothing to match */
+const getMatches = (
+  status: StatusRow[]
+): { deletedFilenamesWithMatches: string[]; addedFilenamesWithMatches: string[] } | undefined => {
+  // We check for moved files in incremental steps and exit as early as we can to avoid any performance degradation
+  // Deleted files will be more rare than added files, so we'll check them first and exit early if there are none
+  const deletedFiles = status.filter(isDeleted);
+  if (!deletedFiles.length) return;
+
+  const addedFiles = status.filter(isAdded);
+  if (!addedFiles.length) return;
+
+  // Both arrays have contents, look for matching basenames
+  const addedFilenames = toFilenames(addedFiles);
+  const deletedFilenames = toFilenames(deletedFiles);
+
+  // Build Sets of basenames for added and deleted files for quick lookups
+  const addedBasenames = new Set(addedFilenames.map((filename) => path.basename(filename)));
+  const deletedBasenames = new Set(deletedFilenames.map((filename) => path.basename(filename)));
+
+  // Again, we filter over the deleted files first and exit early if there are no filename matches
+  const deletedFilenamesWithMatches = deletedFilenames.filter((f) => addedBasenames.has(path.basename(f)));
+  if (!deletedFilenamesWithMatches.length) return;
+
+  const addedFilenamesWithMatches = addedFilenames.filter((f) => deletedBasenames.has(path.basename(f)));
+  if (!addedFilenamesWithMatches.length) return;
+
+  return { deletedFilenamesWithMatches, addedFilenamesWithMatches };
+};
+
+const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
+const isAdded = (status: StatusRow): boolean => status[HEAD] === 0 && status[WORKDIR] === 2;
+
+/** build maps of the add/deletes with filenames, grabbing the matches, plus a list of moves (moveLogs).  Logs the non-matches */
+const compareHashes = async (
+  addedInfo: FileInfo[],
+  deletedInfo: FileInfo[]
+): Promise<{ moveLogs: string[]; addedFilesWithMatches: string[]; deletedFilesWithMatches: string[] }> => {
+  const moveLogs = [];
+  const addedFilesWithMatches = [];
+  const deletedFilesWithMatches = [];
+
+  const [addedMap, addedIgnoredMap] = buildMaps(addedInfo);
+  const [deletedMap, deletedIgnoredMap] = buildMaps(deletedInfo);
+
+  for (const [addedKey, addedValue] of addedMap) {
+    const deletedValue = deletedMap.get(addedKey);
+    if (deletedValue) {
+      addedFilesWithMatches.push(addedValue);
+      deletedFilesWithMatches.push(deletedValue);
+      moveLogs.push(`File '${deletedValue}' was moved to '${addedValue}'`);
+    }
+  }
+
+  // If we detected any files that have the same basename and hash, emit a warning and send telemetry
+  // These files will still show up as expected in the `sf project deploy preview` output
+  // We could add more logic to determine and display filepaths that we ignored...
+  // but this is likely rare enough to not warrant the added complexity
+  // Telemetry will help us determine how often this occurs
+  if (addedIgnoredMap.size || deletedIgnoredMap.size) {
+    const message = 'Files were found that have the same basename and hash. Skipping the commit of these files';
+    const logger = Logger.childFromRoot('ShadowRepo.compareHashes');
+    logger.warn(message);
+    const lifecycle = Lifecycle.getInstance();
+    await Promise.all([
+      lifecycle.emitWarning(message),
+      lifecycle.emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' }),
+    ]);
+  }
+  return {
+    moveLogs,
+    addedFilesWithMatches,
+    deletedFilesWithMatches,
+  };
+};
