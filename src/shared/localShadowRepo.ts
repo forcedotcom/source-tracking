@@ -13,7 +13,14 @@ import { env } from '@salesforce/kit';
 // @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git, { Walker } from 'isomorphic-git';
 import { Performance } from '@oclif/core';
+import {
+  RegistryAccess,
+  MetadataResolver,
+  VirtualTreeContainer,
+  SourceComponent,
+} from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from './functions';
+import { sourceComponentGuard } from './guards';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
@@ -349,11 +356,9 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
-    const matches = getMatches(await this.getStatus());
-    if (!matches) {
-      return;
-    }
-    const { deletedFilenamesWithMatches, addedFilenamesWithMatches } = matches;
+    const matchingFilenames = getMatches(await this.getStatus());
+    if (!matchingFilenames) return;
+    const { deletedFilenamesWithMatches, addedFilenamesWithMatches } = matchingFilenames;
 
     // We found file adds and deletes with the same basename
     // The have likely been moved, confirm by comparing their hashes (oids)
@@ -390,17 +395,21 @@ export class ShadowRepo {
 
     getInfoMarker?.stop();
 
-    const { moveLogs, addedFilesWithMatches, deletedFilesWithMatches } = await compareHashes(addedInfo, deletedInfo);
+    const matches = await compareHashes(addedInfo, deletedInfo);
+    const { moveLogs, addedFilesWithMatchingTypes, deletedFilesWithMatchingTypes } = compareTypes(
+      matches,
+      this.projectPath
+    );
 
-    if (addedFilesWithMatches.length && deletedFilesWithMatches.length) {
+    if (addedFilesWithMatchingTypes.length && deletedFilesWithMatchingTypes.length) {
       this.logger.debug('Files have moved. Committing moved files:');
       this.logger.debug(moveLogs.join('\n'));
       movedFilesMarker?.addDetails({ filesMoved: moveLogs.length });
 
       // Commit the moved files and refresh the status
       await this.commitChanges({
-        deletedFiles: deletedFilesWithMatches,
-        deployedFiles: addedFilesWithMatches,
+        deletedFiles: deletedFilesWithMatchingTypes,
+        deployedFiles: addedFilesWithMatchingTypes,
         message: 'Committing moved files',
       });
     }
@@ -470,24 +479,16 @@ const getMatches = (
 const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
 const isAdded = (status: StatusRow): boolean => status[HEAD] === 0 && status[WORKDIR] === 2;
 
-/** build maps of the add/deletes with filenames, grabbing the matches, plus a list of moves (moveLogs).  Logs the non-matches */
-const compareHashes = async (
-  addedInfo: FileInfo[],
-  deletedInfo: FileInfo[]
-): Promise<{ moveLogs: string[]; addedFilesWithMatches: string[]; deletedFilesWithMatches: string[] }> => {
-  const moveLogs = [];
-  const addedFilesWithMatches = [];
-  const deletedFilesWithMatches = [];
-
+/** build maps of the add/deletes with filenames, grabbing the matches  Logs the non-matches */
+const compareHashes = async (addedInfo: FileInfo[], deletedInfo: FileInfo[]): Promise<Map<string, string>> => {
+  const matches = new Map();
   const [addedMap, addedIgnoredMap] = buildMaps(addedInfo);
   const [deletedMap, deletedIgnoredMap] = buildMaps(deletedInfo);
 
   for (const [addedKey, addedValue] of addedMap) {
     const deletedValue = deletedMap.get(addedKey);
     if (deletedValue) {
-      addedFilesWithMatches.push(addedValue);
-      deletedFilesWithMatches.push(deletedValue);
-      moveLogs.push(`File '${deletedValue}' was moved to '${addedValue}'`);
+      matches.set(addedValue, deletedValue);
     }
   }
 
@@ -506,9 +507,57 @@ const compareHashes = async (
       lifecycle.emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' }),
     ]);
   }
-  return {
-    moveLogs,
-    addedFilesWithMatches,
-    deletedFilesWithMatches,
-  };
+
+  return matches;
+};
+
+const resolveType = (resolver: MetadataResolver, filenames: string[]): SourceComponent[] =>
+  filenames
+    .flatMap((filename) => {
+      try {
+        return resolver.getComponentsFromPath(filename);
+      } catch (e) {
+        const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
+        logger.warn(`unable to resolve ${filename}`);
+        return undefined;
+      }
+    })
+    .filter(sourceComponentGuard);
+
+const compareTypes = (
+  matches: Map<string, string>,
+  projectPath: string
+): { moveLogs: string[]; addedFilesWithMatchingTypes: string[]; deletedFilesWithMatchingTypes: string[] } => {
+  const moveLogs = [];
+  const addedFilesWithMatchingTypes = [];
+  const deletedFilesWithMatchingTypes = [];
+  const registry = new RegistryAccess(undefined, projectPath);
+
+  const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.keys()]));
+  const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.values()]));
+
+  for (const [addedFile, deletedFile] of matches) {
+    const resolvedAdded = resolveType(resolverAdded, [addedFile]);
+    const resolvedDeleted = resolveType(resolverDeleted, [deletedFile]);
+
+    // TODO: Review these checks
+    // TODO: Clean up messy if logic
+    // Will any of these ever be unresolved?
+    // Yes, could be a type that SDR doesn't know about
+    if (resolvedAdded[0]?.type.name === resolvedDeleted[0]?.type.name) {
+      if (
+        // If both parents are undefined (not children)
+        (!resolvedAdded[0].parent && !resolvedDeleted[0].parent) ||
+        // or if both have parents and they match
+        (resolvedAdded[0].parent?.name === resolvedDeleted[0].parent?.name &&
+          resolvedAdded[0].parent?.type.name === resolvedDeleted[0].parent?.type.name)
+      ) {
+        addedFilesWithMatchingTypes.push(addedFile);
+        deletedFilesWithMatchingTypes.push(deletedFile);
+        moveLogs.push(`File '${deletedFile}' was moved to '${addedFile}'`);
+      }
+    }
+  }
+
+  return { moveLogs, addedFilesWithMatchingTypes, deletedFilesWithMatchingTypes };
 };
