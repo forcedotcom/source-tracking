@@ -361,8 +361,8 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
-    const { deletedFilenamesWithMatches, addedFilenamesWithMatches } = getMatches(await this.getStatus()) ?? {};
-    if (!deletedFilenamesWithMatches || !addedFilenamesWithMatches) return;
+    const { addedFilenamesWithMatches, deletedFilenamesWithMatches } = getMatches(await this.getStatus()) ?? {};
+    if (!addedFilenamesWithMatches || !deletedFilenamesWithMatches) return;
 
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
 
@@ -412,7 +412,7 @@ export class ShadowRepo {
     this.logger.debug(
       [
         'Files have moved. Committing moved files:',
-        [...matches.entries()].map(([del, add]) => `- File ${add} was moved to ${del}`).join(os.EOL),
+        [...matches.entries()].map(([add, del]) => `- File ${del} was moved to ${add}`).join(os.EOL),
       ].join(os.EOL)
     );
 
@@ -485,7 +485,7 @@ const getMatches = (
   const addedFilenamesWithMatches = addedFilenames.filter((f) => deletedBasenames.has(path.basename(f)));
   if (!addedFilenamesWithMatches.length) return;
 
-  return { deletedFilenamesWithMatches, addedFilenamesWithMatches };
+  return { addedFilenamesWithMatches, deletedFilenamesWithMatches };
 };
 
 const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
