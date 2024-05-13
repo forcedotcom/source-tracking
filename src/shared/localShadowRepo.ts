@@ -532,6 +532,7 @@ const compareTypes = (
   projectPath: string
 ): { moveLogs: string[]; addedFilesWithMatchingTypes: string[]; deletedFilesWithMatchingTypes: string[] } => {
   const compareTypesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.compareTypes');
+  const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
   const moveLogs = [];
   const addedFilesWithMatchingTypes = [];
   const deletedFilesWithMatchingTypes = [];
@@ -541,13 +542,13 @@ const compareTypes = (
   const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.values()]));
 
   for (const [addedFile, deletedFile] of matches) {
-    const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
-
+    logger.warn('addedFile', addedFile);
+    logger.warn('deletedFile', deletedFile);
     const resolvedAdded = resolveType(resolverAdded, [addedFile])[0];
     const resolvedDeleted = resolveType(resolverDeleted, [deletedFile])[0];
 
-    logger.fatal('resolvedAdded', resolvedAdded);
-    logger.fatal('resolvedDeleted', resolvedDeleted);
+    logger.warn('resolvedAdded', resolvedAdded);
+    logger.warn('resolvedDeleted', resolvedDeleted);
 
     if (!resolvedAdded || !resolvedDeleted) {
       logger.warn(`Unable to resolve type for '${addedFile}' or '${deletedFile}'`);
@@ -559,8 +560,8 @@ const compareTypes = (
       continue;
     }
 
-    logger.fatal('resolvedAdded.parent', resolvedAdded.parent);
-    logger.fatal('resolvedDeleted.parent', resolvedDeleted.parent);
+    logger.warn('resolvedAdded.parent', resolvedAdded.parent);
+    logger.warn('resolvedDeleted.parent', resolvedDeleted.parent);
 
     // Name of the parent needs to match, we do not want to allow moving a child to a different parent
     // For example a custom field from one object to another (Broker__c to Account__c)
