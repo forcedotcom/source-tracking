@@ -542,13 +542,13 @@ const compareTypes = (
   const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.values()]));
 
   for (const [addedFile, deletedFile] of matches) {
-    logger.warn('addedFile', addedFile);
-    logger.warn('deletedFile', deletedFile);
+    console.log('addedFile', addedFile); // eslint-disable-line no-console
+    console.log('deletedFile', deletedFile); // eslint-disable-line no-console
     const resolvedAdded = resolveType(resolverAdded, [addedFile])[0];
     const resolvedDeleted = resolveType(resolverDeleted, [deletedFile])[0];
 
-    logger.warn('resolvedAdded', resolvedAdded);
-    logger.warn('resolvedDeleted', resolvedDeleted);
+    console.log('resolvedAdded', resolvedAdded); // eslint-disable-line no-console
+    console.log('resolvedDeleted', resolvedDeleted); // eslint-disable-line no-console
 
     if (!resolvedAdded || !resolvedDeleted) {
       logger.warn(`Unable to resolve type for '${addedFile}' or '${deletedFile}'`);

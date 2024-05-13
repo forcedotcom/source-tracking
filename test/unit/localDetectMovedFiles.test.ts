@@ -19,14 +19,10 @@ import { ShadowRepo } from '../../src/shared/localShadowRepo';
 afterEach(() => {
   // Restore the default sandbox here
   sinon.restore();
-  delete process.env.SF_LOG_LEVEL;
-  delete process.env.DEBUG;
 });
 
 describe('local detect moved files', () => {
   it('automatically commits moved files', async () => {
-    process.env.SF_LOG_LEVEL = 'warn';
-    process.env.DEBUG = '*';
     let projectDir!: string;
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
