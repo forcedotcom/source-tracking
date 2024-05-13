@@ -410,10 +410,12 @@ export class ShadowRepo {
     }
 
     this.logger.debug(
-      ['Files have moved. Committing moved files:', ...matches.entries()]
-        .map(([add, del]) => `File ${add} was moved to ${del}`)
-        .join('\n')
+      [
+        'Files have moved. Committing moved files:',
+        [...matches.entries()].map(([del, add]) => `- File ${add} was moved to ${del}`).join(os.EOL),
+      ].join(os.EOL)
     );
+
     movedFilesMarker?.addDetails({ filesMoved: matches.size });
 
     // Commit the moved files and refresh the status

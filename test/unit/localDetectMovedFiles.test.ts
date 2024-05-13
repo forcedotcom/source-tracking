@@ -29,6 +29,7 @@ describe('local detect moved files', () => {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
       fs.mkdirSync(path.join(projectDir, 'force-app', 'new'), { recursive: true });
       fs.writeFileSync(path.join(projectDir, 'force-app', 'CustomLabels.labels-meta.xml'), '<xml></xml>');
+      fs.writeFileSync(path.join(projectDir, 'force-app', 'CustomLabelsTwo.labels-meta.xml'), '<xml></xml>');
 
       const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
         orgId: '00D456789012345',
@@ -47,7 +48,8 @@ describe('local detect moved files', () => {
 
       // Manually commit this first file
       const labelsFile = path.join('force-app', 'CustomLabels.labels-meta.xml');
-      const sha = await shadowRepo.commitChanges({ deployedFiles: [labelsFile] });
+      const labelsFileTwo = path.join('force-app', 'CustomLabelsTwo.labels-meta.xml');
+      const sha = await shadowRepo.commitChanges({ deployedFiles: [labelsFile, labelsFileTwo] });
       expect(sha).to.not.be.empty;
       expect(gitAdd.calledOnce).to.be.true;
 
@@ -55,6 +57,11 @@ describe('local detect moved files', () => {
       fs.renameSync(
         path.join(projectDir, labelsFile),
         path.join(projectDir, 'force-app', 'new', 'CustomLabels.labels-meta.xml')
+      );
+
+      fs.renameSync(
+        path.join(projectDir, labelsFileTwo),
+        path.join(projectDir, 'force-app', 'new', 'CustomLabelsTwo.labels-meta.xml')
       );
       await shadowRepo.getStatus(true);
 
