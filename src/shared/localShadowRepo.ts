@@ -541,14 +541,22 @@ const resolveType = (resolver: MetadataResolver, filenames: string[]): SourceCom
     .filter(sourceComponentGuard);
 
 const removeNonMatches = (matches: StringMap, registry: RegistryAccess): StringMap => {
-  const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.keys()]));
-  const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.values()]));
+  const addedFiles =
+    os.type() === 'Windows_NT' ? [...matches.keys()].map((file) => path.win32.normalize(file)) : [...matches.keys()];
+  const deletedFiles =
+    os.type() === 'Windows_NT'
+      ? [...matches.values()].map((file) => path.win32.normalize(file))
+      : [...matches.values()];
+  const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(addedFiles));
+  const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(deletedFiles));
 
   return new Map(
     [...matches.entries()].filter(([addedFile, deletedFile]) => {
       // we're only ever using the first element of the arrays
-      const [resolvedAdded] = resolveType(resolverAdded, [addedFile]);
-      const [resolvedDeleted] = resolveType(resolverDeleted, [deletedFile]);
+      const normalizedAdded = os.type() === 'Window_NT' ? path.win32.normalize(addedFile) : addedFile;
+      const normalizedDeleted = os.type() === 'Window_NT' ? path.win32.normalize(deletedFile) : deletedFile;
+      const [resolvedAdded] = resolveType(resolverAdded, [normalizedAdded]);
+      const [resolvedDeleted] = resolveType(resolverDeleted, [normalizedDeleted]);
       return (
         // they could match, or could both be undefined (because unresolved by SDR)
         resolvedAdded?.type.name === resolvedDeleted?.type.name &&
