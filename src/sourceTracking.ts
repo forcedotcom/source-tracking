@@ -512,6 +512,7 @@ export class SourceTracking extends AsyncCreatable {
       orgId: this.orgId,
       projectPath: normalize(this.projectPath),
       packageDirs: this.packagesDirs,
+      registry: this.registry,
     });
     // loads the status from file so that it's cached
     await this.localRepo.getStatus();

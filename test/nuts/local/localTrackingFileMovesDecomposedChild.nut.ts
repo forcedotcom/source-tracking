@@ -9,6 +9,7 @@ import * as path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import * as fs from 'graceful-fs';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
 describe('ignores moved files that are children of a decomposed metadata type', () => {
@@ -34,6 +35,7 @@ describe('ignores moved files that are children of a decomposed metadata type', 
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+      registry: new RegistryAccess(),
     });
   });
 

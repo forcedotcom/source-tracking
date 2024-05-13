@@ -8,6 +8,7 @@ import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import * as fs from 'graceful-fs';
 import { expect } from 'chai';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
 describe('verifies behavior of relative pkgDirs', () => {
@@ -30,6 +31,7 @@ describe('verifies behavior of relative pkgDirs', () => {
       packageDirs: [
         { path: './force-app', name: 'force-app', fullPath: path.join(session.project.dir, './force-app') },
       ],
+      registry: new RegistryAccess(),
     });
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));

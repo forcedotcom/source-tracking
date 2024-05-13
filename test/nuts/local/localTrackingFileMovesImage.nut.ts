@@ -9,9 +9,11 @@ import * as path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import * as fs from 'graceful-fs';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
 describe('it detects image file moves ', () => {
+  const registry = new RegistryAccess();
   let session: TestSession;
   let repo: ShadowRepo;
   let filesToSync: string[];
@@ -34,19 +36,38 @@ describe('it detects image file moves ', () => {
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+      registry,
     });
   });
 
   it('should show 0 files (images) in git status after moving them', async () => {
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
-    await repo.commitChanges({ deployedFiles: filesToSync })
+    await repo.commitChanges({ deployedFiles: filesToSync });
 
     // move all the classes to the new folder
-    fs.mkdirSync(path.join(session.project.dir, 'force-app', 'main', 'default', 'staticresources', 'bike_assets_new'), { recursive: true });
+    fs.mkdirSync(path.join(session.project.dir, 'force-app', 'main', 'default', 'staticresources', 'bike_assets_new'), {
+      recursive: true,
+    });
     fs.renameSync(
-      path.join(session.project.dir, 'force-app', 'main', 'default', 'staticresources', 'bike_assets', 'CyclingGrass.jpg'),
-      path.join(session.project.dir, 'force-app', 'main', 'default', 'staticresources', 'bike_assets_new', 'CyclingGrass.jpg'),
+      path.join(
+        session.project.dir,
+        'force-app',
+        'main',
+        'default',
+        'staticresources',
+        'bike_assets',
+        'CyclingGrass.jpg'
+      ),
+      path.join(
+        session.project.dir,
+        'force-app',
+        'main',
+        'default',
+        'staticresources',
+        'bike_assets_new',
+        'CyclingGrass.jpg'
+      )
     );
 
     await repo.getStatus(true);

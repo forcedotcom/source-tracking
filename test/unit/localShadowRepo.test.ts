@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import git from 'isomorphic-git';
 import { expect } from 'chai';
 import sinon = require('sinon');
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../src/shared/localShadowRepo';
 
 /* eslint-disable no-unused-expressions */
@@ -21,6 +22,7 @@ afterEach(() => {
 });
 
 describe('localShadowRepo', () => {
+  const registry = new RegistryAccess();
   it('does not add same file multiple times', async () => {
     let projectDir!: string;
     try {
@@ -30,6 +32,7 @@ describe('localShadowRepo', () => {
 
       const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
         orgId: '00D456789012345',
+        registry,
         projectPath: projectDir,
         packageDirs: [
           {
@@ -58,6 +61,7 @@ describe('localShadowRepo', () => {
 
     const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
       orgId: '00D456789012345',
+      registry,
       projectPath: projectDir,
       packageDirs: [
         {
@@ -82,6 +86,7 @@ describe('localShadowRepo', () => {
 
     const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
       orgId: '00D456789012345',
+      registry,
       projectPath: projectDir,
       packageDirs: [
         {
@@ -106,6 +111,7 @@ describe('localShadowRepo', () => {
 
     const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
       orgId: '00D456789012345',
+      registry,
       projectPath: projectDir,
       packageDirs: [
         {
