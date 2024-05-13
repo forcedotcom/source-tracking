@@ -479,8 +479,9 @@ const getMatches = (
 const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
 const isAdded = (status: StatusRow): boolean => status[HEAD] === 0 && status[WORKDIR] === 2;
 
-/** build maps of the add/deletes with filenames, grabbing the matches  Logs the non-matches */
+/** Build maps using the added/deleted filenames and return the matches. Log the non-matches */
 const compareHashes = async (addedInfo: FileInfo[], deletedInfo: FileInfo[]): Promise<Map<string, string>> => {
+  const compareHashesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.compareHashes');
   const matches = new Map();
   const [addedMap, addedIgnoredMap] = buildMaps(addedInfo);
   const [deletedMap, deletedIgnoredMap] = buildMaps(deletedInfo);
@@ -508,6 +509,7 @@ const compareHashes = async (addedInfo: FileInfo[], deletedInfo: FileInfo[]): Pr
     ]);
   }
 
+  compareHashesMarker?.stop();
   return matches;
 };
 
@@ -524,10 +526,12 @@ const resolveType = (resolver: MetadataResolver, filenames: string[]): SourceCom
     })
     .filter(sourceComponentGuard);
 
+// Compare the types of the added and deleted files. If they have a parent, the parent name and type must also match
 const compareTypes = (
   matches: Map<string, string>,
   projectPath: string
 ): { moveLogs: string[]; addedFilesWithMatchingTypes: string[]; deletedFilesWithMatchingTypes: string[] } => {
+  const compareTypesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.compareTypes');
   const moveLogs = [];
   const addedFilesWithMatchingTypes = [];
   const deletedFilesWithMatchingTypes = [];
@@ -537,27 +541,39 @@ const compareTypes = (
   const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.values()]));
 
   for (const [addedFile, deletedFile] of matches) {
-    const resolvedAdded = resolveType(resolverAdded, [addedFile]);
-    const resolvedDeleted = resolveType(resolverDeleted, [deletedFile]);
+    const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
 
-    // TODO: Review these checks
-    // TODO: Clean up messy if logic
-    // Will any of these ever be unresolved?
-    // Yes, could be a type that SDR doesn't know about
-    if (resolvedAdded[0]?.type.name === resolvedDeleted[0]?.type.name) {
-      if (
-        // If both parents are undefined (not children)
-        (!resolvedAdded[0].parent && !resolvedDeleted[0].parent) ||
-        // or if both have parents and they match
-        (resolvedAdded[0].parent?.name === resolvedDeleted[0].parent?.name &&
-          resolvedAdded[0].parent?.type.name === resolvedDeleted[0].parent?.type.name)
-      ) {
-        addedFilesWithMatchingTypes.push(addedFile);
-        deletedFilesWithMatchingTypes.push(deletedFile);
-        moveLogs.push(`File '${deletedFile}' was moved to '${addedFile}'`);
-      }
+    const resolvedAdded = resolveType(resolverAdded, [addedFile])[0];
+    const resolvedDeleted = resolveType(resolverDeleted, [deletedFile])[0];
+
+    if (!resolvedAdded || !resolvedDeleted) {
+      logger.warn(`Unable to resolve type for '${addedFile}' or '${deletedFile}'`);
+      continue;
     }
+
+    if (resolvedAdded.type.name !== resolvedDeleted.type.name) {
+      logger.warn(`Type mismatch for '${addedFile}' and '${deletedFile}'`);
+      continue;
+    }
+
+    // Name of the parent needs to match, we do not want to allow moving a child to a different parent
+    // For example a custom field from one object to another (Broker__c to Account__c)
+    if (resolvedAdded.parent?.name !== resolvedDeleted.parent?.name) {
+      logger.warn(`Parent name mismatch for '${addedFile}' and '${deletedFile}'`);
+      continue;
+    }
+
+    // The parent type needs to match, we do not want to allow moving a child to a different parent type
+    if (resolvedAdded.parent?.type.name !== resolvedDeleted.parent?.type.name) {
+      logger.warn(`Parent type mismatch for '${addedFile}' and '${deletedFile}'`);
+      continue;
+    }
+
+    addedFilesWithMatchingTypes.push(addedFile);
+    deletedFilesWithMatchingTypes.push(deletedFile);
+    moveLogs.push(`File '${deletedFile}' was moved to '${addedFile}'`);
   }
 
+  compareTypesMarker?.stop();
   return { moveLogs, addedFilesWithMatchingTypes, deletedFilesWithMatchingTypes };
 };
