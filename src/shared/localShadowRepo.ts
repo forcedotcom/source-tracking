@@ -403,7 +403,7 @@ export class ShadowRepo {
     if (matchingNameAndHashes.size === 0) {
       return movedFilesMarker?.stop();
     }
-    const matches = removeNonMatches(matchingNameAndHashes, this.registry);
+    const matches = removeNonMatches(matchingNameAndHashes, this.registry, this.isWindows);
 
     if (matches.size === 0) {
       return movedFilesMarker?.stop();
@@ -438,6 +438,7 @@ const packageDirToRelativePosixPath =
       : path.relative(projectPath, packageDir.fullPath);
 
 const normalize = (filepath: string): string => path.normalize(filepath);
+const ensureWindows = (filepath: string): string => path.win32.normalize(filepath);
 const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);
 
 const buildMap = (info: FileInfo[]): StringMap[] => {
@@ -540,23 +541,17 @@ const resolveType = (resolver: MetadataResolver, filenames: string[]): SourceCom
     })
     .filter(sourceComponentGuard);
 
-const removeNonMatches = (matches: StringMap, registry: RegistryAccess): StringMap => {
-  const addedFiles =
-    os.type() === 'Windows_NT' ? [...matches.keys()].map((file) => path.win32.normalize(file)) : [...matches.keys()];
-  const deletedFiles =
-    os.type() === 'Windows_NT'
-      ? [...matches.values()].map((file) => path.win32.normalize(file))
-      : [...matches.values()];
+const removeNonMatches = (matches: StringMap, registry: RegistryAccess, isWindows: boolean): StringMap => {
+  const addedFiles = isWindows ? [...matches.keys()].map(ensureWindows) : [...matches.keys()];
+  const deletedFiles = isWindows ? [...matches.values()].map(ensureWindows) : [...matches.values()];
   const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(addedFiles));
   const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(deletedFiles));
 
   return new Map(
     [...matches.entries()].filter(([addedFile, deletedFile]) => {
       // we're only ever using the first element of the arrays
-      const normalizedAdded = os.type() === 'Window_NT' ? path.win32.normalize(addedFile) : addedFile;
-      const normalizedDeleted = os.type() === 'Window_NT' ? path.win32.normalize(deletedFile) : deletedFile;
-      const [resolvedAdded] = resolveType(resolverAdded, [normalizedAdded]);
-      const [resolvedDeleted] = resolveType(resolverDeleted, [normalizedDeleted]);
+      const [resolvedAdded] = resolveType(resolverAdded, isWindows ? [ensureWindows(addedFile)] : [addedFile]);
+      const [resolvedDeleted] = resolveType(resolverDeleted, isWindows ? [ensureWindows(deletedFile)] : [deletedFile]);
       return (
         // they could match, or could both be undefined (because unresolved by SDR)
         resolvedAdded?.type.name === resolvedDeleted?.type.name &&
