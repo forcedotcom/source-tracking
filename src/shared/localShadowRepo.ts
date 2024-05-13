@@ -546,6 +546,9 @@ const compareTypes = (
     const resolvedAdded = resolveType(resolverAdded, [addedFile])[0];
     const resolvedDeleted = resolveType(resolverDeleted, [deletedFile])[0];
 
+    console.log('resolvedAdded', resolvedAdded);
+    console.log('resolvedDeleted', resolvedDeleted);
+
     if (!resolvedAdded || !resolvedDeleted) {
       logger.warn(`Unable to resolve type for '${addedFile}' or '${deletedFile}'`);
       continue;
@@ -556,6 +559,8 @@ const compareTypes = (
       continue;
     }
 
+    console.log('resolvedAdded.parent', resolvedAdded.parent);
+    console.log('resolvedDeleted.parent', resolvedDeleted.parent);
     // Name of the parent needs to match, we do not want to allow moving a child to a different parent
     // For example a custom field from one object to another (Broker__c to Account__c)
     if (resolvedAdded.parent?.name !== resolvedDeleted.parent?.name) {
