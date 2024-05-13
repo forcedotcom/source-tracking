@@ -540,6 +540,10 @@ const compareTypes = (
 
   const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.keys()]));
   const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.values()]));
+  // @ts-expect-error temp
+  console.log('resolverAdded.tree', resolverAdded.tree); // eslint-disable-line no-console
+  // @ts-expect-error temp
+  console.log('resolverDeleted.tree', resolverDeleted.tree); // eslint-disable-line no-console
 
   for (const [addedFile, deletedFile] of matches) {
     console.log('addedFile', addedFile); // eslint-disable-line no-console
