@@ -540,19 +540,10 @@ const compareTypes = (
 
   const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.keys()]));
   const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.values()]));
-  // @ts-expect-error temp
-  console.log('resolverAdded.tree', resolverAdded.tree); // eslint-disable-line no-console
-  // @ts-expect-error temp
-  console.log('resolverDeleted.tree', resolverDeleted.tree); // eslint-disable-line no-console
 
   for (const [addedFile, deletedFile] of matches) {
-    console.log('addedFile', addedFile); // eslint-disable-line no-console
-    console.log('deletedFile', deletedFile); // eslint-disable-line no-console
     const resolvedAdded = resolveType(resolverAdded, [addedFile])[0];
     const resolvedDeleted = resolveType(resolverDeleted, [deletedFile])[0];
-
-    console.log('resolvedAdded', resolvedAdded); // eslint-disable-line no-console
-    console.log('resolvedDeleted', resolvedDeleted); // eslint-disable-line no-console
 
     if (!resolvedAdded || !resolvedDeleted) {
       logger.warn(`Unable to resolve type for '${addedFile}' or '${deletedFile}'`);
