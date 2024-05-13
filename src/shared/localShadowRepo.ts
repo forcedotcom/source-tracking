@@ -43,11 +43,14 @@ const redirectToCliRepoError = (e: unknown): never => {
 };
 
 type FileInfo = { filename: string; hash: string; basename: string };
+type StringMap = Map<string, string>;
+type AddAndDeleteMaps = { addedMap: StringMap; deletedMap: StringMap };
 
 type ShadowRepoOptions = {
   orgId: string;
   projectPath: string;
   packageDirs: NamedPackageDir[];
+  registry: RegistryAccess;
 };
 
 // https://isomorphic-git.org/docs/en/statusMatrix#docsNav
@@ -76,6 +79,7 @@ export class ShadowRepo {
   private status!: StatusRow[];
   private logger!: Logger;
   private readonly isWindows: boolean;
+  private readonly registry: RegistryAccess;
 
   /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
   private readonly maxFileAdd: number;
@@ -85,6 +89,7 @@ export class ShadowRepo {
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs;
     this.isWindows = os.type() === 'Windows_NT';
+    this.registry = options.registry;
 
     this.maxFileAdd = env.getNumber(
       'SF_SOURCE_TRACKING_BATCH_SIZE',
@@ -356,13 +361,16 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
-    const matchingFilenames = getMatches(await this.getStatus());
-    if (!matchingFilenames) return;
-    const { deletedFilenamesWithMatches, addedFilenamesWithMatches } = matchingFilenames;
+    const { deletedFilenamesWithMatches, addedFilenamesWithMatches } = getMatches(await this.getStatus()) ?? {};
+    if (!deletedFilenamesWithMatches || !addedFilenamesWithMatches) return;
 
-    // We found file adds and deletes with the same basename
-    // The have likely been moved, confirm by comparing their hashes (oids)
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
+
+    // Track how long it takes to gather the oid information from the git trees
+    const getInfoMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles#getInfo', {
+      addedFiles: addedFilenamesWithMatches.length,
+      deletedFiles: deletedFilenamesWithMatches.length,
+    });
 
     const getInfo = async (targetTree: Walker, filenameSet: Set<string>): Promise<FileInfo[]> =>
       // Unable to properly type the return value of git.walk without using "as", ignoring linter
@@ -382,12 +390,8 @@ export class ShadowRepo {
             : undefined,
       });
 
-    // Track how long it takes to gather the oid information from the git trees
-    const getInfoMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles#getInfo', {
-      addedFiles: addedFilenamesWithMatches.length,
-      deletedFiles: deletedFilenamesWithMatches.length,
-    });
-
+    // We found file adds and deletes with the same basename
+    // The have likely been moved, confirm by comparing their hashes (oids)
     const [addedInfo, deletedInfo] = await Promise.all([
       getInfo(git.WORKDIR(), new Set(addedFilenamesWithMatches)),
       getInfo(git.TREE({ ref: 'HEAD' }), new Set(deletedFilenamesWithMatches)),
@@ -395,24 +399,29 @@ export class ShadowRepo {
 
     getInfoMarker?.stop();
 
-    const matches = await compareHashes(addedInfo, deletedInfo);
-    const { moveLogs, addedFilesWithMatchingTypes, deletedFilesWithMatchingTypes } = compareTypes(
-      matches,
-      this.projectPath
-    );
-
-    if (addedFilesWithMatchingTypes.length && deletedFilesWithMatchingTypes.length) {
-      this.logger.debug('Files have moved. Committing moved files:');
-      this.logger.debug(moveLogs.join('\n'));
-      movedFilesMarker?.addDetails({ filesMoved: moveLogs.length });
-
-      // Commit the moved files and refresh the status
-      await this.commitChanges({
-        deletedFiles: deletedFilesWithMatchingTypes,
-        deployedFiles: addedFilesWithMatchingTypes,
-        message: 'Committing moved files',
-      });
+    const matchingNameAndHashes = compareHashes(await buildMaps(addedInfo, deletedInfo));
+    if (matchingNameAndHashes.size === 0) {
+      return movedFilesMarker?.stop();
     }
+    const matches = removeNonMatches(matchingNameAndHashes, this.registry);
+
+    if (matches.size === 0) {
+      return movedFilesMarker?.stop();
+    }
+
+    this.logger.debug(
+      ['Files have moved. Committing moved files:', ...matches.entries()]
+        .map(([add, del]) => `File ${add} was moved to ${del}`)
+        .join('\n')
+    );
+    movedFilesMarker?.addDetails({ filesMoved: matches.size });
+
+    // Commit the moved files and refresh the status
+    await this.commitChanges({
+      deletedFiles: [...matches.values()],
+      deployedFiles: [...matches.keys()],
+      message: 'Committing moved files',
+    });
 
     movedFilesMarker?.stop();
   }
@@ -429,9 +438,9 @@ const packageDirToRelativePosixPath =
 const normalize = (filepath: string): string => path.normalize(filepath);
 const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);
 
-const buildMaps = (info: FileInfo[]): Array<Map<string, string>> => {
-  const map: Map<string, string> = new Map();
-  const ignore: Map<string, string> = new Map();
+const buildMap = (info: FileInfo[]): StringMap[] => {
+  const map: StringMap = new Map();
+  const ignore: StringMap = new Map();
   info.forEach((i) => {
     const key = `${i.hash}#${i.basename}`;
     // If we find a duplicate key, we need to remove it and ignore it in the future.
@@ -479,18 +488,10 @@ const getMatches = (
 const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
 const isAdded = (status: StatusRow): boolean => status[HEAD] === 0 && status[WORKDIR] === 2;
 
-/** build maps of the add/deletes with filenames, grabbing the matches  Logs the non-matches */
-const compareHashes = async (addedInfo: FileInfo[], deletedInfo: FileInfo[]): Promise<Map<string, string>> => {
-  const matches = new Map();
-  const [addedMap, addedIgnoredMap] = buildMaps(addedInfo);
-  const [deletedMap, deletedIgnoredMap] = buildMaps(deletedInfo);
-
-  for (const [addedKey, addedValue] of addedMap) {
-    const deletedValue = deletedMap.get(addedKey);
-    if (deletedValue) {
-      matches.set(addedValue, deletedValue);
-    }
-  }
+/** build maps of the add/deletes with filenames, returning the matches  Logs if non-matches */
+const buildMaps = async (addedInfo: FileInfo[], deletedInfo: FileInfo[]): Promise<AddAndDeleteMaps> => {
+  const [addedMap, addedIgnoredMap] = buildMap(addedInfo);
+  const [deletedMap, deletedIgnoredMap] = buildMap(deletedInfo);
 
   // If we detected any files that have the same basename and hash, emit a warning and send telemetry
   // These files will still show up as expected in the `sf project deploy preview` output
@@ -506,6 +507,19 @@ const compareHashes = async (addedInfo: FileInfo[], deletedInfo: FileInfo[]): Pr
       lifecycle.emitWarning(message),
       lifecycle.emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' }),
     ]);
+  }
+  return { addedMap, deletedMap };
+};
+
+/** builds a map of the values from both maps */
+const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMap => {
+  const matches: StringMap = new Map();
+
+  for (const [addedKey, addedValue] of addedMap) {
+    const deletedValue = deletedMap.get(addedKey);
+    if (deletedValue) {
+      matches.set(addedValue, deletedValue);
+    }
   }
 
   return matches;
@@ -524,40 +538,23 @@ const resolveType = (resolver: MetadataResolver, filenames: string[]): SourceCom
     })
     .filter(sourceComponentGuard);
 
-const compareTypes = (
-  matches: Map<string, string>,
-  projectPath: string
-): { moveLogs: string[]; addedFilesWithMatchingTypes: string[]; deletedFilesWithMatchingTypes: string[] } => {
-  const moveLogs = [];
-  const addedFilesWithMatchingTypes = [];
-  const deletedFilesWithMatchingTypes = [];
-  const registry = new RegistryAccess(undefined, projectPath);
-
+const removeNonMatches = (matches: StringMap, registry: RegistryAccess): StringMap => {
   const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.keys()]));
   const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths([...matches.values()]));
 
-  for (const [addedFile, deletedFile] of matches) {
-    const resolvedAdded = resolveType(resolverAdded, [addedFile]);
-    const resolvedDeleted = resolveType(resolverDeleted, [deletedFile]);
-
-    // TODO: Review these checks
-    // TODO: Clean up messy if logic
-    // Will any of these ever be unresolved?
-    // Yes, could be a type that SDR doesn't know about
-    if (resolvedAdded[0]?.type.name === resolvedDeleted[0]?.type.name) {
-      if (
-        // If both parents are undefined (not children)
-        (!resolvedAdded[0].parent && !resolvedDeleted[0].parent) ||
-        // or if both have parents and they match
-        (resolvedAdded[0].parent?.name === resolvedDeleted[0].parent?.name &&
-          resolvedAdded[0].parent?.type.name === resolvedDeleted[0].parent?.type.name)
-      ) {
-        addedFilesWithMatchingTypes.push(addedFile);
-        deletedFilesWithMatchingTypes.push(deletedFile);
-        moveLogs.push(`File '${deletedFile}' was moved to '${addedFile}'`);
-      }
-    }
-  }
-
-  return { moveLogs, addedFilesWithMatchingTypes, deletedFilesWithMatchingTypes };
+  return new Map(
+    [...matches.entries()].filter(([addedFile, deletedFile]) => {
+      // we're only ever using the first element of the arrays
+      const [resolvedAdded] = resolveType(resolverAdded, [addedFile]);
+      const [resolvedDeleted] = resolveType(resolverDeleted, [deletedFile]);
+      return (
+        // they could match, or could both be undefined (because unresolved by SDR)
+        resolvedAdded?.type.name === resolvedDeleted?.type.name &&
+        // parent names match, if resolved and there are parents
+        resolvedAdded?.parent?.name === resolvedDeleted?.parent?.name &&
+        // parent types match, if resolved and there are parents
+        resolvedAdded?.parent?.type.name === resolvedDeleted?.parent?.type.name
+      );
+    })
+  );
 };

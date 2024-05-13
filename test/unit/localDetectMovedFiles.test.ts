@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import git from 'isomorphic-git';
 import { expect } from 'chai';
 import sinon = require('sinon');
-
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../src/shared/localShadowRepo';
 
 /* eslint-disable no-unused-expressions */
@@ -22,6 +22,7 @@ afterEach(() => {
 });
 
 describe('local detect moved files', () => {
+  const registry = new RegistryAccess();
   it('automatically commits moved files', async () => {
     let projectDir!: string;
     try {
@@ -39,6 +40,7 @@ describe('local detect moved files', () => {
             path: path.join(projectDir, 'force-app'),
           },
         ],
+        registry,
       });
 
       const gitAdd = sinon.spy(git, 'add');
@@ -81,6 +83,7 @@ describe('local detect moved files', () => {
             path: path.join(projectDir, 'force-app'),
           },
         ],
+        registry,
       });
 
       const gitAdd = sinon.spy(git, 'add');
@@ -140,6 +143,7 @@ describe('local detect moved files', () => {
             path: path.join(projectDir, 'force-app'),
           },
         ],
+        registry,
       });
 
       const gitAdd = sinon.spy(git, 'add');
@@ -207,6 +211,7 @@ describe('local detect moved files', () => {
             path: path.join(projectDir, 'force-app'),
           },
         ],
+        registry,
       });
 
       const gitAdd = sinon.spy(git, 'add');
@@ -261,6 +266,7 @@ describe('local detect moved files', () => {
             path: path.join(projectDir, 'force-app'),
           },
         ],
+        registry,
       });
 
       const gitAdd = sinon.spy(git, 'add');
