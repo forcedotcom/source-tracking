@@ -1,3 +1,17 @@
+# [6.2.0](https://github.com/forcedotcom/source-tracking/compare/6.0.4...6.2.0) (2024-05-15)
+
+
+### Bug Fixes
+
+* force release ([#585](https://github.com/forcedotcom/source-tracking/issues/585)) ([559ab4c](https://github.com/forcedotcom/source-tracking/commit/559ab4c30b41701591c788418dffc87d07def393))
+
+
+### Features
+
+* detect file moves in source tracking ([06fdb1b](https://github.com/forcedotcom/source-tracking/commit/06fdb1b400f5718150569f36c1c3889f1c2fd834))
+
+
+
 ## [6.0.4](https://github.com/forcedotcom/source-tracking/compare/6.0.3...6.0.4) (2024-04-20)
 
 
