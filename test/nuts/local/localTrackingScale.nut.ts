@@ -9,6 +9,7 @@ import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import * as fs from 'graceful-fs';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
 const dirCount = 200;
@@ -18,6 +19,7 @@ const classCount = dirCount * classesPerDir;
 describe(`verify tracking handles an add of ${classCount.toLocaleString()} classes (${(
   classCount * 2
 ).toLocaleString()} files across ${dirCount.toLocaleString()} folders)`, () => {
+  const registry = new RegistryAccess();
   let session: TestSession;
   let repo: ShadowRepo;
   let filesToSync: string[];
@@ -61,6 +63,7 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+      registry,
     });
   });
 

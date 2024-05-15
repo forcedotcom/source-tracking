@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { shouldThrow } from '@salesforce/core/testSetup';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
 describe('end-to-end-test for local tracking', () => {
@@ -34,6 +35,7 @@ describe('end-to-end-test for local tracking', () => {
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+      registry: new RegistryAccess(),
     });
     // verify the local tracking files/directories
     expect(fs.existsSync(repo.gitDir));

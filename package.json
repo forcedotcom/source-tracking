@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "6.0.4",
+  "version": "6.0.5-dev.4",
   "author": "Salesforce",
   "license": "BSD-3-Clause",
   "main": "lib/index.js",
@@ -23,6 +23,11 @@
     "test": "wireit",
     "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local": "mocha \"**/local/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts:local:moved": "mocha \"**/nuts/local/localTrackingFileMoves*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts:local:moved:scale": "mocha \"**/nuts/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts:local:moved:image": "mocha \"**/nuts/local/localTrackingFileMovesImage.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts:local:moved:child": "mocha \"**/nuts/local/localTrackingFileMovesDecomposedChild.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000",
     "test:only": "wireit"
   },
   "keywords": [
@@ -44,10 +49,10 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@oclif/core": "^3.26.4",
-    "@salesforce/core": "^7.3.0",
+    "@oclif/core": "^3.26.5",
+    "@salesforce/core": "^7.3.5",
     "@salesforce/kit": "^3.1.1",
-    "@salesforce/source-deploy-retrieve": "^11.0.1",
+    "@salesforce/source-deploy-retrieve": "^11.4.4",
     "@salesforce/ts-types": "^2.0.9",
     "fast-xml-parser": "^4.3.6",
     "graceful-fs": "^4.2.11",
@@ -55,10 +60,10 @@
     "ts-retry-promise": "^0.8.0"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^5.2.1",
+    "@salesforce/cli-plugins-testkit": "^5.3.2",
     "@salesforce/dev-scripts": "^9.0.0",
     "@types/graceful-fs": "^4.1.9",
-    "eslint-plugin-sf-plugin": "^1.18.1",
+    "eslint-plugin-sf-plugin": "^1.18.3",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.1.2",
     "typescript": "^5.4.5"
