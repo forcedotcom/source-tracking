@@ -12,6 +12,8 @@ import * as fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
+/* eslint-disable no-unused-expressions */
+
 describe('it detects image file moves ', () => {
   const registry = new RegistryAccess();
   let session: TestSession;
@@ -41,6 +43,8 @@ describe('it detects image file moves ', () => {
   });
 
   it('should show 0 files (images) in git status after moving them', async () => {
+    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
+    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
     await repo.commitChanges({ deployedFiles: filesToSync });
@@ -75,5 +79,7 @@ describe('it detects image file moves ', () => {
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
       .with.lengthOf(0);
+
+    delete process.env.SF_BETA_TRACK_FILE_MOVES;
   });
 });

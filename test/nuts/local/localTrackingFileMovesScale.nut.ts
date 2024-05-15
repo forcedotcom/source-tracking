@@ -12,6 +12,8 @@ import * as fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
+/* eslint-disable no-unused-expressions */
+
 const dirCount = 20;
 const classesPerDir = 50;
 const classCount = dirCount * classesPerDir;
@@ -67,6 +69,8 @@ describe(`handles local files moves of ${classCount.toLocaleString()} classes ($
   });
 
   it('should show 0 files in git status after moving them', async () => {
+    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
+    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
     await repo.commitChanges({ deployedFiles: filesToSync });
@@ -83,5 +87,6 @@ describe(`handles local files moves of ${classCount.toLocaleString()} classes ($
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
       .with.lengthOf(0);
+    delete process.env.SF_BETA_TRACK_FILE_MOVES;
   });
 });

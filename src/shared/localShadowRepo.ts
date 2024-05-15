@@ -182,10 +182,13 @@ export class ShadowRepo {
         });
 
         // Check for moved files and update local git status accordingly
-        if (env.getBoolean('SF_DISABLE_MOVED_FILE_DETECTION') === true) {
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
-        } else {
+        if (env.getBoolean('SF_BETA_TRACK_FILE_MOVES') === true) {
+          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
           await this.detectMovedFiles();
+        } else {
+          // Adding this telemetry for easier tracking of how many users are using the beta feature
+          // This telemetry even will remain when the feature is GA and we switch to opt-out
+          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
         }
       } catch (e) {
         redirectToCliRepoError(e);

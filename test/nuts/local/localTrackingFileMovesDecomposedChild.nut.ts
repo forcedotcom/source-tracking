@@ -12,6 +12,8 @@ import * as fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/localShadowRepo';
 
+/* eslint-disable no-unused-expressions */
+
 describe('ignores moved files that are children of a decomposed metadata type', () => {
   let session: TestSession;
   let repo: ShadowRepo;
@@ -40,6 +42,8 @@ describe('ignores moved files that are children of a decomposed metadata type', 
   });
 
   it('should ignore moved child metadata', async () => {
+    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
+    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
     await repo.commitChanges({ deployedFiles: filesToSync });
@@ -73,5 +77,7 @@ describe('ignores moved files that are children of a decomposed metadata type', 
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
       .with.lengthOf(2);
+
+    delete process.env.SF_BETA_TRACK_FILE_MOVES;
   });
 });
