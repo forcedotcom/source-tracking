@@ -1,3 +1,12 @@
+## [6.2.1](https://github.com/forcedotcom/source-tracking/compare/6.2.0...6.2.1) (2024-05-16)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 7.3.5 to 7.3.6 ([0e08264](https://github.com/forcedotcom/source-tracking/commit/0e08264a9f114bb858972a01928874452f670ed2))
+
+
+
 # [6.2.0](https://github.com/forcedotcom/source-tracking/compare/6.0.4...6.2.0) (2024-05-15)
 
 
