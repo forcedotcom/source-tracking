@@ -1,3 +1,12 @@
+## [6.2.3](https://github.com/forcedotcom/source-tracking/compare/6.2.2...6.2.3) (2024-05-18)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 3.26.5 to 3.26.6 ([490e45e](https://github.com/forcedotcom/source-tracking/commit/490e45e6629fdd9231ceb09c8579cd238de31f81))
+
+
+
 ## [6.2.2](https://github.com/forcedotcom/source-tracking/compare/6.2.1...6.2.2) (2024-05-18)
 
 
