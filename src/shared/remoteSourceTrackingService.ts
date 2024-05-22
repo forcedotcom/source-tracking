@@ -594,7 +594,7 @@ const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]>
       sourceMemberCorrections
     );
   } catch (error) {
-    throw error instanceof Error ? SfError.wrap(error) : error;
+    throw SfError.wrap(error);
   }
 };
 
