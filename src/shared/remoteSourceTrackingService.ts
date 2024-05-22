@@ -590,7 +590,9 @@ export const querySourceMembersTo = async (conn: Connection, toRevision: number)
 
 const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
   try {
-    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records;
+    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records.map(
+      sourceMemberCorrections
+    );
   } catch (error) {
     throw error instanceof Error ? SfError.wrap(error) : error;
   }
@@ -612,3 +614,11 @@ const revisionDoesNotMatch = ([, member]: MemberRevisionMapEntry): boolean => do
 
 const doesNotMatchServer = (member: MemberRevision): boolean =>
   member.serverRevisionCounter !== member.lastRetrievedFromServer;
+
+/** A series of workarounds for server-side bugs.  Each bug should be filed against a team, with a WI, so we know when these are fixed and can be removed */
+const sourceMemberCorrections = (sourceMember: SourceMember): SourceMember => {
+  if (sourceMember.MemberType === 'QuickActionDefinition') {
+    return { ...sourceMember, MemberType: 'QuickAction' }; // W-15532236
+  }
+  return sourceMember;
+};
