@@ -69,32 +69,36 @@ type CommitRequest = {
   needsUpdatedStatus?: boolean;
 };
 
+const IS_WINDOWS = os.type() === 'Windows_NT';
+
+/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
+
+const MAX_FILE_ADD = env.getNumber(
+  'SF_SOURCE_TRACKING_BATCH_SIZE',
+  env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
+);
 export class ShadowRepo {
   private static instanceMap = new Map<string, ShadowRepo>();
 
   public gitDir: string;
   public projectPath: string;
 
-  private packageDirs!: NamedPackageDir[];
+  /**
+   * packageDirs converted to project-relative posix style paths
+   * iso-git uses relative, posix paths
+   * but packageDirs has already resolved / normalized them
+   * so we need to make them project-relative again and convert if windows
+   */
+  private packageDirs: string[];
   private status!: StatusRow[];
   private logger!: Logger;
-  private readonly isWindows: boolean;
   private readonly registry: RegistryAccess;
-
-  /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
-  private readonly maxFileAdd: number;
 
   private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
     this.projectPath = options.projectPath;
-    this.packageDirs = options.packageDirs;
-    this.isWindows = os.type() === 'Windows_NT';
+    this.packageDirs = options.packageDirs.map(packageDirToRelativePosixPath(options.projectPath));
     this.registry = options.registry;
-
-    this.maxFileAdd = env.getNumber(
-      'SF_SOURCE_TRACKING_BATCH_SIZE',
-      env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', this.isWindows ? 8000 : 15_000)
-    );
   }
 
   // think of singleton behavior but unique to the projectPath
@@ -157,10 +161,6 @@ export class ShadowRepo {
 
     if (!this.status || noCache) {
       const marker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.getStatus#withoutCache');
-      // iso-git uses relative, posix paths
-      // but packageDirs has already resolved / normalized them
-      // so we need to make them project-relative again and convert if windows
-      const pkgDirs = this.packageDirs.map(packageDirToRelativePosixPath(this.isWindows)(this.projectPath));
 
       try {
         // status hasn't been initialized yet
@@ -168,17 +168,9 @@ export class ShadowRepo {
           fs,
           dir: this.projectPath,
           gitdir: this.gitDir,
-          filepaths: pkgDirs,
+          filepaths: this.packageDirs,
           ignored: true,
-          filter: (f) =>
-            // no hidden files
-            !f.includes(`${path.sep}.`) &&
-            // no lwc tests
-            excludeLwcLocalOnlyTest(f) &&
-            // no gitignore files
-            !f.endsWith('.gitignore') &&
-            // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-            pkgDirs.some(folderContainsPath(f)),
+          filter: fileFilter(this.packageDirs),
         });
 
         // Check for moved files and update local git status accordingly
@@ -194,7 +186,7 @@ export class ShadowRepo {
         redirectToCliRepoError(e);
       }
       // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-      if (this.isWindows) {
+      if (IS_WINDOWS) {
         this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
       }
       marker?.stop();
@@ -286,8 +278,8 @@ export class ShadowRepo {
     if (deployedFiles.length) {
       const chunks = chunkArray(
         // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
-        [...new Set(this.isWindows ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
-        this.maxFileAdd
+        [...new Set(IS_WINDOWS ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
+        MAX_FILE_ADD
       );
       for (const chunk of chunks) {
         try {
@@ -310,7 +302,7 @@ export class ShadowRepo {
               data: e.errors.map((err) => err.message),
               cause: e,
               actions: [
-                `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${this.maxFileAdd}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
+                `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${MAX_FILE_ADD}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
               ],
             });
           }
@@ -325,9 +317,7 @@ export class ShadowRepo {
       const deleteMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.commitChanges#delete', {
         deletedFiles: deletedFiles.length,
       });
-      for (const filepath of [
-        ...new Set(this.isWindows ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles),
-      ]) {
+      for (const filepath of [...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
         try {
           // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
           // eslint-disable-next-line no-await-in-loop
@@ -384,7 +374,7 @@ export class ShadowRepo {
         gitdir: this.gitDir,
         trees: [targetTree],
         map: async (filename, [tree]) =>
-          filenameSet.has(filename) && (await tree?.type()) === 'blob'
+          fileFilter(this.packageDirs)(filename) && filenameSet.has(filename) && (await tree?.type()) === 'blob'
             ? {
                 filename,
                 hash: await tree?.oid(),
@@ -399,14 +389,13 @@ export class ShadowRepo {
       getInfo(git.WORKDIR(), new Set(addedFilenamesWithMatches)),
       getInfo(git.TREE({ ref: 'HEAD' }), new Set(deletedFilenamesWithMatches)),
     ]);
-
     getInfoMarker?.stop();
 
     const matchingNameAndHashes = compareHashes(await buildMaps(addedInfo, deletedInfo));
     if (matchingNameAndHashes.size === 0) {
       return movedFilesMarker?.stop();
     }
-    const matches = removeNonMatches(matchingNameAndHashes, this.registry, this.isWindows);
+    const matches = removeNonMatches(matchingNameAndHashes, this.registry, IS_WINDOWS);
 
     if (matches.size === 0) {
       return movedFilesMarker?.stop();
@@ -433,10 +422,9 @@ export class ShadowRepo {
 }
 
 const packageDirToRelativePosixPath =
-  (isWindows: boolean) =>
   (projectPath: string) =>
   (packageDir: NamedPackageDir): string =>
-    isWindows
+    IS_WINDOWS
       ? ensurePosix(path.relative(projectPath, packageDir.fullPath))
       : path.relative(projectPath, packageDir.fullPath);
 
@@ -447,7 +435,7 @@ const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(
 const buildMap = (info: FileInfo[]): StringMap[] => {
   const map: StringMap = new Map();
   const ignore: StringMap = new Map();
-  info.forEach((i) => {
+  info.map((i) => {
     const key = `${i.hash}#${i.basename}`;
     // If we find a duplicate key, we need to remove it and ignore it in the future.
     // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
@@ -566,3 +554,15 @@ const removeNonMatches = (matches: StringMap, registry: RegistryAccess, isWindow
     })
   );
 };
+
+const fileFilter =
+  (packageDirs: string[]) =>
+  (f: string): boolean =>
+    // no hidden files
+    !f.includes(`${path.sep}.`) &&
+    // no lwc tests
+    excludeLwcLocalOnlyTest(f) &&
+    // no gitignore files
+    !f.endsWith('.gitignore') &&
+    // isogit uses `startsWith` for filepaths so it's possible to get a false positive
+    packageDirs.some(folderContainsPath(f));

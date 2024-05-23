@@ -18,6 +18,8 @@ const dirCount = 20;
 const classesPerDir = 50;
 const classCount = dirCount * classesPerDir;
 
+const nonProjDirFiles = 100_000;
+
 describe(`handles local files moves of ${classCount.toLocaleString()} classes (${(
   classCount * 2
 ).toLocaleString()} files across ${dirCount.toLocaleString()} folders)`, () => {
@@ -32,6 +34,11 @@ describe(`handles local files moves of ${classCount.toLocaleString()} classes ($
       },
       devhubAuthStrategy: 'NONE',
     });
+    const notProjectDir = path.join(session.project.dir, 'not-project-dir');
+    await fs.promises.mkdir(notProjectDir);
+    for (let i = 0; i < nonProjDirFiles; i++) {
+      fs.writeFileSync(path.join(notProjectDir, `file${i}.txt`), 'hello');
+    }
     // create some number of files
     const classdir = path.join(session.project.dir, 'force-app', 'main', 'default', 'classes');
     for (let d = 0; d < dirCount; d++) {
