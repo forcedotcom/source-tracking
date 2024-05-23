@@ -15,12 +15,10 @@ import git from 'isomorphic-git';
 import { Performance } from '@oclif/core';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
-import { getHash, getMatches } from './moveDetection';
-import { FileInfo, StatusRow } from './types';
+import { filenameMatchesToMap, getMatches } from './moveDetection';
+import { StatusRow } from './types';
 import { toFilenames } from './functions';
 import { isDeleted, isAdded } from './functions';
-import { compareHashes, buildMaps } from './moveDetection';
-import { removeNonMatches } from './moveDetection';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
@@ -345,46 +343,13 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
-    const commonGitOptions = { fs, dir: this.projectPath, gitdir: this.gitDir };
-    const { addedFilenamesWithMatches, deletedFilenamesWithMatches } = getMatches(await this.getStatus()) ?? {};
-    if (!addedFilenamesWithMatches || !deletedFilenamesWithMatches) return;
+    const matchingFiles = getMatches(await this.getStatus());
+    if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
 
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
+    const matches = await filenameMatchesToMap(IS_WINDOWS)(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
 
-    // Track how long it takes to gather the oid information from the git trees
-    const getInfoMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles#getInfo', {
-      addedFiles: addedFilenamesWithMatches.size,
-      deletedFiles: deletedFilenamesWithMatches.size,
-    });
-
-    const deleteHashGetter = getHash(this.gitDir)(this.projectPath)(
-      await git.resolveRef({ ...commonGitOptions, ref: 'HEAD' })
-    );
-
-    const addHashGetter = async (filepath: string): Promise<FileInfo> => ({
-      filename: filepath,
-      basename: path.basename(filepath),
-      hash: (await git.hashBlob({ object: await fs.promises.readFile(path.join(this.projectPath, filepath), 'utf8') }))
-        .oid,
-    });
-
-    // We found file adds and deletes with the same basename
-    // The have likely been moved, confirm by comparing their hashes (oids)
-    const [addedInfo, deletedInfo] = await Promise.all([
-      await Promise.all(Array.from(addedFilenamesWithMatches).map(addHashGetter)),
-      await Promise.all(Array.from(deletedFilenamesWithMatches).map(deleteHashGetter)),
-    ]);
-    getInfoMarker?.stop();
-
-    const matchingNameAndHashes = compareHashes(await buildMaps(addedInfo, deletedInfo));
-    if (matchingNameAndHashes.size === 0) {
-      return movedFilesMarker?.stop();
-    }
-    const matches = removeNonMatches(matchingNameAndHashes, this.registry, IS_WINDOWS);
-
-    if (matches.size === 0) {
-      return movedFilesMarker?.stop();
-    }
+    if (matches.size === 0) return movedFilesMarker?.stop();
 
     this.logger.debug(
       [
