@@ -1,3 +1,12 @@
+## [6.2.4](https://github.com/forcedotcom/source-tracking/compare/6.2.3...6.2.4) (2024-05-23)
+
+
+### Bug Fixes
+
+* quick-action-definition ([#590](https://github.com/forcedotcom/source-tracking/issues/590)) ([73228f3](https://github.com/forcedotcom/source-tracking/commit/73228f3c56640d945cd8fa191a3c2b9c6bcd6b01))
+
+
+
 ## [6.2.3](https://github.com/forcedotcom/source-tracking/compare/6.2.2...6.2.3) (2024-05-18)
 
 
