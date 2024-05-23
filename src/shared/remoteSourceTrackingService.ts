@@ -618,7 +618,7 @@ const doesNotMatchServer = (member: MemberRevision): boolean =>
 /** A series of workarounds for server-side bugs.  Each bug should be filed against a team, with a WI, so we know when these are fixed and can be removed */
 const sourceMemberCorrections = (sourceMember: SourceMember): SourceMember => {
   if (sourceMember.MemberType === 'QuickActionDefinition') {
-    return { ...sourceMember, MemberType: 'QuickAction' }; // W-15532236
+    return { ...sourceMember, MemberType: 'QuickAction' }; // W-15837125
   }
   return sourceMember;
 };
