@@ -17,8 +17,7 @@ import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
 import { filenameMatchesToMap, getMatches } from './moveDetection';
 import { StatusRow } from './types';
-import { toFilenames } from './functions';
-import { isDeleted, isAdded } from './functions';
+import { isDeleted, isAdded, toFilenames } from './functions';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
