@@ -50,9 +50,9 @@
   },
   "dependencies": {
     "@oclif/core": "^3.26.6",
-    "@salesforce/core": "^7.3.8",
+    "@salesforce/core": "^7.3.9",
     "@salesforce/kit": "^3.1.1",
-    "@salesforce/source-deploy-retrieve": "^11.4.4",
+    "@salesforce/source-deploy-retrieve": "^11.6.1",
     "@salesforce/ts-types": "^2.0.9",
     "fast-xml-parser": "^4.3.6",
     "graceful-fs": "^4.2.11",
@@ -63,7 +63,7 @@
     "@salesforce/cli-plugins-testkit": "^5.3.4",
     "@salesforce/dev-scripts": "^9.1.2",
     "@types/graceful-fs": "^4.1.9",
-    "eslint-plugin-sf-plugin": "^1.18.3",
+    "eslint-plugin-sf-plugin": "^1.18.4",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.1.2",
     "typescript": "^5.4.5"
