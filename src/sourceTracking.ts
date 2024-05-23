@@ -30,7 +30,7 @@ import {
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
 import { Performance } from '@oclif/core';
 import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
-import { ShadowRepo } from './shared/localShadowRepo';
+import { ShadowRepo } from './shared/local/localShadowRepo';
 import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
 import {
   RemoteSyncInput,

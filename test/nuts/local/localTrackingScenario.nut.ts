@@ -11,7 +11,7 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { shouldThrow } from '@salesforce/core/testSetup';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/localShadowRepo';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
 describe('end-to-end-test for local tracking', () => {
   let session: TestSession;
