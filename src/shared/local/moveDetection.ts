@@ -191,7 +191,7 @@ const getHashForAddedFile =
   async (filepath: string): Promise<FilenameBasenameHash> => ({
     filename: filepath,
     basename: path.basename(filepath),
-    hash: (await git.hashBlob({ object: await fs.promises.readFile(path.join(projectPath, filepath), 'utf8') })).oid,
+    hash: (await git.hashBlob({ object: await fs.promises.readFile(path.join(projectPath, filepath)) })).oid,
   });
 
 const resolveType = (resolver: MetadataResolver, filenames: string[]): SourceComponent[] =>

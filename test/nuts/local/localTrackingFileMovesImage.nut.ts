@@ -19,6 +19,7 @@ describe('it detects image file moves ', () => {
   let session: TestSession;
   let repo: ShadowRepo;
   let filesToSync: string[];
+  let staticDir: string;
 
   before(async () => {
     session = await TestSession.create({
@@ -27,6 +28,7 @@ describe('it detects image file moves ', () => {
       },
       devhubAuthStrategy: 'NONE',
     });
+    staticDir = path.join(session.project.dir, 'force-app', 'main', 'default', 'staticresources');
   });
 
   after(async () => {
@@ -50,28 +52,12 @@ describe('it detects image file moves ', () => {
     await repo.commitChanges({ deployedFiles: filesToSync });
 
     // move all the classes to the new folder
-    fs.mkdirSync(path.join(session.project.dir, 'force-app', 'main', 'default', 'staticresources', 'bike_assets_new'), {
+    fs.mkdirSync(path.join(staticDir, 'bike_assets_new'), {
       recursive: true,
     });
     fs.renameSync(
-      path.join(
-        session.project.dir,
-        'force-app',
-        'main',
-        'default',
-        'staticresources',
-        'bike_assets',
-        'CyclingGrass.jpg'
-      ),
-      path.join(
-        session.project.dir,
-        'force-app',
-        'main',
-        'default',
-        'staticresources',
-        'bike_assets_new',
-        'CyclingGrass.jpg'
-      )
+      path.join(staticDir, 'bike_assets', 'CyclingGrass.jpg'),
+      path.join(staticDir, 'bike_assets_new', 'CyclingGrass.jpg')
     );
 
     await repo.getStatus(true);
