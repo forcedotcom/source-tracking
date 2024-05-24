@@ -30,6 +30,7 @@ export type Contents = {
   sourceMembers: Record<string, MemberRevision>;
 };
 type MemberRevisionMapEntry = [string, MemberRevision];
+type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 
 const FILENAME = 'maxRevision.json';
 
@@ -88,7 +89,7 @@ export class RemoteSourceTrackingService {
   private static instanceMap = new Map<string, RemoteSourceTrackingService>();
   public readonly filePath: string;
 
-  private logger!: Logger;
+  private logger!: PinoLogger;
   private serverMaxRevisionCounter = 0;
   private sourceMembers = new Map<string, MemberRevision>();
 
@@ -146,10 +147,8 @@ export class RemoteSourceTrackingService {
     if (elements.length === 0) {
       return;
     }
-    const quiet = elements.length > 100;
-    if (quiet) {
-      this.logger.debug(`Syncing ${elements.length} Revisions by key`);
-    }
+    const quietLogger = elements.length > 100 ? this.logger.silent : this.logger.debug;
+    quietLogger(`Syncing ${elements.length} Revisions by key`);
 
     // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
     // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
@@ -159,11 +158,9 @@ export class RemoteSourceTrackingService {
       if (!revision) {
         this.logger.warn(`found no matching revision for ${metadataKey}`);
       } else if (doesNotMatchServer(revision)) {
-        if (!quiet) {
-          this.logger.debug(
-            `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
-          );
-        }
+        quietLogger(
+          `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
+        );
         this.setMemberRevision(metadataKey, { ...revision, lastRetrievedFromServer: revision.serverRevisionCounter });
       }
     });
@@ -377,13 +374,17 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
     if (sourceMembers.length === 0) {
       return;
     }
-    const quiet = sourceMembers.length > 100;
-    if (quiet) {
-      this.logger.debug(`Upserting ${sourceMembers.length} SourceMembers to maxRevision.json`);
-    }
+    const quietLogger = sourceMembers.length > 100 ? this.logger.silent : this.logger.debug;
+    quietLogger(`Upserting ${sourceMembers.length} SourceMembers to maxRevision.json`);
 
-    let serverMaxRevisionCounter = this.serverMaxRevisionCounter;
-    sourceMembers.forEach((change) => {
+    // Update the serverMaxRevisionCounter to the highest RevisionCounter
+    this.serverMaxRevisionCounter = Math.max(
+      this.serverMaxRevisionCounter,
+      ...sourceMembers.map((m) => m.RevisionCounter)
+    );
+    this.logger.debug(`Updating serverMaxRevisionCounter to ${this.serverMaxRevisionCounter}`);
+
+    sourceMembers.map((change) => {
       // try accessing the sourceMembers object at the index of the change's name
       // if it exists, we'll update the fields - if it doesn't, we'll create and insert it
       const key = getMetadataKey(change.MemberType, change.MemberName);
@@ -395,18 +396,12 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       };
       if (sourceMember.lastRetrievedFromServer) {
         // We are already tracking this element so we'll update it
-        if (!quiet) {
-          this.logger.debug(
-            `Updating ${key} to RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
-          );
-        }
+        quietLogger(`Updating ${key} to RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`);
         sourceMember.serverRevisionCounter = change.RevisionCounter;
         sourceMember.isNameObsolete = change.IsNameObsolete;
-      } else if (!quiet) {
+      } else {
         // We are not yet tracking it so we'll insert a new record
-        this.logger.debug(
-          `Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`
-        );
+        quietLogger(`Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`);
       }
 
       // If we are syncing changes then we need to update the lastRetrievedFromServer field to
@@ -414,16 +409,10 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       if (sync) {
         sourceMember.lastRetrievedFromServer = change.RevisionCounter;
       }
-      // Keep track of the highest RevisionCounter for setting the serverMaxRevisionCounter
-      if (change.RevisionCounter > serverMaxRevisionCounter) {
-        serverMaxRevisionCounter = change.RevisionCounter;
-      }
+
       // Update the state with the latest SourceMember data
       this.setMemberRevision(key, sourceMember);
     });
-    // Update the serverMaxRevisionCounter to the highest RevisionCounter
-    this.serverMaxRevisionCounter = serverMaxRevisionCounter;
-    this.logger.debug(`Updating serverMaxRevisionCounter to ${serverMaxRevisionCounter}`);
 
     await this.write();
   }
@@ -435,7 +424,7 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       const messages = Messages.loadMessages('@salesforce/source-tracking', 'source');
       throw new SfError(messages.getMessage('NonSourceTrackedOrgError'), 'NonSourceTrackedOrgError');
     }
-    this.logger = await Logger.child(this.constructor.name);
+    this.logger = Logger.getRawRootLogger().child({ name: this.constructor.name });
     if (fs.existsSync(this.filePath)) {
       // read the file contents and turn it into the map
       const rawContents = await readFileContents(this.filePath);
@@ -486,9 +475,7 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
 
     // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
     const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter > ${rev}`;
-    if (!quiet) {
-      this.logger.debug(`Query: ${query}`);
-    }
+    this.logger[quiet ? 'silent' : 'debug'](`Query: ${query}`);
     const queryResult = await queryFn(this.org.getConnection(), query);
     this.queryCache.set(rev, queryResult);
 
@@ -536,15 +523,15 @@ const revisionToRemoteChangeElement = ([memberKey, memberRevision]: MemberRevisi
  * iterate SourceMember keys and compare their decoded value with the decoded key.
  * if there's a match, return the matching decoded key, otherwise, return the original key
  */
-function getDecodedKeyIfSourceMembersHas({
+const getDecodedKeyIfSourceMembersHas = ({
   key,
   sourceMembers,
   logger,
 }: {
   sourceMembers: Map<string, MemberRevision>;
   key: string;
-  logger: Logger;
-}): string {
+  logger: PinoLogger;
+}): string => {
   try {
     const originalKeyDecoded = decodeURIComponent(key);
     const match = Array.from(sourceMembers.keys()).find(
@@ -560,7 +547,7 @@ function getDecodedKeyIfSourceMembersHas({
     logger.debug(`Could not decode metadata key: ${key} due to: ${errMsg}`);
   }
   return key;
-}
+};
 
 const getFilePath = (orgId: string): string => path.join('.sf', 'orgs', orgId, FILENAME);
 
@@ -579,7 +566,7 @@ const readFileContents = async (filePath: string): Promise<Contents | Record<str
 };
 
 export const calculateTimeout =
-  (logger: Logger) =>
+  (logger: PinoLogger) =>
   (memberCount: number): Duration => {
     const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
     if (overriddenTimeout > 0) {
@@ -603,9 +590,11 @@ export const querySourceMembersTo = async (conn: Connection, toRevision: number)
 
 const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
   try {
-    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records;
+    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records.map(
+      sourceMemberCorrections
+    );
   } catch (error) {
-    throw error instanceof Error ? SfError.wrap(error) : error;
+    throw SfError.wrap(error);
   }
 };
 
@@ -625,3 +614,11 @@ const revisionDoesNotMatch = ([, member]: MemberRevisionMapEntry): boolean => do
 
 const doesNotMatchServer = (member: MemberRevision): boolean =>
   member.serverRevisionCounter !== member.lastRetrievedFromServer;
+
+/** A series of workarounds for server-side bugs.  Each bug should be filed against a team, with a WI, so we know when these are fixed and can be removed */
+const sourceMemberCorrections = (sourceMember: SourceMember): SourceMember => {
+  if (sourceMember.MemberType === 'QuickActionDefinition') {
+    return { ...sourceMember, MemberType: 'QuickAction' }; // W-15837125
+  }
+  return sourceMember;
+};

@@ -584,7 +584,7 @@ describe('remoteSourceTrackingService', () => {
 });
 
 describe('calculateTimeout', () => {
-  const logger = new Logger({ useMemoryLogger: true, name: 'test' });
+  const logger = new Logger({ useMemoryLogger: true, name: 'test' }).getRawLogger();
   const functionUnderTest = calculateTimeout(logger);
   afterEach(() => {
     delete process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT;
