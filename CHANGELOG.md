@@ -1,3 +1,9 @@
+## [6.2.5](https://github.com/forcedotcom/source-tracking/compare/6.2.4...6.2.5) (2024-05-25)
+
+### Bug Fixes
+
+- **deps:** bump @salesforce/source-deploy-retrieve from 11.6.1 to 11.6.2 ([74742dc](https://github.com/forcedotcom/source-tracking/commit/74742dc0c2b7adcee2a3b6b2c4b9bb961ef0e7f2))
+
 ## [6.2.4](https://github.com/forcedotcom/source-tracking/compare/6.2.3...6.2.4) (2024-05-23)
 
 ### Bug Fixes
