@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "6.2.3",
+  "version": "6.2.5",
   "author": "Salesforce",
   "license": "BSD-3-Clause",
   "main": "lib/index.js",
