@@ -10,13 +10,15 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import * as fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/localShadowRepo';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
 /* eslint-disable no-unused-expressions */
 
 const dirCount = 20;
 const classesPerDir = 50;
 const classCount = dirCount * classesPerDir;
+
+const nonProjDirFiles = 100_000;
 
 describe(`handles local files moves of ${classCount.toLocaleString()} classes (${(
   classCount * 2
@@ -32,6 +34,11 @@ describe(`handles local files moves of ${classCount.toLocaleString()} classes ($
       },
       devhubAuthStrategy: 'NONE',
     });
+    const notProjectDir = path.join(session.project.dir, 'not-project-dir');
+    await fs.promises.mkdir(notProjectDir);
+    for (let i = 0; i < nonProjDirFiles; i++) {
+      fs.writeFileSync(path.join(notProjectDir, `file${i}.txt`), 'hello');
+    }
     // create some number of files
     const classdir = path.join(session.project.dir, 'force-app', 'main', 'default', 'classes');
     for (let d = 0; d < dirCount; d++) {

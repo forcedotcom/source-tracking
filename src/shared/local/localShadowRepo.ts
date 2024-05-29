@@ -11,23 +11,17 @@ import * as fs from 'graceful-fs';
 import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 // @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
-import git, { Walker } from 'isomorphic-git';
+import git from 'isomorphic-git';
 import { Performance } from '@oclif/core';
-import {
-  RegistryAccess,
-  MetadataResolver,
-  VirtualTreeContainer,
-  SourceComponent,
-} from '@salesforce/source-deploy-retrieve';
-import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from './functions';
-import { sourceComponentGuard } from './guards';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
+import { filenameMatchesToMap, getMatches } from './moveDetection';
+import { StatusRow } from './types';
+import { isDeleted, isAdded, toFilenames } from './functions';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
   path.join(projectPath, '.sf', 'orgs', orgId, 'localSourceTracking');
-
-// filenames were normalized when read from isogit
-const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
 
 // catch isogit's `InternalError` to avoid people report CLI issues in isogit repo.
 // See: https://github.com/forcedotcom/cli/issues/2416
@@ -42,10 +36,6 @@ const redirectToCliRepoError = (e: unknown): never => {
   throw e;
 };
 
-type FileInfo = { filename: string; hash: string; basename: string };
-type StringMap = Map<string, string>;
-type AddAndDeleteMaps = { addedMap: StringMap; deletedMap: StringMap };
-
 type ShadowRepoOptions = {
   orgId: string;
   projectPath: string;
@@ -53,13 +43,10 @@ type ShadowRepoOptions = {
   registry: RegistryAccess;
 };
 
-// https://isomorphic-git.org/docs/en/statusMatrix#docsNav
-type StatusRow = [file: string, head: number, workdir: number, stage: number];
-
 // array members for status results
-const FILE = 0;
-const HEAD = 1;
-const WORKDIR = 2;
+export const FILE = 0;
+export const HEAD = 1;
+export const WORKDIR = 2;
 // We don't use STAGE (StatusRow[3]). Changes are added and committed in one step
 
 type CommitRequest = {
@@ -69,32 +56,37 @@ type CommitRequest = {
   needsUpdatedStatus?: boolean;
 };
 
+const IS_WINDOWS = os.type() === 'Windows_NT';
+
+/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
+
+const MAX_FILE_ADD = env.getNumber(
+  'SF_SOURCE_TRACKING_BATCH_SIZE',
+  env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
+);
+
 export class ShadowRepo {
   private static instanceMap = new Map<string, ShadowRepo>();
 
   public gitDir: string;
   public projectPath: string;
 
-  private packageDirs!: NamedPackageDir[];
+  /**
+   * packageDirs converted to project-relative posix style paths
+   * iso-git uses relative, posix paths
+   * but packageDirs has already resolved / normalized them
+   * so we need to make them project-relative again and convert if windows
+   */
+  private packageDirs: string[];
   private status!: StatusRow[];
   private logger!: Logger;
-  private readonly isWindows: boolean;
   private readonly registry: RegistryAccess;
-
-  /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
-  private readonly maxFileAdd: number;
 
   private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
     this.projectPath = options.projectPath;
-    this.packageDirs = options.packageDirs;
-    this.isWindows = os.type() === 'Windows_NT';
+    this.packageDirs = options.packageDirs.map(packageDirToRelativePosixPath(options.projectPath));
     this.registry = options.registry;
-
-    this.maxFileAdd = env.getNumber(
-      'SF_SOURCE_TRACKING_BATCH_SIZE',
-      env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', this.isWindows ? 8000 : 15_000)
-    );
   }
 
   // think of singleton behavior but unique to the projectPath
@@ -157,10 +149,6 @@ export class ShadowRepo {
 
     if (!this.status || noCache) {
       const marker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.getStatus#withoutCache');
-      // iso-git uses relative, posix paths
-      // but packageDirs has already resolved / normalized them
-      // so we need to make them project-relative again and convert if windows
-      const pkgDirs = this.packageDirs.map(packageDirToRelativePosixPath(this.isWindows)(this.projectPath));
 
       try {
         // status hasn't been initialized yet
@@ -168,17 +156,9 @@ export class ShadowRepo {
           fs,
           dir: this.projectPath,
           gitdir: this.gitDir,
-          filepaths: pkgDirs,
+          filepaths: this.packageDirs,
           ignored: true,
-          filter: (f) =>
-            // no hidden files
-            !f.includes(`${path.sep}.`) &&
-            // no lwc tests
-            excludeLwcLocalOnlyTest(f) &&
-            // no gitignore files
-            !f.endsWith('.gitignore') &&
-            // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-            pkgDirs.some(folderContainsPath(f)),
+          filter: fileFilter(this.packageDirs),
         });
 
         // Check for moved files and update local git status accordingly
@@ -194,7 +174,7 @@ export class ShadowRepo {
         redirectToCliRepoError(e);
       }
       // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-      if (this.isWindows) {
+      if (IS_WINDOWS) {
         this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
       }
       marker?.stop();
@@ -286,8 +266,8 @@ export class ShadowRepo {
     if (deployedFiles.length) {
       const chunks = chunkArray(
         // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
-        [...new Set(this.isWindows ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
-        this.maxFileAdd
+        [...new Set(IS_WINDOWS ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
+        MAX_FILE_ADD
       );
       for (const chunk of chunks) {
         try {
@@ -310,7 +290,7 @@ export class ShadowRepo {
               data: e.errors.map((err) => err.message),
               cause: e,
               actions: [
-                `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${this.maxFileAdd}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
+                `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${MAX_FILE_ADD}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
               ],
             });
           }
@@ -325,9 +305,7 @@ export class ShadowRepo {
       const deleteMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.commitChanges#delete', {
         deletedFiles: deletedFiles.length,
       });
-      for (const filepath of [
-        ...new Set(this.isWindows ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles),
-      ]) {
+      for (const filepath of [...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
         try {
           // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
           // eslint-disable-next-line no-await-in-loop
@@ -364,53 +342,13 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
-    const { addedFilenamesWithMatches, deletedFilenamesWithMatches } = getMatches(await this.getStatus()) ?? {};
-    if (!addedFilenamesWithMatches || !deletedFilenamesWithMatches) return;
+    const matchingFiles = getMatches(await this.getStatus());
+    if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
 
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
+    const matches = await filenameMatchesToMap(IS_WINDOWS)(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
 
-    // Track how long it takes to gather the oid information from the git trees
-    const getInfoMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles#getInfo', {
-      addedFiles: addedFilenamesWithMatches.length,
-      deletedFiles: deletedFilenamesWithMatches.length,
-    });
-
-    const getInfo = async (targetTree: Walker, filenameSet: Set<string>): Promise<FileInfo[]> =>
-      // Unable to properly type the return value of git.walk without using "as", ignoring linter
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      git.walk({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        trees: [targetTree],
-        map: async (filename, [tree]) =>
-          filenameSet.has(filename) && (await tree?.type()) === 'blob'
-            ? {
-                filename,
-                hash: await tree?.oid(),
-                basename: path.basename(filename),
-              }
-            : undefined,
-      });
-
-    // We found file adds and deletes with the same basename
-    // The have likely been moved, confirm by comparing their hashes (oids)
-    const [addedInfo, deletedInfo] = await Promise.all([
-      getInfo(git.WORKDIR(), new Set(addedFilenamesWithMatches)),
-      getInfo(git.TREE({ ref: 'HEAD' }), new Set(deletedFilenamesWithMatches)),
-    ]);
-
-    getInfoMarker?.stop();
-
-    const matchingNameAndHashes = compareHashes(await buildMaps(addedInfo, deletedInfo));
-    if (matchingNameAndHashes.size === 0) {
-      return movedFilesMarker?.stop();
-    }
-    const matches = removeNonMatches(matchingNameAndHashes, this.registry, this.isWindows);
-
-    if (matches.size === 0) {
-      return movedFilesMarker?.stop();
-    }
+    if (matches.size === 0) return movedFilesMarker?.stop();
 
     this.logger.debug(
       [
@@ -433,136 +371,23 @@ export class ShadowRepo {
 }
 
 const packageDirToRelativePosixPath =
-  (isWindows: boolean) =>
   (projectPath: string) =>
   (packageDir: NamedPackageDir): string =>
-    isWindows
+    IS_WINDOWS
       ? ensurePosix(path.relative(projectPath, packageDir.fullPath))
       : path.relative(projectPath, packageDir.fullPath);
 
 const normalize = (filepath: string): string => path.normalize(filepath);
-const ensureWindows = (filepath: string): string => path.win32.normalize(filepath);
 const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);
 
-const buildMap = (info: FileInfo[]): StringMap[] => {
-  const map: StringMap = new Map();
-  const ignore: StringMap = new Map();
-  info.forEach((i) => {
-    const key = `${i.hash}#${i.basename}`;
-    // If we find a duplicate key, we need to remove it and ignore it in the future.
-    // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
-    if (map.has(key) || ignore.has(key)) {
-      map.delete(key);
-      ignore.set(key, i.filename);
-    } else {
-      map.set(key, i.filename);
-    }
-  });
-  return [map, ignore];
-};
-
-/** compare delete and adds from git.status, matching basenames of the files.  returns early when there's nothing to match */
-const getMatches = (
-  status: StatusRow[]
-): { deletedFilenamesWithMatches: string[]; addedFilenamesWithMatches: string[] } | undefined => {
-  // We check for moved files in incremental steps and exit as early as we can to avoid any performance degradation
-  // Deleted files will be more rare than added files, so we'll check them first and exit early if there are none
-  const deletedFiles = status.filter(isDeleted);
-  if (!deletedFiles.length) return;
-
-  const addedFiles = status.filter(isAdded);
-  if (!addedFiles.length) return;
-
-  // Both arrays have contents, look for matching basenames
-  const addedFilenames = toFilenames(addedFiles);
-  const deletedFilenames = toFilenames(deletedFiles);
-
-  // Build Sets of basenames for added and deleted files for quick lookups
-  const addedBasenames = new Set(addedFilenames.map((filename) => path.basename(filename)));
-  const deletedBasenames = new Set(deletedFilenames.map((filename) => path.basename(filename)));
-
-  // Again, we filter over the deleted files first and exit early if there are no filename matches
-  const deletedFilenamesWithMatches = deletedFilenames.filter((f) => addedBasenames.has(path.basename(f)));
-  if (!deletedFilenamesWithMatches.length) return;
-
-  const addedFilenamesWithMatches = addedFilenames.filter((f) => deletedBasenames.has(path.basename(f)));
-  if (!addedFilenamesWithMatches.length) return;
-
-  return { addedFilenamesWithMatches, deletedFilenamesWithMatches };
-};
-
-const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
-const isAdded = (status: StatusRow): boolean => status[HEAD] === 0 && status[WORKDIR] === 2;
-
-/** build maps of the add/deletes with filenames, returning the matches  Logs if non-matches */
-const buildMaps = async (addedInfo: FileInfo[], deletedInfo: FileInfo[]): Promise<AddAndDeleteMaps> => {
-  const [addedMap, addedIgnoredMap] = buildMap(addedInfo);
-  const [deletedMap, deletedIgnoredMap] = buildMap(deletedInfo);
-
-  // If we detected any files that have the same basename and hash, emit a warning and send telemetry
-  // These files will still show up as expected in the `sf project deploy preview` output
-  // We could add more logic to determine and display filepaths that we ignored...
-  // but this is likely rare enough to not warrant the added complexity
-  // Telemetry will help us determine how often this occurs
-  if (addedIgnoredMap.size || deletedIgnoredMap.size) {
-    const message = 'Files were found that have the same basename and hash. Skipping the commit of these files';
-    const logger = Logger.childFromRoot('ShadowRepo.compareHashes');
-    logger.warn(message);
-    const lifecycle = Lifecycle.getInstance();
-    await Promise.all([
-      lifecycle.emitWarning(message),
-      lifecycle.emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' }),
-    ]);
-  }
-  return { addedMap, deletedMap };
-};
-
-/** builds a map of the values from both maps */
-const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMap => {
-  const matches: StringMap = new Map();
-
-  for (const [addedKey, addedValue] of addedMap) {
-    const deletedValue = deletedMap.get(addedKey);
-    if (deletedValue) {
-      matches.set(addedValue, deletedValue);
-    }
-  }
-
-  return matches;
-};
-
-const resolveType = (resolver: MetadataResolver, filenames: string[]): SourceComponent[] =>
-  filenames
-    .flatMap((filename) => {
-      try {
-        return resolver.getComponentsFromPath(filename);
-      } catch (e) {
-        const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
-        logger.warn(`unable to resolve ${filename}`);
-        return undefined;
-      }
-    })
-    .filter(sourceComponentGuard);
-
-const removeNonMatches = (matches: StringMap, registry: RegistryAccess, isWindows: boolean): StringMap => {
-  const addedFiles = isWindows ? [...matches.keys()].map(ensureWindows) : [...matches.keys()];
-  const deletedFiles = isWindows ? [...matches.values()].map(ensureWindows) : [...matches.values()];
-  const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(addedFiles));
-  const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(deletedFiles));
-
-  return new Map(
-    [...matches.entries()].filter(([addedFile, deletedFile]) => {
-      // we're only ever using the first element of the arrays
-      const [resolvedAdded] = resolveType(resolverAdded, isWindows ? [ensureWindows(addedFile)] : [addedFile]);
-      const [resolvedDeleted] = resolveType(resolverDeleted, isWindows ? [ensureWindows(deletedFile)] : [deletedFile]);
-      return (
-        // they could match, or could both be undefined (because unresolved by SDR)
-        resolvedAdded?.type.name === resolvedDeleted?.type.name &&
-        // parent names match, if resolved and there are parents
-        resolvedAdded?.parent?.name === resolvedDeleted?.parent?.name &&
-        // parent types match, if resolved and there are parents
-        resolvedAdded?.parent?.type.name === resolvedDeleted?.parent?.type.name
-      );
-    })
-  );
-};
+const fileFilter =
+  (packageDirs: string[]) =>
+  (f: string): boolean =>
+    // no hidden files
+    !f.includes(`${path.sep}.`) &&
+    // no lwc tests
+    excludeLwcLocalOnlyTest(f) &&
+    // no gitignore files
+    !f.endsWith('.gitignore') &&
+    // isogit uses `startsWith` for filepaths so it's possible to get a false positive
+    packageDirs.some(folderContainsPath(f));

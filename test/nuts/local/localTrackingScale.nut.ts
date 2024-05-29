@@ -10,7 +10,7 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import * as fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/localShadowRepo';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
 const dirCount = 200;
 const classesPerDir = 500;
