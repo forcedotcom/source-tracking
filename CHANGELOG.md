@@ -1,3 +1,12 @@
+## [6.3.1](https://github.com/forcedotcom/source-tracking/compare/6.3.0...6.3.1) (2024-05-31)
+
+
+### Bug Fixes
+
+* unpin iso-git ([#595](https://github.com/forcedotcom/source-tracking/issues/595)) ([29eb0ad](https://github.com/forcedotcom/source-tracking/commit/29eb0adaf99734a1b7be85d7afc9ec096a692d21))
+
+
+
 # [6.3.0](https://github.com/forcedotcom/source-tracking/compare/6.2.5...6.3.0) (2024-05-29)
 
 
