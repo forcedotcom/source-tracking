@@ -1,3 +1,12 @@
+## [6.3.2](https://github.com/forcedotcom/source-tracking/compare/6.3.1...6.3.2) (2024-05-31)
+
+
+### Bug Fixes
+
+* logger binding ([#596](https://github.com/forcedotcom/source-tracking/issues/596)) ([aab471d](https://github.com/forcedotcom/source-tracking/commit/aab471dd2def1459b373ffdf199e98dd26102bb4))
+
+
+
 ## [6.3.1](https://github.com/forcedotcom/source-tracking/compare/6.3.0...6.3.1) (2024-05-31)
 
 
