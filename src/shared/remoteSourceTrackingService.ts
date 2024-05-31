@@ -147,7 +147,8 @@ export class RemoteSourceTrackingService {
     if (elements.length === 0) {
       return;
     }
-    const quietLogger = elements.length > 100 ? this.logger.silent : this.logger.debug;
+    const quietLogger =
+      elements.length > 100 ? this.logger.silent.bind(this.logger) : this.logger.debug.bind(this.logger);
     quietLogger(`Syncing ${elements.length} Revisions by key`);
 
     // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
@@ -374,7 +375,8 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
     if (sourceMembers.length === 0) {
       return;
     }
-    const quietLogger = sourceMembers.length > 100 ? this.logger.silent : this.logger.debug;
+    const quietLogger =
+      sourceMembers.length > 100 ? this.logger.silent.bind(this.logger) : this.logger.debug.bind(this.logger);
     quietLogger(`Upserting ${sourceMembers.length} SourceMembers to maxRevision.json`);
 
     // Update the serverMaxRevisionCounter to the highest RevisionCounter
