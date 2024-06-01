@@ -5428,10 +5428,10 @@ ts-retry-promise@^0.7.1:
   resolved "https://registry.yarnpkg.com/ts-retry-promise/-/ts-retry-promise-0.7.1.tgz#176d6eee6415f07b6c7c286d3657355e284a6906"
   integrity sha512-NhHOCZ2AQORvH42hOPO5UZxShlcuiRtm7P2jIq2L2RY3PBxw2mLnUsEdHrIslVBFya1v5aZmrR55lWkzo13LrQ==
 
-ts-retry-promise@^0.8.0:
-  version "0.8.0"
-  resolved "https://registry.yarnpkg.com/ts-retry-promise/-/ts-retry-promise-0.8.0.tgz#0a0c57b510827d5630da4b0c47f36b55b83a49e3"
-  integrity sha512-elI/GkojPANBikPaMWQnk4T/bOJ6tq/hqXyQRmhfC9PAD6MoHmXIXK7KilJrlpx47VAKCGcmBrTeK5dHk6YAYg==
+ts-retry-promise@^0.8.0, ts-retry-promise@^0.8.1:
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/ts-retry-promise/-/ts-retry-promise-0.8.1.tgz#ba90eb07cb03677fcbf78fe38e94c9183927e154"
+  integrity sha512-+AHPUmAhr5bSRRK5CurE9kNH8gZlEHnCgusZ0zy2bjfatUBDX0h6vGQjiT0YrGwSDwRZmU+bapeX6mj55FOPvg==
 
 tsconfig-paths@^3.15.0:
   version "3.15.0"
