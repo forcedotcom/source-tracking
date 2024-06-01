@@ -1,3 +1,12 @@
+## [6.3.3](https://github.com/forcedotcom/source-tracking/compare/6.3.2...6.3.3) (2024-06-01)
+
+
+### Bug Fixes
+
+* **deps:** bump ts-retry-promise from 0.8.0 to 0.8.1 ([0e17212](https://github.com/forcedotcom/source-tracking/commit/0e17212d86ffe0c88af9563d53515b21d3de938e))
+
+
+
 ## [6.3.2](https://github.com/forcedotcom/source-tracking/compare/6.3.1...6.3.2) (2024-05-31)
 
 
