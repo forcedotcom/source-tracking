@@ -2,8 +2,7 @@ name: Run Tests for bundling against Change
 
 on:
   push:
-    branches:
-      - '**'
+    branches-ignore: [main]
 
 jobs:
   call-validate-bundle:
