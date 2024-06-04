@@ -1,3 +1,12 @@
+## [6.3.4](https://github.com/forcedotcom/source-tracking/compare/6.3.3...6.3.4) (2024-06-04)
+
+
+### Reverts
+
+* Revert "Mz/automation test bundling (#600)" (#602) ([0e6fe38](https://github.com/forcedotcom/source-tracking/commit/0e6fe3845a9a4d44cced23771d50126348decc13)), closes [#600](https://github.com/forcedotcom/source-tracking/issues/600) [#602](https://github.com/forcedotcom/source-tracking/issues/602)
+
+
+
 ## [6.3.3](https://github.com/forcedotcom/source-tracking/compare/6.3.2...6.3.3) (2024-06-01)
 
 
