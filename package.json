@@ -49,10 +49,10 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@oclif/core": "^3.26.6",
-    "@salesforce/core": "^7.3.9",
+    "@oclif/core": "^4.0.0",
+    "@salesforce/core": "^7.3.10",
     "@salesforce/kit": "^3.1.2",
-    "@salesforce/source-deploy-retrieve": "^11.6.3",
+    "@salesforce/source-deploy-retrieve": "^11.6.5",
     "@salesforce/ts-types": "^2.0.9",
     "fast-xml-parser": "^4.3.6",
     "graceful-fs": "^4.2.11",
@@ -62,6 +62,7 @@
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^5.3.4",
     "@salesforce/dev-scripts": "^9.1.2",
+    "@salesforce/schemas": "^1.9.0",
     "@types/graceful-fs": "^4.1.9",
     "eslint-plugin-sf-plugin": "^1.18.4",
     "ts-node": "^10.9.2",
