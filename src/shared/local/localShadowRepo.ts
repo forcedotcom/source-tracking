@@ -15,7 +15,7 @@ import git from 'isomorphic-git';
 import { Performance } from '@oclif/core';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
-import { filenameMatchesToMap, getMatches } from './moveDetection';
+import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
 import { StatusRow } from './types';
 import { isDeleted, isAdded, toFilenames } from './functions';
 
@@ -348,21 +348,19 @@ export class ShadowRepo {
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
     const matches = await filenameMatchesToMap(IS_WINDOWS)(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
 
-    if (matches.size === 0) return movedFilesMarker?.stop();
+    if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return movedFilesMarker?.stop();
 
-    this.logger.debug(
-      [
-        'Files have moved. Committing moved files:',
-        [...matches.entries()].map(([add, del]) => `- File ${del} was moved to ${add}`).join(os.EOL),
-      ].join(os.EOL)
-    );
+    this.logger.debug(getLogMessage(matches));
 
-    movedFilesMarker?.addDetails({ filesMoved: matches.size });
+    movedFilesMarker?.addDetails({
+      filesMoved: matches.fullMatches.size,
+      filesMovedAndEdited: matches.deleteOnly.size,
+    });
 
     // Commit the moved files and refresh the status
     await this.commitChanges({
-      deletedFiles: [...matches.values()],
-      deployedFiles: [...matches.keys()],
+      deletedFiles: [...matches.fullMatches.values(), ...matches.deleteOnly.values()],
+      deployedFiles: [...matches.fullMatches.keys()],
       message: 'Committing moved files',
     });
 
