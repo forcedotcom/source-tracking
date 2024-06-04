@@ -13,7 +13,7 @@ import {
   RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
-import { isChangeResultWithNameAndType, sourceComponentGuard } from './guards';
+import { isChangeResultWithNameAndType, isDefined } from './guards';
 import {
   ensureRelative,
   excludeLwcLocalOnlyTest,
@@ -68,7 +68,7 @@ export const populateTypesAndNames =
           return undefined;
         }
       })
-      .filter(sourceComponentGuard);
+      .filter(isDefined);
 
     logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
 

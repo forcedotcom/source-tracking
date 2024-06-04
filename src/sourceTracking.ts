@@ -46,8 +46,8 @@ import {
   FileResponseIsDeleted,
   FileResponseIsNotDeleted,
   isChangeResultWithNameAndType,
+  isDefined,
   isSdrSuccess,
-  sourceComponentGuard,
 } from './shared/guards';
 import { removeIgnored } from './shared/remoteChangeIgnoring';
 import {
@@ -309,7 +309,7 @@ export class SourceTracking extends AsyncCreatable {
               return undefined;
             }
           })
-          .filter(sourceComponentGuard);
+          .filter(isDefined);
       }
     }
 

@@ -17,7 +17,7 @@ import {
 import git from 'isomorphic-git';
 import * as fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
-import { sourceComponentGuard } from '../guards';
+import { isDefined } from '../guards';
 import { isDeleted, isAdded, ensureWindows, toFilenames } from './functions';
 import { AddAndDeleteMaps, FilenameBasenameHash, StatusRow, StringMap } from './types';
 
@@ -116,17 +116,19 @@ const buildMaps = async ({ addedInfo, deletedInfo }: AddAndDeleteFileInfos): Pro
  * side effect: mutates the passed-in maps!
  */
 const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMapsForMatches => {
-  const matches: StringMap = new Map();
-
-  [...addedMap.entries()].map(([addedKey, addedValue]) => {
-    const deletedValue = deletedMap.get(addedKey);
-    if (deletedValue) {
-      // these are an exact basename and hash match
-      matches.set(addedValue, deletedValue);
-      deletedMap.delete(addedKey);
-      addedMap.delete(addedKey);
-    }
-  });
+  const matches = new Map<string, string>(
+    [...addedMap.entries()]
+      .map(([addedKey, addedValue]) => {
+        const deletedValue = deletedMap.get(addedKey);
+        if (deletedValue) {
+          // these are an exact basename and hash match
+          deletedMap.delete(addedKey);
+          addedMap.delete(addedKey);
+          return [addedValue, deletedValue] as const;
+        }
+      })
+      .filter(isDefined)
+  );
 
   if (addedMap.size && deletedMap.size) {
     // the remaining deletes didn't match the basename+hash of an add, and vice versa.
@@ -243,7 +245,7 @@ const resolveType =
           return undefined;
         }
       })
-      .filter(sourceComponentGuard);
+      .filter(isDefined);
 
 /** where we don't have git objects to use, read the file contents to generate the hash */
 const getHashFromActualFileContents =
@@ -258,5 +260,4 @@ const getHashFromActualFileContents =
 
 const hashEntryToBasenameEntry = ([k, v]: [string, string]): [string, string] => [hashToBasename(k), v];
 const hashToBasename = (hash: string): string => hash.split(JOIN_CHAR)[1];
-
 const stringNoOp = (s: string): string => s;
