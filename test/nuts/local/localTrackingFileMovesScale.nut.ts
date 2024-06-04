@@ -30,7 +30,7 @@ describe(`handles local files moves of ${classCount.toLocaleString()} classes ($
   before(async () => {
     session = await TestSession.create({
       project: {
-        name: 'large-repo',
+        name: 'large-repo-moves',
       },
       devhubAuthStrategy: 'NONE',
     });

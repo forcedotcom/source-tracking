@@ -44,7 +44,7 @@ describe('handles local files moves that also change the file', () => {
   });
 
   after(async () => {
-    // await session?.clean();
+    await session?.clean();
   });
 
   it('initialize the local tracking', async () => {
