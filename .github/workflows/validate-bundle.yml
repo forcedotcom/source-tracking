@@ -1,0 +1,10 @@
+name: Run Tests for bundling against Change
+
+on:
+  push:
+    branches-ignore: [main]
+
+jobs:
+  call-validate-bundle:
+    uses: forcedotcom/bundle-publish-scripts/.github/workflows/validateBundleForDependents.yml@main
+    secrets: inherit
