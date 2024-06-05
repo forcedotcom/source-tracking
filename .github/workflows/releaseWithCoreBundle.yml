@@ -2,7 +2,7 @@ name: publish source-tracking-bundle
 on:
   workflow_run:
     workflows:
-      - create-github-release
+      - publish
     types:
       - completed
 
