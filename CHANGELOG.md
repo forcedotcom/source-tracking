@@ -1,3 +1,12 @@
+# [6.4.0](https://github.com/forcedotcom/source-tracking/compare/6.3.4...6.4.0) (2024-06-07)
+
+
+### Features
+
+* use oclif/core v4 ([#604](https://github.com/forcedotcom/source-tracking/issues/604)) ([58f7d15](https://github.com/forcedotcom/source-tracking/commit/58f7d15b404e28eb1508f9eb4815559abbb9c69d))
+
+
+
 ## [6.3.4](https://github.com/forcedotcom/source-tracking/compare/6.3.3...6.3.4) (2024-06-04)
 
 
