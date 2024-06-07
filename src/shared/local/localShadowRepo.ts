@@ -12,7 +12,7 @@ import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 // @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
-import { Performance } from '@oclif/core';
+import { Performance } from '@oclif/core/performance';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
 import { filenameMatchesToMap, getMatches } from './moveDetection';
