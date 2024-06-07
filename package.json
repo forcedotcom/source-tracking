@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "6.3.4",
+  "version": "6.4.0",
   "author": "Salesforce",
   "license": "BSD-3-Clause",
   "main": "lib/index.js",
@@ -49,7 +49,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@oclif/core": "^4.0.0",
+    "@oclif/core": "^4.0.3",
     "@salesforce/core": "^7.3.10",
     "@salesforce/kit": "^3.1.2",
     "@salesforce/source-deploy-retrieve": "^11.6.5",
@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^5.3.8",
-    "@salesforce/dev-scripts": "^9.1.2",
+    "@salesforce/dev-scripts": "^10.1.0",
     "@salesforce/schemas": "^1.9.0",
     "@types/graceful-fs": "^4.1.9",
     "eslint-plugin-sf-plugin": "^1.18.5",
