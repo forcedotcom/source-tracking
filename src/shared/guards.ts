@@ -5,7 +5,6 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import {
-  SourceComponent,
   MetadataMember,
   FileResponse,
   ComponentStatus,
@@ -14,9 +13,6 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
 import { ChangeResultWithNameAndType } from './types';
-
-export const sourceComponentGuard = (input: SourceComponent | undefined): input is SourceComponent =>
-  input instanceof SourceComponent;
 
 export const metadataMemberGuard = (
   input: MetadataMember | undefined | Partial<MetadataMember>
@@ -42,3 +38,5 @@ export const FileResponseHasPath = (
 
 export const isChangeResultWithNameAndType = (cr?: ChangeResult): cr is ChangeResultWithNameAndType =>
   typeof cr === 'object' && typeof cr.name === 'string' && typeof cr.type === 'string';
+
+export const isDefined = <T>(x: T | undefined): x is T => x !== undefined;

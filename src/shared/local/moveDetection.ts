@@ -5,6 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import path from 'node:path';
+import { EOL } from 'node:os';
 import { Logger, Lifecycle } from '@salesforce/core';
 import {
   MetadataResolver,
@@ -16,12 +17,19 @@ import {
 import git from 'isomorphic-git';
 import * as fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
-import { sourceComponentGuard } from '../guards';
+import { isDefined } from '../guards';
 import { isDeleted, isAdded, ensureWindows, toFilenames } from './functions';
 import { AddAndDeleteMaps, FilenameBasenameHash, StatusRow, StringMap } from './types';
 
+const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
 type AddAndDeleteFileInfos = { addedInfo: FilenameBasenameHash[]; deletedInfo: FilenameBasenameHash[] };
 type AddedAndDeletedFilenames = { added: Set<string>; deleted: Set<string> };
+type StringMapsForMatches = {
+  /** these matches filename=>basename, metadata type/name, and git object hash */
+  fullMatches: StringMap;
+  /** these did not match the hash.  They *probably* are matches where the "add" is also modified */
+  deleteOnly: StringMap;
+};
 
 /** composed functions to simplified use by the shadowRepo class */
 export const filenameMatchesToMap =
@@ -29,8 +37,8 @@ export const filenameMatchesToMap =
   (registry: RegistryAccess) =>
   (projectPath: string) =>
   (gitDir: string) =>
-  async ({ added, deleted }: AddedAndDeletedFilenames): Promise<StringMap> =>
-    removeNonMatches(isWindows)(registry)(
+  async ({ added, deleted }: AddedAndDeletedFilenames): Promise<StringMapsForMatches> =>
+    excludeNonMatchingTypes(isWindows)(registry)(
       compareHashes(
         await buildMaps(
           await toFileInfo({
@@ -73,7 +81,14 @@ export const getMatches = (status: StatusRow[]): AddedAndDeletedFilenames => {
   return { added: addedFilenamesWithMatches, deleted: deletedFilenamesWithMatches };
 };
 
-/** build maps of the add/deletes with filenames, returning the matches  Logs if non-matches */
+export const getLogMessage = (matches: StringMapsForMatches): string =>
+  [
+    'Files have moved. Committing moved files:',
+    ...[...matches.fullMatches.entries()].map(([add, del]) => `- File ${del} was moved to ${add}`),
+    ...[...matches.deleteOnly.entries()].map(([add, del]) => `- File ${del} was moved to ${add} and modified`),
+  ].join(EOL);
+
+/** build maps of the add/deletes with filenames, returning the matches  Logs if we can't make a match because buildMap puts them in the ignored bucket */
 const buildMaps = async ({ addedInfo, deletedInfo }: AddAndDeleteFileInfos): Promise<AddAndDeleteMaps> => {
   const [addedMap, addedIgnoredMap] = buildMap(addedInfo);
   const [deletedMap, deletedIgnoredMap] = buildMap(deletedInfo);
@@ -96,51 +111,72 @@ const buildMaps = async ({ addedInfo, deletedInfo }: AddAndDeleteFileInfos): Pro
   return { addedMap, deletedMap };
 };
 
-/** builds a map of the values from both maps */
-const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMap => {
-  const matches: StringMap = new Map();
+/**
+ * builds a map of the values from both maps
+ * side effect: mutates the passed-in maps!
+ */
+const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMapsForMatches => {
+  const matches = new Map<string, string>(
+    [...addedMap.entries()]
+      .map(([addedKey, addedValue]) => {
+        const deletedValue = deletedMap.get(addedKey);
+        if (deletedValue) {
+          // these are an exact basename and hash match
+          deletedMap.delete(addedKey);
+          addedMap.delete(addedKey);
+          return [addedValue, deletedValue] as const;
+        }
+      })
+      .filter(isDefined)
+  );
 
-  for (const [addedKey, addedValue] of addedMap) {
-    const deletedValue = deletedMap.get(addedKey);
-    if (deletedValue) {
-      matches.set(addedValue, deletedValue);
-    }
+  if (addedMap.size && deletedMap.size) {
+    // the remaining deletes didn't match the basename+hash of an add, and vice versa.
+    // They *might* match the basename of an add, in which case we *could* have the "move, then edit" case.
+    const addedBasenameMap = new Map([...addedMap.entries()].map(hashEntryToBasenameEntry));
+    const deletedBasenameMap = new Map([...deletedMap.entries()].map(hashEntryToBasenameEntry));
+    const deleteOnly = new Map<string, string>(
+      Array.from(deletedBasenameMap.entries())
+        .filter(([k]) => addedBasenameMap.has(k))
+        .map(([k, v]) => [addedBasenameMap.get(k) as string, v])
+    );
+    return { fullMatches: matches, deleteOnly };
   }
-
-  return matches;
+  return { fullMatches: matches, deleteOnly: new Map<string, string>() };
 };
 
 /** given a StringMap, resolve the metadata types and return things that having matching type/parent  */
-const removeNonMatches =
+const excludeNonMatchingTypes =
   (isWindows: boolean) =>
   (registry: RegistryAccess) =>
-  (matches: StringMap): StringMap => {
-    if (!matches.size) return matches;
-    const addedFiles = isWindows ? [...matches.keys()].map(ensureWindows) : [...matches.keys()];
-    const deletedFiles = isWindows ? [...matches.values()].map(ensureWindows) : [...matches.values()];
-    const resolverAdded = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(addedFiles));
-    const resolverDeleted = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(deletedFiles));
+  ({ fullMatches: matches, deleteOnly }: StringMapsForMatches): StringMapsForMatches => {
+    if (!matches.size && !deleteOnly.size) return { fullMatches: matches, deleteOnly };
+    const [resolvedAdded, resolvedDeleted] = [
+      [...matches.keys(), ...deleteOnly.keys()], // the keys/values are only used for the resolver, so we use 1 for both add and delete
+      [...matches.values(), ...deleteOnly.values()],
+    ]
+      .map((filenames) => filenames.map(isWindows ? ensureWindows : stringNoOp))
+      .map((filenames) => new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(filenames)))
+      .map(resolveType);
 
-    return new Map(
-      [...matches.entries()].filter(([addedFile, deletedFile]) => {
-        // we're only ever using the first element of the arrays
-        const [resolvedAdded] = resolveType(resolverAdded, isWindows ? [ensureWindows(addedFile)] : [addedFile]);
-        const [resolvedDeleted] = resolveType(
-          resolverDeleted,
-          isWindows ? [ensureWindows(deletedFile)] : [deletedFile]
-        );
-        return (
-          // they could match, or could both be undefined (because unresolved by SDR)
-          resolvedAdded?.type.name === resolvedDeleted?.type.name &&
-          // parent names match, if resolved and there are parents
-          resolvedAdded?.parent?.name === resolvedDeleted?.parent?.name &&
-          // parent types match, if resolved and there are parents
-          resolvedAdded?.parent?.type.name === resolvedDeleted?.parent?.type.name
-        );
-      })
-    );
+    return {
+      fullMatches: new Map([...matches.entries()].filter(typeFilter(isWindows)(resolvedAdded, resolvedDeleted))),
+      deleteOnly: new Map([...deleteOnly.entries()].filter(typeFilter(isWindows)(resolvedAdded, resolvedDeleted))),
+    };
   };
 
+const typeFilter =
+  (isWindows: boolean) =>
+  (resolveAdd: ReturnType<typeof resolveType>, resolveDelete: ReturnType<typeof resolveType>) =>
+  ([added, deleted]: [string, string]): boolean => {
+    const [resolvedAdded] = resolveAdd(isWindows ? [ensureWindows(added)] : [added]);
+    const [resolvedDeleted] = resolveDelete(isWindows ? [ensureWindows(deleted)] : [deleted]);
+    return (
+      resolvedAdded?.type.name === resolvedDeleted?.type.name &&
+      resolvedAdded?.parent?.name === resolvedDeleted?.parent?.name &&
+      resolvedAdded?.parent?.type.name === resolvedDeleted?.parent?.type.name
+    );
+  };
 /** enrich the filenames with basename and oid (hash)  */
 const toFileInfo = async ({
   projectPath,
@@ -170,11 +206,12 @@ const toFileInfo = async ({
   return { addedInfo, deletedInfo };
 };
 
+/** returns a map of <hash+basename, filepath>.  If two items result in the same hash+basename, return that in the ignore bucket */
 const buildMap = (info: FilenameBasenameHash[]): StringMap[] => {
   const map: StringMap = new Map();
   const ignore: StringMap = new Map();
   info.map((i) => {
-    const key = `${i.hash}#${i.basename}`;
+    const key = `${i.hash}${JOIN_CHAR}${i.basename}`;
     // If we find a duplicate key, we need to remove it and ignore it in the future.
     // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
     if (map.has(key) || ignore.has(key)) {
@@ -195,18 +232,20 @@ const getHashForAddedFile =
     hash: (await git.hashBlob({ object: await fs.promises.readFile(path.join(projectPath, filepath)) })).oid,
   });
 
-const resolveType = (resolver: MetadataResolver, filenames: string[]): SourceComponent[] =>
-  filenames
-    .flatMap((filename) => {
-      try {
-        return resolver.getComponentsFromPath(filename);
-      } catch (e) {
-        const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
-        logger.warn(`unable to resolve ${filename}`);
-        return undefined;
-      }
-    })
-    .filter(sourceComponentGuard);
+const resolveType =
+  (resolver: MetadataResolver) =>
+  (filenames: string[]): SourceComponent[] =>
+    filenames
+      .flatMap((filename) => {
+        try {
+          return resolver.getComponentsFromPath(filename);
+        } catch (e) {
+          const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
+          logger.warn(`unable to resolve ${filename}`);
+          return undefined;
+        }
+      })
+      .filter(isDefined);
 
 /** where we don't have git objects to use, read the file contents to generate the hash */
 const getHashFromActualFileContents =
@@ -218,3 +257,7 @@ const getHashFromActualFileContents =
     basename: path.basename(filepath),
     hash: (await git.readBlob({ fs, dir: projectPath, gitdir, filepath, oid })).oid,
   });
+
+const hashEntryToBasenameEntry = ([k, v]: [string, string]): [string, string] => [hashToBasename(k), v];
+const hashToBasename = (hash: string): string => hash.split(JOIN_CHAR)[1];
+const stringNoOp = (s: string): string => s;

@@ -207,7 +207,7 @@ describe('local detect moved files', () => {
     }
   });
 
-  it('ignores moved files if the contents have also changed', async () => {
+  it('ignores moved files (add) if the contents have also changed, but notices deletes match', async () => {
     expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
     process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     let projectDir!: string;
@@ -247,9 +247,9 @@ describe('local detect moved files', () => {
       // Refresh the status
       await shadowRepo.getStatus(true);
 
-      // Moved file should NOT have been detected and committed
+      // delete is detected and committed, but the add is still considered a change
       expect(gitAdd.calledOnce).to.be.true;
-      expect(await shadowRepo.getDeletes()).to.have.lengthOf(1);
+      expect(await shadowRepo.getDeletes()).to.have.lengthOf(0);
       expect(await shadowRepo.getAdds()).to.have.lengthOf(1);
     } finally {
       delete process.env.SF_BETA_TRACK_FILE_MOVES;
