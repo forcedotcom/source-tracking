@@ -15,7 +15,7 @@ import {
 // @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
 import * as fs from 'graceful-fs';
-import { Performance } from '@oclif/core';
+import { Performance } from '@oclif/core/performance';
 import { sourceComponentGuard } from '../guards';
 import { isDeleted, isAdded, ensureWindows, toFilenames } from './functions';
 import { AddAndDeleteMaps, FilenameBasenameHash, StatusRow, StringMap } from './types';
