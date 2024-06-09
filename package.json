@@ -54,7 +54,7 @@
     "@salesforce/kit": "^3.1.2",
     "@salesforce/source-deploy-retrieve": "^11.6.5",
     "@salesforce/ts-types": "^2.0.9",
-    "fast-xml-parser": "^4.3.6",
+    "fast-xml-parser": "^4.4.0",
     "graceful-fs": "^4.2.11",
     "isomorphic-git": "^1.25.10",
     "ts-retry-promise": "^0.8.1"
