@@ -118,6 +118,9 @@ export class ShadowRepo {
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     try {
       await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
+      if (process.platform === 'win32') {
+        await git.setConfig({ fs, dir: this.projectPath, path: 'core.autocrlf', value: 'true' });
+      }
     } catch (e) {
       redirectToCliRepoError(e);
     }
