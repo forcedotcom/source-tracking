@@ -1,3 +1,12 @@
+## [7.0.1](https://github.com/forcedotcom/source-tracking/compare/6.5.1...7.0.1) (2024-06-20)
+
+
+### Bug Fixes
+
+* rel major 7 ([#616](https://github.com/forcedotcom/source-tracking/issues/616)) ([fe4d5ad](https://github.com/forcedotcom/source-tracking/commit/fe4d5ad013c742bb4737c8ec89b7d8f5d51ac532))
+
+
+
 ## [6.5.1](https://github.com/forcedotcom/source-tracking/compare/6.5.0...6.5.1) (2024-06-09)
 
 
