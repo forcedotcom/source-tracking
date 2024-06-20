@@ -11,7 +11,8 @@ import { expect } from 'chai';
 import * as fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ProjectJson } from '@salesforce/schemas';
-import { NamedPackageDir, PackageDir } from '@salesforce/core';
+import { NamedPackageDir } from '@salesforce/core';
+import { PackageDir } from '@salesforce/schemas';
 import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
 describe('handles local files moves that also change the file', () => {
