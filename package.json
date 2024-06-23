@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^5.3.15",
-    "@salesforce/dev-scripts": "^10.2.0",
+    "@salesforce/dev-scripts": "^10.2.2",
     "@salesforce/schemas": "^1.9.0",
     "@types/graceful-fs": "^4.1.9",
     "eslint-plugin-sf-plugin": "^1.18.8",
