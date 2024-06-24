@@ -1,3 +1,12 @@
+## [7.0.2](https://github.com/forcedotcom/source-tracking/compare/7.0.1...7.0.2) (2024-06-24)
+
+
+### Bug Fixes
+
+* devScripts update ([#620](https://github.com/forcedotcom/source-tracking/issues/620)) ([1f30607](https://github.com/forcedotcom/source-tracking/commit/1f30607d8649c35a59600bfafb4bf5894c7afd7e))
+
+
+
 ## [7.0.1](https://github.com/forcedotcom/source-tracking/compare/6.5.1...7.0.1) (2024-06-20)
 
 
