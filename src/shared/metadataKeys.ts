@@ -92,6 +92,13 @@ export const registrySupportsType = (type: string): boolean => {
      */
     return false;
   }
+  if (type === 'ExperienceResource') {
+    /* ExperienceResource is a child of ExperienceBundle but fine-grained source tracking isn't supported for
+     * ExperienceBundle since it's not defined that way in the SDR registry.  Since ExperienceBundle is
+     * essentially deprecated in favor of DigitalExperienceBundle this is not something we're going to support.
+     */
+    return false;
+  }
   try {
     // this must use getTypeByName because findType doesn't support addressable child types (ex: customField!)
     registry.getTypeByName(type);
