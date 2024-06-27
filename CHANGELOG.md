@@ -1,3 +1,12 @@
+## [7.0.3](https://github.com/forcedotcom/source-tracking/compare/7.0.2...7.0.3) (2024-06-27)
+
+
+### Bug Fixes
+
+* ignore ExperienceResource SourceMember entries ([#621](https://github.com/forcedotcom/source-tracking/issues/621)) ([d4351f7](https://github.com/forcedotcom/source-tracking/commit/d4351f7e162cdeaa0cb6d990a0bdede1450e4a90))
+
+
+
 ## [7.0.2](https://github.com/forcedotcom/source-tracking/compare/7.0.1...7.0.2) (2024-06-24)
 
 
