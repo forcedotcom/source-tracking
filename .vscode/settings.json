@@ -13,5 +13,6 @@
   "editor.tabSize": 2,
   "editor.formatOnSave": true,
   "rewrap.wrappingColumn": 80,
-  "cSpell.words": ["repros"]
+  "cSpell.words": ["repros"],
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

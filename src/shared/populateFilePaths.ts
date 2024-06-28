@@ -57,7 +57,7 @@ export const populateFilePaths = ({
     // Throw if anything was actually missing
     if (missingComponents.length > 0) {
       throw new Error(
-        `unable to generate complete component set for ${elements
+        `unable to generate complete component set for ${missingComponents
           .map((element) => `${element.name} (${element.type})`)
           .join(EOL)}`
       );
@@ -84,7 +84,7 @@ export const populateFilePaths = ({
     .map((matchingComponent) => {
       logger.debug(
         `${matchingComponent.fullName}|${matchingComponent.type.name} matches ${
-          matchingComponent.xml
+          matchingComponent.xml ?? '<no xml>'
         } and maybe ${matchingComponent.walkContent().toString()}`
       );
       // Decode the key since local components can have encoded fullNames, but results from querying
