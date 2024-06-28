@@ -1,3 +1,12 @@
+## [7.0.4](https://github.com/forcedotcom/source-tracking/compare/7.0.3...7.0.4) (2024-06-28)
+
+
+### Bug Fixes
+
+* bad error message for missing components,  ts5.5 ([#622](https://github.com/forcedotcom/source-tracking/issues/622)) ([01144bc](https://github.com/forcedotcom/source-tracking/commit/01144bcafec6c0c96edd254474dc4ff52839a5a2))
+
+
+
 ## [7.0.3](https://github.com/forcedotcom/source-tracking/compare/7.0.2...7.0.3) (2024-06-27)
 
 
