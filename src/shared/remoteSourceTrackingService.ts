@@ -160,7 +160,9 @@ export class RemoteSourceTrackingService {
         this.logger.warn(`found no matching revision for ${metadataKey}`);
       } else if (doesNotMatchServer(revision)) {
         quietLogger(
-          `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer} to ${revision.serverRevisionCounter}`
+          `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer ?? 'null'} to ${
+            revision.serverRevisionCounter
+          }`
         );
         this.setMemberRevision(metadataKey, { ...revision, lastRetrievedFromServer: revision.serverRevisionCounter });
       }
