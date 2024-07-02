@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Workbook__c</fullName>
+    <description>The workbook that will be used by this workshop.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The workbook that will be used by this workshop.</inlineHelpText>
+    <label>Workbook</label>
+    <referenceTo>Workbook__c</referenceTo>
+    <relationshipLabel>Workshops</relationshipLabel>
+    <relationshipName>Workshops</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>true</reparentableMasterDetail>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>
