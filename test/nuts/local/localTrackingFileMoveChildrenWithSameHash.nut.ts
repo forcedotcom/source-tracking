@@ -28,7 +28,7 @@ describe('can match files with the same hash when the have different parents ', 
   });
 
   after(async () => {
-    // await session?.clean();
+    await session?.clean();
   });
 
   it('initialize the local tracking', async () => {
