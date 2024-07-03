@@ -47,9 +47,11 @@ describe('handles local files moves that also change the file', () => {
   after(async () => {
     await session?.clean();
   });
+  afterEach(() => {
+    delete process.env.SF_BETA_TRACK_FILE_MOVES;
+  });
 
   it('initialize the local tracking', async () => {
-    expect(typeof process.env.SF_BETA_TRACK_FILE_MOVES).to.equal('undefined');
     process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
 
     repo = await ShadowRepo.getInstance({
@@ -69,6 +71,8 @@ describe('handles local files moves that also change the file', () => {
   });
 
   it('move a file and edit it.  Only the delete is committed', async () => {
+    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
+
     // move all two classes to the new folder
     const classFolder = path.join('main', 'default', 'classes');
     ['OrderController.cls', 'OrderController.cls-meta.xml', 'PagedResult.cls', 'PagedResult.cls-meta.xml'].map((f) =>
@@ -86,7 +90,5 @@ describe('handles local files moves that also change the file', () => {
     expect(await repo.getDeleteFilenames()).to.deep.equal([]);
     // this is still considered an "add" because the moved file was changed
     expect(await repo.getAddFilenames()).to.deep.equal([editedFilePath]);
-
-    delete process.env.SF_BETA_TRACK_FILE_MOVES;
   });
 });

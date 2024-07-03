@@ -66,6 +66,10 @@ describe(`handles local files moves of ${classCount.toLocaleString()} classes ($
     await session?.clean();
   });
 
+  afterEach(() => {
+    delete process.env.SF_BETA_TRACK_FILE_MOVES;
+  });
+
   it('initialize the local tracking', async () => {
     repo = await ShadowRepo.getInstance({
       orgId: 'fakeOrgId',
@@ -76,7 +80,6 @@ describe(`handles local files moves of ${classCount.toLocaleString()} classes ($
   });
 
   it('should show 0 files in git status after moving them', async () => {
-    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
     process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
@@ -94,6 +97,5 @@ describe(`handles local files moves of ${classCount.toLocaleString()} classes ($
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
       .with.lengthOf(0);
-    delete process.env.SF_BETA_TRACK_FILE_MOVES;
   });
 });

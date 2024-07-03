@@ -27,6 +27,9 @@ describe('can match files with the same hash when the have different parents ', 
     });
   });
 
+  afterEach(() => {
+    delete process.env.SF_BETA_TRACK_FILE_MOVES;
+  });
   after(async () => {
     await session?.clean();
   });
@@ -54,9 +57,7 @@ describe('can match files with the same hash when the have different parents ', 
     });
   });
 
-  it('should show 0 files (images) in git status after moving them', async () => {
-    // eslint-disable-next-line no-unused-expressions
-    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
+  it('should show 0 files in git status after moving them', async () => {
     process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
@@ -79,7 +80,5 @@ describe('can match files with the same hash when the have different parents ', 
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
       .with.lengthOf(0);
-
-    delete process.env.SF_BETA_TRACK_FILE_MOVES;
   });
 });
