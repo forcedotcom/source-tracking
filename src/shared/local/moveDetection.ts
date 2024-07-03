@@ -135,8 +135,13 @@ const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMapsFo
   if (addedMap.size && deletedMap.size) {
     // the remaining deletes didn't match the basename+hash of an add, and vice versa.
     // They *might* match the basename of an add, in which case we *could* have the "move, then edit" case.
-    const addedBasenameMap = new Map([...addedMap.entries()].map(hashEntryToBasenameEntry));
-    const deletedBasenameMap = new Map([...deletedMap.entries()].map(hashEntryToBasenameEntry));
+    // the entry might be sha,basename OR sha,basename,type,parent
+    const addedBasenameMap = new Map(
+      [...addedMap.entries()].filter(hashEntryHasNoTypeInformation).map(hashEntryToBasenameEntry)
+    );
+    const deletedBasenameMap = new Map(
+      [...deletedMap.entries()].filter(hashEntryHasNoTypeInformation).map(hashEntryToBasenameEntry)
+    );
     const deleteOnly = new Map<string, string>(
       Array.from(deletedBasenameMap.entries())
         .filter(([k]) => addedBasenameMap.has(k))
@@ -289,6 +294,7 @@ const toKey = (input: FilenameBasenameHash): string => `${input.hash}${JOIN_CHAR
 
 const hashEntryToBasenameEntry = ([k, v]: [string, string]): [string, string] => [hashToBasename(k), v];
 const hashToBasename = (hash: string): string => hash.split(JOIN_CHAR)[1];
+const hashEntryHasNoTypeInformation = ([k]: [string, string]): boolean => k.split(JOIN_CHAR).length === 2;
 
 const getResolverForFilenames =
   (registry: RegistryAccess) =>
