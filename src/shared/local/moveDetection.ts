@@ -235,7 +235,13 @@ const buildMap =
     // ex: All.ListView-meta.xml that have the same name and hash
     const resolver = getResolverForFilenames(registry)(ignored.map((i) => i.filename));
     ignored
-      .map((i) => ({ filename: i.filename, simpleKey: toKey(i), cmp: resolveType(resolver)([i.filename])[0] }))
+      .flatMap((i) =>
+        resolveType(resolver)([i.filename]).map((cmp) => ({
+          filename: i.filename,
+          simpleKey: toKey(i),
+          cmp,
+        }))
+      )
       .filter(({ cmp }) => cmp.type.name && cmp.parent?.fullName)
       .map(({ cmp, filename, simpleKey: key }) => {
         map.set(`${key}${JOIN_CHAR}${cmp.type.name}${JOIN_CHAR}${cmp.parent?.fullName}`, filename);
