@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "7.0.5-qa.0",
+  "version": "7.0.5",
   "author": "Salesforce",
   "license": "BSD-3-Clause",
   "main": "lib/index.js",
@@ -60,14 +60,14 @@
     "ts-retry-promise": "^0.8.1"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^5.3.15",
+    "@salesforce/cli-plugins-testkit": "^5.3.17",
     "@salesforce/dev-scripts": "^10.2.2",
     "@salesforce/schemas": "^1.9.0",
     "@types/graceful-fs": "^4.1.9",
-    "eslint-plugin-sf-plugin": "^1.18.9",
+    "eslint-plugin-sf-plugin": "^1.18.10",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.2.1",
-    "typescript": "^5.5.2"
+    "typescript": "^5.5.3"
   },
   "config": {},
   "publishConfig": {
