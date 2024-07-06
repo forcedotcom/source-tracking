@@ -1,3 +1,12 @@
+## [7.0.7](https://github.com/forcedotcom/source-tracking/compare/7.0.6...7.0.7) (2024-07-06)
+
+
+### Bug Fixes
+
+* **deps:** bump isomorphic-git from 1.25.10 to 1.27.0 ([b69b0e9](https://github.com/forcedotcom/source-tracking/commit/b69b0e9a74ed6fdb6c12259ec3eb8f9198bf74b3))
+
+
+
 ## [7.0.6](https://github.com/forcedotcom/source-tracking/compare/7.0.5...7.0.6) (2024-07-05)
 
 
