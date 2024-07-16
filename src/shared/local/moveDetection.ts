@@ -18,11 +18,16 @@ import git from 'isomorphic-git';
 import * as fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
 import { isDefined } from '../guards';
+import { uniqueArrayConcat } from '../functions';
 import { isDeleted, isAdded, ensureWindows, toFilenames } from './functions';
-import { AddAndDeleteMaps, FilenameBasenameHash, StatusRow, StringMap } from './types';
+import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
-type AddAndDeleteFileInfos = { addedInfo: FilenameBasenameHash[]; deletedInfo: FilenameBasenameHash[] };
+type AddAndDeleteFileInfos = Readonly<{ addedInfo: DetectionFileInfo[]; deletedInfo: DetectionFileInfo[] }>;
+type AddAndDeleteFileInfosWithTypes = {
+  addedInfo: DetectionFileInfoWithType[];
+  deletedInfo: DetectionFileInfoWithType[];
+};
 type AddedAndDeletedFilenames = { added: Set<string>; deleted: Set<string> };
 type StringMapsForMatches = {
   /** these matches filename=>basename, metadata type/name, and git object hash */
@@ -37,10 +42,15 @@ export const filenameMatchesToMap =
   (registry: RegistryAccess) =>
   (projectPath: string) =>
   (gitDir: string) =>
-  async ({ added, deleted }: AddedAndDeletedFilenames): Promise<StringMapsForMatches> =>
-    excludeNonMatchingTypes(isWindows)(registry)(
-      compareHashes(
-        await buildMaps(registry)(
+  async ({ added, deleted }: AddedAndDeletedFilenames): Promise<StringMapsForMatches> => {
+    const resolver = getResolverForFilenames(registry)(
+      // TODO: use set.union when node 22 is everywhere
+      isWindows ? uniqueArrayConcat(added, deleted).map(ensureWindows) : uniqueArrayConcat(added, deleted)
+    );
+
+    return compareHashes(
+      await buildMaps(
+        addTypes(resolver)(
           await toFileInfo({
             projectPath,
             gitDir,
@@ -50,6 +60,7 @@ export const filenameMatchesToMap =
         )
       )
     );
+  };
 
 /** compare delete and adds from git.status, matching basenames of the files.  returns early when there's nothing to match */
 export const getMatches = (status: StatusRow[]): AddedAndDeletedFilenames => {
@@ -89,29 +100,28 @@ export const getLogMessage = (matches: StringMapsForMatches): string =>
   ].join(EOL);
 
 /** build maps of the add/deletes with filenames, returning the matches  Logs if we can't make a match because buildMap puts them in the ignored bucket */
-const buildMaps =
-  (registry: RegistryAccess) =>
-  async ({ addedInfo, deletedInfo }: AddAndDeleteFileInfos): Promise<AddAndDeleteMaps> => {
-    const [addedMap, addedIgnoredMap] = buildMap(registry)(addedInfo);
-    const [deletedMap, deletedIgnoredMap] = buildMap(registry)(deletedInfo);
+const buildMaps = async ({ addedInfo, deletedInfo }: AddAndDeleteFileInfosWithTypes): Promise<AddAndDeleteMaps> => {
+  const [addedMap, addedIgnoredMap] = buildMap(addedInfo);
+  const [deletedMap, deletedIgnoredMap] = buildMap(deletedInfo);
 
-    // If we detected any files that have the same basename and hash, emit a warning and send telemetry
-    // These files will still show up as expected in the `sf project deploy preview` output
-    // We could add more logic to determine and display filepaths that we ignored...
-    // but this is likely rare enough to not warrant the added complexity
-    // Telemetry will help us determine how often this occurs
-    if (addedIgnoredMap.size || deletedIgnoredMap.size) {
-      const message = 'Files were found that have the same basename and hash. Skipping the commit of these files';
-      const logger = Logger.childFromRoot('ShadowRepo.compareHashes');
-      logger.warn(message);
-      const lifecycle = Lifecycle.getInstance();
-      await Promise.all([
-        lifecycle.emitWarning(message),
-        lifecycle.emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' }),
-      ]);
-    }
-    return { addedMap, deletedMap };
-  };
+  // If we detected any files that have the same basename and hash, emit a warning and send telemetry
+  // These files will still show up as expected in the `sf project deploy preview` output
+  // We could add more logic to determine and display filepaths that we ignored...
+  // but this is likely rare enough to not warrant the added complexity
+  // Telemetry will help us determine how often this occurs
+  if (addedIgnoredMap.size || deletedIgnoredMap.size) {
+    const message =
+      'Files were found that have the same basename, hash, metadata type, and parent. Skipping the commit of these files';
+    const logger = Logger.childFromRoot('ShadowRepo.compareHashes');
+    logger.warn(message);
+    const lifecycle = Lifecycle.getInstance();
+    await Promise.all([
+      lifecycle.emitWarning(message),
+      lifecycle.emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' }),
+    ]);
+  }
+  return { addedMap, deletedMap };
+};
 
 /**
  * builds a map of the values from both maps
@@ -123,7 +133,7 @@ const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMapsFo
       .map(([addedKey, addedValue]) => {
         const deletedValue = deletedMap.get(addedKey);
         if (deletedValue) {
-          // these are an exact basename and hash match
+          // these are an exact basename + hash match + parent + type
           deletedMap.delete(addedKey);
           addedMap.delete(addedKey);
           return [addedValue, deletedValue] as const;
@@ -134,56 +144,19 @@ const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMapsFo
 
   if (addedMap.size && deletedMap.size) {
     // the remaining deletes didn't match the basename+hash of an add, and vice versa.
-    // They *might* match the basename of an add, in which case we *could* have the "move, then edit" case.
-    // the entry might be sha,basename OR sha,basename,type,parent
-    const addedBasenameMap = new Map(
-      [...addedMap.entries()].filter(hashEntryHasNoTypeInformation).map(hashEntryToBasenameEntry)
-    );
-    const deletedBasenameMap = new Map(
-      [...deletedMap.entries()].filter(hashEntryHasNoTypeInformation).map(hashEntryToBasenameEntry)
-    );
+    // They *might* match the basename,type,parent of an add, in which case we *could* have the "move, then edit" case.
+    const addedMapNoHash = new Map([...addedMap.entries()].map(removeHashFromEntry));
+    const deletedMapNoHash = new Map([...deletedMap.entries()].map(removeHashFromEntry));
     const deleteOnly = new Map<string, string>(
-      Array.from(deletedBasenameMap.entries())
-        .filter(([k]) => addedBasenameMap.has(k))
-        .map(([k, v]) => [addedBasenameMap.get(k) as string, v])
+      Array.from(deletedMapNoHash.entries())
+        .filter(([k]) => addedMapNoHash.has(k))
+        .map(([k, v]) => [addedMapNoHash.get(k) as string, v])
     );
     return { fullMatches: matches, deleteOnly };
   }
   return { fullMatches: matches, deleteOnly: new Map<string, string>() };
 };
 
-/** given a StringMap, resolve the metadata types and return things that having matching type/parent  */
-const excludeNonMatchingTypes =
-  (isWindows: boolean) =>
-  (registry: RegistryAccess) =>
-  ({ fullMatches: matches, deleteOnly }: StringMapsForMatches): StringMapsForMatches => {
-    if (!matches.size && !deleteOnly.size) return { fullMatches: matches, deleteOnly };
-    const [resolvedAdded, resolvedDeleted] = [
-      [...matches.keys(), ...deleteOnly.keys()], // the keys/values are only used for the resolver, so we use 1 for both add and delete
-      [...matches.values(), ...deleteOnly.values()],
-    ]
-      .map((filenames) => (isWindows ? filenames.map(ensureWindows) : filenames))
-      .map(getResolverForFilenames(registry))
-      .map(resolveType);
-
-    return {
-      fullMatches: new Map([...matches.entries()].filter(typeFilter(isWindows)(resolvedAdded, resolvedDeleted))),
-      deleteOnly: new Map([...deleteOnly.entries()].filter(typeFilter(isWindows)(resolvedAdded, resolvedDeleted))),
-    };
-  };
-
-const typeFilter =
-  (isWindows: boolean) =>
-  (resolveAdd: ReturnType<typeof resolveType>, resolveDelete: ReturnType<typeof resolveType>) =>
-  ([added, deleted]: [string, string]): boolean => {
-    const [resolvedAdded] = resolveAdd(isWindows ? [ensureWindows(added)] : [added]);
-    const [resolvedDeleted] = resolveDelete(isWindows ? [ensureWindows(deleted)] : [deleted]);
-    return (
-      resolvedAdded?.type.name === resolvedDeleted?.type.name &&
-      resolvedAdded?.parent?.name === resolvedDeleted?.parent?.name &&
-      resolvedAdded?.parent?.type.name === resolvedDeleted?.parent?.type.name
-    );
-  };
 /** enrich the filenames with basename and oid (hash)  */
 const toFileInfo = async ({
   projectPath,
@@ -214,51 +187,30 @@ const toFileInfo = async ({
 };
 
 /** returns a map of <hash+basename, filepath>.  If two items result in the same hash+basename, return that in the ignore bucket */
-const buildMap =
-  (registry: RegistryAccess) =>
-  (info: FilenameBasenameHash[]): StringMap[] => {
-    const map: StringMap = new Map();
-    const ignore: StringMap = new Map();
-    const ignored: FilenameBasenameHash[] = []; // a raw array so that we don't lose uniqueness when the key matches like a map would
+export const buildMap = (info: DetectionFileInfoWithType[]): StringMap[] => {
+  const map: StringMap = new Map();
+  const ignore: StringMap = new Map();
+  const ignored: DetectionFileInfo[] = []; // a raw array so that we don't lose uniqueness when the key matches like a map would
 
-    info.map((i) => {
-      const key = toKey(i);
-      // If we find a duplicate key, we need to remove it and ignore it in the future.
-      // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
-      if (map.has(key) || ignore.has(key)) {
-        map.delete(key);
-        ignore.set(key, i.filename);
-        ignored.push(i);
-      } else {
-        map.set(key, i.filename);
-      }
-    });
+  info.map((i) => {
+    const key = toKey(i);
+    // If we find a duplicate key, we need to remove it and ignore it in the future.
+    // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
+    if (map.has(key) || ignore.has(key)) {
+      map.delete(key);
+      ignore.set(key, i.filename);
+      ignored.push(i);
+    } else {
+      map.set(key, i.filename);
+    }
+  });
 
-    if (!ignore.size) return [map, ignore];
-
-    // we may be able to differentiate ignored child types by their parent instead of ignoring them.  We'll add the type and parent name to the key
-    // ex: All.ListView-meta.xml that have the same name and hash
-    const resolver = getResolverForFilenames(registry)(ignored.map((i) => i.filename));
-    ignored
-      .flatMap((i) =>
-        resolveType(resolver)([i.filename]).map((cmp) => ({
-          filename: i.filename,
-          simpleKey: toKey(i),
-          cmp,
-        }))
-      )
-      .filter(({ cmp }) => cmp.type.name && cmp.parent?.fullName)
-      .map(({ cmp, filename, simpleKey: key }) => {
-        map.set(`${key}${JOIN_CHAR}${cmp.type.name}${JOIN_CHAR}${cmp.parent?.fullName}`, filename);
-        ignore.delete(key);
-      });
-
-    return [map, ignore];
-  };
+  return [map, ignore];
+};
 
 const getHashForAddedFile =
   (projectPath: string) =>
-  async (filepath: string): Promise<FilenameBasenameHash> => ({
+  async (filepath: string): Promise<DetectionFileInfo> => ({
     filename: filepath,
     basename: path.basename(filepath),
     hash: (await git.hashBlob({ object: await fs.promises.readFile(path.join(projectPath, filepath)) })).oid,
@@ -284,19 +236,44 @@ const getHashFromActualFileContents =
   (gitdir: string) =>
   (projectPath: string) =>
   (oid: string) =>
-  async (filepath: string): Promise<FilenameBasenameHash> => ({
+  async (filepath: string): Promise<DetectionFileInfo> => ({
     filename: filepath,
     basename: path.basename(filepath),
     hash: (await git.readBlob({ fs, dir: projectPath, gitdir, filepath, oid })).oid,
   });
 
-const toKey = (input: FilenameBasenameHash): string => `${input.hash}${JOIN_CHAR}${input.basename}`;
+export const toKey = (input: DetectionFileInfoWithType): string =>
+  [input.hash, input.basename, input.type, input.type, input.parentType ?? '', input.parentFullName ?? ''].join(
+    JOIN_CHAR
+  );
 
-const hashEntryToBasenameEntry = ([k, v]: [string, string]): [string, string] => [hashToBasename(k), v];
-const hashToBasename = (hash: string): string => hash.split(JOIN_CHAR)[1];
-const hashEntryHasNoTypeInformation = ([k]: [string, string]): boolean => k.split(JOIN_CHAR).length === 2;
+const removeHashFromEntry = ([k, v]: [string, string]): [string, string] => [removeHashFromKey(k), v];
+const removeHashFromKey = (hash: string): string => hash.split(JOIN_CHAR).splice(1).join(JOIN_CHAR);
 
 const getResolverForFilenames =
   (registry: RegistryAccess) =>
   (filenames: string[]): MetadataResolver =>
     new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(filenames));
+
+/** resolve the metadata types (and possibly parent components) */
+const addTypes =
+  (resolver: MetadataResolver) =>
+  (info: AddAndDeleteFileInfos): AddAndDeleteFileInfosWithTypes => {
+    // quick passthrough if we don't have adds and deletes
+    if (!info.addedInfo.length || !info.deletedInfo.length) return { addedInfo: [], deletedInfo: [] };
+    const applied = getTypesForFileInfo(resolveType(resolver));
+    return {
+      addedInfo: info.addedInfo.flatMap(applied),
+      deletedInfo: info.deletedInfo.flatMap(applied),
+    };
+  };
+
+const getTypesForFileInfo =
+  (appliedResolver: (filenames: string[]) => SourceComponent[]) =>
+  (fileInfo: DetectionFileInfo): DetectionFileInfoWithType[] =>
+    appliedResolver([fileInfo.filename]).map((c) => ({
+      ...fileInfo,
+      type: c.type.name,
+      parentType: c.parent?.type.name ?? '',
+      parentFullName: c.parent?.fullName ?? '',
+    }));

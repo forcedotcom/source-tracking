@@ -154,3 +154,6 @@ export const changeResultToMetadataComponent =
     fullName: cr.name,
     type: registry.getTypeByName(cr.type),
   });
+
+export const uniqueArrayConcat = <T>(arr1: T[] | Set<T>, arr2: T[] | Set<T>): T[] =>
+  Array.from(new Set([...arr1, ...arr2]));

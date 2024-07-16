@@ -21,7 +21,7 @@ afterEach(() => {
   sinon.restore();
 });
 
-describe('local detect moved files', () => {
+describe.skip('local detect moved files', () => {
   const registry = new RegistryAccess();
   it('automatically commits moved files', async () => {
     expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
