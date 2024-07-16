@@ -346,7 +346,7 @@ export class ShadowRepo {
     if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
 
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
-    const matches = await filenameMatchesToMap(IS_WINDOWS)(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
+    const matches = await filenameMatchesToMap(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
 
     if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return movedFilesMarker?.stop();
 

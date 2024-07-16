@@ -19,7 +19,7 @@ import * as fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
 import { isDefined } from '../guards';
 import { uniqueArrayConcat } from '../functions';
-import { isDeleted, isAdded, ensureWindows, toFilenames } from './functions';
+import { isDeleted, isAdded, toFilenames } from './functions';
 import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
@@ -38,15 +38,12 @@ type StringMapsForMatches = {
 
 /** composed functions to simplified use by the shadowRepo class */
 export const filenameMatchesToMap =
-  (isWindows: boolean) =>
   (registry: RegistryAccess) =>
   (projectPath: string) =>
   (gitDir: string) =>
   async ({ added, deleted }: AddedAndDeletedFilenames): Promise<StringMapsForMatches> => {
-    const resolver = getResolverForFilenames(registry)(
-      // TODO: use set.union when node 22 is everywhere
-      isWindows ? uniqueArrayConcat(added, deleted).map(ensureWindows) : uniqueArrayConcat(added, deleted)
-    );
+    // TODO: use set.union when node 22 is everywhere
+    const resolver = getResolverForFilenames(registry)(uniqueArrayConcat(added, deleted));
 
     return compareHashes(
       await buildMaps(
