@@ -189,7 +189,6 @@ const toFileInfo = async ({
 export const buildMap = (info: DetectionFileInfoWithType[]): StringMap[] => {
   const map: StringMap = new Map();
   const ignore: StringMap = new Map();
-  const ignored: DetectionFileInfo[] = []; // a raw array so that we don't lose uniqueness when the key matches like a map would
 
   info.map((i) => {
     const key = toKey(i);
@@ -198,7 +197,6 @@ export const buildMap = (info: DetectionFileInfoWithType[]): StringMap[] => {
     if (map.has(key) || ignore.has(key)) {
       map.delete(key);
       ignore.set(key, i.filename);
-      ignored.push(i);
     } else {
       map.set(key, i.filename);
     }
