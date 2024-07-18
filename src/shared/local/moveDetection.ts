@@ -21,7 +21,7 @@ import { Performance } from '@oclif/core/performance';
 import { isString } from '@salesforce/ts-types';
 import { isDefined } from '../guards';
 import { uniqueArrayConcat } from '../functions';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensureWindows } from './functions';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensureWindows, ensurePosix } from './functions';
 import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
@@ -284,17 +284,20 @@ const getTypesForFileInfo =
 // lifted from SDR VirtualTreeContainer.  SDR's uses the os path sep and shadow repo uses posix.
 const filePathsToVirtualTree = (paths: string[]): VirtualTreeContainer => {
   const virtualDirectoryByFullPath = new Map<string, VirtualDirectory>();
-  paths.filter(isString).map((filename) => {
-    const splits = filename.split(path.posix.sep);
-    for (let i = 0; i < splits.length - 1; i++) {
-      const fullPathSoFar = splits.slice(0, i + 1).join(path.posix.sep);
-      const existing = virtualDirectoryByFullPath.get(fullPathSoFar);
-      virtualDirectoryByFullPath.set(fullPathSoFar, {
-        dirPath: fullPathSoFar,
-        // only add to children if we don't already have it
-        children: Array.from(new Set(existing?.children ?? []).add(splits[i + 1])),
-      });
-    }
-  });
+  paths
+    .filter(isString)
+    .map(ensurePosix)
+    .map((filename) => {
+      const splits = filename.split(path.posix.sep);
+      for (let i = 0; i < splits.length - 1; i++) {
+        const fullPathSoFar = splits.slice(0, i + 1).join(path.posix.sep);
+        const existing = virtualDirectoryByFullPath.get(fullPathSoFar);
+        virtualDirectoryByFullPath.set(fullPathSoFar, {
+          dirPath: fullPathSoFar,
+          // only add to children if we don't already have it
+          children: Array.from(new Set(existing?.children ?? []).add(splits[i + 1])),
+        });
+      }
+    });
   return new VirtualTreeContainer(Array.from(virtualDirectoryByFullPath.values()));
 };

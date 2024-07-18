@@ -14,6 +14,7 @@ export const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => ro
 export const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
 export const isAdded = (status: StatusRow): boolean => status[HEAD] === 0 && status[WORKDIR] === 2;
 export const ensureWindows = (filepath: string): string => path.win32.normalize(filepath);
+export const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);
 
 // We don't use STAGE (StatusRow[3]). Changes are added and committed in one step
 export const FILE = 0;
