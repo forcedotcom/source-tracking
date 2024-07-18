@@ -153,6 +153,11 @@ export class ShadowRepo {
           filter: fileFilter(this.packageDirs),
         });
 
+        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+        if (IS_WINDOWS) {
+          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+        }
+
         // Check for moved files and update local git status accordingly
         if (env.getBoolean('SF_BETA_TRACK_FILE_MOVES') === true) {
           await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
@@ -165,10 +170,7 @@ export class ShadowRepo {
       } catch (e) {
         redirectToCliRepoError(e);
       }
-      // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-      if (IS_WINDOWS) {
-        this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
-      }
+
       marker?.stop();
     }
     this.logger.trace(`done: getStatus (noCache = ${noCache})`);
