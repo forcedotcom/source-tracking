@@ -254,10 +254,7 @@ const removeHashFromKey = (hash: string): string => hash.split(JOIN_CHAR).splice
 const getResolverForFilenames =
   (registry: RegistryAccess) =>
   (filenames: string[]): MetadataResolver =>
-    new MetadataResolver(
-      registry,
-      VirtualTreeContainer.fromFilePaths(IS_WINDOWS ? filenames.map(ensureWindows) : filenames)
-    );
+    new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(filenames));
 
 /** resolve the metadata types (and possibly parent components) */
 const addTypes =
