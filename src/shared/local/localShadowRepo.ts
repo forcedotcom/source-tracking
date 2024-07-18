@@ -17,7 +17,7 @@ import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
 import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
 import { StatusRow } from './types';
-import { isDeleted, isAdded, toFilenames } from './functions';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR } from './functions';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
@@ -43,20 +43,12 @@ type ShadowRepoOptions = {
   registry: RegistryAccess;
 };
 
-// array members for status results
-export const FILE = 0;
-export const HEAD = 1;
-export const WORKDIR = 2;
-// We don't use STAGE (StatusRow[3]). Changes are added and committed in one step
-
 type CommitRequest = {
   deployedFiles?: string[];
   deletedFiles?: string[];
   message?: string;
   needsUpdatedStatus?: boolean;
 };
-
-const IS_WINDOWS = os.type() === 'Windows_NT';
 
 /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
 
