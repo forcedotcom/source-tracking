@@ -19,7 +19,7 @@ import * as fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
 import { isDefined } from '../guards';
 import { uniqueArrayConcat } from '../functions';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS } from './functions';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensureWindows } from './functions';
 import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
@@ -212,7 +212,7 @@ const getHashForAddedFile =
     basename: path.basename(filepath),
     hash: (
       await git.hashBlob({
-        object: await fs.promises.readFile(path.join(projectPath, IS_WINDOWS ? path.normalize(filepath) : filepath)),
+        object: await fs.promises.readFile(path.join(projectPath, IS_WINDOWS ? ensureWindows(filepath) : filepath)),
       })
     ).oid,
   });
@@ -254,7 +254,10 @@ const removeHashFromKey = (hash: string): string => hash.split(JOIN_CHAR).splice
 const getResolverForFilenames =
   (registry: RegistryAccess) =>
   (filenames: string[]): MetadataResolver =>
-    new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(filenames));
+    new MetadataResolver(
+      registry,
+      VirtualTreeContainer.fromFilePaths(IS_WINDOWS ? filenames.map(ensureWindows) : filenames)
+    );
 
 /** resolve the metadata types (and possibly parent components) */
 const addTypes =
