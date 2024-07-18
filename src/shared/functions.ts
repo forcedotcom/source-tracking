@@ -155,5 +155,6 @@ export const changeResultToMetadataComponent =
     type: registry.getTypeByName(cr.type),
   });
 
+// TODO: use set.union when node 22 is everywhere
 export const uniqueArrayConcat = <T>(arr1: T[] | Set<T>, arr2: T[] | Set<T>): T[] =>
   Array.from(new Set([...arr1, ...arr2]));

@@ -134,7 +134,7 @@ export class ShadowRepo {
    *
    * @params noCache: if true, force a redo of the status using FS even if it exists
    *
-   * @returns StatusRow[]
+   * @returns StatusRow[] (paths are os-specific)
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     this.logger.trace(`start: getStatus (noCache = ${noCache})`);
@@ -156,7 +156,7 @@ export class ShadowRepo {
         // Check for moved files and update local git status accordingly
         if (env.getBoolean('SF_BETA_TRACK_FILE_MOVES') === true) {
           await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
-          await this.detectMovedFiles(this.status);
+          await this.detectMovedFiles();
         } else {
           // Adding this telemetry for easier tracking of how many users are using the beta feature
           // This telemetry even will remain when the feature is GA and we switch to opt-out
@@ -333,8 +333,9 @@ export class ShadowRepo {
     marker?.stop();
   }
 
-  private async detectMovedFiles(statusRows: StatusRow[]): Promise<void> {
-    const matchingFiles = getMatches(statusRows);
+  private async detectMovedFiles(): Promise<void> {
+    // get status will return os-specific paths
+    const matchingFiles = getMatches(await this.getStatus());
     if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
 
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');

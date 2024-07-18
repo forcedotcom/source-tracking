@@ -12,16 +12,14 @@ import {
   SourceComponent,
   RegistryAccess,
   VirtualTreeContainer,
-  VirtualDirectory,
 } from '@salesforce/source-deploy-retrieve';
 // @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
 import * as fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
-import { isString } from '@salesforce/ts-types';
 import { isDefined } from '../guards';
 import { uniqueArrayConcat } from '../functions';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensureWindows, ensurePosix } from './functions';
+import { isDeleted, isAdded, toFilenames } from './functions';
 import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
@@ -44,8 +42,10 @@ export const filenameMatchesToMap =
   (projectPath: string) =>
   (gitDir: string) =>
   async ({ added, deleted }: AddedAndDeletedFilenames): Promise<StringMapsForMatches> => {
-    // TODO: use set.union when node 22 is everywhere
-    const resolver = getResolverForFilenames(registry)(uniqueArrayConcat(added, deleted));
+    const resolver = new MetadataResolver(
+      registry,
+      VirtualTreeContainer.fromFilePaths(uniqueArrayConcat(added, deleted))
+    );
 
     return compareHashes(
       await buildMaps(
@@ -214,7 +214,7 @@ const getHashForAddedFile =
     basename: path.basename(filepath),
     hash: (
       await git.hashBlob({
-        object: await fs.promises.readFile(path.join(projectPath, IS_WINDOWS ? ensureWindows(filepath) : filepath)),
+        object: await fs.promises.readFile(path.join(projectPath, filepath)),
       })
     ).oid,
   });
@@ -253,11 +253,6 @@ export const toKey = (input: DetectionFileInfoWithType): string =>
 const removeHashFromEntry = ([k, v]: [string, string]): [string, string] => [removeHashFromKey(k), v];
 const removeHashFromKey = (hash: string): string => hash.split(JOIN_CHAR).splice(1).join(JOIN_CHAR);
 
-const getResolverForFilenames =
-  (registry: RegistryAccess) =>
-  (filenames: string[]): MetadataResolver =>
-    new MetadataResolver(registry, filePathsToVirtualTree(filenames));
-
 /** resolve the metadata types (and possibly parent components) */
 const addTypes =
   (resolver: MetadataResolver) =>
@@ -280,24 +275,3 @@ const getTypesForFileInfo =
       parentType: c.parent?.type.name ?? '',
       parentFullName: c.parent?.fullName ?? '',
     }));
-
-// lifted from SDR VirtualTreeContainer.  SDR's uses the os path sep and shadow repo uses posix.
-const filePathsToVirtualTree = (paths: string[]): VirtualTreeContainer => {
-  const virtualDirectoryByFullPath = new Map<string, VirtualDirectory>();
-  paths
-    .filter(isString)
-    .map(ensurePosix)
-    .map((filename) => {
-      const splits = filename.split(path.posix.sep);
-      for (let i = 0; i < splits.length - 1; i++) {
-        const fullPathSoFar = splits.slice(0, i + 1).join(path.posix.sep);
-        const existing = virtualDirectoryByFullPath.get(fullPathSoFar);
-        virtualDirectoryByFullPath.set(fullPathSoFar, {
-          dirPath: fullPathSoFar,
-          // only add to children if we don't already have it
-          children: Array.from(new Set(existing?.children ?? []).add(splits[i + 1])),
-        });
-      }
-    });
-  return new VirtualTreeContainer(Array.from(virtualDirectoryByFullPath.values()));
-};
