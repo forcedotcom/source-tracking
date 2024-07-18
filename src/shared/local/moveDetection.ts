@@ -19,7 +19,7 @@ import * as fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
 import { isDefined } from '../guards';
 import { uniqueArrayConcat } from '../functions';
-import { isDeleted, isAdded, toFilenames } from './functions';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions';
 import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
@@ -242,7 +242,9 @@ const getHashFromActualFileContents =
   async (filepath: string): Promise<DetectionFileInfo> => ({
     filename: filepath,
     basename: path.basename(filepath),
-    hash: (await git.readBlob({ fs, dir: projectPath, gitdir, filepath, oid })).oid,
+    hash: (
+      await git.readBlob({ fs, dir: projectPath, gitdir, filepath: IS_WINDOWS ? ensurePosix(filepath) : filepath, oid })
+    ).oid,
   });
 
 export const toKey = (input: DetectionFileInfoWithType): string =>
