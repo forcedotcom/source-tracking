@@ -12,11 +12,13 @@ import {
   SourceComponent,
   RegistryAccess,
   VirtualTreeContainer,
+  VirtualDirectory,
 } from '@salesforce/source-deploy-retrieve';
 // @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
 import * as fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
+import { isString } from '@salesforce/ts-types';
 import { isDefined } from '../guards';
 import { uniqueArrayConcat } from '../functions';
 import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensureWindows } from './functions';
@@ -254,7 +256,7 @@ const removeHashFromKey = (hash: string): string => hash.split(JOIN_CHAR).splice
 const getResolverForFilenames =
   (registry: RegistryAccess) =>
   (filenames: string[]): MetadataResolver =>
-    new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(filenames));
+    new MetadataResolver(registry, FilePathsToVirtualTree(filenames));
 
 /** resolve the metadata types (and possibly parent components) */
 const addTypes =
@@ -278,3 +280,21 @@ const getTypesForFileInfo =
       parentType: c.parent?.type.name ?? '',
       parentFullName: c.parent?.fullName ?? '',
     }));
+
+// lifted from SDR VirtualTreeContainer.  SDR's uses the os path sep and shadow repo uses posix.
+const FilePathsToVirtualTree = (paths: string[]): VirtualTreeContainer => {
+  const virtualDirectoryByFullPath = new Map<string, VirtualDirectory>();
+  paths.filter(isString).map((filename) => {
+    const splits = filename.split(path.posix.sep);
+    for (let i = 0; i < splits.length - 1; i++) {
+      const fullPathSoFar = splits.slice(0, i + 1).join(path.posix.sep);
+      const existing = virtualDirectoryByFullPath.get(fullPathSoFar);
+      virtualDirectoryByFullPath.set(fullPathSoFar, {
+        dirPath: fullPathSoFar,
+        // only add to children if we don't already have it
+        children: Array.from(new Set(existing?.children ?? []).add(splits[i + 1])),
+      });
+    }
+  });
+  return new VirtualTreeContainer(Array.from(virtualDirectoryByFullPath.values()));
+};
