@@ -256,7 +256,7 @@ const removeHashFromKey = (hash: string): string => hash.split(JOIN_CHAR).splice
 const getResolverForFilenames =
   (registry: RegistryAccess) =>
   (filenames: string[]): MetadataResolver =>
-    new MetadataResolver(registry, FilePathsToVirtualTree(filenames));
+    new MetadataResolver(registry, filePathsToVirtualTree(filenames));
 
 /** resolve the metadata types (and possibly parent components) */
 const addTypes =
@@ -282,7 +282,7 @@ const getTypesForFileInfo =
     }));
 
 // lifted from SDR VirtualTreeContainer.  SDR's uses the os path sep and shadow repo uses posix.
-const FilePathsToVirtualTree = (paths: string[]): VirtualTreeContainer => {
+const filePathsToVirtualTree = (paths: string[]): VirtualTreeContainer => {
   const virtualDirectoryByFullPath = new Map<string, VirtualDirectory>();
   paths.filter(isString).map((filename) => {
     const splits = filename.split(path.posix.sep);
