@@ -1,3 +1,23 @@
+## [7.0.9](https://github.com/forcedotcom/source-tracking/compare/7.0.8...7.0.9) (2024-07-14)
+
+### Bug Fixes
+
+- **deps:** bump isomorphic-git from 1.27.0 to 1.27.1 ([239edee](https://github.com/forcedotcom/source-tracking/commit/239edee903c75683d12115157c167e00d6a2d0f6))
+
+## [7.0.8](https://github.com/forcedotcom/source-tracking/compare/7.0.7...7.0.8) (2024-07-13)
+
+### Bug Fixes
+
+- **deps:** bump @oclif/core from 4.0.8 to 4.0.11 ([9a53e49](https://github.com/forcedotcom/source-tracking/commit/9a53e49e6ac0a917e97eeaed94ccbd5ae60904b9))
+
+## [7.0.7](https://github.com/forcedotcom/source-tracking/compare/7.0.6...7.0.7) (2024-07-06)
+
+### Bug Fixes
+
+- **deps:** bump isomorphic-git from 1.25.10 to 1.27.0 ([b69b0e9](https://github.com/forcedotcom/source-tracking/commit/b69b0e9a74ed6fdb6c12259ec3eb8f9198bf74b3))
+
+## [7.0.6](https://github.com/forcedotcom/source-tracking/compare/7.0.5...7.0.6) (2024-07-05)
+
 ## [7.0.5](https://github.com/forcedotcom/source-tracking/compare/7.0.4...7.0.5) (2024-07-03)
 
 ### Bug Fixes
