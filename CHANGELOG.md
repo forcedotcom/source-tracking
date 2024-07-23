@@ -1,3 +1,15 @@
+## [7.0.11](https://github.com/forcedotcom/source-tracking/compare/7.0.10...7.0.11) (2024-07-20)
+
+### Bug Fixes
+
+- **deps:** bump @oclif/core from 4.0.11 to 4.0.12 ([b236bee](https://github.com/forcedotcom/source-tracking/commit/b236bee5b6b746888582a7be23c0d77ff7b9cf34))
+
+## [7.0.10](https://github.com/forcedotcom/source-tracking/compare/7.0.9...7.0.10) (2024-07-20)
+
+### Bug Fixes
+
+- **deps:** bump @salesforce/source-deploy-retrieve from 12.1.5 to 12.1.8 ([a7d6704](https://github.com/forcedotcom/source-tracking/commit/a7d6704a0ec69f51c9afa4334851758474b67b8e))
+
 ## [7.0.9](https://github.com/forcedotcom/source-tracking/compare/7.0.8...7.0.9) (2024-07-14)
 
 ### Bug Fixes
