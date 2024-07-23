@@ -27,7 +27,7 @@
     "test:nuts:local:moved:scale": "mocha \"**/nuts/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved:image": "mocha \"**/nuts/local/localTrackingFileMovesImage.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved:child": "mocha \"**/nuts/local/localTrackingFileMovesDecomposedChild.nut.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000",
+    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:only": "wireit"
   },
   "keywords": [
@@ -49,8 +49,8 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@oclif/core": "^4.0.12",
-    "@salesforce/core": "^8.1.1",
+    "@oclif/core": "^4.0.14",
+    "@salesforce/core": "^8.2.3",
     "@salesforce/kit": "^3.1.6",
     "@salesforce/source-deploy-retrieve": "^12.1.8",
     "@salesforce/ts-types": "^2.0.10",

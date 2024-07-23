@@ -17,7 +17,7 @@ import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
 import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
 import { StatusRow } from './types';
-import { isDeleted, isAdded, toFilenames } from './functions';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
@@ -43,20 +43,12 @@ type ShadowRepoOptions = {
   registry: RegistryAccess;
 };
 
-// array members for status results
-export const FILE = 0;
-export const HEAD = 1;
-export const WORKDIR = 2;
-// We don't use STAGE (StatusRow[3]). Changes are added and committed in one step
-
 type CommitRequest = {
   deployedFiles?: string[];
   deletedFiles?: string[];
   message?: string;
   needsUpdatedStatus?: boolean;
 };
-
-const IS_WINDOWS = os.type() === 'Windows_NT';
 
 /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
 
@@ -142,7 +134,7 @@ export class ShadowRepo {
    *
    * @params noCache: if true, force a redo of the status using FS even if it exists
    *
-   * @returns StatusRow[]
+   * @returns StatusRow[] (paths are os-specific)
    */
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     this.logger.trace(`start: getStatus (noCache = ${noCache})`);
@@ -161,6 +153,11 @@ export class ShadowRepo {
           filter: fileFilter(this.packageDirs),
         });
 
+        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+        if (IS_WINDOWS) {
+          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+        }
+
         // Check for moved files and update local git status accordingly
         if (env.getBoolean('SF_BETA_TRACK_FILE_MOVES') === true) {
           await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
@@ -173,10 +170,7 @@ export class ShadowRepo {
       } catch (e) {
         redirectToCliRepoError(e);
       }
-      // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-      if (IS_WINDOWS) {
-        this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
-      }
+
       marker?.stop();
     }
     this.logger.trace(`done: getStatus (noCache = ${noCache})`);
@@ -342,11 +336,12 @@ export class ShadowRepo {
   }
 
   private async detectMovedFiles(): Promise<void> {
+    // get status will return os-specific paths
     const matchingFiles = getMatches(await this.getStatus());
     if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
 
     const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
-    const matches = await filenameMatchesToMap(IS_WINDOWS)(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
+    const matches = await filenameMatchesToMap(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
 
     if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return movedFilesMarker?.stop();
 
@@ -376,7 +371,6 @@ const packageDirToRelativePosixPath =
       : path.relative(projectPath, packageDir.fullPath);
 
 const normalize = (filepath: string): string => path.normalize(filepath);
-const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);
 
 const fileFilter =
   (packageDirs: string[]) =>

@@ -4,7 +4,11 @@
  * Licensed under the BSD 3-Clause license.
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-export type FilenameBasenameHash = { filename: string; hash: string; basename: string };
+
+export type DetectionFileInfo = Readonly<{ filename: string; hash: string; basename: string }>;
+export type DetectionFileInfoWithType = Readonly<
+  DetectionFileInfo & { type: string; parentFullName: string; parentType: string }
+>;
 export type StringMap = Map<string, string>;
 export type AddAndDeleteMaps = { addedMap: StringMap; deletedMap: StringMap }; // https://isomorphic-git.org/docs/en/statusMatrix#docsNav
 

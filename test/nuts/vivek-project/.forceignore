@@ -1,0 +1,30 @@
+# List files or directories below to ignore them when running "sf project deploy start" or "sf project retrieve start".
+# Run "sf project list ignored" at the command line to validate the list of ignored source files.
+# More information: https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_exclude_source.htm
+#
+
+# Package XML files
+package.xml
+
+# LWC configuration files
+**/jsconfig.json
+**/.eslintrc.json
+
+# LWC Jest
+**/__tests__/**
+
+# Metadata Types to Fully Ignore
+**/appMenus
+**/duplicateRules
+
+# Profiles
+**.profile-meta.xml
+
+# Uncomment to NOT ignore the Admin profile
+#!**Admin.profile-meta.xml
+
+# Ignore the default permission set
+**/permissionsets/sfdcInternalInt__sfdc_scrt2.permissionset-meta.xml
+
+# Ignore Placeholder files
+**.placeholder

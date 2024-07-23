@@ -12,55 +12,67 @@ import * as fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
-/* eslint-disable no-unused-expressions */
-
-describe('it detects image file moves ', () => {
+describe('can match files with the same hash when the have different parents ', () => {
   const registry = new RegistryAccess();
   let session: TestSession;
   let repo: ShadowRepo;
   let filesToSync: string[];
-  let staticDir: string;
 
   before(async () => {
     session = await TestSession.create({
       project: {
-        sourceDir: path.join('test', 'nuts', 'ebikes-lwc'),
+        sourceDir: path.join('test', 'nuts', 'vivek-project'),
       },
       devhubAuthStrategy: 'NONE',
     });
-    staticDir = path.join(session.project.dir, 'force-app', 'main', 'default', 'staticresources');
-  });
-
-  after(async () => {
-    await session?.clean();
   });
 
   afterEach(() => {
     delete process.env.SF_BETA_TRACK_FILE_MOVES;
+  });
+  after(async () => {
+    await session?.clean();
   });
 
   it('initialize the local tracking', async () => {
     repo = await ShadowRepo.getInstance({
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
-      packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+      packageDirs: [
+        {
+          path: path.join('sfdx-source', 'packaged'),
+          name: 'packaged',
+          fullPath: path.join(session.project.dir, 'sfdx-source', 'packaged'),
+        },
+        {
+          path: path.join('sfdx-source', 'unsorted'),
+          name: 'unsorted',
+          fullPath: path.join(session.project.dir, 'sfdx-source', 'unsorted'),
+        },
+      ],
       registry,
+    });
+    await fs.promises.mkdir(path.join(session.project.dir, 'sfdx-source', 'unsorted', 'main', 'default', 'objects'), {
+      recursive: true,
     });
   });
 
-  it('should show 0 files (images) in git status after moving them', async () => {
+  it('should show 0 files in git status after moving them', async () => {
     process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
     await repo.commitChanges({ deployedFiles: filesToSync });
 
+    const topDir = path.join(session.project.dir, 'sfdx-source');
     // move all the classes to the new folder
-    fs.mkdirSync(path.join(staticDir, 'bike_assets_new'), {
-      recursive: true,
-    });
     fs.renameSync(
-      path.join(staticDir, 'bike_assets', 'CyclingGrass.jpg'),
-      path.join(staticDir, 'bike_assets_new', 'CyclingGrass.jpg')
+      path.join(topDir, 'packaged', 'main', 'objects', 'Workbook__c'),
+      path.join(topDir, 'unsorted', 'main', 'default', 'objects', 'Workbook__c')
+    );
+
+    fs.renameSync(
+      path.join(topDir, 'packaged', 'main', 'objects', 'Workshop__c'),
+      path.join(topDir, 'unsorted', 'main', 'default', 'objects', 'Workshop__c')
     );
 
     await repo.getStatus(true);

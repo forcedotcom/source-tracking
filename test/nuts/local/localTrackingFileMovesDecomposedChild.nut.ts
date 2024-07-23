@@ -48,7 +48,6 @@ describe('ignores moved files that are children of a decomposed metadata type', 
   });
 
   it('should ignore moved child metadata', async () => {
-    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
     process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing files
     const filesToSync = await repo.getChangedFilenames();
@@ -74,6 +73,7 @@ describe('ignores moved files that are children of a decomposed metadata type', 
   });
 
   it('should clear tracking when the field is moved to another dir', async () => {
+    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     const newDir = path.join(session.project.dir, 'force-app', 'other', 'objects', 'Order__c', 'fields');
     await fs.promises.mkdir(newDir, {
       recursive: true,

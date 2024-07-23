@@ -59,7 +59,7 @@ describe('sourceTracking: localChangesAsComponentSet', () => {
   it('byPkgDir => 3 component sets and shows ignored files', async () => {
     // will forceignore an entire directory--effectively, a pkgDir with no files found
     const forceIgnoreLocation = path.join(session.project.dir, '.forceignore');
-    await fs.promises.writeFile(forceIgnoreLocation, path.join('my-app', '*'));
+    await fs.promises.writeFile(forceIgnoreLocation, 'my-app/*');
 
     // new instance of STL since we changed the forceignore (it'd be cached from previous tests)
     stl = await getSTLInstance(session);
