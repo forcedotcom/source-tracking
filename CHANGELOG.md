@@ -1,3 +1,12 @@
+## [7.1.4](https://github.com/forcedotcom/source-tracking/compare/7.1.3...7.1.4) (2024-08-03)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/kit from 3.1.6 to 3.2.0 ([09f9bf4](https://github.com/forcedotcom/source-tracking/commit/09f9bf40c27a70c012dc56d81dbdf982dd026080))
+
+
+
 ## [7.1.3](https://github.com/forcedotcom/source-tracking/compare/7.1.2...7.1.3) (2024-08-03)
 
 
