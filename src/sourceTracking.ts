@@ -401,11 +401,14 @@ export class SourceTracking extends AsyncCreatable {
       )
     );
 
+    // original CustomLabels behavior
+    const nonDecomposedLabels = this.registry.getTypeByName('customlabel').strategies?.transformer === 'nonDecomposed';
+
     const filenames = Array.from(sourceComponentByFileName.keys());
     // delete the files
     await Promise.all(
       filenames.map((filename) =>
-        sourceComponentByFileName.get(filename)?.type.id === 'customlabel'
+        sourceComponentByFileName.get(filename)?.type.id === 'customlabel' && nonDecomposedLabels
           ? deleteCustomLabels(filename, changesToDelete.filter(sourceComponentIsCustomLabel))
           : fs.promises.unlink(filename)
       )
