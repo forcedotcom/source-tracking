@@ -80,7 +80,7 @@ export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string
 ]);
 
 export const registrySupportsType =
-  (registry: RegistryAccess) =>
+  (registry: RegistryAccess = new RegistryAccess()) =>
   (type: string): boolean => {
     if (mappingsForSourceMemberTypesToMetadataType.has(type)) {
       return true;
