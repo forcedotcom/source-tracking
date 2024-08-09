@@ -320,7 +320,7 @@ export class SourceTracking extends AsyncCreatable {
       const filteredChanges = remoteChanges
         .filter(remoteFilterByState[options.state])
         // skip any remote types not in the registry.  Will emit warnings
-        .filter((rce) => registrySupportsType(rce.type));
+        .filter((rce) => registrySupportsType(this.registry)(rce.type));
       if (options.format === 'ChangeResult') {
         return filteredChanges.map(remoteChangeElementToChangeResult);
       }

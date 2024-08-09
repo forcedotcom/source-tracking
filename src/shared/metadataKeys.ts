@@ -6,7 +6,7 @@
  */
 import { basename, dirname, join, normalize, sep } from 'node:path';
 import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { Lifecycle } from '@salesforce/core';
+import { Lifecycle } from '@salesforce/core/lifecycle';
 import { RemoteSyncInput } from './types';
 import { getMetadataKey } from './functions';
 
@@ -20,13 +20,13 @@ const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
       ).replace(/\\/gi, '/')
     : '';
 
-const registry = new RegistryAccess();
+const registryAccess = new RegistryAccess();
 
 // only compute once
-const aliasTypes: Array<[string, string]> = registry
+const aliasTypes: Array<[string, string]> = registryAccess
   .getAliasTypes()
   // allow assertion because aliasTypes are defined as having that property
-  .map((aliasType) => [aliasType.name, registry.getTypeByName(aliasType.aliasFor!).name]);
+  .map((aliasType) => [aliasType.name, registryAccess.getTypeByName(aliasType.aliasFor!).name]);
 
 const reverseAliasTypes = new Map(aliasTypes.map(([alias, type]) => [type, alias]));
 
@@ -79,32 +79,34 @@ export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string
   ['LightningComponentResource', 'LightningComponentBundle'],
 ]);
 
-export const registrySupportsType = (type: string): boolean => {
-  if (mappingsForSourceMemberTypesToMetadataType.has(type)) {
-    return true;
-  }
-  if (type === 'PicklistValue') {
-    /* "PicklistValue" appears occasionally in sourceMembers, but it's not a real, addressable type in the registry
-     * It only appears when a picklist value is reactivated, so I'd call this a SourceMember bug
-     * We also can't make it a child type in the SDR registry because it it can be a parent of either CustomField/Picklist OR GlobalValueSet
-     * in both parent cases (GVS and CustomField), the the parent is marked as changed in SourceMembers, to the behavior is ok igoring the PicklistValue
-     * This suppresses the warning, and could be removed if the SourceMember bug is fixed
-     */
-    return false;
-  }
-  if (type === 'ExperienceResource') {
-    /* ExperienceResource is a child of ExperienceBundle but fine-grained source tracking isn't supported for
-     * ExperienceBundle since it's not defined that way in the SDR registry.  Since ExperienceBundle is
-     * essentially deprecated in favor of DigitalExperienceBundle this is not something we're going to support.
-     */
-    return false;
-  }
-  try {
-    // this must use getTypeByName because findType doesn't support addressable child types (ex: customField!)
-    registry.getTypeByName(type);
-    return true;
-  } catch (e) {
-    void Lifecycle.getInstance().emitWarning(`Unable to find type ${type} in registry`);
-    return false;
-  }
-};
+export const registrySupportsType =
+  (registry: RegistryAccess) =>
+  (type: string): boolean => {
+    if (mappingsForSourceMemberTypesToMetadataType.has(type)) {
+      return true;
+    }
+    if (type === 'PicklistValue') {
+      /* "PicklistValue" appears occasionally in sourceMembers, but it's not a real, addressable type in the registry
+       * It only appears when a picklist value is reactivated, so I'd call this a SourceMember bug
+       * We also can't make it a child type in the SDR registry because it it can be a parent of either CustomField/Picklist OR GlobalValueSet
+       * in both parent cases (GVS and CustomField), the the parent is marked as changed in SourceMembers, to the behavior is ok igoring the PicklistValue
+       * This suppresses the warning, and could be removed if the SourceMember bug is fixed
+       */
+      return false;
+    }
+    if (type === 'ExperienceResource') {
+      /* ExperienceResource is a child of ExperienceBundle but fine-grained source tracking isn't supported for
+       * ExperienceBundle since it's not defined that way in the SDR registry.  Since ExperienceBundle is
+       * essentially deprecated in favor of DigitalExperienceBundle this is not something we're going to support.
+       */
+      return false;
+    }
+    try {
+      // this must use getTypeByName because findType doesn't support addressable child types (ex: customField!)
+      registry.getTypeByName(type);
+      return true;
+    } catch (e) {
+      void Lifecycle.getInstance().emitWarning(`Unable to find type ${type} in registry`);
+      return false;
+    }
+  };
