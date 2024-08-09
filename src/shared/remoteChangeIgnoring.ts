@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import { ForceIgnore, MetadataComponent, MetadataMember, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { SfError } from '@salesforce/core';
+import { SfError } from '@salesforce/core/sfError';
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
 import { ChangeResult } from './types';
 import { isChangeResultWithNameAndType } from './guards';
