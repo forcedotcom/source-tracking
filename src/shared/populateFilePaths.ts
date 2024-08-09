@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
 import { EOL } from 'node:os';
-import { Logger } from '@salesforce/core';
+import { Logger } from '@salesforce/core/logger';
 import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
 import { isChangeResultWithNameAndType } from './guards';

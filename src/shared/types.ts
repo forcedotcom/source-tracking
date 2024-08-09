@@ -6,7 +6,7 @@
  */
 
 import { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
-import { SfError } from '@salesforce/core';
+import { SfError } from '@salesforce/core/sfError';
 
 export type ChangeOptions = {
   origin: 'local' | 'remote';
@@ -69,7 +69,7 @@ export type ConflictResponse = {
 // there will be a data property of type ConflictResponse[]
 export type SourceConflictErrorType = {
   name: 'SourceConflictError';
-} & SfError<ConflictResponse[]>
+} & SfError<ConflictResponse[]>;
 
 export class SourceConflictError extends SfError<ConflictResponse[]> implements SourceConflictErrorType {
   public readonly name: SourceConflictErrorType['name'];
