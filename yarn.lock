@@ -530,16 +530,16 @@
   resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
   integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
 
-"@salesforce/cli-plugins-testkit@^5.3.20":
-  version "5.3.20"
-  resolved "https://registry.yarnpkg.com/@salesforce/cli-plugins-testkit/-/cli-plugins-testkit-5.3.20.tgz#03ecb0fe32345a8d468101d2c34bdd7235196b39"
-  integrity sha512-MRY3o8TXmiRmdDQ4orwnGhbxFHqX5xCKvGTIYwPRGSgMs2RHyyPrWrtS+aSC3IINEFJX7NSsXluTJIgl1R2fPA==
+"@salesforce/cli-plugins-testkit@^5.3.23":
+  version "5.3.23"
+  resolved "https://registry.yarnpkg.com/@salesforce/cli-plugins-testkit/-/cli-plugins-testkit-5.3.23.tgz#a7591d9f59fd312e04534082ae78035ad2faa241"
+  integrity sha512-6z5qi2mM6yPNorbicq/AWRDLSTN0q4h8UdmdFBGvhs7JlVpxRg93YLEchVsVrcifXKXwmBONm7KXMLF5GUP8fA==
   dependencies:
-    "@salesforce/core" "^8.2.3"
-    "@salesforce/kit" "^3.1.6"
+    "@salesforce/core" "^8.2.8"
+    "@salesforce/kit" "^3.2.0"
     "@salesforce/ts-types" "^2.0.10"
     "@types/shelljs" "^0.8.15"
-    debug "^4.3.5"
+    debug "^4.3.6"
     jszip "^3.10.1"
     shelljs "^0.8.4"
     sinon "^17.0.2"
@@ -1793,10 +1793,10 @@ dateformat@^4.6.3:
   resolved "https://registry.yarnpkg.com/dateformat/-/dateformat-4.6.3.tgz#556fa6497e5217fedb78821424f8a1c22fa3f4b5"
   integrity sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==
 
-debug@4, debug@^4.1.0, debug@^4.1.1, debug@^4.3.1, debug@^4.3.2, debug@^4.3.4, debug@^4.3.5:
-  version "4.3.5"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-4.3.5.tgz#e83444eceb9fedd4a1da56d671ae2446a01a6e1e"
-  integrity sha512-pt0bNEmneDIvdL1Xsd9oDQ/wrQRkXDT4AUWlNZNPKvW5x/jyO9VFXkJUP07vQ2upmw5PlaITaPKc31jK13V+jg==
+debug@4, debug@^4.1.0, debug@^4.1.1, debug@^4.3.1, debug@^4.3.2, debug@^4.3.4, debug@^4.3.5, debug@^4.3.6:
+  version "4.3.6"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-4.3.6.tgz#2ab2c38fbaffebf8aa95fdfe6d88438c7a13c52b"
+  integrity sha512-O/09Bd4Z1fBrU4VzkhFqVgpPzaGbw6Sm9FEkBT1A/YBXQFGuuSxa1dN2nxgxS34JmKXqYx8CZAwEVoJFImUXIg==
   dependencies:
     ms "2.1.2"
 
