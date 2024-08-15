@@ -1,3 +1,17 @@
+## [7.1.6](https://github.com/forcedotcom/source-tracking/compare/7.1.6-qa.0...7.1.6) (2024-08-15)
+
+
+
+## [7.1.6-qa.0](https://github.com/forcedotcom/source-tracking/compare/7.1.5...7.1.6-qa.0) (2024-08-15)
+
+
+### Bug Fixes
+
+* limit special label handling to original (non-preset) ([e13297c](https://github.com/forcedotcom/source-tracking/commit/e13297c4643217f698b9777d2ee3e24f045717c5))
+* reuse already-generated registry for metadataKeys ([dcbe398](https://github.com/forcedotcom/source-tracking/commit/dcbe398bdb4578cf993f823c40655ece5901ee5d))
+
+
+
 ## [7.1.5](https://github.com/forcedotcom/source-tracking/compare/7.1.4...7.1.5) (2024-08-04)
 
 
