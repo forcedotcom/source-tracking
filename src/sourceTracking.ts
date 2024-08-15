@@ -320,7 +320,7 @@ export class SourceTracking extends AsyncCreatable {
       const filteredChanges = remoteChanges
         .filter(remoteFilterByState[options.state])
         // skip any remote types not in the registry.  Will emit warnings
-        .filter((rce) => registrySupportsType(rce.type));
+        .filter((rce) => registrySupportsType(this.registry)(rce.type));
       if (options.format === 'ChangeResult') {
         return filteredChanges.map(remoteChangeElementToChangeResult);
       }
@@ -401,11 +401,14 @@ export class SourceTracking extends AsyncCreatable {
       )
     );
 
+    // original CustomLabels behavior
+    const nonDecomposedLabels = this.registry.getTypeByName('customlabel').strategies?.transformer === 'nonDecomposed';
+
     const filenames = Array.from(sourceComponentByFileName.keys());
     // delete the files
     await Promise.all(
       filenames.map((filename) =>
-        sourceComponentByFileName.get(filename)?.type.id === 'customlabel'
+        sourceComponentByFileName.get(filename)?.type.id === 'customlabel' && nonDecomposedLabels
           ? deleteCustomLabels(filename, changesToDelete.filter(sourceComponentIsCustomLabel))
           : fs.promises.unlink(filename)
       )

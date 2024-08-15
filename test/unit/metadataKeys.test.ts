@@ -109,12 +109,12 @@ describe('metadataKeys', () => {
 
 describe('registrySupportsType', () => {
   it('custom mapped types', () => {
-    expect(registrySupportsType('AuraDefinition')).to.equal(true);
-    expect(registrySupportsType('LightningComponentResource')).to.equal(true);
+    expect(registrySupportsType()('AuraDefinition')).to.equal(true);
+    expect(registrySupportsType()('LightningComponentResource')).to.equal(true);
   });
   it('other real types types', () => {
-    expect(registrySupportsType('CustomObject')).to.equal(true);
-    expect(registrySupportsType('ApexClass')).to.equal(true);
+    expect(registrySupportsType()('CustomObject')).to.equal(true);
+    expect(registrySupportsType()('ApexClass')).to.equal(true);
   });
   it('bad type returns false and emits warning', async () => {
     const warningEmitted: string[] = [];
@@ -124,7 +124,7 @@ describe('registrySupportsType', () => {
       warningEmitted.push(w);
       return Promise.resolve();
     });
-    expect(registrySupportsType(badType)).to.equal(false);
+    expect(registrySupportsType()(badType)).to.equal(false);
     expect(
       warningEmitted.some((w) => w.includes(badType)),
       'warning not emitted'
