@@ -402,7 +402,7 @@ export class SourceTracking extends AsyncCreatable {
     );
 
     // original CustomLabels behavior
-    const nonDecomposedLabels = this.registry.getTypeByName('customlabel').strategies?.transformer === 'nonDecomposed';
+    const nonDecomposedLabels = this.registry.getTypeByName('customlabels').strategies?.transformer === 'nonDecomposed';
 
     const filenames = Array.from(sourceComponentByFileName.keys());
     // delete the files
