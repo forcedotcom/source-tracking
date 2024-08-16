@@ -1,3 +1,12 @@
+## [7.1.7](https://github.com/forcedotcom/source-tracking/compare/7.1.6...7.1.7) (2024-08-16)
+
+
+### Bug Fixes
+
+* look for xformer on labels parent type ([0e6b593](https://github.com/forcedotcom/source-tracking/commit/0e6b593e69db8bc7351555968f01ebdb7be6192c))
+
+
+
 ## [7.1.6](https://github.com/forcedotcom/source-tracking/compare/7.1.6-qa.0...7.1.6) (2024-08-15)
 
 
