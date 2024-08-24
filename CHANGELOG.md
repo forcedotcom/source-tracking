@@ -1,3 +1,12 @@
+## [7.1.9](https://github.com/forcedotcom/source-tracking/compare/7.1.8...7.1.9) (2024-08-24)
+
+
+### Bug Fixes
+
+* **deps:** bump micromatch from 4.0.5 to 4.0.8 ([cb034f8](https://github.com/forcedotcom/source-tracking/commit/cb034f891f0c345abd85311b4e4e227528fee3f2))
+
+
+
 ## [7.1.8](https://github.com/forcedotcom/source-tracking/compare/7.1.7...7.1.8) (2024-08-24)
 
 
