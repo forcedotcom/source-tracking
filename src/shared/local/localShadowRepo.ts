@@ -8,7 +8,7 @@
 import path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'graceful-fs';
-import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
+import { NamedPackageDir, Lifecycle, Logger, SfError, envVars } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 // @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
@@ -52,9 +52,9 @@ type CommitRequest = {
 
 /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
 
-const MAX_FILE_ADD = env.getNumber(
+const MAX_FILE_ADD = envVars.getNumber(
   'SF_SOURCE_TRACKING_BATCH_SIZE',
-  env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
+  envVars.getNumber('SF_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
 );
 
 export class ShadowRepo {
