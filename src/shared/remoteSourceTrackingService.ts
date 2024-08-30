@@ -237,8 +237,8 @@ export class RemoteSourceTrackingService {
    * @param pollingTimeout maximum amount of time in seconds to poll for SourceMembers
    */
   public async pollForSourceTracking(expectedMembers: RemoteSyncInput[]): Promise<void> {
-    if (envVars.getBoolean('SF_DISABLE_SOURCE_MEMBER_POLLING', false)) {
-      this.logger.warn('Not polling for SourceMembers since SFDX_DISABLE_SOURCE_MEMBER_POLLING = true.');
+    if (envVars.getBoolean('SFDX_DISABLE_SOURCE_MEMBER_POLLING', false)) {
+      this.logger.warn('Not polling for SourceMembers since SF_DISABLE_SOURCE_MEMBER_POLLING = true.');
       return;
     }
 

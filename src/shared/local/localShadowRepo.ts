@@ -52,10 +52,7 @@ type CommitRequest = {
 
 /** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
 
-const MAX_FILE_ADD = envVars.getNumber(
-  'SF_SOURCE_TRACKING_BATCH_SIZE',
-  envVars.getNumber('SF_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
-);
+const MAX_FILE_ADD = envVars.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000);
 
 export class ShadowRepo {
   private static instanceMap = new Map<string, ShadowRepo>();
