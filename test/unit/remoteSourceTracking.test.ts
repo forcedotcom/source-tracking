@@ -11,9 +11,8 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
-import { Logger, Messages, Org } from '@salesforce/core';
+import { envVars, Logger, Messages, Org } from '@salesforce/core';
 // eslint-disable-next-line no-restricted-imports
-import * as kit from '@salesforce/kit';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService, calculateTimeout, Contents } from '../../src/shared/remoteSourceTrackingService';
@@ -469,7 +468,7 @@ describe('remoteSourceTrackingService', () => {
       });
     });
     it('should not poll when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
-      const getBooleanStub = $$.SANDBOX.stub(kit.env, 'getBoolean').callsFake(() => true);
+      const getBooleanStub = $$.SANDBOX.stub(envVars, 'getBoolean').callsFake(() => true);
 
       // @ts-ignore
       const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -512,7 +511,7 @@ describe('remoteSourceTrackingService', () => {
 
       it('should stop if SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is exceeded', async () => {
         // @ts-ignore
-        $$.SANDBOX.stub(kit.env, 'getString').callsFake(() => '3');
+        $$.SANDBOX.stub(envVars, 'getString').callsFake(() => '3');
         // @ts-ignore
         const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
 

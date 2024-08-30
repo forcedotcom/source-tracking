@@ -5,7 +5,10 @@
     "skipLibCheck": true,
     "plugins": [{ "transform": "@salesforce/core/messageTransformer", "import": "messageTransformer" }],
     "moduleResolution": "Node16",
-    "module": "Node16"
+    "module": "Node16",
+    "paths": {
+      "@salesforce/core": ["./node_modules/@salesforce/core"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

@@ -572,7 +572,7 @@ const readFileContents = async (filePath: string): Promise<Contents | Record<str
 export const calculateTimeout =
   (logger: PinoLogger) =>
   (memberCount: number): Duration => {
-    const overriddenTimeout = envVars.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
+    const overriddenTimeout = envVars.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
     if (overriddenTimeout > 0) {
       logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
       return Duration.seconds(overriddenTimeout);
