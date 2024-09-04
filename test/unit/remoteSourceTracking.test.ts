@@ -11,9 +11,7 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
-import { Logger, Messages, Org } from '@salesforce/core';
-// eslint-disable-next-line no-restricted-imports
-import * as kit from '@salesforce/kit';
+import { EnvVars, envVars, Logger, Messages, Org } from '@salesforce/core';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { RemoteSourceTrackingService, calculateTimeout, Contents } from '../../src/shared/remoteSourceTrackingService';
@@ -40,6 +38,13 @@ const getMemberRevisionEntries = (revision: number, synced = false): { [key: str
     };
   }
   return sourceMemberEntries;
+};
+
+const reResolveEnvVars = (): void => {
+  /* eslint-disable @typescript-eslint/no-unsafe-call */
+  // @ts-ignore to force a re-resolve
+  envVars.resolve();
+  /* eslint-enable @typescript-eslint/no-unsafe-call */
 };
 
 describe('remoteSourceTrackingService', () => {
@@ -408,6 +413,13 @@ describe('remoteSourceTrackingService', () => {
       state: ComponentStatus.Changed,
     }));
 
+    afterEach(() => {
+      envVars.unset('SFDX_DISABLE_SOURCE_MEMBER_POLLING');
+      envVars.unset('SF_DISABLE_SOURCE_MEMBER_POLLING');
+      envVars.unset('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT');
+      envVars.unset('SF_SOURCE_MEMBER_POLLING_TIMEOUT');
+    });
+
     it('should sync SourceMembers when query results match', async () => {
       // @ts-ignore
       const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom');
@@ -469,7 +481,10 @@ describe('remoteSourceTrackingService', () => {
       });
     });
     it('should not poll when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
-      const getBooleanStub = $$.SANDBOX.stub(kit.env, 'getBoolean').callsFake(() => true);
+      envVars.setString('SFDX_DISABLE_SOURCE_MEMBER_POLLING', 'true');
+
+      reResolveEnvVars();
+      const getBooleanSpy = $$.SANDBOX.spy(EnvVars.prototype, 'getBoolean');
 
       // @ts-ignore
       const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -477,7 +492,20 @@ describe('remoteSourceTrackingService', () => {
       // @ts-ignore
       await remoteSourceTrackingService.pollForSourceTracking(memberNames, 2);
       expect(trackSpy.called).to.equal(false);
-      expect(getBooleanStub.calledOnce).to.equal(true);
+      expect(getBooleanSpy.calledOnce).to.equal(true);
+    });
+    it('should not poll when SF_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
+      envVars.setString('SF_DISABLE_SOURCE_MEMBER_POLLING', 'true');
+      reResolveEnvVars();
+      const getBooleanSpy = $$.SANDBOX.spy(EnvVars.prototype, 'getBoolean');
+
+      // @ts-ignore
+      const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
+
+      // @ts-ignore
+      await remoteSourceTrackingService.pollForSourceTracking(memberNames, 2);
+      expect(trackSpy.called).to.equal(false);
+      expect(getBooleanSpy.calledOnce).to.equal(true);
     });
 
     describe('timeout handling', () => {
@@ -511,8 +539,26 @@ describe('remoteSourceTrackingService', () => {
       }).timeout(10_000);
 
       it('should stop if SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is exceeded', async () => {
+        envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '3');
+        reResolveEnvVars();
         // @ts-ignore
-        $$.SANDBOX.stub(kit.env, 'getString').callsFake(() => '3');
+        const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
+
+        // @ts-ignore
+        const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
+
+        // @ts-ignore
+        await remoteSourceTrackingService.pollForSourceTracking(memberNames);
+        expect(trackSpy.called).to.equal(true);
+
+        expect(warns.size).to.be.greaterThan(0);
+        const expectedMsg = 'Polling for 3 SourceMembers timed out after 3 attempts';
+        expect(Array.from(warns).some((w) => w.includes(expectedMsg))).to.equal(true);
+        expect(queryStub.called).to.equal(true);
+      });
+      it('should stop if SF_SOURCE_MEMBER_POLLING_TIMEOUT is exceeded', async () => {
+        envVars.setString('SF_SOURCE_MEMBER_POLLING_TIMEOUT', '3');
+        reResolveEnvVars();
         // @ts-ignore
         const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
 
@@ -587,7 +633,8 @@ describe('calculateTimeout', () => {
   const logger = new Logger({ useMemoryLogger: true, name: 'test' }).getRawLogger();
   const functionUnderTest = calculateTimeout(logger);
   afterEach(() => {
-    delete process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT;
+    envVars.unset('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT');
+    envVars.unset('SF_SOURCE_MEMBER_POLLING_TIMEOUT');
   });
   it('0 members => 5 sec', () => {
     expect(functionUnderTest(0).seconds).to.equal(5);
@@ -596,11 +643,13 @@ describe('calculateTimeout', () => {
     expect(functionUnderTest(10_000).seconds).to.equal(505);
   });
   it('override 60 in env', () => {
-    process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT = '60';
+    envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '60');
+    reResolveEnvVars();
     expect(functionUnderTest(10_000).seconds).to.equal(60);
   });
   it('override 0 in env has no effect', () => {
-    process.env.SFDX_SOURCE_MEMBER_POLLING_TIMEOUT = '0';
+    envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '0');
+    reResolveEnvVars();
     expect(functionUnderTest(10_000).seconds).to.equal(505);
   });
 });

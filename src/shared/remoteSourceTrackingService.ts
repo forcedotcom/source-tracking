@@ -9,8 +9,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { EOL } from 'node:os';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { Logger, Org, Messages, Lifecycle, SfError, Connection, lockInit } from '@salesforce/core';
-import { env, Duration, parseJsonMap } from '@salesforce/kit';
+import { envVars as env, Logger, Org, Messages, Lifecycle, SfError, Connection, lockInit } from '@salesforce/core';
+import { Duration, parseJsonMap } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
 import {
   ChangeResult,
@@ -40,7 +40,7 @@ const FILENAME = 'maxRevision.json';
  */
 const POLLING_DELAY_MS = 1000;
 const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
-  (env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
+  (env.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
 
 /** Options for RemoteSourceTrackingService.getInstance */
 export type RemoteSourceTrackingServiceOptions = {
@@ -237,8 +237,8 @@ export class RemoteSourceTrackingService {
    * @param pollingTimeout maximum amount of time in seconds to poll for SourceMembers
    */
   public async pollForSourceTracking(expectedMembers: RemoteSyncInput[]): Promise<void> {
-    if (env.getBoolean('SFDX_DISABLE_SOURCE_MEMBER_POLLING', false)) {
-      this.logger.warn('Not polling for SourceMembers since SFDX_DISABLE_SOURCE_MEMBER_POLLING = true.');
+    if (env.getBoolean('SF_DISABLE_SOURCE_MEMBER_POLLING')) {
+      this.logger.warn('Not polling for SourceMembers since SF_DISABLE_SOURCE_MEMBER_POLLING = true.');
       return;
     }
 
@@ -572,7 +572,7 @@ const readFileContents = async (filePath: string): Promise<Contents | Record<str
 export const calculateTimeout =
   (logger: PinoLogger) =>
   (memberCount: number): Duration => {
-    const overriddenTimeout = env.getNumber('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
+    const overriddenTimeout = env.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
     if (overriddenTimeout > 0) {
       logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
       return Duration.seconds(overriddenTimeout);
