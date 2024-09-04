@@ -1,3 +1,12 @@
+## [7.1.11](https://github.com/forcedotcom/source-tracking/compare/7.1.10...7.1.11) (2024-09-04)
+
+
+### Bug Fixes
+
+* support `SF_` and `SFDX_` prefixed env vars ([#668](https://github.com/forcedotcom/source-tracking/issues/668)) ([c64812e](https://github.com/forcedotcom/source-tracking/commit/c64812eba4fe9093bf322ae5f118dd526a787840))
+
+
+
 ## [7.1.10](https://github.com/forcedotcom/source-tracking/compare/7.1.9...7.1.10) (2024-08-25)
 
 
