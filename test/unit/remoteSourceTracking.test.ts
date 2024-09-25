@@ -14,8 +14,13 @@ import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from
 import { EnvVars, envVars, Logger, Messages, Org } from '@salesforce/core';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { RemoteSourceTrackingService, calculateTimeout, Contents } from '../../src/shared/remoteSourceTrackingService';
-import { RemoteSyncInput, SourceMember, MemberRevision } from '../../src/shared/types';
+import {
+  RemoteSourceTrackingService,
+  calculateTimeout,
+  Contents,
+  remoteChangeElementToChangeResult,
+} from '../../src/shared/remoteSourceTrackingService';
+import { RemoteSyncInput, SourceMember, MemberRevision, RemoteChangeElement } from '../../src/shared/types';
 import * as mocks from '../../src/shared/remoteSourceTrackingService';
 
 Messages.importMessagesDirectory(__dirname);
@@ -92,6 +97,42 @@ describe('remoteSourceTrackingService', () => {
     remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({
       org,
       projectPath: await $$.localPathRetriever($$.id),
+    });
+
+    describe('remoteChangeElementToChangeResult()', () => {
+      it('should return correct ChangeResult for EmailTemplateFolder', () => {
+        const rce: RemoteChangeElement = {
+          name: 'level1/level2/level3',
+          type: 'EmailTemplateFolder',
+          deleted: false,
+          modified: true,
+        };
+        const changeResult = remoteChangeElementToChangeResult(rce);
+        expect(changeResult).to.deep.equal({
+          origin: 'remote',
+          name: 'level1/level2/level3',
+          type: 'EmailFolder',
+          deleted: false,
+          modified: true,
+        });
+      });
+
+      it('should return correct ChangeResult for LightningComponentResource', () => {
+        const rce: RemoteChangeElement = {
+          name: 'fooLWC/bar',
+          type: 'LightningComponentResource',
+          deleted: false,
+          modified: true,
+        };
+        const changeResult = remoteChangeElementToChangeResult(rce);
+        expect(changeResult).to.deep.equal({
+          origin: 'remote',
+          name: 'fooLWC',
+          type: 'LightningComponentBundle',
+          deleted: false,
+          modified: true,
+        });
+      });
     });
   });
 
