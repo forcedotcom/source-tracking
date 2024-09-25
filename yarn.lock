@@ -546,7 +546,7 @@
     strip-ansi "6.0.1"
     ts-retry-promise "^0.8.1"
 
-"@salesforce/core@^8.5.1", "@salesforce/core@^8.5.4":
+"@salesforce/core@^8.5.1":
   version "8.5.4"
   resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-8.5.4.tgz#1cdd669462d2c2859b72135d1138a1b790b1fbcc"
   integrity sha512-dO8tzFxq811qNPeKPPO2OA2KPYW5rO0YRinW/+7zmRJW3EtNpe93dsQVGwBSAAYrSbYeBwiKdliNqNTN7tKJ0A==
@@ -570,7 +570,7 @@
     semver "^7.6.3"
     ts-retry-promise "^0.8.1"
 
-"@salesforce/core@^8.5.7":
+"@salesforce/core@^8.5.7", "@salesforce/core@^8.6.1":
   version "8.6.1"
   resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-8.6.1.tgz#180c489447190632cf48364a077510989fc1dea2"
   integrity sha512-bOS6YIjk3IFzFtZcQXUIbJQ740Gh6EyzlcvoBpDpFA5eaz5ZrS0dO1e0rU6Gn4V1FZkvt84gQXA5G1M8tTNKVw==
@@ -635,6 +635,13 @@
   version "3.2.2"
   resolved "https://registry.yarnpkg.com/@salesforce/kit/-/kit-3.2.2.tgz#2a0db472116a416cb12b510d546cb35a582d619a"
   integrity sha512-Qh+Jx65LKR3BlH+bxNBbvI4+/+/igAJ9x2iEDM3tHb3B2JCEnssPP0lw+K/zWHsdtk+OorBiKpHaC6RrjW+9fw==
+  dependencies:
+    "@salesforce/ts-types" "^2.0.12"
+
+"@salesforce/kit@^3.2.3":
+  version "3.2.3"
+  resolved "https://registry.yarnpkg.com/@salesforce/kit/-/kit-3.2.3.tgz#a7293c384ef6133191fe3590e604e3896fdecf4a"
+  integrity sha512-X8rZouLt06dxRkn+uYTwywWDS/NqZ783AyomGqgtWdUxF61EOJvu0ehtcYeutx9Ng08uuZ+s6wNvWiDsdhUcPg==
   dependencies:
     "@salesforce/ts-types" "^2.0.12"
 
