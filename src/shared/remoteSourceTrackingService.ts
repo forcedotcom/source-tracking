@@ -509,7 +509,9 @@ export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): Cha
   ...rce,
   ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
     ? {
-        name: rce.name.split('/')[0],
+        // SNOWFLAKE: EmailTemplateFolder is treated as an alias for EmailFolder so it has a mapping.
+        // The name must be handled differently than with bundle types.
+        name: rce.type === 'EmailTemplateFolder' ? rce.name : rce.name.split('/')[0],
         type: mappingsForSourceMemberTypesToMetadataType.get(rce.type),
       }
     : {}),
