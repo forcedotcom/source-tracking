@@ -1,3 +1,12 @@
+## [7.1.15](https://github.com/forcedotcom/source-tracking/compare/7.1.14...7.1.15) (2024-09-25)
+
+
+### Bug Fixes
+
+* resolve fullname correctly for EmailTemplateFolder ([478b648](https://github.com/forcedotcom/source-tracking/commit/478b648059ea8fd84350339b4d5a52d94a002b67))
+
+
+
 ## [7.1.14](https://github.com/forcedotcom/source-tracking/compare/7.1.13...7.1.14) (2024-09-07)
 
 
