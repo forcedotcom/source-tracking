@@ -1,9 +1,6 @@
 const { exec } = require('child_process');
 
-const commandToRun = 'node ./scripts/esbuild.config.js';
-
-// Run the command
-exec(commandToRun, (error, stdout, stderr) => {
+exec('node ./scripts/esbuild.config.js', (error, stdout, stderr) => {
   // Combine stdout and stderr to check the entire output
   const output = `${stdout}\n${stderr}`;
   if (error) {
