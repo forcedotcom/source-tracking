@@ -16,7 +16,7 @@ const sharedConfig = {
     'dynamic-import': false,
   },
   logOverride: {
-    // 'unsupported-dynamic-import': 'error',
+    'unsupported-dynamic-import': 'error',
   },
 };
 
