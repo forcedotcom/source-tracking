@@ -16,8 +16,7 @@ const sharedConfig = {
     'dynamic-import': false,
   },
   logOverride: {
-    // 'unsupported-dynamic-import': 'error',
-    // dynamic import is used in oclif to refer to a file path, which is legit.
+    'unsupported-dynamic-import': 'error',
   },
 };
 
