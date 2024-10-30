@@ -1,3 +1,12 @@
+## [7.1.18](https://github.com/forcedotcom/source-tracking/compare/7.1.17...7.1.18) (2024-10-30)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 8.6.2 to 8.6.4 ([52f721a](https://github.com/forcedotcom/source-tracking/commit/52f721a5bade15d8233bffa588ff17da6c3d82ef))
+
+
+
 ## [7.1.17](https://github.com/forcedotcom/source-tracking/compare/7.1.16...7.1.17) (2024-10-05)
 
 
