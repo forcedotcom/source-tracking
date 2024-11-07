@@ -64,35 +64,30 @@ export type RemoteSourceTrackingServiceOptions = {
  * This service handles source tracking of metadata between a local project and an org.
  * Source tracking state is persisted to .sfdx/orgs/<orgId>/maxRevision.json.
  * This JSON file keeps track of `SourceMember` objects and the `serverMaxRevisionCounter`,
- * which is the highest `serverRevisionCounter` value of all the tracked elements.
+ * which is the highest `RevisionCounter` value of all the tracked elements.
  *
- * Each SourceMember object has 4 fields:
- * * serverRevisionCounter: the current RevisionCounter on the server for this object
- * * lastRetrievedFromServer: the RevisionCounter last retrieved from the server for this object
- * * memberType: the metadata name of the SourceMember
- * * isNameObsolete: `true` if this object has been deleted in the org
- *
- * ex.
+ * See @MemberRevision for the structure of the `SourceMember` object.  It's SourceMember with the additional lastRetrievedFromServer field
  ```
  {
+    fileVersion: 1,
     serverMaxRevisionCounter: 3,
     sourceMembers: {
-      ApexClass__MyClass: {
-        serverRevisionCounter: 3,
+      ApexClass###MyClass: {
+        RevisionCounter: 3,
+        MemberType: ApexClass,
+        ...,
         lastRetrievedFromServer: 2,
-        memberType: ApexClass,
-        isNameObsolete: false
       },
-      CustomObject__Student__c: {
-        serverRevisionCounter: 1,
+      CustomObject###Student__c: {
+        RevisionCounter: 1,
+        MemberType: CustomObject,
+        ...,
         lastRetrievedFromServer: 1,
-        memberType: CustomObject,
-        isNameObsolete: false
       }
     }
   }
   ```
- * In this example, `ApexClass__MyClass` has been changed in the org because the `serverRevisionCounter` is different
+ * In this example, `ApexClass###MyClass` has been changed in the org because the `serverRevisionCounter` is different
  * from the `lastRetrievedFromServer`. When a pull is performed, all of the pulled members will have their counters set
  * to the corresponding `RevisionCounter` from the `SourceMember` of the org.
  */
@@ -221,12 +216,10 @@ export class RemoteSourceTrackingService {
   // to sync the retrieved SourceMembers; meaning it will update the lastRetrievedFromServer
   // field to the SourceMember's RevisionCounter, and update the serverMaxRevisionCounter
   // to the highest RevisionCounter.
-  public async retrieveUpdates({ sync = false, cache = true } = {}): Promise<RemoteChangeElement[]> {
+  public async retrieveUpdates(): Promise<RemoteChangeElement[]> {
     // Always track new SourceMember data, or update tracking when we sync.
-    const queriedSourceMembers = await this.querySourceMembersFrom({ useCache: cache });
-    if (queriedSourceMembers.length || sync) {
-      await this.trackSourceMembers(queriedSourceMembers, sync);
-    }
+    const queriedSourceMembers = await this.querySourceMembersFrom();
+    await this.trackSourceMembers(queriedSourceMembers);
 
     // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
     // does not match the serverRevisionCounter.
@@ -407,30 +400,19 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       // try accessing the sourceMembers object at the index of the change's name
       // if it exists, we'll update the fields - if it doesn't, we'll create and insert it
       const key = getMetadataKey(change.MemberType, change.MemberName);
-      const sourceMemberFromTracking =
-        this.getSourceMember(key) ??
-        ({
-          ...change,
-          lastRetrievedFromServer: undefined,
-        } satisfies MemberRevision);
-      if (sourceMemberFromTracking.lastRetrievedFromServer) {
-        // We are already tracking this element so we'll update it
-        quietLogger(`Updating ${key} to RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`);
-        sourceMemberFromTracking.RevisionCounter = change.RevisionCounter;
-        sourceMemberFromTracking.IsNameObsolete = change.IsNameObsolete;
-      } else {
-        // We are not yet tracking it so we'll insert a new record
-        quietLogger(`Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`);
-      }
+      const sourceMemberFromTracking = this.getSourceMember(key);
 
-      // If we are syncing changes then we need to update the lastRetrievedFromServer field to
-      // match the RevisionCounter from the SourceMember.
-      if (sync) {
-        sourceMemberFromTracking.lastRetrievedFromServer = change.RevisionCounter;
-      }
-
-      // Update the state with the latest SourceMember data
-      this.setMemberRevision(key, sourceMemberFromTracking);
+      quietLogger(
+        `${sourceMemberFromTracking ? `Updating ${key} to` : `Inserting ${key} with`} RevisionCounter: ${
+          change.RevisionCounter
+        }${sync ? ' and syncing' : ''}`
+      );
+      this.setMemberRevision(key, {
+        ...change,
+        // If we are syncing changes then we need to update the lastRetrievedFromServer field to
+        // match the RevisionCounter from the SourceMember.
+        lastRetrievedFromServer: sync ? change.RevisionCounter : sourceMemberFromTracking?.lastRetrievedFromServer,
+      });
     });
 
     await this.write();

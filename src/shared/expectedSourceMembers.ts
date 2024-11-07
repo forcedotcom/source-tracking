@@ -46,16 +46,16 @@ const isSpecialAuraXml = (filePath?: string): boolean =>
 
 // things that never have SourceMembers
 const excludedKeys = [
-  'AppMenu__Salesforce1',
-  'Profile__Standard',
-  'Profile__Guest License User',
-  'CustomTab__standard-home',
-  'Profile__Minimum Access - Salesforce',
-  'Profile__Salesforce API Only System Integrations',
-  'AssignmentRules__Case',
-  'ListView__CollaborationGroup.All_ChatterGroups',
-  'CustomTab__standard-mailapp',
-  'ApexEmailNotifications__apexEmailNotifications',
+  'AppMenu###Salesforce1',
+  'Profile###Standard',
+  'Profile###Guest License User',
+  'CustomTab###standard-home',
+  'Profile###Minimum Access - Salesforce',
+  'Profile###Salesforce API Only System Integrations',
+  'AssignmentRules###Case',
+  'ListView###CollaborationGroup.All_ChatterGroups',
+  'CustomTab###standard-mailapp',
+  'ApexEmailNotifications###apexEmailNotifications',
 ];
 
 export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> => {
@@ -92,7 +92,7 @@ export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[
         .filter(
           (key) =>
             // CustomObject could have been re-added by the key generator from one of its fields
-            !key.startsWith('CustomObject__') && !excludedKeys.includes(key)
+            !key.startsWith('CustomObject###') && !excludedKeys.includes(key)
         )
         .map((key) => outstandingSourceMembers.set(key, member));
     });
