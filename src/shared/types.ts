@@ -31,6 +31,8 @@ export type RemoteChangeElement = {
   type: string;
   deleted?: boolean;
   modified?: boolean;
+  changedBy: string;
+  revisionCounter: number;
 };
 
 /**
@@ -42,19 +44,26 @@ export type ChangeResult = Partial<RemoteChangeElement> & {
   ignored?: boolean;
 };
 
-export type MemberRevision = {
-  serverRevisionCounter: number;
-  lastRetrievedFromServer: number | null;
-  memberType: string;
-  isNameObsolete: boolean;
+export type MemberRevision = SourceMember & {
+  /** the last revision retrieved.  Used for detecting changes*/
+  lastRetrievedFromServer?: number;
 };
 
+/** @deprecated replaced by the new MemberRevision */
+export type MemberRevisionLegacy = {
+  memberType: string;
+  serverRevisionCounter: number;
+  lastRetrievedFromServer: number | null;
+  isNameObsolete: boolean;
+};
 export type SourceMember = {
   MemberType: string;
   MemberName: string;
   IsNameObsolete: boolean;
+  IsNewMember: boolean;
   RevisionCounter: number;
-  ignored?: boolean;
+  MemberIdOrName: string;
+  ChangedBy: string;
 };
 
 export type ConflictResponse = {

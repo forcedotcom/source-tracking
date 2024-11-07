@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { EnvVars, envVars, Logger, Messages, Org } from '@salesforce/core';
-import { expect } from 'chai';
+import { expect, config } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import {
   RemoteSourceTrackingService,
@@ -20,26 +20,46 @@ import {
   Contents,
   remoteChangeElementToChangeResult,
 } from '../../src/shared/remoteSourceTrackingService';
-import { RemoteSyncInput, SourceMember, MemberRevision, RemoteChangeElement } from '../../src/shared/types';
+import {
+  RemoteSyncInput,
+  SourceMember,
+  MemberRevision,
+  RemoteChangeElement,
+  MemberRevisionLegacy,
+} from '../../src/shared/types';
 import * as mocks from '../../src/shared/remoteSourceTrackingService';
+import { getMetadataNameFromKey, getMetadataTypeFromKey } from '../../src/shared/functions';
+
+config.truncateThreshold = 0;
 
 Messages.importMessagesDirectory(__dirname);
 
-const getSourceMember = (revision: number, deleted = false): SourceMember => ({
+const defaultSourceMemberValues = {
+  IsNewMember: false,
+  RevisionCounter: 1,
+  ChangedBy: 'Shelby McLaughlin',
+  MemberIdOrName: '00eO4000003cP5JIAU',
+} satisfies Partial<SourceMember>;
+
+const getSourceMember = (revision: number, isDeleted = false): SourceMember => ({
+  ...defaultSourceMemberValues,
   RevisionCounter: revision,
   MemberType: 'ApexClass',
   MemberName: `MyClass${revision}`,
-  IsNameObsolete: deleted,
+  IsNameObsolete: isDeleted,
+  MemberIdOrName: '00eO4000003cP5JIAU',
 });
 
 const getMemberRevisionEntries = (revision: number, synced = false): { [key: string]: MemberRevision } => {
   const sourceMemberEntries = {} as { [key: string]: MemberRevision };
   for (let i = 1; i <= revision; i++) {
-    sourceMemberEntries[`ApexClass__MyClass${i}`] = {
-      serverRevisionCounter: i,
-      lastRetrievedFromServer: synced ? i : null,
-      memberType: 'ApexClass',
-      isNameObsolete: false,
+    sourceMemberEntries[`ApexClass###MyClass${i}`] = {
+      ...defaultSourceMemberValues,
+      RevisionCounter: i,
+      lastRetrievedFromServer: synced ? i : undefined,
+      MemberType: 'ApexClass',
+      MemberName: `MyClass${i}`,
+      IsNameObsolete: false,
     };
   }
   return sourceMemberEntries;
@@ -52,6 +72,10 @@ const reResolveEnvVars = (): void => {
   /* eslint-enable @typescript-eslint/no-unsafe-call */
 };
 
+type SetContentsInput = {
+  serverMaxRevisionCounter: number;
+  sourceMembers: { [key: string]: MemberRevision };
+};
 describe('remoteSourceTrackingService', () => {
   const username = 'foo@bar.com';
   let orgId: string;
@@ -59,10 +83,7 @@ describe('remoteSourceTrackingService', () => {
   let remoteSourceTrackingService: RemoteSourceTrackingService;
 
   /** a shared "cheater" method to do illegal operations for test setup purposes */
-  const setContents = (contents: {
-    serverMaxRevisionCounter: number;
-    sourceMembers: { [key: string]: MemberRevision };
-  }): void => {
+  const setContents = (contents: SetContentsInput): void => {
     // @ts-expect-error it's private
     remoteSourceTrackingService.serverMaxRevisionCounter = contents.serverMaxRevisionCounter;
     // @ts-expect-error it's private
@@ -106,6 +127,8 @@ describe('remoteSourceTrackingService', () => {
           type: 'EmailTemplateFolder',
           deleted: false,
           modified: true,
+          changedBy: 'Shelby McLaughlin',
+          revisionCounter: 1,
         };
         const changeResult = remoteChangeElementToChangeResult(rce);
         expect(changeResult).to.deep.equal({
@@ -114,6 +137,8 @@ describe('remoteSourceTrackingService', () => {
           type: 'EmailFolder',
           deleted: false,
           modified: true,
+          changedBy: 'Shelby McLaughlin',
+          revisionCounter: 1,
         });
       });
 
@@ -123,6 +148,8 @@ describe('remoteSourceTrackingService', () => {
           type: 'LightningComponentResource',
           deleted: false,
           modified: true,
+          changedBy: 'Shelby McLaughlin',
+          revisionCounter: 1,
         };
         const changeResult = remoteChangeElementToChangeResult(rce);
         expect(changeResult).to.deep.equal({
@@ -131,6 +158,8 @@ describe('remoteSourceTrackingService', () => {
           type: 'LightningComponentBundle',
           deleted: false,
           modified: true,
+          changedBy: 'Shelby McLaughlin',
+          revisionCounter: 1,
         });
       });
     });
@@ -167,17 +196,17 @@ describe('remoteSourceTrackingService', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
           },
-          'Layout__Broker__c-v1.1 Broker Layout': {
-            serverRevisionCounter: 2,
+          'Layout###Broker__c-v1.1 Broker Layout': {
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
           },
         },
       };
@@ -209,20 +238,26 @@ describe('remoteSourceTrackingService', () => {
       const maxJson = {
         serverMaxRevisionCounter: 3,
         sourceMembers: {
-          CustomObject__test__c: {
-            memberType: 'CustomObject',
-            serverRevisionCounter: 2,
+          'CustomObject###test__c': {
+            ...defaultSourceMemberValues,
+            MemberType: 'CustomObject',
+            RevisionCounter: 2,
             lastRetrievedFromServer: 3,
-            isNameObsolete: false,
+            IsNameObsolete: false,
+            MemberIdOrName: 'test__c',
+            MemberName: 'test__c',
           },
-          ApexClass__abc: {
-            memberType: 'ApexClass',
-            serverRevisionCounter: 2,
+          'ApexClass###abc': {
+            ...defaultSourceMemberValues,
+            MemberIdOrName: 'abc',
+            MemberName: 'abc',
+            MemberType: 'ApexClass',
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            isNameObsolete: false,
+            IsNameObsolete: false,
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
       const changes = await remoteSourceTrackingService.retrieveUpdates();
       expect(changes.length).to.equal(1);
@@ -232,17 +267,19 @@ describe('remoteSourceTrackingService', () => {
 
     it('will upsert SourceMembers objects correctly', async () => {
       const sm1 = {
+        ...defaultSourceMemberValues,
         MemberType: 'ApexClass',
         MemberName: 'test1__c',
         IsNameObsolete: false,
         RevisionCounter: 1,
-      };
+      } satisfies SourceMember;
       const sm2 = {
+        ...defaultSourceMemberValues,
         MemberType: 'ApexClass',
         MemberName: 'test2__c',
         IsNameObsolete: true,
         RevisionCounter: 2,
-      };
+      } satisfies SourceMember;
       const sourceMemberContainer = [sm1, sm2];
       // @ts-ignore calling a private method from a test
       await remoteSourceTrackingService.trackSourceMembers(sourceMemberContainer);
@@ -255,77 +292,94 @@ describe('remoteSourceTrackingService', () => {
       expect(sm[1].type).to.equal('ApexClass');
 
       // @ts-ignore getSourceMember is private
-      expect(remoteSourceTrackingService.getSourceMember('ApexClass__test1__c')).to.deep.equal({
-        serverRevisionCounter: 1,
-        lastRetrievedFromServer: null,
-        memberType: 'ApexClass',
-        isNameObsolete: false,
+      expect(remoteSourceTrackingService.getSourceMember('ApexClass###test1__c')).to.deep.contain({
+        ...defaultSourceMemberValues,
+        RevisionCounter: 1,
+        lastRetrievedFromServer: undefined,
+        MemberType: 'ApexClass',
+        IsNameObsolete: false,
+        MemberName: 'test1__c',
       });
 
       // @ts-ignore getSourceMember is private
-      expect(remoteSourceTrackingService.getSourceMember('ApexClass__test2__c')).to.deep.equal({
-        serverRevisionCounter: 2,
-        lastRetrievedFromServer: null,
-        memberType: 'ApexClass',
-        isNameObsolete: true,
+      expect(remoteSourceTrackingService.getSourceMember('ApexClass###test2__c')).to.deep.contain({
+        RevisionCounter: 2,
+        lastRetrievedFromServer: undefined,
+        MemberType: 'ApexClass',
+        IsNameObsolete: true,
+        MemberName: 'test2__c',
       });
     });
 
     it('will match decoded SourceMember keys on get', () => {
+      const encodedKey = 'Layout###Broker__c-v1%2E1 Broker Layout';
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            ...defaultSourceMemberValues,
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
+            MemberName: 'Broker__c-Broker Layout',
           },
-          'Layout__Broker__c-v1.1 Broker Layout': {
-            serverRevisionCounter: 2,
+          [encodedKey]: {
+            ...defaultSourceMemberValues,
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
+            MemberName: 'Broker__c-v1.1 Broker Layout',
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
 
       // @ts-ignore getSourceMember is private
-      expect(remoteSourceTrackingService.getSourceMember('Layout__Broker__c-v1%2E1 Broker Layout')).to.deep.equal({
-        serverRevisionCounter: 2,
+      expect(remoteSourceTrackingService.getSourceMember(encodedKey)).to.deep.equal({
+        ...defaultSourceMemberValues,
+        MemberName: 'Broker__c-v1.1 Broker Layout',
+        RevisionCounter: 2,
         lastRetrievedFromServer: 2,
-        memberType: 'Layout',
-        isNameObsolete: false,
+        MemberType: 'Layout',
+        IsNameObsolete: false,
       });
     });
 
     it('will match encoded SourceMember keys on get', () => {
+      const encodedKey = 'Layout###Broker__c-v1%2E1 Broker Layout';
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            ...defaultSourceMemberValues,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-Broker Layout'),
+            MemberType: getMetadataTypeFromKey('Layout###Broker__c-Broker Layout'),
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            IsNameObsolete: false,
           },
-          'Layout__Broker__c-v1%2E1 Broker Layout': {
-            serverRevisionCounter: 2,
+          [encodedKey]: {
+            ...defaultSourceMemberValues,
+            MemberType: getMetadataTypeFromKey(encodedKey),
+            MemberName: getMetadataNameFromKey(encodedKey),
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            IsNameObsolete: false,
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
 
       // @ts-ignore getSourceMember is private
-      expect(remoteSourceTrackingService.getSourceMember('Layout__Broker__c-v1.1 Broker Layout')).to.deep.equal({
-        serverRevisionCounter: 2,
+      expect(remoteSourceTrackingService.getSourceMember('Layout###Broker__c-v1.1 Broker Layout')).to.deep.equal({
+        ...defaultSourceMemberValues,
+        MemberName: 'Broker__c-v1.1 Broker Layout',
+        RevisionCounter: 2,
         lastRetrievedFromServer: 2,
-        memberType: 'Layout',
-        isNameObsolete: false,
+        MemberType: 'Layout',
+        IsNameObsolete: false,
       });
     });
 
@@ -333,45 +387,56 @@ describe('remoteSourceTrackingService', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            ...defaultSourceMemberValues,
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-Broker Layout'),
           },
-          'Layout__Broker__c-v1.1 Broker Layout': {
-            serverRevisionCounter: 2,
+          'Layout###Broker__c-v1.1 Broker Layout': {
+            ...defaultSourceMemberValues,
+
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-v1.1 Broker Layout'),
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
 
       // @ts-ignore setMemberRevision is private
-      remoteSourceTrackingService.setMemberRevision('Layout__Broker__c-v1%2E1 Broker Layout', {
-        serverRevisionCounter: 3,
+      remoteSourceTrackingService.setMemberRevision('Layout###Broker__c-v1%2E1 Broker Layout', {
+        ...defaultSourceMemberValues,
+        MemberName: getMetadataNameFromKey('Layout###Broker__c-v1.1 Broker Layout'),
+        RevisionCounter: 3,
         lastRetrievedFromServer: 3,
-        memberType: 'Layout',
-        isNameObsolete: false,
+        MemberType: 'Layout',
+        IsNameObsolete: false,
       });
 
       // @ts-expect-error getSourceMembers is private
       expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(
         new Map(
           Object.entries({
-            'Layout__Broker__c-Broker Layout': {
-              serverRevisionCounter: 1,
+            'Layout###Broker__c-Broker Layout': {
+              ...defaultSourceMemberValues,
+              RevisionCounter: 1,
               lastRetrievedFromServer: 1,
-              memberType: 'Layout',
-              isNameObsolete: false,
+              MemberType: 'Layout',
+              IsNameObsolete: false,
+              MemberName: 'Broker__c-Broker Layout',
             },
-            'Layout__Broker__c-v1.1 Broker Layout': {
-              serverRevisionCounter: 3,
+            'Layout###Broker__c-v1.1 Broker Layout': {
+              ...defaultSourceMemberValues,
+              MemberName: 'Broker__c-v1.1 Broker Layout',
+              RevisionCounter: 3,
               lastRetrievedFromServer: 3,
-              memberType: 'Layout',
-              isNameObsolete: false,
+              MemberType: 'Layout',
+              IsNameObsolete: false,
             },
           })
         )
@@ -381,7 +446,7 @@ describe('remoteSourceTrackingService', () => {
     it('should not throw for non-decodeable key missing from SourceMember map on get', () => {
       // trying to decode '%E0%A4%A' throws a URIError so getDecodedKeyIfSourceMembersHas()
       // should not throw when a non-decodeable key is encountered.
-      const sourceMemberKey = 'Layout__Broker__c-%E0%A4%A';
+      const sourceMemberKey = 'Layout###Broker__c-%E0%A4%A';
 
       // @ts-ignore getSourceMember is private
       expect(remoteSourceTrackingService.getSourceMember(sourceMemberKey)).to.equal(undefined);
@@ -391,45 +456,55 @@ describe('remoteSourceTrackingService', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            ...defaultSourceMemberValues,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-Broker Layout'),
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
           },
-          'Layout__Broker__c-v1%2E1 Broker Layout': {
-            serverRevisionCounter: 2,
+          'Layout###Broker__c-v1%2E1 Broker Layout': {
+            ...defaultSourceMemberValues,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-v1%2E1 Broker Layout'),
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
 
       // @ts-ignore setMemberRevision is private
-      remoteSourceTrackingService.setMemberRevision('Layout__Broker__c-v1.1 Broker Layout', {
-        serverRevisionCounter: 3,
+      remoteSourceTrackingService.setMemberRevision('Layout###Broker__c-v1.1 Broker Layout', {
+        ...defaultSourceMemberValues,
+        MemberName: getMetadataNameFromKey('Layout###Broker__c-v1%2E1 Broker Layout'),
+        RevisionCounter: 3,
         lastRetrievedFromServer: 3,
-        memberType: 'Layout',
-        isNameObsolete: false,
+        MemberType: 'Layout',
+        IsNameObsolete: false,
       });
 
       // @ts-expect-error getSourceMembers is private
       expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(
         new Map(
           Object.entries({
-            'Layout__Broker__c-Broker Layout': {
-              serverRevisionCounter: 1,
+            'Layout###Broker__c-Broker Layout': {
+              ...defaultSourceMemberValues,
+              MemberName: 'Broker__c-Broker Layout',
+              RevisionCounter: 1,
               lastRetrievedFromServer: 1,
-              memberType: 'Layout',
-              isNameObsolete: false,
+              MemberType: 'Layout',
+              IsNameObsolete: false,
             },
-            'Layout__Broker__c-v1%2E1 Broker Layout': {
-              serverRevisionCounter: 3,
+            'Layout###Broker__c-v1%2E1 Broker Layout': {
+              ...defaultSourceMemberValues,
+              MemberName: 'Broker__c-v1.1 Broker Layout',
+              RevisionCounter: 3,
               lastRetrievedFromServer: 3,
-              memberType: 'Layout',
-              isNameObsolete: false,
+              MemberType: 'Layout',
+              IsNameObsolete: false,
             },
           })
         )
@@ -489,17 +564,21 @@ describe('remoteSourceTrackingService', () => {
         serverMaxRevisionCounter: 0,
         sourceMembers: {},
       });
-      setContents({
+      const contents = {
         serverMaxRevisionCounter: 1,
         sourceMembers: {
-          'Profile__my(awesome)profile': {
-            isNameObsolete: false,
-            serverRevisionCounter: 1,
-            lastRetrievedFromServer: null,
-            memberType: 'Profile',
+          'Profile###my(awesome)profile': {
+            ...defaultSourceMemberValues,
+            MemberName: getMetadataNameFromKey('Profile###my(awesome)profile'),
+            IsNewMember: false,
+            IsNameObsolete: false,
+            RevisionCounter: 1,
+            lastRetrievedFromServer: undefined,
+            MemberType: 'Profile',
           },
         },
-      });
+      };
+      setContents(contents);
       await remoteSourceTrackingService.syncSpecifiedElements([
         {
           fullName: 'my(awesome)profile',
@@ -508,15 +587,17 @@ describe('remoteSourceTrackingService', () => {
           state: ComponentStatus.Changed,
         },
       ]);
-      // lastRetrievedFromServer should be set to the serverRevisionCounter
+      // lastRetrievedFromServer should be set to the RevisionCounter
       expect(getContents()).to.deep.equal({
         serverMaxRevisionCounter: 1,
         sourceMembers: {
-          'Profile__my(awesome)profile': {
-            isNameObsolete: false,
+          'Profile###my(awesome)profile': {
+            ...defaultSourceMemberValues,
+            MemberName: 'my(awesome)profile',
+            IsNameObsolete: false,
             lastRetrievedFromServer: 1,
-            memberType: 'Profile',
-            serverRevisionCounter: 1,
+            MemberType: 'Profile',
+            RevisionCounter: 1,
           },
         },
       });
@@ -667,6 +748,77 @@ describe('remoteSourceTrackingService', () => {
     it('should return the correct file location (base case)', () => {
       expect(remoteSourceTrackingService.filePath).to.include(`.sf${sep}`);
     });
+  });
+});
+
+describe('upgrading undefined to v1 file', () => {
+  it('returns new file version even if file is not versioned', () => {
+    const oldFile = {
+      serverMaxRevisionCounter: 0,
+      sourceMembers: {},
+    };
+    expect(mocks.upgradeFileContents(oldFile).fileVersion).to.equal(1);
+  });
+  it('handles missing string-type fields', () => {
+    const oldFile = {
+      serverMaxRevisionCounter: 1,
+      sourceMembers: {
+        ApexClass__MyClass: {
+          serverRevisionCounter: 1,
+          lastRetrievedFromServer: 1,
+          memberType: 'ApexClass',
+          isNameObsolete: false,
+        } satisfies MemberRevisionLegacy,
+      },
+    };
+    // @ts-expect-error it's the wrong file contents, that's what we're testing
+    expect(mocks.upgradeFileContents(oldFile).sourceMembers['ApexClass###MyClass']).to.deep.equal({
+      MemberIdOrName: 'unknown',
+      ChangedBy: 'unknown',
+      lastRetrievedFromServer: 1,
+      MemberType: 'ApexClass',
+      IsNameObsolete: false,
+      RevisionCounter: 1,
+      MemberName: 'MyClass',
+    } satisfies Omit<MemberRevision, 'IsNewMember'>);
+  });
+  it('handles null lastRetrievedFromServer', () => {
+    const oldFile = {
+      serverMaxRevisionCounter: 1,
+      sourceMembers: {
+        ApexClass__MyClass: {
+          serverRevisionCounter: 1,
+          lastRetrievedFromServer: null,
+          memberType: 'ApexClass',
+          isNameObsolete: false,
+        } satisfies MemberRevisionLegacy,
+      },
+    };
+    // @ts-expect-error it's the wrong file contents, that's what we're testing
+    expect(mocks.upgradeFileContents(oldFile).sourceMembers['ApexClass###MyClass']).to.have.property(
+      'lastRetrievedFromServer',
+      undefined
+    );
+  });
+  it('memberType and key are always decoded', () => {
+    const encodedKey = 'Layout__Broker__c-v1%2E1 Broker Layout';
+
+    const oldFile = {
+      serverMaxRevisionCounter: 1,
+      sourceMembers: {
+        [encodedKey]: {
+          serverRevisionCounter: 1,
+          lastRetrievedFromServer: null,
+          memberType: 'Layout',
+          isNameObsolete: false,
+        } satisfies MemberRevisionLegacy,
+      },
+    };
+    // @ts-expect-error it's the wrong file contents, that's what we're testing
+    expect(mocks.upgradeFileContents(oldFile).sourceMembers['Layout###Broker__c-v1.1 Broker Layout']).to.have.property(
+      'MemberName',
+      'Broker__c-v1.1 Broker Layout'
+    );
   });
 });
 

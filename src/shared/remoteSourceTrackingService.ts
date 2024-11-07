@@ -19,21 +19,33 @@ import {
   SourceMember,
   RemoteSyncInput,
   SourceMemberPollingEvent,
+  MemberRevisionLegacy,
 } from './types';
 import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
-import { getMetadataKey } from './functions';
+import { getMetadataKey, getMetadataNameFromLegacyKey, getMetadataTypeFromLegacyKey } from './functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 
 /** represents the contents of the config file stored in 'maxRevision.json' */
 export type Contents = {
+  fileVersion?: number;
   serverMaxRevisionCounter: number;
   sourceMembers: Record<string, MemberRevision>;
 };
-type MemberRevisionMapEntry = [string, MemberRevision];
+
 type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 
-const FILENAME = 'maxRevision.json';
+const SOURCE_MEMBER_FIELDS = [
+  'MemberIdOrName',
+  'MemberType',
+  'MemberName',
+  'IsNameObsolete',
+  'RevisionCounter',
+  'IsNewMember',
+  'ChangedBy',
+] satisfies Array<keyof SourceMember>;
 
+const FILENAME = 'maxRevision.json';
+const CURRENT_FILE_VERSION = 1;
 /*
  * after some results have returned, how many times should we poll for missing sourcemembers
  * even when there is a longer timeout remaining (because the deployment is very large)
@@ -161,10 +173,13 @@ export class RemoteSourceTrackingService {
       } else if (doesNotMatchServer(revision)) {
         quietLogger(
           `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer ?? 'null'} to ${
-            revision.serverRevisionCounter
+            revision.RevisionCounter
           }`
         );
-        this.setMemberRevision(metadataKey, { ...revision, lastRetrievedFromServer: revision.serverRevisionCounter });
+        this.setMemberRevision(metadataKey, {
+          ...revision,
+          lastRetrievedFromServer: revision.RevisionCounter,
+        });
       }
     });
 
@@ -215,7 +230,7 @@ export class RemoteSourceTrackingService {
 
     // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
     // does not match the serverRevisionCounter.
-    const returnElements = Array.from(this.sourceMembers.entries())
+    const returnElements = Array.from(this.sourceMembers.values())
       .filter(revisionDoesNotMatch)
       .map(revisionToRemoteChangeElement);
 
@@ -392,17 +407,17 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       // try accessing the sourceMembers object at the index of the change's name
       // if it exists, we'll update the fields - if it doesn't, we'll create and insert it
       const key = getMetadataKey(change.MemberType, change.MemberName);
-      const sourceMember = this.getSourceMember(key) ?? {
-        serverRevisionCounter: change.RevisionCounter,
-        lastRetrievedFromServer: null,
-        memberType: change.MemberType,
-        isNameObsolete: change.IsNameObsolete,
-      };
-      if (sourceMember.lastRetrievedFromServer) {
+      const sourceMemberFromTracking =
+        this.getSourceMember(key) ??
+        ({
+          ...change,
+          lastRetrievedFromServer: undefined,
+        } satisfies MemberRevision);
+      if (sourceMemberFromTracking.lastRetrievedFromServer) {
         // We are already tracking this element so we'll update it
         quietLogger(`Updating ${key} to RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`);
-        sourceMember.serverRevisionCounter = change.RevisionCounter;
-        sourceMember.isNameObsolete = change.IsNameObsolete;
+        sourceMemberFromTracking.RevisionCounter = change.RevisionCounter;
+        sourceMemberFromTracking.IsNameObsolete = change.IsNameObsolete;
       } else {
         // We are not yet tracking it so we'll insert a new record
         quietLogger(`Inserting ${key} with RevisionCounter: ${change.RevisionCounter}${sync ? ' and syncing' : ''}`);
@@ -411,11 +426,11 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       // If we are syncing changes then we need to update the lastRetrievedFromServer field to
       // match the RevisionCounter from the SourceMember.
       if (sync) {
-        sourceMember.lastRetrievedFromServer = change.RevisionCounter;
+        sourceMemberFromTracking.lastRetrievedFromServer = change.RevisionCounter;
       }
 
       // Update the state with the latest SourceMember data
-      this.setMemberRevision(key, sourceMember);
+      this.setMemberRevision(key, sourceMemberFromTracking);
     });
 
     await this.write();
@@ -458,7 +473,7 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
     const matchingKey = sourceMembers.get(key)
       ? key
       : getDecodedKeyIfSourceMembersHas({ sourceMembers, key, logger: this.logger });
-    this.sourceMembers.set(matchingKey, sourceMember);
+    this.sourceMembers.set(matchingKey, { ...sourceMember, MemberName: decodeURIComponent(sourceMember.MemberName) });
   }
 
   private async querySourceMembersFrom({
@@ -478,7 +493,7 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
     }
 
     // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
-    const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter > ${rev}`;
+    const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter > ${rev}`;
     this.logger[quiet ? 'silent' : 'debug'](`Query: ${query}`);
     const queryResult = await queryFn(this.org.getConnection(), query);
     this.queryCache.set(rev, queryResult);
@@ -491,9 +506,10 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
     await lockResult.writeAndUnlock(
       JSON.stringify(
         {
+          fileVersion: CURRENT_FILE_VERSION,
           serverMaxRevisionCounter: this.serverMaxRevisionCounter,
           sourceMembers: Object.fromEntries(this.sourceMembers),
-        },
+        } satisfies Contents,
         null,
         4
       )
@@ -518,10 +534,13 @@ export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): Cha
   origin: 'remote', // we know they're remote
 });
 
-const revisionToRemoteChangeElement = ([memberKey, memberRevision]: MemberRevisionMapEntry): RemoteChangeElement => ({
-  type: memberRevision.memberType,
-  name: memberKey.replace(`${memberRevision.memberType}__`, ''),
-  deleted: memberRevision.isNameObsolete,
+const revisionToRemoteChangeElement = (memberRevision: MemberRevision): RemoteChangeElement => ({
+  type: memberRevision.MemberType,
+  name: memberRevision.MemberName,
+  deleted: memberRevision.IsNameObsolete,
+  modified: memberRevision.IsNewMember === false,
+  revisionCounter: memberRevision.RevisionCounter,
+  changedBy: memberRevision.ChangedBy,
 });
 
 /**
@@ -560,7 +579,16 @@ const getFilePath = (orgId: string): string => path.join('.sf', 'orgs', orgId, F
 const readFileContents = async (filePath: string): Promise<Contents | Record<string, never>> => {
   try {
     const contents = await fs.promises.readFile(filePath, 'utf8');
-    return parseJsonMap<Contents>(contents, filePath);
+    const parsedContents = parseJsonMap<Contents>(contents, filePath);
+    if (parsedContents.fileVersion === CURRENT_FILE_VERSION) {
+      return parsedContents;
+    }
+    Logger.childFromRoot('remoteSourceTrackingService:readFileContents').debug(
+      `File version mismatch. Expected ${CURRENT_FILE_VERSION}, found ${
+        parsedContents.fileVersion ?? 'undefined'
+      }. Upgrading file contents.  Some expected data may be missing`
+    );
+    return upgradeFileContents(parsedContents);
   } catch (e) {
     Logger.childFromRoot('remoteSourceTrackingService:readFileContents').debug(
       `Error reading or parsing file file at ${filePath}.  Will treat as an empty file.`,
@@ -588,9 +616,31 @@ export const calculateTimeout =
     return Duration.seconds(pollingTimeout);
   };
 
+/** exported for unit testing */
+export const upgradeFileContents = (contents: Contents): Contents => ({
+  fileVersion: 1,
+  serverMaxRevisionCounter: contents.serverMaxRevisionCounter,
+  // @ts-expect-error the old file didn't store the IsNewMember field or any indication of whether the member was add/modified
+  sourceMembers: Object.fromEntries(
+    // it's the old version
+    Object.entries(contents.sourceMembers as unknown as Record<string, MemberRevisionLegacy>).map(([key, value]) => [
+      getMetadataKey(getMetadataTypeFromLegacyKey(key), getMetadataNameFromLegacyKey(key)),
+      {
+        MemberName: getMetadataNameFromLegacyKey(key),
+        MemberType: value.memberType,
+        IsNameObsolete: value.isNameObsolete,
+        RevisionCounter: value.serverRevisionCounter,
+        lastRetrievedFromServer: value.lastRetrievedFromServer ?? undefined,
+        ChangedBy: 'unknown',
+        MemberIdOrName: 'unknown',
+      },
+    ])
+  ),
+});
+
 /** exported only for spy/mock  */
 export const querySourceMembersTo = async (conn: Connection, toRevision: number): Promise<SourceMember[]> => {
-  const query = `SELECT MemberType, MemberName, IsNameObsolete, RevisionCounter FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
+  const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
   return queryFn(conn, query);
 };
 
@@ -616,10 +666,10 @@ const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, Remote
     .join(EOL);
 };
 
-const revisionDoesNotMatch = ([, member]: MemberRevisionMapEntry): boolean => doesNotMatchServer(member);
+const revisionDoesNotMatch = (member: MemberRevision): boolean => doesNotMatchServer(member);
 
 const doesNotMatchServer = (member: MemberRevision): boolean =>
-  member.serverRevisionCounter !== member.lastRetrievedFromServer;
+  member.RevisionCounter !== member.lastRetrievedFromServer;
 
 /** A series of workarounds for server-side bugs.  Each bug should be filed against a team, with a WI, so we know when these are fixed and can be removed */
 const sourceMemberCorrections = (sourceMember: SourceMember): SourceMember => {

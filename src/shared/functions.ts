@@ -21,8 +21,15 @@ import { ensureArray } from '@salesforce/kit';
 import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types';
 import { ensureNameAndType } from './remoteChangeIgnoring';
 
+const keySplit = '###';
+const legacyKeySplit = '__';
 export const getMetadataKey = (metadataType: string, metadataName: string): string =>
-  `${metadataType}__${metadataName}`;
+  `${metadataType}${keySplit}${metadataName}`;
+export const getMetadataTypeFromKey = (key: string): string => decodeURIComponent(key.split(keySplit)[0]);
+export const getMetadataNameFromKey = (key: string): string => decodeURIComponent(key.split(keySplit)[1]);
+export const getMetadataTypeFromLegacyKey = (key: string): string => key.split(legacyKeySplit)[0];
+export const getMetadataNameFromLegacyKey = (key: string): string =>
+  decodeURIComponent(key.split(legacyKeySplit).slice(1).join(legacyKeySplit));
 
 export const getKeyFromObject = (element: RemoteChangeElement | ChangeResult): string => {
   if (element.type && element.name) {
