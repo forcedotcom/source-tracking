@@ -9,7 +9,17 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { EOL } from 'node:os';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { envVars as env, Logger, Org, Messages, Lifecycle, SfError, Connection, lockInit } from '@salesforce/core';
+import {
+  envVars as env,
+  Logger,
+  Org,
+  Messages,
+  Lifecycle,
+  SfError,
+  Connection,
+  lockInit,
+  trimTo15,
+} from '@salesforce/core';
 import { Duration, parseJsonMap } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
 import {
@@ -105,6 +115,7 @@ export class RemoteSourceTrackingService {
   // A short term cache (within the same process) of query results based on a revision.
   // Useful for source:pull, which makes 3 of the same queries; during status, building manifests, after pull success.
   private queryCache = new Map<number, SourceMember[]>();
+  private userQueryCache = new Map<string, string>();
 
   /**
    * Initializes the service with existing remote source tracking data, or sets
@@ -477,10 +488,16 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
     // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
     const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter > ${rev}`;
     this.logger[quiet ? 'silent' : 'debug'](`Query: ${query}`);
-    const queryResult = await queryFn(this.org.getConnection(), query);
-    this.queryCache.set(rev, queryResult);
+    const conn = this.org.getConnection();
+    const queryResult = await queryFn(conn, query);
+    await updateCacheWithUnknownUsers(conn, queryResult, this.userQueryCache);
+    const queryResultWithResolvedUsers = queryResult.map((member) => ({
+      ...member,
+      ChangedBy: this.userQueryCache.get(member.ChangedBy) ?? member.ChangedBy,
+    }));
+    this.queryCache.set(rev, queryResultWithResolvedUsers);
 
-    return queryResult;
+    return queryResultWithResolvedUsers;
   }
 
   private async write(): Promise<void> {
@@ -499,6 +516,19 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
   }
 }
 
+const updateCacheWithUnknownUsers = async (
+  conn: Connection,
+  queryResult: SourceMember[],
+  userCache: Map<string, string>
+): Promise<void> => {
+  const unknownUsers = new Set<string>(queryResult.map((member) => member.ChangedBy).filter((u) => !userCache.has(u)));
+  if (unknownUsers.size > 0) {
+    const userQuery = `SELECT Id, Name FROM User WHERE Id IN ('${Array.from(unknownUsers).join("','")}')`;
+    (await conn.query<{ Id: string; Name: string }>(userQuery, { autoFetch: true, maxFetch: 50_000 })).records.map(
+      (u) => userCache.set(trimTo15(u.Id), u.Name)
+    );
+  }
+};
 /**
  * pass in an RCE, and this will return a pullable ChangeResult.
  * Useful for correcing bundle types where the files show change results with types but aren't resolvable
