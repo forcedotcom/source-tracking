@@ -553,6 +553,7 @@ const revisionToRemoteChangeElement = (memberRevision: MemberRevision): RemoteCh
   modified: memberRevision.IsNewMember === false,
   revisionCounter: memberRevision.RevisionCounter,
   changedBy: memberRevision.ChangedBy,
+  memberIdOrName: memberRevision.MemberIdOrName,
 });
 
 /**
