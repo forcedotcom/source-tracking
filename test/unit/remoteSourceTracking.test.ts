@@ -121,6 +121,7 @@ describe('remoteSourceTrackingService', () => {
     });
 
     describe('remoteChangeElementToChangeResult()', () => {
+      const memberIdOrName = '00eO4000003cP5J';
       it('should return correct ChangeResult for EmailTemplateFolder', () => {
         const rce: RemoteChangeElement = {
           name: 'level1/level2/level3',
@@ -129,6 +130,7 @@ describe('remoteSourceTrackingService', () => {
           modified: true,
           changedBy: 'Shelby McLaughlin',
           revisionCounter: 1,
+          memberIdOrName,
         };
         const changeResult = remoteChangeElementToChangeResult(rce);
         expect(changeResult).to.deep.equal({
@@ -139,6 +141,7 @@ describe('remoteSourceTrackingService', () => {
           modified: true,
           changedBy: 'Shelby McLaughlin',
           revisionCounter: 1,
+          memberIdOrName,
         });
       });
 
@@ -150,6 +153,7 @@ describe('remoteSourceTrackingService', () => {
           modified: true,
           changedBy: 'Shelby McLaughlin',
           revisionCounter: 1,
+          memberIdOrName,
         };
         const changeResult = remoteChangeElementToChangeResult(rce);
         expect(changeResult).to.deep.equal({
@@ -160,6 +164,7 @@ describe('remoteSourceTrackingService', () => {
           modified: true,
           changedBy: 'Shelby McLaughlin',
           revisionCounter: 1,
+          memberIdOrName,
         });
       });
     });
