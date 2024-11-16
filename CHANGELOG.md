@@ -1,3 +1,12 @@
+## [7.1.23](https://github.com/forcedotcom/source-tracking/compare/7.1.22...7.1.23) (2024-11-16)
+
+
+### Bug Fixes
+
+* **deps:** bump cross-spawn from 7.0.3 to 7.0.5 ([daaf7db](https://github.com/forcedotcom/source-tracking/commit/daaf7dbf6d7a16f997969fdc9e53f018aae1cc82))
+
+
+
 ## [7.1.22](https://github.com/forcedotcom/source-tracking/compare/7.1.21...7.1.22) (2024-11-16)
 
 
