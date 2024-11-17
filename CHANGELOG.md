@@ -1,3 +1,12 @@
+## [7.1.24](https://github.com/forcedotcom/source-tracking/compare/7.1.23...7.1.24) (2024-11-17)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 4.0.31 to 4.0.32 ([57aa4e7](https://github.com/forcedotcom/source-tracking/commit/57aa4e7b64cdd60d852cc83c8790bc6dede4a213))
+
+
+
 ## [7.1.23](https://github.com/forcedotcom/source-tracking/compare/7.1.22...7.1.23) (2024-11-16)
 
 
