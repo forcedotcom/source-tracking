@@ -11,24 +11,20 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
-import { EnvVars, envVars, Logger, Messages, Org } from '@salesforce/core';
+import { EnvVars, envVars, Messages, Org } from '@salesforce/core';
 import { expect, config } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import {
   RemoteSourceTrackingService,
-  calculateTimeout,
-  Contents,
   remoteChangeElementToChangeResult,
-} from '../../src/shared/remoteSourceTrackingService';
-import {
-  RemoteSyncInput,
-  SourceMember,
-  MemberRevision,
-  RemoteChangeElement,
-  MemberRevisionLegacy,
-} from '../../src/shared/types';
-import * as mocks from '../../src/shared/remoteSourceTrackingService';
-import { getMetadataNameFromKey, getMetadataTypeFromKey } from '../../src/shared/functions';
+} from '../../../src/shared/remote/remoteSourceTrackingService';
+import { RemoteSyncInput, RemoteChangeElement } from '../../../src/shared/types';
+
+import * as orgQueryMocks from '../../../src/shared/remote/orgQueries';
+
+import { getMetadataNameFromKey, getMetadataTypeFromKey } from '../../../src/shared/functions';
+import { ContentsV0, MemberRevision, MemberRevisionLegacy, SourceMember } from '../../../src/shared/remote/types';
+import { upgradeFileContents } from '../../../src/shared/remote/fileOperations';
 
 config.truncateThreshold = 0;
 
@@ -181,7 +177,7 @@ describe('remoteSourceTrackingService', () => {
   describe('init', () => {
     it('should set initial state of contents', async () => {
       // @ts-expect-error it's private
-      const queryMembersFromSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersFrom');
+      const queryMembersFromSpy = $$.SANDBOX.spy(RemoteSourceTrackingService.prototype, 'querySourceMembersFrom');
       // @ts-expect-error it's private
       await remoteSourceTrackingService.init();
       // @ts-expect-error it's private
@@ -192,7 +188,7 @@ describe('remoteSourceTrackingService', () => {
       expect(queryMembersFromSpy.called).to.equal(false);
       // the file should exist after init, with its initial state
       expect(existsSync(remoteSourceTrackingService.filePath)).to.equal(true);
-      const fileContents = JSON.parse(await readFile(remoteSourceTrackingService.filePath, 'utf8')) as Contents;
+      const fileContents = JSON.parse(await readFile(remoteSourceTrackingService.filePath, 'utf8')) as ContentsV0;
       expect(fileContents.serverMaxRevisionCounter).to.equal(0);
       expect(fileContents.sourceMembers).to.deep.equal({});
     });
@@ -712,7 +708,7 @@ describe('remoteSourceTrackingService', () => {
         sourceMembers: getMemberRevisionEntries(5),
       });
       // @ts-ignore
-      const queryToSpy = $$.SANDBOX.spy(mocks, 'querySourceMembersTo');
+      const queryToSpy = $$.SANDBOX.spy(orgQueryMocks, 'querySourceMembersTo');
       const sourceMembers = [1, 2, 3, 4, 5, 6, 7].map((rev) => getSourceMember(rev));
       // @ts-ignore
       $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
@@ -737,7 +733,7 @@ describe('remoteSourceTrackingService', () => {
       const queryFromSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersFrom');
       const sourceMembers = [1, 2, 3].map((rev) => getSourceMember(rev));
       // @ts-ignore
-      $$.SANDBOX.stub(mocks, 'querySourceMembersTo').resolves(sourceMembers);
+      $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersTo').resolves(sourceMembers);
 
       await remoteSourceTrackingService.reset(3);
 
@@ -762,8 +758,9 @@ describe('upgrading undefined to v1 file', () => {
       serverMaxRevisionCounter: 0,
       sourceMembers: {},
     };
-    expect(mocks.upgradeFileContents(oldFile).fileVersion).to.equal(1);
+    expect(upgradeFileContents(oldFile).fileVersion).to.equal(1);
   });
+
   it('handles missing string-type fields', () => {
     const oldFile = {
       serverMaxRevisionCounter: 1,
@@ -776,8 +773,7 @@ describe('upgrading undefined to v1 file', () => {
         } satisfies MemberRevisionLegacy,
       },
     };
-    // @ts-expect-error it's the wrong file contents, that's what we're testing
-    expect(mocks.upgradeFileContents(oldFile).sourceMembers['ApexClass###MyClass']).to.deep.equal({
+    expect(upgradeFileContents(oldFile).sourceMembers['ApexClass###MyClass']).to.deep.equal({
       MemberIdOrName: 'unknown',
       ChangedBy: 'unknown',
       lastRetrievedFromServer: 1,
@@ -787,6 +783,7 @@ describe('upgrading undefined to v1 file', () => {
       MemberName: 'MyClass',
     } satisfies Omit<MemberRevision, 'IsNewMember'>);
   });
+
   it('handles null lastRetrievedFromServer', () => {
     const oldFile = {
       serverMaxRevisionCounter: 1,
@@ -799,8 +796,7 @@ describe('upgrading undefined to v1 file', () => {
         } satisfies MemberRevisionLegacy,
       },
     };
-    // @ts-expect-error it's the wrong file contents, that's what we're testing
-    expect(mocks.upgradeFileContents(oldFile).sourceMembers['ApexClass###MyClass']).to.have.property(
+    expect(upgradeFileContents(oldFile).sourceMembers['ApexClass###MyClass']).to.have.property(
       'lastRetrievedFromServer',
       undefined
     );
@@ -819,35 +815,9 @@ describe('upgrading undefined to v1 file', () => {
         } satisfies MemberRevisionLegacy,
       },
     };
-    // @ts-expect-error it's the wrong file contents, that's what we're testing
-    expect(mocks.upgradeFileContents(oldFile).sourceMembers['Layout###Broker__c-v1.1 Broker Layout']).to.have.property(
+    expect(upgradeFileContents(oldFile).sourceMembers['Layout###Broker__c-v1.1 Broker Layout']).to.have.property(
       'MemberName',
       'Broker__c-v1.1 Broker Layout'
     );
-  });
-});
-
-describe('calculateTimeout', () => {
-  const logger = new Logger({ useMemoryLogger: true, name: 'test' }).getRawLogger();
-  const functionUnderTest = calculateTimeout(logger);
-  afterEach(() => {
-    envVars.unset('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT');
-    envVars.unset('SF_SOURCE_MEMBER_POLLING_TIMEOUT');
-  });
-  it('0 members => 5 sec', () => {
-    expect(functionUnderTest(0).seconds).to.equal(5);
-  });
-  it('10000 members => 505 sec', () => {
-    expect(functionUnderTest(10_000).seconds).to.equal(505);
-  });
-  it('override 60 in env', () => {
-    envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '60');
-    reResolveEnvVars();
-    expect(functionUnderTest(10_000).seconds).to.equal(60);
-  });
-  it('override 0 in env has no effect', () => {
-    envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '0');
-    reResolveEnvVars();
-    expect(functionUnderTest(10_000).seconds).to.equal(505);
   });
 });

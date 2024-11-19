@@ -9,53 +9,26 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { EOL } from 'node:os';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import {
-  envVars as env,
-  Logger,
-  Org,
-  Messages,
-  Lifecycle,
-  SfError,
-  Connection,
-  lockInit,
-  trimTo15,
-} from '@salesforce/core';
-import { Duration, parseJsonMap } from '@salesforce/kit';
+import { envVars as env, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
+import { Duration } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
-import {
-  ChangeResult,
-  RemoteChangeElement,
-  MemberRevision,
-  SourceMember,
-  RemoteSyncInput,
-  SourceMemberPollingEvent,
-  MemberRevisionLegacy,
-} from './types';
-import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from './metadataKeys';
-import { getMetadataKey, getMetadataNameFromLegacyKey, getMetadataTypeFromLegacyKey } from './functions';
+import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types';
+import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from '../metadataKeys';
+import { getMetadataKey } from '../functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
+import { SourceMember } from './types';
+import { MemberRevision, SOURCE_MEMBER_FIELDS } from './types';
+import {
+  FILENAME,
+  getFilePath,
+  readFileContents,
+  revisionToRemoteChangeElement,
+  writeTrackingFile,
+} from './fileOperations';
+import { calculateTimeout, queryFn, querySourceMembersTo, updateCacheWithUnknownUsers } from './orgQueries';
 
-/** represents the contents of the config file stored in 'maxRevision.json' */
-export type Contents = {
-  fileVersion?: number;
-  serverMaxRevisionCounter: number;
-  sourceMembers: Record<string, MemberRevision>;
-};
+export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 
-type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
-
-const SOURCE_MEMBER_FIELDS = [
-  'MemberIdOrName',
-  'MemberType',
-  'MemberName',
-  'IsNameObsolete',
-  'RevisionCounter',
-  'IsNewMember',
-  'ChangedBy',
-] satisfies Array<keyof SourceMember>;
-
-const FILENAME = 'maxRevision.json';
-const CURRENT_FILE_VERSION = 1;
 /*
  * after some results have returned, how many times should we poll for missing sourcemembers
  * even when there is a longer timeout remaining (because the deployment is very large)
@@ -76,7 +49,7 @@ export type RemoteSourceTrackingServiceOptions = {
  * This JSON file keeps track of `SourceMember` objects and the `serverMaxRevisionCounter`,
  * which is the highest `RevisionCounter` value of all the tracked elements.
  *
- * See @MemberRevision for the structure of the `SourceMember` object.  It's SourceMember with the additional lastRetrievedFromServer field
+ * See @MemberRevision for the structure of the `MemberRevision` object.  It's SourceMember (the tooling sobject) with the additional lastRetrievedFromServer field
  ```
  {
     fileVersion: 1,
@@ -100,6 +73,11 @@ export type RemoteSourceTrackingServiceOptions = {
  * In this example, `ApexClass###MyClass` has been changed in the org because the `serverRevisionCounter` is different
  * from the `lastRetrievedFromServer`. When a pull is performed, all of the pulled members will have their counters set
  * to the corresponding `RevisionCounter` from the `SourceMember` of the org.
+ * 
+ * Tracking files are written to the older format described in `MemberRevisionLegacy` 
+ * if the environment variable CURRENT_FILE_VERSION_ENV is not set to 1 
+ * 
+ * The "in memorgy" storage is in MemberRevision format.
  */
 export class RemoteSourceTrackingService {
   /** map of constructed, init'ed instances; key is orgId.  It's like a singleton at the org level */
@@ -189,7 +167,11 @@ export class RemoteSourceTrackingService {
       }
     });
 
-    await this.write();
+    await writeTrackingFile({
+      filePath: this.filePath,
+      maxCounter: this.serverMaxRevisionCounter,
+      members: this.sourceMembers,
+    });
   }
 
   /**
@@ -235,7 +217,7 @@ export class RemoteSourceTrackingService {
     // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
     // does not match the serverRevisionCounter.
     const returnElements = Array.from(this.sourceMembers.values())
-      .filter(revisionDoesNotMatch)
+      .filter(doesNotMatchServer)
       .map(revisionToRemoteChangeElement);
 
     this.logger.debug(
@@ -257,8 +239,7 @@ export class RemoteSourceTrackingService {
    */
   public async pollForSourceTracking(expectedMembers: RemoteSyncInput[]): Promise<void> {
     if (env.getBoolean('SF_DISABLE_SOURCE_MEMBER_POLLING')) {
-      this.logger.warn('Not polling for SourceMembers since SF_DISABLE_SOURCE_MEMBER_POLLING = true.');
-      return;
+      return this.logger.warn('Not polling for SourceMembers since SF_DISABLE_SOURCE_MEMBER_POLLING = true.');
     }
 
     if (expectedMembers.length === 0) {
@@ -426,7 +407,11 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       });
     });
 
-    await this.write();
+    await writeTrackingFile({
+      filePath: this.filePath,
+      maxCounter: this.serverMaxRevisionCounter,
+      members: this.sourceMembers,
+    });
   }
 
   /** reads the tracking file and inits the logger and contents */
@@ -446,7 +431,11 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       }
     } else {
       // we need to init the file
-      await this.write();
+      await writeTrackingFile({
+        filePath: this.filePath,
+        maxCounter: this.serverMaxRevisionCounter,
+        members: this.sourceMembers,
+      });
     }
     return this;
   }
@@ -499,36 +488,8 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
 
     return queryResultWithResolvedUsers;
   }
-
-  private async write(): Promise<void> {
-    const lockResult = await lockInit(this.filePath);
-    await lockResult.writeAndUnlock(
-      JSON.stringify(
-        {
-          fileVersion: CURRENT_FILE_VERSION,
-          serverMaxRevisionCounter: this.serverMaxRevisionCounter,
-          sourceMembers: Object.fromEntries(this.sourceMembers),
-        } satisfies Contents,
-        null,
-        4
-      )
-    );
-  }
 }
 
-const updateCacheWithUnknownUsers = async (
-  conn: Connection,
-  queryResult: SourceMember[],
-  userCache: Map<string, string>
-): Promise<void> => {
-  const unknownUsers = new Set<string>(queryResult.map((member) => member.ChangedBy).filter((u) => !userCache.has(u)));
-  if (unknownUsers.size > 0) {
-    const userQuery = `SELECT Id, Name FROM User WHERE Id IN ('${Array.from(unknownUsers).join("','")}')`;
-    (await conn.query<{ Id: string; Name: string }>(userQuery, { autoFetch: true, maxFetch: 50_000 })).records.map(
-      (u) => userCache.set(trimTo15(u.Id), u.Name)
-    );
-  }
-};
 /**
  * pass in an RCE, and this will return a pullable ChangeResult.
  * Useful for correcing bundle types where the files show change results with types but aren't resolvable
@@ -544,16 +505,6 @@ export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): Cha
       }
     : {}),
   origin: 'remote', // we know they're remote
-});
-
-const revisionToRemoteChangeElement = (memberRevision: MemberRevision): RemoteChangeElement => ({
-  type: memberRevision.MemberType,
-  name: memberRevision.MemberName,
-  deleted: memberRevision.IsNameObsolete,
-  modified: memberRevision.IsNewMember === false,
-  revisionCounter: memberRevision.RevisionCounter,
-  changedBy: memberRevision.ChangedBy,
-  memberIdOrName: memberRevision.MemberIdOrName,
 });
 
 /**
@@ -587,88 +538,9 @@ const getDecodedKeyIfSourceMembersHas = ({
   return key;
 };
 
-const getFilePath = (orgId: string): string => path.join('.sf', 'orgs', orgId, FILENAME);
-
-const readFileContents = async (filePath: string): Promise<Contents | Record<string, never>> => {
-  try {
-    const contents = await fs.promises.readFile(filePath, 'utf8');
-    const parsedContents = parseJsonMap<Contents>(contents, filePath);
-    if (parsedContents.fileVersion === CURRENT_FILE_VERSION) {
-      return parsedContents;
-    }
-    Logger.childFromRoot('remoteSourceTrackingService:readFileContents').debug(
-      `File version mismatch. Expected ${CURRENT_FILE_VERSION}, found ${
-        parsedContents.fileVersion ?? 'undefined'
-      }. Upgrading file contents.  Some expected data may be missing`
-    );
-    return upgradeFileContents(parsedContents);
-  } catch (e) {
-    Logger.childFromRoot('remoteSourceTrackingService:readFileContents').debug(
-      `Error reading or parsing file file at ${filePath}.  Will treat as an empty file.`,
-      e
-    );
-
-    return {};
-  }
-};
-
-export const calculateTimeout =
-  (logger: PinoLogger) =>
-  (memberCount: number): Duration => {
-    const overriddenTimeout = env.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
-    if (overriddenTimeout > 0) {
-      logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
-      return Duration.seconds(overriddenTimeout);
-    }
-
-    // Calculate a polling timeout for SourceMembers based on the number of
-    // member names being polled plus a buffer of 5 seconds.  This will
-    // wait 50s for each 1000 components, plus 5s.
-    const pollingTimeout = Math.ceil(memberCount * 0.05) + 5;
-    logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
-    return Duration.seconds(pollingTimeout);
-  };
-
-/** exported for unit testing */
-export const upgradeFileContents = (contents: Contents): Contents => ({
-  fileVersion: 1,
-  serverMaxRevisionCounter: contents.serverMaxRevisionCounter,
-  // @ts-expect-error the old file didn't store the IsNewMember field or any indication of whether the member was add/modified
-  sourceMembers: Object.fromEntries(
-    // it's the old version
-    Object.entries(contents.sourceMembers as unknown as Record<string, MemberRevisionLegacy>).map(([key, value]) => [
-      getMetadataKey(getMetadataTypeFromLegacyKey(key), getMetadataNameFromLegacyKey(key)),
-      {
-        MemberName: getMetadataNameFromLegacyKey(key),
-        MemberType: value.memberType,
-        IsNameObsolete: value.isNameObsolete,
-        RevisionCounter: value.serverRevisionCounter,
-        lastRetrievedFromServer: value.lastRetrievedFromServer ?? undefined,
-        ChangedBy: 'unknown',
-        MemberIdOrName: 'unknown',
-      },
-    ])
-  ),
-});
-
-/** exported only for spy/mock  */
-export const querySourceMembersTo = async (conn: Connection, toRevision: number): Promise<SourceMember[]> => {
-  const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
-  return queryFn(conn, query);
-};
-
-const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
-  try {
-    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records.map(
-      sourceMemberCorrections
-    );
-  } catch (error) {
-    throw SfError.wrap(error);
-  }
-};
-
 /** organize by type and format for warning output */
 const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, RemoteSyncInput>): string => {
+  // TODO: use Map.groupBy when we node22 is minimum
   // ex: CustomObject : [Foo__c, Bar__c]
   const mapByType = Array.from(outstandingSourceMembers.values()).reduce<Map<string, string[]>>((acc, value) => {
     acc.set(value.type, [...(acc.get(value.type) ?? []), value.fullName]);
@@ -679,15 +551,5 @@ const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, Remote
     .join(EOL);
 };
 
-const revisionDoesNotMatch = (member: MemberRevision): boolean => doesNotMatchServer(member);
-
 const doesNotMatchServer = (member: MemberRevision): boolean =>
   member.RevisionCounter !== member.lastRetrievedFromServer;
-
-/** A series of workarounds for server-side bugs.  Each bug should be filed against a team, with a WI, so we know when these are fixed and can be removed */
-const sourceMemberCorrections = (sourceMember: SourceMember): SourceMember => {
-  if (sourceMember.MemberType === 'QuickActionDefinition') {
-    return { ...sourceMember, MemberType: 'QuickAction' }; // W-15837125
-  }
-  return sourceMember;
-};

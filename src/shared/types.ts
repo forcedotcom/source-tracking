@@ -46,28 +46,6 @@ export type ChangeResult = Partial<RemoteChangeElement> & {
   ignored?: boolean;
 };
 
-export type MemberRevision = SourceMember & {
-  /** the last revision retrieved.  Used for detecting changes*/
-  lastRetrievedFromServer?: number;
-};
-
-/** @deprecated replaced by the new MemberRevision */
-export type MemberRevisionLegacy = {
-  memberType: string;
-  serverRevisionCounter: number;
-  lastRetrievedFromServer: number | null;
-  isNameObsolete: boolean;
-};
-export type SourceMember = {
-  MemberType: string;
-  MemberName: string;
-  IsNameObsolete: boolean;
-  IsNewMember: boolean;
-  RevisionCounter: number;
-  MemberIdOrName: string;
-  ChangedBy: string;
-};
-
 export type ConflictResponse = {
   state: 'Conflict';
   fullName: string;
