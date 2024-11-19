@@ -8,7 +8,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseJsonMap } from '@salesforce/kit';
 import { lockInit, envVars as env, Logger } from '@salesforce/core';
-import { getMetadataKey, getMetadataNameFromLegacyKey, getMetadataTypeFromLegacyKey } from '../functions';
+import {
+  getLegacyMetadataKey,
+  getMetadataKey,
+  getMetadataNameFromLegacyKey,
+  getMetadataTypeFromLegacyKey,
+} from '../functions';
 import { RemoteChangeElement } from '../types';
 import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types';
 
@@ -96,8 +101,8 @@ export const writeTrackingFile = async ({
   await lockResult.writeAndUnlock(JSON.stringify(contents, null, 4));
 };
 
-const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
-  getMetadataKey(member.MemberType, member.MemberName),
+export const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
+  getLegacyMetadataKey(member.MemberType, member.MemberName),
   {
     memberType: member.MemberType,
     serverRevisionCounter: member.RevisionCounter,

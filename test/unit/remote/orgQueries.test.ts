@@ -7,12 +7,6 @@
 import { Logger, envVars } from '@salesforce/core';
 import { expect } from 'chai';
 import { calculateTimeout } from '../../../src/shared/remote/orgQueries';
-/*
- * Copyright (c) 2023, salesforce.com, inc.
- * All rights reserved.
- * Licensed under the BSD 3-Clause license.
- * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
- */
 
 const reResolveEnvVars = (): void => {
   /* eslint-disable @typescript-eslint/no-unsafe-call */

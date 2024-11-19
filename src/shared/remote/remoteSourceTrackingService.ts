@@ -17,7 +17,7 @@ import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataT
 import { getMetadataKey } from '../functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 import { SourceMember } from './types';
-import { MemberRevision, SOURCE_MEMBER_FIELDS } from './types';
+import { MemberRevision } from './types';
 import {
   FILENAME,
   getFilePath,
@@ -25,7 +25,7 @@ import {
   revisionToRemoteChangeElement,
   writeTrackingFile,
 } from './fileOperations';
-import { calculateTimeout, queryFn, querySourceMembersTo, updateCacheWithUnknownUsers } from './orgQueries';
+import { calculateTimeout, querySourceMembersFrom, querySourceMembersTo } from './orgQueries';
 
 export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 
@@ -193,7 +193,13 @@ export class RemoteSourceTrackingService {
     const members =
       toRevision !== undefined && toRevision !== null
         ? await querySourceMembersTo(this.org.getConnection(), toRevision)
-        : await this.querySourceMembersFrom({ fromRevision: 0 });
+        : await querySourceMembersFrom({
+            fromRevision: 0,
+            logger: this.logger,
+            userQueryCache: this.userQueryCache,
+            queryCache: this.queryCache,
+            conn: this.org.getConnection(),
+          });
 
     await this.trackSourceMembers(members, true);
     return members.map((member) => getMetadataKey(member.MemberType, member.MemberName));
@@ -211,7 +217,13 @@ export class RemoteSourceTrackingService {
   // to the highest RevisionCounter.
   public async retrieveUpdates(): Promise<RemoteChangeElement[]> {
     // Always track new SourceMember data, or update tracking when we sync.
-    const queriedSourceMembers = await this.querySourceMembersFrom();
+    const queriedSourceMembers = await querySourceMembersFrom({
+      fromRevision: this.serverMaxRevisionCounter,
+      logger: this.logger,
+      userQueryCache: this.userQueryCache,
+      queryCache: this.queryCache,
+      conn: this.org.getConnection(),
+    });
     await this.trackSourceMembers(queriedSourceMembers);
 
     // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
@@ -267,10 +279,10 @@ export class RemoteSourceTrackingService {
 
       // get sourceMembers added since our most recent max
       // use the "new highest" revision from the last poll that returned results
-      const queriedMembers = await this.querySourceMembersFrom({
+      const queriedMembers = await querySourceMembersFrom({
+        conn: this.org.getConnection(),
         fromRevision: highestRevisionSoFar,
-        quiet: pollAttempts !== 1,
-        useCache: false,
+        logger: pollAttempts > 1 ? undefined : this.logger,
       });
 
       if (queriedMembers.length) {
@@ -456,37 +468,6 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       ? key
       : getDecodedKeyIfSourceMembersHas({ sourceMembers, key, logger: this.logger });
     this.sourceMembers.set(matchingKey, { ...sourceMember, MemberName: decodeURIComponent(sourceMember.MemberName) });
-  }
-
-  private async querySourceMembersFrom({
-    fromRevision,
-    quiet = false,
-    useCache = true,
-  }: { fromRevision?: number; quiet?: boolean; useCache?: boolean } = {}): Promise<SourceMember[]> {
-    const rev = fromRevision ?? this.serverMaxRevisionCounter;
-
-    if (useCache) {
-      // Check cache first and return if found.
-      const cachedQueryResult = this.queryCache.get(rev);
-      if (cachedQueryResult) {
-        this.logger.debug(`Using cache for SourceMember query for revision ${rev}`);
-        return cachedQueryResult;
-      }
-    }
-
-    // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
-    const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter > ${rev}`;
-    this.logger[quiet ? 'silent' : 'debug'](`Query: ${query}`);
-    const conn = this.org.getConnection();
-    const queryResult = await queryFn(conn, query);
-    await updateCacheWithUnknownUsers(conn, queryResult, this.userQueryCache);
-    const queryResultWithResolvedUsers = queryResult.map((member) => ({
-      ...member,
-      ChangedBy: this.userQueryCache.get(member.ChangedBy) ?? member.ChangedBy,
-    }));
-    this.queryCache.set(rev, queryResultWithResolvedUsers);
-
-    return queryResultWithResolvedUsers;
   }
 }
 

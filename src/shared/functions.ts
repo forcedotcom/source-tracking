@@ -25,6 +25,9 @@ const keySplit = '###';
 const legacyKeySplit = '__';
 export const getMetadataKey = (metadataType: string, metadataName: string): string =>
   `${metadataType}${keySplit}${metadataName}`;
+export const getLegacyMetadataKey = (metadataType: string, metadataName: string): string =>
+  `${metadataType}${legacyKeySplit}${metadataName}`;
+
 export const getMetadataTypeFromKey = (key: string): string => decodeURIComponent(key.split(keySplit)[0]);
 export const getMetadataNameFromKey = (key: string): string => decodeURIComponent(key.split(keySplit)[1]);
 export const getMetadataTypeFromLegacyKey = (key: string): string => key.split(legacyKeySplit)[0];

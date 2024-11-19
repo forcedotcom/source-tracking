@@ -9,19 +9,6 @@ import { Duration } from '@salesforce/kit';
 import { PinoLogger } from './remoteSourceTrackingService';
 import { SOURCE_MEMBER_FIELDS, SourceMember } from './types';
 
-export const updateCacheWithUnknownUsers = async (
-  conn: Connection,
-  queryResult: SourceMember[],
-  userCache: Map<string, string>
-): Promise<void> => {
-  const unknownUsers = new Set<string>(queryResult.map((member) => member.ChangedBy).filter((u) => !userCache.has(u)));
-  if (unknownUsers.size > 0) {
-    const userQuery = `SELECT Id, Name FROM User WHERE Id IN ('${Array.from(unknownUsers).join("','")}')`;
-    (await conn.query<{ Id: string; Name: string }>(userQuery, { autoFetch: true, maxFetch: 50_000 })).records.map(
-      (u) => userCache.set(trimTo15(u.Id), u.Name)
-    );
-  }
-};
 export const calculateTimeout =
   (logger: PinoLogger) =>
   (memberCount: number): Duration => {
@@ -45,6 +32,48 @@ export const querySourceMembersTo = async (conn: Connection, toRevision: number)
   return queryFn(conn, query);
 };
 
+export const querySourceMembersFrom = async ({
+  conn,
+  fromRevision,
+  queryCache,
+  userQueryCache,
+  logger,
+}: {
+  conn: Connection;
+  fromRevision: number;
+  /** optional cache, used if present.  Side effect: cache will be mutated */
+  queryCache?: Map<number, SourceMember[]>;
+  /** optional cache, used if present.  Side effect: cache will be mutated */
+  userQueryCache?: Map<string, string>;
+  /** if you don't pass in a logger, you get no log output */
+  logger?: PinoLogger;
+}): Promise<SourceMember[]> => {
+  if (queryCache) {
+    // Check cache first and return if found.
+    const cachedQueryResult = queryCache.get(fromRevision);
+    if (cachedQueryResult) {
+      logger?.debug(`Using cache for SourceMember query for revision ${fromRevision}`);
+      return cachedQueryResult;
+    }
+  }
+
+  // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
+  const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter > ${fromRevision}`;
+  logger?.debug(`Query: ${query}`);
+
+  const queryResult = await queryFn(conn, query);
+  if (userQueryCache) {
+    await updateCacheWithUnknownUsers(conn, queryResult, userQueryCache);
+  }
+  const queryResultWithResolvedUsers = queryResult.map((member) => ({
+    ...member,
+    ChangedBy: userQueryCache?.get(member.ChangedBy) ?? member.ChangedBy,
+  }));
+  queryCache?.set(fromRevision, queryResultWithResolvedUsers);
+
+  return queryResultWithResolvedUsers;
+};
+
 export const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
   try {
     return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records.map(
@@ -63,6 +92,16 @@ const sourceMemberCorrections = (sourceMember: SourceMember): SourceMember => {
   return sourceMember;
 };
 
-export const mockOrgQueries = {
-  querySourceMembersTo,
+const updateCacheWithUnknownUsers = async (
+  conn: Connection,
+  queryResult: SourceMember[],
+  userCache: Map<string, string>
+): Promise<void> => {
+  const unknownUsers = new Set<string>(queryResult.map((member) => member.ChangedBy).filter((u) => !userCache.has(u)));
+  if (unknownUsers.size > 0) {
+    const userQuery = `SELECT Id, Name FROM User WHERE Id IN ('${Array.from(unknownUsers).join("','")}')`;
+    (await conn.query<{ Id: string; Name: string }>(userQuery, { autoFetch: true, maxFetch: 50_000 })).records.map(
+      (u) => userCache.set(trimTo15(u.Id), u.Name)
+    );
+  }
 };
