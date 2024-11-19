@@ -136,7 +136,7 @@ export class RemoteSourceTrackingService {
   }
 
   /**
-   * pass in a set of metadata keys (type__name like 'ApexClass__MyClass').\
+   * pass in a series of SDR FilResponses .\
    * it sets their last retrieved revision to the current revision counter from the server.
    */
   public async syncSpecifiedElements(elements: RemoteSyncInput[]): Promise<void> {
@@ -382,7 +382,7 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
   }
 
   /**
-   * Adds the given SourceMembers to the list of tracked MemberRevisions,  optionally updating
+   * Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
    * the lastRetrievedFromServer field (sync), and persists the changes to maxRevision.json.
    */
   private async trackSourceMembers(sourceMembers: SourceMember[], sync = false): Promise<void> {
