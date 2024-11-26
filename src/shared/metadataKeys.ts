@@ -45,13 +45,13 @@ export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): s
   // Aura/LWC need to have both the bundle level and file level keys
   if (fileResponse.type === 'LightningComponentBundle' && fileResponse.filePath) {
     return [
-      `LightningComponentResource__${pathAfterFullName(fileResponse)}`,
+      getMetadataKey('LightningComponentResource', pathAfterFullName(fileResponse)),
       getMetadataKey(fileResponse.type, fileResponse.fullName),
     ];
   }
   if (fileResponse.type === 'AuraDefinitionBundle' && fileResponse.filePath) {
     return [
-      `AuraDefinition__${pathAfterFullName(fileResponse)}`,
+      getMetadataKey('AuraDefinition', pathAfterFullName(fileResponse)),
       getMetadataKey(fileResponse.type, fileResponse.fullName),
     ];
   }

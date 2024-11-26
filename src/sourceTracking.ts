@@ -29,7 +29,10 @@ import {
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
 import { Performance } from '@oclif/core/performance';
-import { RemoteSourceTrackingService, remoteChangeElementToChangeResult } from './shared/remoteSourceTrackingService';
+import {
+  RemoteSourceTrackingService,
+  remoteChangeElementToChangeResult,
+} from './shared/remote/remoteSourceTrackingService';
 import { ShadowRepo } from './shared/local/localShadowRepo';
 import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
 import {

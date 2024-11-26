@@ -6,8 +6,8 @@
  */
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
-import { calculateExpectedSourceMembers } from '../../src/shared/expectedSourceMembers';
-import { getMetadataKeyFromFileResponse } from '../../src/shared/metadataKeys';
+import { calculateExpectedSourceMembers } from '../../../src/shared/remote/expectedSourceMembers';
+import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys';
 
 describe('expectedSourceMembers', () => {
   it('filters out standard fields and deleted fields on standardObjects but returns custom fields on same object ', () => {

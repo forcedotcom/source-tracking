@@ -17,7 +17,7 @@ describe('metadataKeys', () => {
       filePath: 'force-app/main/default/tabs/Order__c.tab-meta.xml',
     };
 
-    expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal(['CustomTab__Order__c']);
+    expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal(['CustomTab###Order__c']);
   });
 
   describe('lwc', () => {
@@ -29,8 +29,8 @@ describe('metadataKeys', () => {
         filePath: 'force-app/main/productTileList/lwc/productTileList/productTileList.css',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
-        'LightningComponentResource__productTileList/productTileList.css',
-        'LightningComponentBundle__productTileList',
+        'LightningComponentResource###productTileList/productTileList.css',
+        'LightningComponentBundle###productTileList',
       ]);
     });
 
@@ -42,8 +42,8 @@ describe('metadataKeys', () => {
         filePath: 'force-app/main/default/lwc/productTileList/productTileList.css',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
-        'LightningComponentResource__productTileList/productTileList.css',
-        'LightningComponentBundle__productTileList',
+        'LightningComponentResource###productTileList/productTileList.css',
+        'LightningComponentBundle###productTileList',
       ]);
     });
 
@@ -55,8 +55,8 @@ describe('metadataKeys', () => {
         filePath: 'force-app/main/default/lwc/errorPanel/templates/noDataIllustration.html',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
-        'LightningComponentResource__errorPanel/templates/noDataIllustration.html',
-        'LightningComponentBundle__errorPanel',
+        'LightningComponentResource###errorPanel/templates/noDataIllustration.html',
+        'LightningComponentBundle###errorPanel',
       ]);
     });
   });
@@ -70,8 +70,8 @@ describe('metadataKeys', () => {
         filePath: 'force-app/main/default/aura/pageTemplate_2_7_3/pageTemplate_2_7_3.cmp',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
-        'AuraDefinition__pageTemplate_2_7_3/pageTemplate_2_7_3.cmp',
-        'AuraDefinitionBundle__pageTemplate_2_7_3',
+        'AuraDefinition###pageTemplate_2_7_3/pageTemplate_2_7_3.cmp',
+        'AuraDefinitionBundle###pageTemplate_2_7_3',
       ]);
     });
   });
@@ -85,8 +85,8 @@ describe('metadataKeys', () => {
         filePath: 'force-app/main/default/objects/Case/fields/Product__c.field-meta.xml',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
-        'CustomObject__Case',
-        'CustomField__Case.Product__c',
+        'CustomObject###Case',
+        'CustomField###Case.Product__c',
       ]);
     });
   });
@@ -100,8 +100,8 @@ describe('metadataKeys', () => {
         filePath: 'force-app/main/default/email/ETF_WTF.emailFolder-meta.xml',
       };
       expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
-        'EmailFolder__ETF_WTF',
-        'EmailTemplateFolder__ETF_WTF',
+        'EmailFolder###ETF_WTF',
+        'EmailTemplateFolder###ETF_WTF',
       ]);
     });
   });
