@@ -33,6 +33,7 @@ export type RemoteChangeElement = {
   modified?: boolean;
   changedBy: string;
   revisionCounter: number;
+  lastModifiedDate: string;
   /** the ID of the metadata that was changed.  Each metadata type has a different 3-char prefix */
   memberIdOrName: string;
 };

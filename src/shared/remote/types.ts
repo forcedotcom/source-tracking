@@ -31,6 +31,7 @@ export type SourceMember = {
   MemberIdOrName: string;
   /** userID of the person who made change */
   ChangedBy: string;
+  LastModifiedDate: string;
 };
 
 export type MemberRevision = SourceMember & {
@@ -57,4 +58,5 @@ export const SOURCE_MEMBER_FIELDS = [
   'RevisionCounter',
   'IsNewMember',
   'ChangedBy',
+  'LastModifiedDate',
 ] satisfies Array<keyof SourceMember>;
