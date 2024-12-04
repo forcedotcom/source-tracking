@@ -26,6 +26,7 @@ describe('writing file version based on env', () => {
         RevisionCounter: 1,
         MemberName: 'MyClass',
         IsNewMember: false,
+        LastModifiedDate: new Date().toJSON(),
       } satisfies MemberRevision,
     ],
   ]);
@@ -97,6 +98,7 @@ describe('upgrading undefined file version to v1 file', () => {
       IsNameObsolete: false,
       RevisionCounter: 1,
       MemberName: 'MyClass',
+      LastModifiedDate: 'unknown',
     } satisfies Omit<MemberRevision, 'IsNewMember'>);
   });
 
