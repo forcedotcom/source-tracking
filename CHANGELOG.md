@@ -1,3 +1,17 @@
+# [7.3.0](https://github.com/forcedotcom/source-tracking/compare/7.2.2...7.3.0) (2024-12-05)
+
+
+### Bug Fixes
+
+* pass full paths for file resolution ([ea41f30](https://github.com/forcedotcom/source-tracking/commit/ea41f30c8fbfed6f6c18ab5e5a7a7654424451d8))
+
+
+### Features
+
+* query/store SourceMember modstore ([2568ca5](https://github.com/forcedotcom/source-tracking/commit/2568ca56ec045f29d1f94d024d426f0665ac2dfd))
+
+
+
 ## [7.2.2](https://github.com/forcedotcom/source-tracking/compare/7.2.1...7.2.2) (2024-11-30)
 
 
