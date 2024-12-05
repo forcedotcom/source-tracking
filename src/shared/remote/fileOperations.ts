@@ -52,6 +52,7 @@ export const revisionToRemoteChangeElement = (memberRevision: MemberRevision): R
   revisionCounter: memberRevision.RevisionCounter,
   changedBy: memberRevision.ChangedBy,
   memberIdOrName: memberRevision.MemberIdOrName,
+  lastModifiedDate: memberRevision.LastModifiedDate,
 });
 
 export const upgradeFileContents = (contents: ContentsV0): ContentsV1 => ({
@@ -70,6 +71,7 @@ export const upgradeFileContents = (contents: ContentsV0): ContentsV1 => ({
         lastRetrievedFromServer: value.lastRetrievedFromServer ?? undefined,
         ChangedBy: 'unknown',
         MemberIdOrName: 'unknown',
+        LastModifiedDate: 'unknown',
       },
     ])
   ),

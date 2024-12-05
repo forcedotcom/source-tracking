@@ -23,7 +23,7 @@ import { RemoteSyncInput, RemoteChangeElement } from '../../../src/shared/types'
 import * as orgQueryMocks from '../../../src/shared/remote/orgQueries';
 
 import { getMetadataNameFromKey, getMetadataTypeFromKey } from '../../../src/shared/functions';
-import { ContentsV0, MemberRevision, SourceMember } from '../../../src/shared/remote/types';
+import { ContentsV0, ContentsV1, MemberRevision, SourceMember } from '../../../src/shared/remote/types';
 
 config.truncateThreshold = 0;
 
@@ -34,6 +34,7 @@ const defaultSourceMemberValues = {
   RevisionCounter: 1,
   ChangedBy: 'Shelby McLaughlin',
   MemberIdOrName: '00eO4000003cP5JIAU',
+  LastModifiedDate: new Date().toJSON(),
 } satisfies Partial<SourceMember>;
 
 const getSourceMember = (revision: number, isDeleted = false): SourceMember => ({
@@ -126,6 +127,7 @@ describe('remoteSourceTrackingService', () => {
           changedBy: 'Shelby McLaughlin',
           revisionCounter: 1,
           memberIdOrName,
+          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
         };
         const changeResult = remoteChangeElementToChangeResult(rce);
         expect(changeResult).to.deep.equal({
@@ -137,6 +139,7 @@ describe('remoteSourceTrackingService', () => {
           changedBy: 'Shelby McLaughlin',
           revisionCounter: 1,
           memberIdOrName,
+          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
         });
       });
 
@@ -149,6 +152,7 @@ describe('remoteSourceTrackingService', () => {
           changedBy: 'Shelby McLaughlin',
           revisionCounter: 1,
           memberIdOrName,
+          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
         };
         const changeResult = remoteChangeElementToChangeResult(rce);
         expect(changeResult).to.deep.equal({
@@ -160,6 +164,7 @@ describe('remoteSourceTrackingService', () => {
           changedBy: 'Shelby McLaughlin',
           revisionCounter: 1,
           memberIdOrName,
+          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
         });
       });
     });
@@ -564,6 +569,7 @@ describe('remoteSourceTrackingService', () => {
       });
       const contents = {
         serverMaxRevisionCounter: 1,
+        fileVersion: 1,
         sourceMembers: {
           'Profile###my(awesome)profile': {
             ...defaultSourceMemberValues,
@@ -575,7 +581,7 @@ describe('remoteSourceTrackingService', () => {
             MemberType: 'Profile',
           },
         },
-      };
+      } satisfies ContentsV1;
       setContents(contents);
       await remoteSourceTrackingService.syncSpecifiedElements([
         {

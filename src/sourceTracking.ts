@@ -330,7 +330,7 @@ export class SourceTracking extends AsyncCreatable {
       if (options.format === 'ChangeResultWithPaths') {
         return populateFilePaths({
           elements: filteredChanges.map(remoteChangeElementToChangeResult),
-          packageDirPaths: this.project.getPackageDirectories().map((pkgDir) => pkgDir.path),
+          packageDirPaths: this.project.getPackageDirectories().map((pkgDir) => pkgDir.fullPath),
           registry: this.registry,
         });
       }
