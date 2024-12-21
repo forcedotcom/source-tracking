@@ -1,3 +1,12 @@
+## [7.3.3](https://github.com/forcedotcom/source-tracking/compare/7.3.2...7.3.3) (2024-12-21)
+
+
+### Bug Fixes
+
+* **deps:** bump fast-xml-parser from 4.5.0 to 4.5.1 ([f549b70](https://github.com/forcedotcom/source-tracking/commit/f549b709127adc22bd196f981db36a8a88888d75))
+
+
+
 ## [7.3.2](https://github.com/forcedotcom/source-tracking/compare/7.3.1...7.3.2) (2024-12-14)
 
 
