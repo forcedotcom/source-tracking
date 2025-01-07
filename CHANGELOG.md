@@ -1,3 +1,13 @@
+## [7.3.6](https://github.com/forcedotcom/source-tracking/compare/7.3.5...7.3.6) (2025-01-07)
+
+
+### Bug Fixes
+
+* bump SDR to 12.11.2 ([2039169](https://github.com/forcedotcom/source-tracking/commit/20391692493b2606ca70e5d7be707983a940a1d9))
+* correct import for sinon ([db7e7ca](https://github.com/forcedotcom/source-tracking/commit/db7e7ca07fc6b0128ae0786a62849507a4f4e19c))
+
+
+
 ## [7.3.5](https://github.com/forcedotcom/source-tracking/compare/7.3.4...7.3.5) (2025-01-04)
 
 
