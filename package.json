@@ -49,7 +49,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@oclif/core": "^4.2.0",
+    "@oclif/core": "^4.2.2",
     "@salesforce/core": "^8.8.0",
     "@salesforce/kit": "^3.2.3",
     "@salesforce/source-deploy-retrieve": "^12.11.2",
