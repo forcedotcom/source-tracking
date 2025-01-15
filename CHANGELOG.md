@@ -1,3 +1,12 @@
+## [7.3.7](https://github.com/forcedotcom/source-tracking/compare/7.3.6...7.3.7) (2025-01-15)
+
+
+### Bug Fixes
+
+* reused instances don't keep cache ([3814cd7](https://github.com/forcedotcom/source-tracking/commit/3814cd735874922f1ded867fc295c7a438df3279))
+
+
+
 ## [7.3.6](https://github.com/forcedotcom/source-tracking/compare/7.3.5...7.3.6) (2025-01-07)
 
 
