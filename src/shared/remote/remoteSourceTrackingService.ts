@@ -117,6 +117,8 @@ export class RemoteSourceTrackingService {
       service = await new RemoteSourceTrackingService(options).init();
       this.instanceMap.set(orgId, service);
     }
+    // even if there was already an instance around, its queries might no longer be accurate (ex: missing new changes but queryFrom would return stale results)
+    service.queryCache.clear();
     return service;
   }
 
