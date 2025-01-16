@@ -34,11 +34,14 @@ export const getGroupedFiles = (input: GroupedFileInput, byPackageDir = false): 
   );
 
 const getSequential = ({ packageDirs, nonDeletes, deletes }: GroupedFileInput): GroupedFile[] =>
-  packageDirs.map((pkgDir) => ({
-    path: pkgDir.name,
-    nonDeletes: nonDeletes.filter(pathIsInFolder(pkgDir.name)),
-    deletes: deletes.filter(pathIsInFolder(pkgDir.name)),
-  }));
+  packageDirs.map((pkgDir) => {
+    const { name } = pkgDir;
+    return {
+      path: name,
+      nonDeletes: nonDeletes.filter(pathIsInFolder(name)),
+      deletes: deletes.filter(pathIsInFolder(name)),
+    };
+  });
 
 const getNonSequential = ({
   packageDirs,
