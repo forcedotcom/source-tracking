@@ -47,13 +47,17 @@ export const pathIsInFolder =
       return true;
     }
 
-    if (!filePath.startsWith(folder)) {
+    const normalizedfilePath = normalize(sep + filePath + sep);
+    const normalizedfolderPath = normalize(sep + folder + sep);
+    if (!normalizedfilePath.startsWith(normalizedfolderPath)) {
       return false;
     }
 
-    const filePathParts = normalize(filePath).split(sep).filter(nonEmptyStringFilter);
-    const folderParts = normalize(folder).split(sep).filter(nonEmptyStringFilter);
-    return folderParts.every((part, index) => part === filePathParts[index]);
+    const filePathParts = normalizedfilePath.split(sep).filter(nonEmptyStringFilter);
+    return normalizedfolderPath
+      .split(sep)
+      .filter(nonEmptyStringFilter)
+      .every((part, index) => part === filePathParts[index]);
   };
 
 /** just like pathIsInFolder but with the parameter order reversed for iterating a single file against an array of folders */
