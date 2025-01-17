@@ -31,6 +31,11 @@ export type RemoteChangeElement = {
   type: string;
   deleted?: boolean;
   modified?: boolean;
+  changedBy: string;
+  revisionCounter: number;
+  lastModifiedDate: string;
+  /** the ID of the metadata that was changed.  Each metadata type has a different 3-char prefix */
+  memberIdOrName: string;
 };
 
 /**
@@ -39,21 +44,6 @@ export type RemoteChangeElement = {
 export type ChangeResult = Partial<RemoteChangeElement> & {
   origin: 'local' | 'remote';
   filenames?: string[];
-  ignored?: boolean;
-};
-
-export type MemberRevision = {
-  serverRevisionCounter: number;
-  lastRetrievedFromServer: number | null;
-  memberType: string;
-  isNameObsolete: boolean;
-};
-
-export type SourceMember = {
-  MemberType: string;
-  MemberName: string;
-  IsNameObsolete: boolean;
-  RevisionCounter: number;
   ignored?: boolean;
 };
 

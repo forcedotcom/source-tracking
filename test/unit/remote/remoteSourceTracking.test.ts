@@ -11,35 +11,51 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { sep, dirname } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
-import { EnvVars, envVars, Logger, Messages, Org } from '@salesforce/core';
-import { expect } from 'chai';
+import { EnvVars, envVars, Messages, Org } from '@salesforce/core';
+import { expect, config } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
 import {
   RemoteSourceTrackingService,
-  calculateTimeout,
-  Contents,
   remoteChangeElementToChangeResult,
-} from '../../src/shared/remoteSourceTrackingService';
-import { RemoteSyncInput, SourceMember, MemberRevision, RemoteChangeElement } from '../../src/shared/types';
-import * as mocks from '../../src/shared/remoteSourceTrackingService';
+} from '../../../src/shared/remote/remoteSourceTrackingService';
+import { RemoteSyncInput, RemoteChangeElement } from '../../../src/shared/types';
+
+import * as orgQueryMocks from '../../../src/shared/remote/orgQueries';
+
+import { getMetadataNameFromKey, getMetadataTypeFromKey } from '../../../src/shared/functions';
+import { ContentsV0, ContentsV1, MemberRevision, SourceMember } from '../../../src/shared/remote/types';
+
+config.truncateThreshold = 0;
 
 Messages.importMessagesDirectory(__dirname);
 
-const getSourceMember = (revision: number, deleted = false): SourceMember => ({
+const defaultSourceMemberValues = {
+  IsNewMember: false,
+  RevisionCounter: 1,
+  ChangedBy: 'Shelby McLaughlin',
+  MemberIdOrName: '00eO4000003cP5JIAU',
+  LastModifiedDate: new Date().toJSON(),
+} satisfies Partial<SourceMember>;
+
+const getSourceMember = (revision: number, isDeleted = false): SourceMember => ({
+  ...defaultSourceMemberValues,
   RevisionCounter: revision,
   MemberType: 'ApexClass',
   MemberName: `MyClass${revision}`,
-  IsNameObsolete: deleted,
+  IsNameObsolete: isDeleted,
+  MemberIdOrName: '00eO4000003cP5JIAU',
 });
 
 const getMemberRevisionEntries = (revision: number, synced = false): { [key: string]: MemberRevision } => {
   const sourceMemberEntries = {} as { [key: string]: MemberRevision };
   for (let i = 1; i <= revision; i++) {
-    sourceMemberEntries[`ApexClass__MyClass${i}`] = {
-      serverRevisionCounter: i,
-      lastRetrievedFromServer: synced ? i : null,
-      memberType: 'ApexClass',
-      isNameObsolete: false,
+    sourceMemberEntries[`ApexClass###MyClass${i}`] = {
+      ...defaultSourceMemberValues,
+      RevisionCounter: i,
+      lastRetrievedFromServer: synced ? i : undefined,
+      MemberType: 'ApexClass',
+      MemberName: `MyClass${i}`,
+      IsNameObsolete: false,
     };
   }
   return sourceMemberEntries;
@@ -52,6 +68,10 @@ const reResolveEnvVars = (): void => {
   /* eslint-enable @typescript-eslint/no-unsafe-call */
 };
 
+type SetContentsInput = {
+  serverMaxRevisionCounter: number;
+  sourceMembers: { [key: string]: MemberRevision };
+};
 describe('remoteSourceTrackingService', () => {
   const username = 'foo@bar.com';
   let orgId: string;
@@ -59,10 +79,7 @@ describe('remoteSourceTrackingService', () => {
   let remoteSourceTrackingService: RemoteSourceTrackingService;
 
   /** a shared "cheater" method to do illegal operations for test setup purposes */
-  const setContents = (contents: {
-    serverMaxRevisionCounter: number;
-    sourceMembers: { [key: string]: MemberRevision };
-  }): void => {
+  const setContents = (contents: SetContentsInput): void => {
     // @ts-expect-error it's private
     remoteSourceTrackingService.serverMaxRevisionCounter = contents.serverMaxRevisionCounter;
     // @ts-expect-error it's private
@@ -100,12 +117,17 @@ describe('remoteSourceTrackingService', () => {
     });
 
     describe('remoteChangeElementToChangeResult()', () => {
+      const memberIdOrName = '00eO4000003cP5J';
       it('should return correct ChangeResult for EmailTemplateFolder', () => {
         const rce: RemoteChangeElement = {
           name: 'level1/level2/level3',
           type: 'EmailTemplateFolder',
           deleted: false,
           modified: true,
+          changedBy: 'Shelby McLaughlin',
+          revisionCounter: 1,
+          memberIdOrName,
+          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
         };
         const changeResult = remoteChangeElementToChangeResult(rce);
         expect(changeResult).to.deep.equal({
@@ -114,6 +136,10 @@ describe('remoteSourceTrackingService', () => {
           type: 'EmailFolder',
           deleted: false,
           modified: true,
+          changedBy: 'Shelby McLaughlin',
+          revisionCounter: 1,
+          memberIdOrName,
+          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
         });
       });
 
@@ -123,6 +149,10 @@ describe('remoteSourceTrackingService', () => {
           type: 'LightningComponentResource',
           deleted: false,
           modified: true,
+          changedBy: 'Shelby McLaughlin',
+          revisionCounter: 1,
+          memberIdOrName,
+          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
         };
         const changeResult = remoteChangeElementToChangeResult(rce);
         expect(changeResult).to.deep.equal({
@@ -131,6 +161,10 @@ describe('remoteSourceTrackingService', () => {
           type: 'LightningComponentBundle',
           deleted: false,
           modified: true,
+          changedBy: 'Shelby McLaughlin',
+          revisionCounter: 1,
+          memberIdOrName,
+          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
         });
       });
     });
@@ -146,8 +180,7 @@ describe('remoteSourceTrackingService', () => {
 
   describe('init', () => {
     it('should set initial state of contents', async () => {
-      // @ts-expect-error it's private
-      const queryMembersFromSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersFrom');
+      const queryMembersFromSpy = $$.SANDBOX.spy(orgQueryMocks, 'querySourceMembersFrom');
       // @ts-expect-error it's private
       await remoteSourceTrackingService.init();
       // @ts-expect-error it's private
@@ -158,7 +191,7 @@ describe('remoteSourceTrackingService', () => {
       expect(queryMembersFromSpy.called).to.equal(false);
       // the file should exist after init, with its initial state
       expect(existsSync(remoteSourceTrackingService.filePath)).to.equal(true);
-      const fileContents = JSON.parse(await readFile(remoteSourceTrackingService.filePath, 'utf8')) as Contents;
+      const fileContents = JSON.parse(await readFile(remoteSourceTrackingService.filePath, 'utf8')) as ContentsV0;
       expect(fileContents.serverMaxRevisionCounter).to.equal(0);
       expect(fileContents.sourceMembers).to.deep.equal({});
     });
@@ -167,17 +200,17 @@ describe('remoteSourceTrackingService', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
           },
-          'Layout__Broker__c-v1.1 Broker Layout': {
-            serverRevisionCounter: 2,
+          'Layout###Broker__c-v1.1 Broker Layout': {
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
           },
         },
       };
@@ -209,20 +242,26 @@ describe('remoteSourceTrackingService', () => {
       const maxJson = {
         serverMaxRevisionCounter: 3,
         sourceMembers: {
-          CustomObject__test__c: {
-            memberType: 'CustomObject',
-            serverRevisionCounter: 2,
+          'CustomObject###test__c': {
+            ...defaultSourceMemberValues,
+            MemberType: 'CustomObject',
+            RevisionCounter: 2,
             lastRetrievedFromServer: 3,
-            isNameObsolete: false,
+            IsNameObsolete: false,
+            MemberIdOrName: 'test__c',
+            MemberName: 'test__c',
           },
-          ApexClass__abc: {
-            memberType: 'ApexClass',
-            serverRevisionCounter: 2,
+          'ApexClass###abc': {
+            ...defaultSourceMemberValues,
+            MemberIdOrName: 'abc',
+            MemberName: 'abc',
+            MemberType: 'ApexClass',
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            isNameObsolete: false,
+            IsNameObsolete: false,
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
       const changes = await remoteSourceTrackingService.retrieveUpdates();
       expect(changes.length).to.equal(1);
@@ -232,17 +271,19 @@ describe('remoteSourceTrackingService', () => {
 
     it('will upsert SourceMembers objects correctly', async () => {
       const sm1 = {
+        ...defaultSourceMemberValues,
         MemberType: 'ApexClass',
         MemberName: 'test1__c',
         IsNameObsolete: false,
         RevisionCounter: 1,
-      };
+      } satisfies SourceMember;
       const sm2 = {
+        ...defaultSourceMemberValues,
         MemberType: 'ApexClass',
         MemberName: 'test2__c',
         IsNameObsolete: true,
         RevisionCounter: 2,
-      };
+      } satisfies SourceMember;
       const sourceMemberContainer = [sm1, sm2];
       // @ts-ignore calling a private method from a test
       await remoteSourceTrackingService.trackSourceMembers(sourceMemberContainer);
@@ -255,77 +296,94 @@ describe('remoteSourceTrackingService', () => {
       expect(sm[1].type).to.equal('ApexClass');
 
       // @ts-ignore getSourceMember is private
-      expect(remoteSourceTrackingService.getSourceMember('ApexClass__test1__c')).to.deep.equal({
-        serverRevisionCounter: 1,
-        lastRetrievedFromServer: null,
-        memberType: 'ApexClass',
-        isNameObsolete: false,
+      expect(remoteSourceTrackingService.getSourceMember('ApexClass###test1__c')).to.deep.contain({
+        ...defaultSourceMemberValues,
+        RevisionCounter: 1,
+        lastRetrievedFromServer: undefined,
+        MemberType: 'ApexClass',
+        IsNameObsolete: false,
+        MemberName: 'test1__c',
       });
 
       // @ts-ignore getSourceMember is private
-      expect(remoteSourceTrackingService.getSourceMember('ApexClass__test2__c')).to.deep.equal({
-        serverRevisionCounter: 2,
-        lastRetrievedFromServer: null,
-        memberType: 'ApexClass',
-        isNameObsolete: true,
+      expect(remoteSourceTrackingService.getSourceMember('ApexClass###test2__c')).to.deep.contain({
+        RevisionCounter: 2,
+        lastRetrievedFromServer: undefined,
+        MemberType: 'ApexClass',
+        IsNameObsolete: true,
+        MemberName: 'test2__c',
       });
     });
 
     it('will match decoded SourceMember keys on get', () => {
+      const encodedKey = 'Layout###Broker__c-v1%2E1 Broker Layout';
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            ...defaultSourceMemberValues,
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
+            MemberName: 'Broker__c-Broker Layout',
           },
-          'Layout__Broker__c-v1.1 Broker Layout': {
-            serverRevisionCounter: 2,
+          [encodedKey]: {
+            ...defaultSourceMemberValues,
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
+            MemberName: 'Broker__c-v1.1 Broker Layout',
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
 
       // @ts-ignore getSourceMember is private
-      expect(remoteSourceTrackingService.getSourceMember('Layout__Broker__c-v1%2E1 Broker Layout')).to.deep.equal({
-        serverRevisionCounter: 2,
+      expect(remoteSourceTrackingService.getSourceMember(encodedKey)).to.deep.equal({
+        ...defaultSourceMemberValues,
+        MemberName: 'Broker__c-v1.1 Broker Layout',
+        RevisionCounter: 2,
         lastRetrievedFromServer: 2,
-        memberType: 'Layout',
-        isNameObsolete: false,
+        MemberType: 'Layout',
+        IsNameObsolete: false,
       });
     });
 
     it('will match encoded SourceMember keys on get', () => {
+      const encodedKey = 'Layout###Broker__c-v1%2E1 Broker Layout';
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            ...defaultSourceMemberValues,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-Broker Layout'),
+            MemberType: getMetadataTypeFromKey('Layout###Broker__c-Broker Layout'),
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            IsNameObsolete: false,
           },
-          'Layout__Broker__c-v1%2E1 Broker Layout': {
-            serverRevisionCounter: 2,
+          [encodedKey]: {
+            ...defaultSourceMemberValues,
+            MemberType: getMetadataTypeFromKey(encodedKey),
+            MemberName: getMetadataNameFromKey(encodedKey),
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            IsNameObsolete: false,
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
 
       // @ts-ignore getSourceMember is private
-      expect(remoteSourceTrackingService.getSourceMember('Layout__Broker__c-v1.1 Broker Layout')).to.deep.equal({
-        serverRevisionCounter: 2,
+      expect(remoteSourceTrackingService.getSourceMember('Layout###Broker__c-v1.1 Broker Layout')).to.deep.equal({
+        ...defaultSourceMemberValues,
+        MemberName: 'Broker__c-v1.1 Broker Layout',
+        RevisionCounter: 2,
         lastRetrievedFromServer: 2,
-        memberType: 'Layout',
-        isNameObsolete: false,
+        MemberType: 'Layout',
+        IsNameObsolete: false,
       });
     });
 
@@ -333,45 +391,56 @@ describe('remoteSourceTrackingService', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            ...defaultSourceMemberValues,
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-Broker Layout'),
           },
-          'Layout__Broker__c-v1.1 Broker Layout': {
-            serverRevisionCounter: 2,
+          'Layout###Broker__c-v1.1 Broker Layout': {
+            ...defaultSourceMemberValues,
+
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-v1.1 Broker Layout'),
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
 
       // @ts-ignore setMemberRevision is private
-      remoteSourceTrackingService.setMemberRevision('Layout__Broker__c-v1%2E1 Broker Layout', {
-        serverRevisionCounter: 3,
+      remoteSourceTrackingService.setMemberRevision('Layout###Broker__c-v1%2E1 Broker Layout', {
+        ...defaultSourceMemberValues,
+        MemberName: getMetadataNameFromKey('Layout###Broker__c-v1.1 Broker Layout'),
+        RevisionCounter: 3,
         lastRetrievedFromServer: 3,
-        memberType: 'Layout',
-        isNameObsolete: false,
+        MemberType: 'Layout',
+        IsNameObsolete: false,
       });
 
       // @ts-expect-error getSourceMembers is private
       expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(
         new Map(
           Object.entries({
-            'Layout__Broker__c-Broker Layout': {
-              serverRevisionCounter: 1,
+            'Layout###Broker__c-Broker Layout': {
+              ...defaultSourceMemberValues,
+              RevisionCounter: 1,
               lastRetrievedFromServer: 1,
-              memberType: 'Layout',
-              isNameObsolete: false,
+              MemberType: 'Layout',
+              IsNameObsolete: false,
+              MemberName: 'Broker__c-Broker Layout',
             },
-            'Layout__Broker__c-v1.1 Broker Layout': {
-              serverRevisionCounter: 3,
+            'Layout###Broker__c-v1.1 Broker Layout': {
+              ...defaultSourceMemberValues,
+              MemberName: 'Broker__c-v1.1 Broker Layout',
+              RevisionCounter: 3,
               lastRetrievedFromServer: 3,
-              memberType: 'Layout',
-              isNameObsolete: false,
+              MemberType: 'Layout',
+              IsNameObsolete: false,
             },
           })
         )
@@ -381,7 +450,7 @@ describe('remoteSourceTrackingService', () => {
     it('should not throw for non-decodeable key missing from SourceMember map on get', () => {
       // trying to decode '%E0%A4%A' throws a URIError so getDecodedKeyIfSourceMembersHas()
       // should not throw when a non-decodeable key is encountered.
-      const sourceMemberKey = 'Layout__Broker__c-%E0%A4%A';
+      const sourceMemberKey = 'Layout###Broker__c-%E0%A4%A';
 
       // @ts-ignore getSourceMember is private
       expect(remoteSourceTrackingService.getSourceMember(sourceMemberKey)).to.equal(undefined);
@@ -391,45 +460,55 @@ describe('remoteSourceTrackingService', () => {
       const maxJson = {
         serverMaxRevisionCounter: 2,
         sourceMembers: {
-          'Layout__Broker__c-Broker Layout': {
-            serverRevisionCounter: 1,
+          'Layout###Broker__c-Broker Layout': {
+            ...defaultSourceMemberValues,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-Broker Layout'),
+            RevisionCounter: 1,
             lastRetrievedFromServer: 1,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
           },
-          'Layout__Broker__c-v1%2E1 Broker Layout': {
-            serverRevisionCounter: 2,
+          'Layout###Broker__c-v1%2E1 Broker Layout': {
+            ...defaultSourceMemberValues,
+            MemberName: getMetadataNameFromKey('Layout###Broker__c-v1%2E1 Broker Layout'),
+            RevisionCounter: 2,
             lastRetrievedFromServer: 2,
-            memberType: 'Layout',
-            isNameObsolete: false,
+            MemberType: 'Layout',
+            IsNameObsolete: false,
           },
         },
-      };
+      } satisfies SetContentsInput;
       setContents(maxJson);
 
       // @ts-ignore setMemberRevision is private
-      remoteSourceTrackingService.setMemberRevision('Layout__Broker__c-v1.1 Broker Layout', {
-        serverRevisionCounter: 3,
+      remoteSourceTrackingService.setMemberRevision('Layout###Broker__c-v1.1 Broker Layout', {
+        ...defaultSourceMemberValues,
+        MemberName: getMetadataNameFromKey('Layout###Broker__c-v1%2E1 Broker Layout'),
+        RevisionCounter: 3,
         lastRetrievedFromServer: 3,
-        memberType: 'Layout',
-        isNameObsolete: false,
+        MemberType: 'Layout',
+        IsNameObsolete: false,
       });
 
       // @ts-expect-error getSourceMembers is private
       expect(remoteSourceTrackingService.sourceMembers).to.deep.equal(
         new Map(
           Object.entries({
-            'Layout__Broker__c-Broker Layout': {
-              serverRevisionCounter: 1,
+            'Layout###Broker__c-Broker Layout': {
+              ...defaultSourceMemberValues,
+              MemberName: 'Broker__c-Broker Layout',
+              RevisionCounter: 1,
               lastRetrievedFromServer: 1,
-              memberType: 'Layout',
-              isNameObsolete: false,
+              MemberType: 'Layout',
+              IsNameObsolete: false,
             },
-            'Layout__Broker__c-v1%2E1 Broker Layout': {
-              serverRevisionCounter: 3,
+            'Layout###Broker__c-v1%2E1 Broker Layout': {
+              ...defaultSourceMemberValues,
+              MemberName: 'Broker__c-v1.1 Broker Layout',
+              RevisionCounter: 3,
               lastRetrievedFromServer: 3,
-              memberType: 'Layout',
-              isNameObsolete: false,
+              MemberType: 'Layout',
+              IsNameObsolete: false,
             },
           })
         )
@@ -462,8 +541,7 @@ describe('remoteSourceTrackingService', () => {
     });
 
     it('should sync SourceMembers when query results match', async () => {
-      // @ts-ignore
-      const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom');
+      const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom');
       // @ts-expect-error it's private
       remoteSourceTrackingService.serverMaxRevisionCounter = 9;
 
@@ -489,17 +567,22 @@ describe('remoteSourceTrackingService', () => {
         serverMaxRevisionCounter: 0,
         sourceMembers: {},
       });
-      setContents({
+      const contents = {
         serverMaxRevisionCounter: 1,
+        fileVersion: 1,
         sourceMembers: {
-          'Profile__my(awesome)profile': {
-            isNameObsolete: false,
-            serverRevisionCounter: 1,
-            lastRetrievedFromServer: null,
-            memberType: 'Profile',
+          'Profile###my(awesome)profile': {
+            ...defaultSourceMemberValues,
+            MemberName: getMetadataNameFromKey('Profile###my(awesome)profile'),
+            IsNewMember: false,
+            IsNameObsolete: false,
+            RevisionCounter: 1,
+            lastRetrievedFromServer: undefined,
+            MemberType: 'Profile',
           },
         },
-      });
+      } satisfies ContentsV1;
+      setContents(contents);
       await remoteSourceTrackingService.syncSpecifiedElements([
         {
           fullName: 'my(awesome)profile',
@@ -508,15 +591,17 @@ describe('remoteSourceTrackingService', () => {
           state: ComponentStatus.Changed,
         },
       ]);
-      // lastRetrievedFromServer should be set to the serverRevisionCounter
+      // lastRetrievedFromServer should be set to the RevisionCounter
       expect(getContents()).to.deep.equal({
         serverMaxRevisionCounter: 1,
         sourceMembers: {
-          'Profile__my(awesome)profile': {
-            isNameObsolete: false,
+          'Profile###my(awesome)profile': {
+            ...defaultSourceMemberValues,
+            MemberName: 'my(awesome)profile',
+            IsNameObsolete: false,
             lastRetrievedFromServer: 1,
-            memberType: 'Profile',
-            serverRevisionCounter: 1,
+            MemberType: 'Profile',
+            RevisionCounter: 1,
           },
         },
       });
@@ -563,8 +648,7 @@ describe('remoteSourceTrackingService', () => {
       });
 
       it('should stop if the computed pollingTimeout is exceeded', async () => {
-        // @ts-ignore
-        const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
+        const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom').resolves([]);
 
         // @ts-ignore
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -582,8 +666,7 @@ describe('remoteSourceTrackingService', () => {
       it('should stop if SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is exceeded', async () => {
         envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '3');
         reResolveEnvVars();
-        // @ts-ignore
-        const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
+        const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom').resolves([]);
 
         // @ts-ignore
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -600,8 +683,7 @@ describe('remoteSourceTrackingService', () => {
       it('should stop if SF_SOURCE_MEMBER_POLLING_TIMEOUT is exceeded', async () => {
         envVars.setString('SF_SOURCE_MEMBER_POLLING_TIMEOUT', '3');
         reResolveEnvVars();
-        // @ts-ignore
-        const queryStub = $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves([]);
+        const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom').resolves([]);
 
         // @ts-ignore
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
@@ -626,10 +708,9 @@ describe('remoteSourceTrackingService', () => {
         sourceMembers: getMemberRevisionEntries(5),
       });
       // @ts-ignore
-      const queryToSpy = $$.SANDBOX.spy(mocks, 'querySourceMembersTo');
+      const queryToSpy = $$.SANDBOX.spy(orgQueryMocks, 'querySourceMembersTo');
       const sourceMembers = [1, 2, 3, 4, 5, 6, 7].map((rev) => getSourceMember(rev));
-      // @ts-ignore
-      $$.SANDBOX.stub(remoteSourceTrackingService, 'querySourceMembersFrom').resolves(sourceMembers);
+      $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom').resolves(sourceMembers);
 
       await remoteSourceTrackingService.reset();
 
@@ -647,11 +728,10 @@ describe('remoteSourceTrackingService', () => {
         serverMaxRevisionCounter: 5,
         sourceMembers: getMemberRevisionEntries(5),
       });
-      // @ts-ignore
-      const queryFromSpy = $$.SANDBOX.spy(remoteSourceTrackingService, 'querySourceMembersFrom');
+      const queryFromSpy = $$.SANDBOX.spy(orgQueryMocks, 'querySourceMembersFrom');
       const sourceMembers = [1, 2, 3].map((rev) => getSourceMember(rev));
       // @ts-ignore
-      $$.SANDBOX.stub(mocks, 'querySourceMembersTo').resolves(sourceMembers);
+      $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersTo').resolves(sourceMembers);
 
       await remoteSourceTrackingService.reset(3);
 
@@ -667,30 +747,5 @@ describe('remoteSourceTrackingService', () => {
     it('should return the correct file location (base case)', () => {
       expect(remoteSourceTrackingService.filePath).to.include(`.sf${sep}`);
     });
-  });
-});
-
-describe('calculateTimeout', () => {
-  const logger = new Logger({ useMemoryLogger: true, name: 'test' }).getRawLogger();
-  const functionUnderTest = calculateTimeout(logger);
-  afterEach(() => {
-    envVars.unset('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT');
-    envVars.unset('SF_SOURCE_MEMBER_POLLING_TIMEOUT');
-  });
-  it('0 members => 5 sec', () => {
-    expect(functionUnderTest(0).seconds).to.equal(5);
-  });
-  it('10000 members => 505 sec', () => {
-    expect(functionUnderTest(10_000).seconds).to.equal(505);
-  });
-  it('override 60 in env', () => {
-    envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '60');
-    reResolveEnvVars();
-    expect(functionUnderTest(10_000).seconds).to.equal(60);
-  });
-  it('override 0 in env has no effect', () => {
-    envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '0');
-    reResolveEnvVars();
-    expect(functionUnderTest(10_000).seconds).to.equal(505);
   });
 });

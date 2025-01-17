@@ -1,3 +1,155 @@
+## [7.3.7](https://github.com/forcedotcom/source-tracking/compare/7.3.6...7.3.7) (2025-01-15)
+
+
+### Bug Fixes
+
+* reused instances don't keep cache ([3814cd7](https://github.com/forcedotcom/source-tracking/commit/3814cd735874922f1ded867fc295c7a438df3279))
+
+
+
+## [7.3.6](https://github.com/forcedotcom/source-tracking/compare/7.3.5...7.3.6) (2025-01-07)
+
+
+### Bug Fixes
+
+* bump SDR to 12.11.2 ([2039169](https://github.com/forcedotcom/source-tracking/commit/20391692493b2606ca70e5d7be707983a940a1d9))
+* correct import for sinon ([db7e7ca](https://github.com/forcedotcom/source-tracking/commit/db7e7ca07fc6b0128ae0786a62849507a4f4e19c))
+
+
+
+## [7.3.5](https://github.com/forcedotcom/source-tracking/compare/7.3.4...7.3.5) (2025-01-04)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve ([cb09e26](https://github.com/forcedotcom/source-tracking/commit/cb09e2689bba02c762e926d30a06fa939817fc72))
+
+
+
+## [7.3.4](https://github.com/forcedotcom/source-tracking/compare/7.3.3...7.3.4) (2024-12-21)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 4.0.34 to 4.2.0 ([25c8ee2](https://github.com/forcedotcom/source-tracking/commit/25c8ee2bc79c3da90d6caab4298162f6463a68f2))
+
+
+
+## [7.3.3](https://github.com/forcedotcom/source-tracking/compare/7.3.2...7.3.3) (2024-12-21)
+
+
+### Bug Fixes
+
+* **deps:** bump fast-xml-parser from 4.5.0 to 4.5.1 ([f549b70](https://github.com/forcedotcom/source-tracking/commit/f549b709127adc22bd196f981db36a8a88888d75))
+
+
+
+## [7.3.2](https://github.com/forcedotcom/source-tracking/compare/7.3.1...7.3.2) (2024-12-14)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve ([f876073](https://github.com/forcedotcom/source-tracking/commit/f876073b676e2314246f4f5cd86529b282cf807d))
+
+
+
+## [7.3.1](https://github.com/forcedotcom/source-tracking/compare/7.3.0...7.3.1) (2024-12-07)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 4.0.33 to 4.0.34 ([2dfd741](https://github.com/forcedotcom/source-tracking/commit/2dfd741d8e3527af247d7af48629edaa973b1ee7))
+
+
+
+# [7.3.0](https://github.com/forcedotcom/source-tracking/compare/7.2.2...7.3.0) (2024-12-05)
+
+
+### Bug Fixes
+
+* pass full paths for file resolution ([ea41f30](https://github.com/forcedotcom/source-tracking/commit/ea41f30c8fbfed6f6c18ab5e5a7a7654424451d8))
+
+
+### Features
+
+* query/store SourceMember modstore ([2568ca5](https://github.com/forcedotcom/source-tracking/commit/2568ca56ec045f29d1f94d024d426f0665ac2dfd))
+
+
+
+## [7.2.2](https://github.com/forcedotcom/source-tracking/compare/7.2.1...7.2.2) (2024-11-30)
+
+
+### Bug Fixes
+
+* **deps:** bump isomorphic-git from 1.27.1 to 1.27.2 ([bb89f47](https://github.com/forcedotcom/source-tracking/commit/bb89f475e1805c045c6cb085a47be11275958b0e))
+
+
+
+## [7.2.1](https://github.com/forcedotcom/source-tracking/compare/7.2.0...7.2.1) (2024-11-30)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 4.0.32 to 4.0.33 ([3865d72](https://github.com/forcedotcom/source-tracking/commit/3865d72d07920f78871c91b26efddea8ef9917bc))
+
+
+
+# [7.2.0](https://github.com/forcedotcom/source-tracking/compare/7.1.25...7.2.0) (2024-11-26)
+
+
+### Features
+
+* add memberIdOrName ([d5bf6c6](https://github.com/forcedotcom/source-tracking/commit/d5bf6c6464d27e6a1bc9753c2392ea6a2fc2aa0c))
+* more fields from sourceMember ([8096081](https://github.com/forcedotcom/source-tracking/commit/80960818bdc35617c8133bd9d519ce52dc379ec2))
+* query and cache usernames for ChangedBy ([bce2668](https://github.com/forcedotcom/source-tracking/commit/bce266886202edd4e1d7662ce3a760ae8dd4571c))
+
+
+
+## [7.1.25](https://github.com/forcedotcom/source-tracking/compare/7.1.24...7.1.25) (2024-11-23)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve ([89917f6](https://github.com/forcedotcom/source-tracking/commit/89917f6fda76bd385180b27347f8b9ac2640b1d6))
+
+
+
+## [7.1.24](https://github.com/forcedotcom/source-tracking/compare/7.1.23...7.1.24) (2024-11-17)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 4.0.31 to 4.0.32 ([57aa4e7](https://github.com/forcedotcom/source-tracking/commit/57aa4e7b64cdd60d852cc83c8790bc6dede4a213))
+
+
+
+## [7.1.23](https://github.com/forcedotcom/source-tracking/compare/7.1.22...7.1.23) (2024-11-16)
+
+
+### Bug Fixes
+
+* **deps:** bump cross-spawn from 7.0.3 to 7.0.5 ([daaf7db](https://github.com/forcedotcom/source-tracking/commit/daaf7dbf6d7a16f997969fdc9e53f018aae1cc82))
+
+
+
+## [7.1.22](https://github.com/forcedotcom/source-tracking/compare/7.1.21...7.1.22) (2024-11-16)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 8.6.4 to 8.8.0 ([496ba9c](https://github.com/forcedotcom/source-tracking/commit/496ba9c85657b1711d185023aa827a99b944382c))
+
+
+
+## [7.1.21](https://github.com/forcedotcom/source-tracking/compare/7.1.20...7.1.21) (2024-11-09)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve ([68e767f](https://github.com/forcedotcom/source-tracking/commit/68e767f917d0923fcad8b2900c1f090612087451))
+
+
+
 ## [7.1.20](https://github.com/forcedotcom/source-tracking/compare/7.1.19...7.1.20) (2024-11-02)
 
 

@@ -34,6 +34,6 @@ describe('end-to-end-test for custom labels', () => {
       state: ComponentStatus.Created,
       fullName: 'Test1',
     };
-    expect(getMetadataKeyFromFileResponse(testResponse)).to.deep.equal(['CustomLabel__Label1']);
+    expect(getMetadataKeyFromFileResponse(testResponse)).to.deep.equal(['CustomLabel###Label1']);
   });
 });
