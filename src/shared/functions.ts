@@ -59,12 +59,13 @@ export const pathIsInFolder =
 
     // use sep to ensure a folder like foo will not match a filePath like foo-bar
     // comparing foo/ to foo-bar/ ensure this.
-    if (!(filePath + sep).includes(folder + sep)) {
+    const normalizedFolderPath = normalize(`${folder}${sep}`);
+    if (!`${sep}${filePath}${sep}`.includes(normalizedFolderPath)) {
       return false;
     }
 
     const filePathParts = normalize(filePath).split(sep).filter(nonEmptyStringFilter);
-    return normalize(folder)
+    return normalizedFolderPath
       .split(sep)
       .filter(nonEmptyStringFilter)
       .every((part, index) => part === filePathParts[index]);
