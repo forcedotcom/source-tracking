@@ -57,14 +57,14 @@ export const pathIsInFolder =
       return true;
     }
 
-    const normalizedfilePath = normalize(sep + filePath + sep);
-    const normalizedfolderPath = normalize(sep + folder + sep);
-    if (!normalizedfilePath.startsWith(normalizedfolderPath)) {
+    // use sep to ensure a folder like foo will not match a filePath like foo-bar
+    // comparing foo/ to foo-bar/ ensure this.
+    if (!(filePath + sep).includes(folder + sep)) {
       return false;
     }
 
-    const filePathParts = normalizedfilePath.split(sep).filter(nonEmptyStringFilter);
-    return normalizedfolderPath
+    const filePathParts = normalize(filePath).split(sep).filter(nonEmptyStringFilter);
+    return normalize(folder)
       .split(sep)
       .filter(nonEmptyStringFilter)
       .every((part, index) => part === filePathParts[index]);
