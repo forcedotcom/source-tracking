@@ -1,3 +1,12 @@
+## [7.3.9](https://github.com/forcedotcom/source-tracking/compare/7.3.8...7.3.9) (2025-01-22)
+
+
+### Bug Fixes
+
+* bump SDR version to 12.12.4 ([78ae905](https://github.com/forcedotcom/source-tracking/commit/78ae9052a09d964923c5a94f309a539629886609))
+
+
+
 ## [7.3.8](https://github.com/forcedotcom/source-tracking/compare/7.3.7...7.3.8) (2025-01-18)
 
 
