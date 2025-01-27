@@ -1,3 +1,12 @@
+## [7.3.10](https://github.com/forcedotcom/source-tracking/compare/7.3.9...7.3.10) (2025-01-27)
+
+
+### Bug Fixes
+
+* bump sdr to pick up esr preset ([#736](https://github.com/forcedotcom/source-tracking/issues/736)) ([3af321f](https://github.com/forcedotcom/source-tracking/commit/3af321fedb23c847a14ff4b3306e2db101963382))
+
+
+
 ## [7.3.9](https://github.com/forcedotcom/source-tracking/compare/7.3.8...7.3.9) (2025-01-22)
 
 
