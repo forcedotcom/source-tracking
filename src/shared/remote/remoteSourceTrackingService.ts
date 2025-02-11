@@ -119,6 +119,7 @@ export class RemoteSourceTrackingService {
     }
     // even if there was already an instance around, its queries might no longer be accurate (ex: missing new changes but queryFrom would return stale results)
     service.queryCache.clear();
+    service.org = options.org;
     return service;
   }
 
