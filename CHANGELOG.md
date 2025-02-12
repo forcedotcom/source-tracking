@@ -1,3 +1,12 @@
+## [7.3.14](https://github.com/forcedotcom/source-tracking/compare/7.3.13...7.3.14) (2025-02-12)
+
+
+### Bug Fixes
+
+* bump sdr to 12.14.8 ([e3b911c](https://github.com/forcedotcom/source-tracking/commit/e3b911caa4e18bc9aedcbb9f4430cc51ee13dfcc))
+
+
+
 ## [7.3.13](https://github.com/forcedotcom/source-tracking/compare/7.3.12...7.3.13) (2025-02-11)
 
 
