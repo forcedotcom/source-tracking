@@ -1,3 +1,12 @@
+## [7.3.16](https://github.com/forcedotcom/source-tracking/compare/7.3.15...7.3.16) (2025-02-22)
+
+
+### Bug Fixes
+
+* **deps:** bump @oclif/core from 4.2.6 to 4.2.7 ([91b7ea4](https://github.com/forcedotcom/source-tracking/commit/91b7ea4333820eafe994112c7886938cdbdd96fe))
+
+
+
 ## [7.3.15](https://github.com/forcedotcom/source-tracking/compare/7.3.14...7.3.15) (2025-02-15)
 
 
