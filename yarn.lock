@@ -625,13 +625,13 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@oclif/core@^4.2.6":
-  version "4.2.6"
-  resolved "https://registry.yarnpkg.com/@oclif/core/-/core-4.2.6.tgz#f2f1696be03a815a4c391504312f90fce29fbb4e"
-  integrity sha512-agk1Tlm7qMemWx+qq5aNgkYwX2JCkoVP4M0ruFveJrarmdUPbKZTMW1j/eg8lNKZh1sp68ytZyKhYXYEfRPcww==
+"@oclif/core@^4.2.7":
+  version "4.2.7"
+  resolved "https://registry.yarnpkg.com/@oclif/core/-/core-4.2.7.tgz#ca9d79454bc356218c8a5563728e831a972b751e"
+  integrity sha512-49wtIlSEw9UyxdSMPjJ2Ookj5e056Qbqr6A+uN7Ea8XCK6b8Q03KciTEpX5t0rfNggvewJc9e3SHY6uWZIkXVw==
   dependencies:
     ansi-escapes "^4.3.2"
-    ansis "^3.10.0"
+    ansis "^3.14.0"
     clean-stack "^3.0.1"
     cli-spinners "^2.9.2"
     debug "^4.4.0"
@@ -1261,10 +1261,10 @@ ansi-styles@^6.1.0:
   resolved "https://registry.yarnpkg.com/ansi-styles/-/ansi-styles-6.2.1.tgz#0e62320cf99c21afff3b3012192546aacbfb05c5"
   integrity sha512-bN798gFfQX+viw3R7yrGWRqnrN2oRkEkUjjl4JNn4E8GxxbjtG3FbrEIIY3l8/hrwUwIeCZvi4QuOTP4MErVug==
 
-ansis@^3.10.0:
-  version "3.12.0"
-  resolved "https://registry.yarnpkg.com/ansis/-/ansis-3.12.0.tgz#e86e869e000426b0ce523f118ffa8b4fbfa74d86"
-  integrity sha512-SxhlInpMkv9QCyI2yHyrhVrTF8dH93M/S86DT5f9brFgr92uJLOCg0RNmtx3YKWKcRmNAaU+gyUfHMdUiqxvFw==
+ansis@^3.14.0:
+  version "3.16.0"
+  resolved "https://registry.yarnpkg.com/ansis/-/ansis-3.16.0.tgz#5e365fd173133756a01199c77fc9146bb22fb5eb"
+  integrity sha512-sU7d/tfZiYrsIAXbdL/CNZld5bCkruzwT5KmqmadCJYxuLxHAOBjidxD5+iLmN/6xEfjcQq1l7OpsiCBlc4LzA==
 
 anymatch@~3.1.2:
   version "3.1.3"
