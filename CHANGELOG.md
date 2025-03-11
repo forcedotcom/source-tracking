@@ -1,3 +1,12 @@
+## [7.3.17](https://github.com/forcedotcom/source-tracking/compare/7.3.16...7.3.17) (2025-03-11)
+
+
+### Bug Fixes
+
+* bump deps ([9e507c5](https://github.com/forcedotcom/source-tracking/commit/9e507c5e06aab181bf42d5c92b6cb5df5eb104b0))
+
+
+
 ## [7.3.16](https://github.com/forcedotcom/source-tracking/compare/7.3.15...7.3.16) (2025-02-22)
 
 
