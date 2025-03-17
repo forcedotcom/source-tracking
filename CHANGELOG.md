@@ -1,3 +1,13 @@
+## [7.3.19](https://github.com/forcedotcom/source-tracking/compare/7.3.18...7.3.19) (2025-03-17)
+
+
+### Bug Fixes
+
+* bump SDR version to 12.16.8 ([b7798ba](https://github.com/forcedotcom/source-tracking/commit/b7798ba23614c96713de9ae4273c099fcbf2a5f7))
+* bump SDR version to 12.16.9 ([5e02c95](https://github.com/forcedotcom/source-tracking/commit/5e02c9577c3d3798202e99f7cb3427ae02a7389b))
+
+
+
 ## [7.3.18](https://github.com/forcedotcom/source-tracking/compare/7.3.17...7.3.18) (2025-03-15)
 
 
