@@ -788,10 +788,10 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.9.0.tgz#ba477a112653a20b4edcf989c61c57bdff9aa3ca"
   integrity sha512-LiN37zG5ODT6z70sL1fxF7BQwtCX9JOWofSU8iliSNIM+WDEeinnoFtVqPInRSNt8I0RiJxIKCrqstsmQRBNvA==
 
-"@salesforce/source-deploy-retrieve@^12.16.6":
-  version "12.16.6"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.16.6.tgz#59237914564bf1c0a418089c4cc0a0498f01f9cc"
-  integrity sha512-k0DHARp4dKUjn5JVSBF6YYfpBNU3jooRblXIoRN074gIeJs8mUcK4y5lL7Eck9FW0CPjbgWq7+5StvYQxFIODw==
+"@salesforce/source-deploy-retrieve@^12.16.8":
+  version "12.16.8"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.16.8.tgz#cd9d7aa77f9a995d8c2175000b3b0d95bde391ea"
+  integrity sha512-F5dl+tZSnWresTwaaVEprNpzPncp4Pn3SiBjXkUHG5qIU8Q2CX3i788kV/K5s8TNdPQ2On+x7pOhaOnAN57S4w==
   dependencies:
     "@salesforce/core" "^8.8.5"
     "@salesforce/kit" "^3.2.3"
@@ -807,7 +807,7 @@
     mime "2.6.0"
     minimatch "^9.0.5"
     proxy-agent "^6.4.0"
-    yaml "^2.6.1"
+    yaml "^2.7.0"
 
 "@salesforce/ts-types@^2.0.10", "@salesforce/ts-types@^2.0.11", "@salesforce/ts-types@^2.0.12":
   version "2.0.12"
@@ -6063,7 +6063,7 @@ yallist@^4.0.0:
   resolved "https://registry.yarnpkg.com/yallist/-/yallist-4.0.0.tgz#9bb92790d9c0effec63be73519e11a35019a3a72"
   integrity sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==
 
-yaml@^2.4.5, yaml@^2.6.1:
+yaml@^2.4.5, yaml@^2.7.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/yaml/-/yaml-2.7.0.tgz#aef9bb617a64c937a9a748803786ad8d3ffe1e98"
   integrity sha512-+hSoy/QHluxmC9kCIJyL/uyFmLmc+e5CFR5Wa+bpIhIj85LVb9ZH2nVnqrHoSvKogwODv0ClqZkmiSSaIH5LTA==
