@@ -1,3 +1,12 @@
+## [7.3.20](https://github.com/forcedotcom/source-tracking/compare/7.3.19...7.3.20) (2025-04-07)
+
+
+### Bug Fixes
+
+* bump libs ([7f531ba](https://github.com/forcedotcom/source-tracking/commit/7f531ba41d9c3a6c8b928b831a88d22448df7cd3))
+
+
+
 ## [7.3.19](https://github.com/forcedotcom/source-tracking/compare/7.3.18...7.3.19) (2025-03-17)
 
 
