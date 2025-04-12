@@ -1,3 +1,12 @@
+## [7.3.21](https://github.com/forcedotcom/source-tracking/compare/7.3.20...7.3.21) (2025-04-12)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/source-deploy-retrieve ([38fa498](https://github.com/forcedotcom/source-tracking/commit/38fa498156b4f0081f2f3643821e2f6bcfeeabcc))
+
+
+
 ## [7.3.20](https://github.com/forcedotcom/source-tracking/compare/7.3.19...7.3.20) (2025-04-07)
 
 
