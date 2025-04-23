@@ -38,7 +38,7 @@ const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
   (env.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
 
 /** if a cached instance is older than this, it will be purged */
-const MAX_INSTANCE_CACHE_TTL = 1000 * 60 * 60 * 4; // 1 hour
+const MAX_INSTANCE_CACHE_TTL = 1000 * 60 * 60 * 1; // 1 hour
 
 /** Options for RemoteSourceTrackingService.getInstance */
 export type RemoteSourceTrackingServiceOptions = {
