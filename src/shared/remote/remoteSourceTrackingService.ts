@@ -37,6 +37,9 @@ const POLLING_DELAY_MS = 1000;
 const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
   (env.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.milliseconds(POLLING_DELAY_MS).seconds;
 
+/** if a cached instance is older than this, it will be purged */
+const MAX_INSTANCE_CACHE_TTL = 1000 * 60 * 60 * 4; // 1 hour
+
 /** Options for RemoteSourceTrackingService.getInstance */
 export type RemoteSourceTrackingServiceOptions = {
   org: Org;
@@ -73,15 +76,20 @@ export type RemoteSourceTrackingServiceOptions = {
  * In this example, `ApexClass###MyClass` has been changed in the org because the `serverRevisionCounter` is different
  * from the `lastRetrievedFromServer`. When a pull is performed, all of the pulled members will have their counters set
  * to the corresponding `RevisionCounter` from the `SourceMember` of the org.
- * 
- * Tracking files are written to the older format described in `MemberRevisionLegacy` 
- * if the environment variable CURRENT_FILE_VERSION_ENV is not set to 1 
- * 
+ *
+ * Tracking files are written to the older format described in `MemberRevisionLegacy`
+ * if the environment variable CURRENT_FILE_VERSION_ENV is not set to 1
+ *
  * The "in memorgy" storage is in MemberRevision format.
  */
+type CachedInstance = {
+  service: RemoteSourceTrackingService;
+  lastUsed: number;
+};
+
 export class RemoteSourceTrackingService {
   /** map of constructed, init'ed instances; key is orgId.  It's like a singleton at the org level */
-  private static instanceMap = new Map<string, RemoteSourceTrackingService>();
+  private static instanceMap = new Map<string, CachedInstance>();
   public readonly filePath: string;
 
   private logger!: PinoLogger;
@@ -112,13 +120,14 @@ export class RemoteSourceTrackingService {
    */
   public static async getInstance(options: RemoteSourceTrackingServiceOptions): Promise<RemoteSourceTrackingService> {
     const orgId = options.org.getOrgId();
-    let service = this.instanceMap.get(orgId);
-    if (!service) {
-      service = await new RemoteSourceTrackingService(options).init();
-      this.instanceMap.set(orgId, service);
-    }
+    const service = this.instanceMap.get(orgId)?.service ?? (await new RemoteSourceTrackingService(options).init());
+    this.instanceMap.set(orgId, { service, lastUsed: Date.now() });
+    // when we create a new instances, we make sure old ones are not accumulating.  Important in multitenant environments
+    purgeOldInstances(this.instanceMap);
+
     // even if there was already an instance around, its queries might no longer be accurate (ex: missing new changes but queryFrom would return stale results)
     service.queryCache.clear();
+    service.userQueryCache.clear();
     service.org = options.org;
     return service;
   }
@@ -537,3 +546,12 @@ const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, Remote
 
 const doesNotMatchServer = (member: MemberRevision): boolean =>
   member.RevisionCounter !== member.lastRetrievedFromServer;
+
+const purgeOldInstances = (instances: Map<string, CachedInstance>): void => {
+  const now = Date.now();
+  Array.from(instances.entries())
+    .filter(([, { lastUsed }]) => now - lastUsed > MAX_INSTANCE_CACHE_TTL)
+    .map(([orgId]) => {
+      instances.delete(orgId);
+    });
+};
