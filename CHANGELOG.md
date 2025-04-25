@@ -1,3 +1,26 @@
+## [7.3.23](https://github.com/forcedotcom/source-tracking/compare/7.3.23-qa.1...7.3.23) (2025-04-25)
+
+
+### Bug Fixes
+
+* add a unit test ([2b78c40](https://github.com/forcedotcom/source-tracking/commit/2b78c401594f175c05eea8b0aa02f8f02c286985))
+* lint ([a6d9ae9](https://github.com/forcedotcom/source-tracking/commit/a6d9ae9eef3a06d9090f1e50f17c6acbce73942f))
+
+
+
+## [7.3.23-qa.1](https://github.com/forcedotcom/source-tracking/compare/7.3.23-qa.0...7.3.23-qa.1) (2025-04-23)
+
+
+
+## [7.3.23-qa.0](https://github.com/forcedotcom/source-tracking/compare/7.3.22...7.3.23-qa.0) (2025-04-23)
+
+
+### Bug Fixes
+
+* keep caches from growing unbounded in multitenant environments ([824f902](https://github.com/forcedotcom/source-tracking/commit/824f902beeadd75be1811e33d3911fdabbff4053))
+
+
+
 ## [7.3.22](https://github.com/forcedotcom/source-tracking/compare/7.3.21...7.3.22) (2025-04-12)
 
 
