@@ -8,8 +8,8 @@
 /* eslint-disable camelcase */
 
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { sep, dirname } from 'node:path';
+import { existsSync, rmdirSync } from 'node:fs';
+import { sep, dirname, resolve } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { EnvVars, envVars, Messages, Org } from '@salesforce/core';
 import { expect, config } from 'chai';
@@ -74,7 +74,6 @@ type SetContentsInput = {
 };
 describe('remoteSourceTrackingService', () => {
   const username = 'foo@bar.com';
-  let orgId: string;
   const $$ = instantiateContext();
   let remoteSourceTrackingService: RemoteSourceTrackingService;
 
@@ -98,14 +97,13 @@ describe('remoteSourceTrackingService', () => {
   });
 
   afterEach(async () => {
-    await RemoteSourceTrackingService.delete(orgId);
+    RemoteSourceTrackingService['instanceMap'].clear();
     restoreContext($$);
   });
 
   beforeEach(async () => {
     stubContext($$);
     const orgData = new MockTestOrgData();
-    orgId = orgData.orgId;
     orgData.username = username;
     orgData.tracksSource = true;
     await $$.stubAuths(orgData);
@@ -115,57 +113,57 @@ describe('remoteSourceTrackingService', () => {
       org,
       projectPath: await $$.localPathRetriever($$.id),
     });
+  });
 
-    describe('remoteChangeElementToChangeResult()', () => {
-      const memberIdOrName = '00eO4000003cP5J';
-      it('should return correct ChangeResult for EmailTemplateFolder', () => {
-        const rce: RemoteChangeElement = {
-          name: 'level1/level2/level3',
-          type: 'EmailTemplateFolder',
-          deleted: false,
-          modified: true,
-          changedBy: 'Shelby McLaughlin',
-          revisionCounter: 1,
-          memberIdOrName,
-          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
-        };
-        const changeResult = remoteChangeElementToChangeResult(rce);
-        expect(changeResult).to.deep.equal({
-          origin: 'remote',
-          name: 'level1/level2/level3',
-          type: 'EmailFolder',
-          deleted: false,
-          modified: true,
-          changedBy: 'Shelby McLaughlin',
-          revisionCounter: 1,
-          memberIdOrName,
-          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
-        });
+  describe('remoteChangeElementToChangeResult()', () => {
+    const memberIdOrName = '00eO4000003cP5J';
+    it('should return correct ChangeResult for EmailTemplateFolder', () => {
+      const rce: RemoteChangeElement = {
+        name: 'level1/level2/level3',
+        type: 'EmailTemplateFolder',
+        deleted: false,
+        modified: true,
+        changedBy: 'Shelby McLaughlin',
+        revisionCounter: 1,
+        memberIdOrName,
+        lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
+      };
+      const changeResult = remoteChangeElementToChangeResult(rce);
+      expect(changeResult).to.deep.equal({
+        origin: 'remote',
+        name: 'level1/level2/level3',
+        type: 'EmailFolder',
+        deleted: false,
+        modified: true,
+        changedBy: 'Shelby McLaughlin',
+        revisionCounter: 1,
+        memberIdOrName,
+        lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
       });
+    });
 
-      it('should return correct ChangeResult for LightningComponentResource', () => {
-        const rce: RemoteChangeElement = {
-          name: 'fooLWC/bar',
-          type: 'LightningComponentResource',
-          deleted: false,
-          modified: true,
-          changedBy: 'Shelby McLaughlin',
-          revisionCounter: 1,
-          memberIdOrName,
-          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
-        };
-        const changeResult = remoteChangeElementToChangeResult(rce);
-        expect(changeResult).to.deep.equal({
-          origin: 'remote',
-          name: 'fooLWC',
-          type: 'LightningComponentBundle',
-          deleted: false,
-          modified: true,
-          changedBy: 'Shelby McLaughlin',
-          revisionCounter: 1,
-          memberIdOrName,
-          lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
-        });
+    it('should return correct ChangeResult for LightningComponentResource', () => {
+      const rce: RemoteChangeElement = {
+        name: 'fooLWC/bar',
+        type: 'LightningComponentResource',
+        deleted: false,
+        modified: true,
+        changedBy: 'Shelby McLaughlin',
+        revisionCounter: 1,
+        memberIdOrName,
+        lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
+      };
+      const changeResult = remoteChangeElementToChangeResult(rce);
+      expect(changeResult).to.deep.equal({
+        origin: 'remote',
+        name: 'fooLWC',
+        type: 'LightningComponentBundle',
+        deleted: false,
+        modified: true,
+        changedBy: 'Shelby McLaughlin',
+        revisionCounter: 1,
+        memberIdOrName,
+        lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
       });
     });
   });
@@ -175,6 +173,51 @@ describe('remoteSourceTrackingService', () => {
       // @ts-expect-error it's private
       const max = remoteSourceTrackingService.serverMaxRevisionCounter;
       expect(max).to.equal(0);
+    });
+  });
+
+  describe('getInstance', () => {
+
+    const org2Dir = resolve('temp2');
+    const org3Dir = resolve('temp3');
+
+    it('should purge old instances when they exceed MAX_INSTANCE_CACHE_TTL', async () => {
+      // Create second instance
+      const org2 = await Org.create({ aliasOrUsername: 'org2@test.com' });
+      $$.SANDBOX.stub(org2, 'getOrgId').returns('00D999999999999999');
+      await RemoteSourceTrackingService.getInstance({
+        org: org2,
+        projectPath: org2Dir,
+      }); 
+
+      // Verify both instances exist
+      expect(RemoteSourceTrackingService['instanceMap'].size).to.equal(2);
+
+      // Get a date that is over 1 hour from now
+      const MAX_INSTANCE_CACHE_TTL = 1000 * 60 * 60 * 1; // 1 hour
+      const futureDateNow = Date.now() + MAX_INSTANCE_CACHE_TTL + 1000;
+
+      // Stub Date.now to simulate time passing
+      const dateNowStub = $$.SANDBOX.stub(Date, "now").returns(futureDateNow);
+
+      // Create a new instance which should trigger purge
+      const org3 = await Org.create({ aliasOrUsername: 'org3@test.com' });
+      $$.SANDBOX.stub(org3, 'getOrgId').returns('00D777777777777777');
+      await RemoteSourceTrackingService.getInstance({
+        org: org3,
+        projectPath: org3Dir,
+      });
+
+      // Verify old instances were purged
+      expect(RemoteSourceTrackingService['instanceMap'].size).to.equal(1);
+      expect(RemoteSourceTrackingService['instanceMap'].get('00D777777777777777')).to.be.ok;
+      expect(dateNowStub.called).to.equal(true);
+    });
+
+    afterEach(async () => {
+      // clean up the tracking files created by the tests
+      rmdirSync(org2Dir, { recursive: true });
+      rmdirSync(org3Dir, { recursive: true });
     });
   });
 
