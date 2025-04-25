@@ -122,7 +122,7 @@ export class RemoteSourceTrackingService {
     const orgId = options.org.getOrgId();
     const service = this.instanceMap.get(orgId)?.service ?? (await new RemoteSourceTrackingService(options).init());
     this.instanceMap.set(orgId, { service, lastUsed: Date.now() });
-    // when we create a new instances, we make sure old ones are not accumulating.  Important in multitenant environments
+    // when we get an instance, we make sure old ones are not accumulating.  Important in multitenant environments
     purgeOldInstances(this.instanceMap);
 
     // even if there was already an instance around, its queries might no longer be accurate (ex: missing new changes but queryFrom would return stale results)
