@@ -8,7 +8,7 @@
 /* eslint-disable camelcase */
 
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
-import { existsSync, rmdirSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { sep, dirname, resolve } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { EnvVars, envVars, Messages, Org } from '@salesforce/core';
@@ -96,7 +96,7 @@ describe('remoteSourceTrackingService', () => {
     sourceMembers: Object.fromEntries(remoteSourceTrackingService.sourceMembers),
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     RemoteSourceTrackingService['instanceMap'].clear();
     restoreContext($$);
   });
@@ -177,7 +177,6 @@ describe('remoteSourceTrackingService', () => {
   });
 
   describe('getInstance', () => {
-
     const org2Dir = resolve('temp2');
     const org3Dir = resolve('temp3');
 
@@ -188,7 +187,7 @@ describe('remoteSourceTrackingService', () => {
       await RemoteSourceTrackingService.getInstance({
         org: org2,
         projectPath: org2Dir,
-      }); 
+      });
 
       // Verify both instances exist
       expect(RemoteSourceTrackingService['instanceMap'].size).to.equal(2);
@@ -198,7 +197,7 @@ describe('remoteSourceTrackingService', () => {
       const futureDateNow = Date.now() + MAX_INSTANCE_CACHE_TTL + 1000;
 
       // Stub Date.now to simulate time passing
-      const dateNowStub = $$.SANDBOX.stub(Date, "now").returns(futureDateNow);
+      const dateNowStub = $$.SANDBOX.stub(Date, 'now').returns(futureDateNow);
 
       // Create a new instance which should trigger purge
       const org3 = await Org.create({ aliasOrUsername: 'org3@test.com' });
@@ -210,14 +209,14 @@ describe('remoteSourceTrackingService', () => {
 
       // Verify old instances were purged
       expect(RemoteSourceTrackingService['instanceMap'].size).to.equal(1);
-      expect(RemoteSourceTrackingService['instanceMap'].get('00D777777777777777')).to.be.ok;
+      expect(RemoteSourceTrackingService['instanceMap'].get('00D777777777777777')).to.be.an('object');
       expect(dateNowStub.called).to.equal(true);
     });
 
-    afterEach(async () => {
+    afterEach(() => {
       // clean up the tracking files created by the tests
-      rmdirSync(org2Dir, { recursive: true });
-      rmdirSync(org3Dir, { recursive: true });
+      rmSync(org2Dir, { recursive: true });
+      rmSync(org3Dir, { recursive: true });
     });
   });
 
