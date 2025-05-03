@@ -65,7 +65,7 @@
     "@salesforce/dev-scripts": "^11.0.1",
     "@salesforce/schemas": "^1.9.0",
     "@types/graceful-fs": "^4.1.9",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.25.3",
     "eslint-plugin-sf-plugin": "^1.20.21",
     "ts-morph": "^24.0.0",
     "ts-node": "^10.9.2",
