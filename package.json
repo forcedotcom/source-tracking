@@ -53,7 +53,7 @@
     "@oclif/core": "^4.2.10",
     "@salesforce/core": "^8.9.1",
     "@salesforce/kit": "^3.2.3",
-    "@salesforce/source-deploy-retrieve": "^12.19.3",
+    "@salesforce/source-deploy-retrieve": "^12.19.5",
     "@salesforce/ts-types": "^2.0.12",
     "fast-xml-parser": "^4.5.3",
     "graceful-fs": "^4.2.11",
