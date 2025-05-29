@@ -47,13 +47,8 @@ describe('handles local files moves that also change the file', () => {
   after(async () => {
     await session?.clean();
   });
-  afterEach(() => {
-    delete process.env.SF_BETA_TRACK_FILE_MOVES;
-  });
 
   it('initialize the local tracking', async () => {
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
-
     repo = await ShadowRepo.getInstance({
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
@@ -71,8 +66,6 @@ describe('handles local files moves that also change the file', () => {
   });
 
   it('move a file and edit it.  Only the delete is committed', async () => {
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
-
     // move all two classes to the new folder
     const classFolder = path.join('main', 'default', 'classes');
     ['OrderController.cls', 'OrderController.cls-meta.xml', 'PagedResult.cls', 'PagedResult.cls-meta.xml'].map((f) =>

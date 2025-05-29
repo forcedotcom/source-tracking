@@ -35,10 +35,6 @@ describe('it detects image file moves ', () => {
     await session?.clean();
   });
 
-  afterEach(() => {
-    delete process.env.SF_BETA_TRACK_FILE_MOVES;
-  });
-
   it('initialize the local tracking', async () => {
     repo = await ShadowRepo.getInstance({
       orgId: 'fakeOrgId',
@@ -49,7 +45,6 @@ describe('it detects image file moves ', () => {
   });
 
   it('should show 0 files (images) in git status after moving them', async () => {
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
     await repo.commitChanges({ deployedFiles: filesToSync });

@@ -26,10 +26,6 @@ describe('can match files with the same hash when the have different parents ', 
       devhubAuthStrategy: 'NONE',
     });
   });
-
-  afterEach(() => {
-    delete process.env.SF_BETA_TRACK_FILE_MOVES;
-  });
   after(async () => {
     await session?.clean();
   });
@@ -58,7 +54,6 @@ describe('can match files with the same hash when the have different parents ', 
   });
 
   it('should show 0 files in git status after moving them', async () => {
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
     await repo.commitChanges({ deployedFiles: filesToSync });
@@ -80,5 +75,35 @@ describe('can match files with the same hash when the have different parents ', 
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
       .with.lengthOf(0);
+  });
+
+  it('should detect changes when SF_DISABLE_SOURCE_MOBILITY is set to true', async () => {
+    // Set SF_DISABLE_SOURCE_MOBILITY to true to opt-out of source mobility
+    process.env.SF_DISABLE_SOURCE_MOBILITY = 'true';
+
+    // Commit the existing class files
+    filesToSync = await repo.getChangedFilenames();
+    await repo.commitChanges({ deployedFiles: filesToSync });
+
+    const topDir = path.join(session.project.dir, 'sfdx-source');
+    // move all the classes to the new folder
+    fs.renameSync(
+      path.join(topDir, 'packaged', 'main', 'objects', 'Workbook__c'),
+      path.join(topDir, 'unsorted', 'main', 'default', 'objects', 'Workbook__c')
+    );
+
+    fs.renameSync(
+      path.join(topDir, 'packaged', 'main', 'objects', 'Workshop__c'),
+      path.join(topDir, 'unsorted', 'main', 'default', 'objects', 'Workshop__c')
+    );
+
+    await repo.getStatus(true);
+
+    // When source mobility is disabled, moving files should be detected as changes
+    const changedFiles = await repo.getChangedFilenames();
+    expect(changedFiles).to.be.an('array').with.lengthOf(2);
+
+    // Clean up environment variable
+    delete process.env.SF_DISABLE_SOURCE_MOBILITY;
   });
 });
