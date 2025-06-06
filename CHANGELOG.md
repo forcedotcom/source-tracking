@@ -1,3 +1,12 @@
+# [7.4.0](https://github.com/forcedotcom/source-tracking/compare/7.3.25...7.4.0) (2025-06-06)
+
+
+### Features
+
+* remove beta and add opt-out - W-18024242 ([#778](https://github.com/forcedotcom/source-tracking/issues/778)) ([e125198](https://github.com/forcedotcom/source-tracking/commit/e1251981688e0157196c97ad98eef86d09272e8a))
+
+
+
 ## [7.3.25](https://github.com/forcedotcom/source-tracking/compare/7.3.24...7.3.25) (2025-05-17)
 
 
