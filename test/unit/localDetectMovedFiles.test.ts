@@ -23,10 +23,12 @@ afterEach(() => {
 
 describe('local detect moved files', () => {
   const registry = new RegistryAccess();
-  it('automatically commits moved files', async () => {
-    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
+  afterEach(() => {
+    // Clean up environment variable if it was set
+    delete process.env.SF_DISABLE_SOURCE_MOBILITY;
+  });
 
+  it('automatically commits moved files', async () => {
     let projectDir!: string;
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
@@ -73,13 +75,13 @@ describe('local detect moved files', () => {
       expect(gitAdd.calledTwice).to.be.true;
       expect(await shadowRepo.getChangedRows()).to.be.empty;
     } finally {
-      delete process.env.SF_BETA_TRACK_FILE_MOVES;
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
   });
 
-  it('skips moved file detection if BETA env var is NOT set', async () => {
-    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
+  it('skips moved file detection when opt-out is enabled', async () => {
+    // Opt out of file move detection
+    process.env.SF_DISABLE_SOURCE_MOBILITY = 'true';
     let projectDir!: string;
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
@@ -126,8 +128,6 @@ describe('local detect moved files', () => {
   });
 
   it('ignores files if basename/hash matches are found', async () => {
-    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     let projectDir!: string;
 
     // Catch the LifecycleWarning
@@ -210,7 +210,6 @@ describe('local detect moved files', () => {
         'Files were found that have the same basename, hash, metadata type, and parent. Skipping the commit of these files'
       );
     } finally {
-      delete process.env.SF_BETA_TRACK_FILE_MOVES;
       // Without this, the onWarning() test in metadataKeys.test.ts would fail
       lc.removeAllListeners('warning');
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
@@ -218,8 +217,6 @@ describe('local detect moved files', () => {
   });
 
   it('ignores moved files (add) if the contents have also changed, but notices deletes match', async () => {
-    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     let projectDir!: string;
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
@@ -263,14 +260,11 @@ describe('local detect moved files', () => {
       expect(await shadowRepo.getDeletes()).to.have.lengthOf(0);
       expect(await shadowRepo.getAdds()).to.have.lengthOf(1);
     } finally {
-      delete process.env.SF_BETA_TRACK_FILE_MOVES;
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
   });
 
-  it('automatically commits moved files and leaves other changes alone', async () => {
-    expect(process.env.SF_BETA_TRACK_FILE_MOVES).to.be.undefined;
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
+  it.only('automatically commits moved files and leaves other changes alone', async () => {
     let projectDir!: string;
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
@@ -330,7 +324,6 @@ describe('local detect moved files', () => {
       expect(await shadowRepo.getModifyFilenames()).to.have.lengthOf(1);
       expect(await shadowRepo.getModifyFilenames()).to.have.members([modifyFile]);
     } finally {
-      delete process.env.SF_BETA_TRACK_FILE_MOVES;
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
   });
