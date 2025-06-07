@@ -33,12 +33,37 @@ export const getGroupedFiles = (input: GroupedFileInput, byPackageDir = false): 
     (group) => group.deletes.length || group.nonDeletes.length
   );
 
-const getSequential = ({ packageDirs, nonDeletes, deletes }: GroupedFileInput): GroupedFile[] =>
-  packageDirs.map((pkgDir) => ({
-    path: pkgDir.name,
-    nonDeletes: nonDeletes.filter(pathIsInFolder(pkgDir.name)),
-    deletes: deletes.filter(pathIsInFolder(pkgDir.name)),
-  }));
+const getSequential = ({ packageDirs, nonDeletes, deletes }: GroupedFileInput): GroupedFile[] => {
+  const nonDeletesByPkgDir = groupByPkgDir(nonDeletes, packageDirs);
+  const deletesByPkgDir = groupByPkgDir(deletes, packageDirs);
+  return packageDirs.map((pkgDir) => {
+    const { name } = pkgDir;
+    return {
+      path: name,
+      nonDeletes: nonDeletesByPkgDir.get(name) ?? [],
+      deletes: deletesByPkgDir.get(name) ?? [],
+    };
+  });
+};
+
+const groupByPkgDir = (filePaths: string[], pkgDirs: NamedPackageDir[]): Map<string, string[]> => {
+  const groups = new Map<string, string[]>();
+  pkgDirs.forEach((pkgDir) => {
+    groups.set(pkgDir.name, []);
+  });
+
+  filePaths.forEach((filePath) => {
+    pkgDirs.forEach((pkgDir) => {
+      const { name } = pkgDir;
+      if (pathIsInFolder(name)(filePath)) {
+        groups.get(name)?.push(filePath);
+        return;
+      }
+    });
+  });
+
+  return groups;
+};
 
 const getNonSequential = ({
   packageDirs,
