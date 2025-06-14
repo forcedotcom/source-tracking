@@ -602,10 +602,10 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@oclif/core@^4.3.2":
-  version "4.3.2"
-  resolved "https://registry.yarnpkg.com/@oclif/core/-/core-4.3.2.tgz#522d5f94044ebde5f4041b0bad4f1abfe7a73f61"
-  integrity sha512-3OVGENifC2NzYn/t31fYOrZOGJ5WpUfRktz8v/W4QbP4Su3S/BcBuVuIde65B1mHrnAE/62yOFA/kLx4w1Vf8g==
+"@oclif/core@^4.3.3":
+  version "4.3.3"
+  resolved "https://registry.yarnpkg.com/@oclif/core/-/core-4.3.3.tgz#a527536b62ef202c58d2b69ce9cd1e64eb3a94b1"
+  integrity sha512-A0mk4nlVE+r34fl91OdglXVPwhhfzM59IhSxnOigqMkwxFgT8z3i2WlUgzmazzvzSccs2KM4N2HkTS3NEvW96g==
   dependencies:
     ansi-escapes "^4.3.2"
     ansis "^3.17.0"
@@ -621,7 +621,7 @@
     semver "^7.6.3"
     string-width "^4.2.3"
     supports-color "^8"
-    tinyglobby "^0.2.13"
+    tinyglobby "^0.2.14"
     widest-line "^3.1.0"
     wordwrap "^1.0.0"
     wrap-ansi "^7.0.0"
@@ -5965,7 +5965,7 @@ through2@^4.0.0:
   resolved "https://registry.yarnpkg.com/through/-/through-2.3.8.tgz#0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5"
   integrity sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==
 
-tinyglobby@^0.2.13, tinyglobby@^0.2.9:
+tinyglobby@^0.2.14, tinyglobby@^0.2.9:
   version "0.2.14"
   resolved "https://registry.yarnpkg.com/tinyglobby/-/tinyglobby-0.2.14.tgz#5280b0cf3f972b050e74ae88406c0a6a58f4079d"
   integrity sha512-tX5e7OM1HnYr2+a2C/4V0htOcSQcoSTH9KgJnVvNm5zm/cyEWKJ7j7YutsH9CxMdtOkkLFy2AHrMci9IM8IPZQ==
