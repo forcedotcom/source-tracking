@@ -1,3 +1,12 @@
+## [7.4.7](https://github.com/forcedotcom/source-tracking/compare/7.4.6...7.4.7) (2025-06-28)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/core from 8.14.0 to 8.15.0 ([5013f3c](https://github.com/forcedotcom/source-tracking/commit/5013f3cd590e9a24ecab4da1375bd55f73dfd566))
+
+
+
 ## [7.4.6](https://github.com/forcedotcom/source-tracking/compare/7.4.5...7.4.6) (2025-06-21)
 
 
