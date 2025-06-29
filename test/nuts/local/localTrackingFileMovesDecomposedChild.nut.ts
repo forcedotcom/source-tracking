@@ -34,10 +34,6 @@ describe('ignores moved files that are children of a decomposed metadata type', 
     await session?.clean();
   });
 
-  afterEach(() => {
-    delete process.env.SF_BETA_TRACK_FILE_MOVES;
-  });
-
   it('initialize the local tracking', async () => {
     repo = await ShadowRepo.getInstance({
       orgId: 'fakeOrgId',
@@ -48,7 +44,6 @@ describe('ignores moved files that are children of a decomposed metadata type', 
   });
 
   it('should ignore moved child metadata', async () => {
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     // Commit the existing files
     const filesToSync = await repo.getChangedFilenames();
     await repo.commitChanges({ deployedFiles: filesToSync });
@@ -73,7 +68,6 @@ describe('ignores moved files that are children of a decomposed metadata type', 
   });
 
   it('should clear tracking when the field is moved to another dir', async () => {
-    process.env.SF_BETA_TRACK_FILE_MOVES = 'true';
     const newDir = path.join(session.project.dir, 'force-app', 'other', 'objects', 'Order__c', 'fields');
     await fs.promises.mkdir(newDir, {
       recursive: true,

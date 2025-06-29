@@ -1,9 +1,9 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "7.3.7",
+  "version": "7.4.7",
   "author": "Salesforce",
-  "license": "BSD-3-Clause",
+  "license": "Apache-2.0",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "homepage": "https://github.com/forcedotcom/source-tracking#readme",
@@ -14,6 +14,7 @@
     "clean-all": "sf-clean all",
     "compile": "wireit",
     "docs": "sf-docs",
+    "fix-license": "eslint src test --fix --rule \"header/header: [2]\"",
     "format": "wireit",
     "link-check": "wireit",
     "lint": "wireit",
@@ -24,11 +25,11 @@
     "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local": "mocha \"**/local/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved": "mocha \"**/nuts/local/localTrackingFileMoves*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:nuts:local:moved:scale": "mocha \"**/nuts/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:nuts:local:moved:image": "mocha \"**/nuts/local/localTrackingFileMovesImage.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved:child": "mocha \"**/nuts/local/localTrackingFileMovesDecomposedChild.nut.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:only": "wireit"
+    "test:nuts:local:moved:image": "mocha \"**/nuts/local/localTrackingFileMovesImage.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts:local:moved:scale": "mocha \"**/nuts/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:only": "wireit",
+    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel"
   },
   "keywords": [
     "force",
@@ -49,27 +50,27 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@oclif/core": "^4.2.3",
-    "@salesforce/core": "^8.8.0",
+    "@oclif/core": "^4.4.0",
+    "@salesforce/core": "^8.15.0",
     "@salesforce/kit": "^3.2.3",
-    "@salesforce/source-deploy-retrieve": "^12.12.3",
+    "@salesforce/source-deploy-retrieve": "^12.20.1",
     "@salesforce/ts-types": "^2.0.12",
-    "fast-xml-parser": "^4.5.1",
+    "fast-xml-parser": "^4.5.3",
     "graceful-fs": "^4.2.11",
-    "isomorphic-git": "^1.27.2",
+    "isomorphic-git": "^1.30.1",
     "ts-retry-promise": "^0.8.1"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^5.3.38",
-    "@salesforce/dev-scripts": "^10.2.11",
+    "@salesforce/cli-plugins-testkit": "^5.3.39",
+    "@salesforce/dev-scripts": "^11.0.2",
     "@salesforce/schemas": "^1.9.0",
     "@types/graceful-fs": "^4.1.9",
-    "esbuild": "^0.24.2",
-    "eslint-plugin-sf-plugin": "^1.20.13",
+    "esbuild": "^0.25.3",
+    "eslint-plugin-sf-plugin": "^1.20.26",
     "ts-morph": "^24.0.0",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.3.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.8.3"
   },
   "config": {},
   "publishConfig": {
@@ -148,7 +149,7 @@
       "output": []
     },
     "link-check": {
-      "command": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || linkinator \"**/*.md\" --skip \"CHANGELOG.md|node_modules|test/|confluence.internal.salesforce.com|my.salesforce.com|%s\" --markdown --retry --directory-listing --verbosity error",
+      "command": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || linkinator \"**/*.md\" --skip \"CHANGELOG.md|node_modules|test/|confluence.internal.salesforce.com|my.salesforce.com|localhost|%s\" --markdown --retry --directory-listing --verbosity error",
       "files": [
         "./*.md",
         "./!(CHANGELOG).md",
