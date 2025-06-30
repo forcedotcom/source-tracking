@@ -34,4 +34,40 @@ describe('pathIsInFolder', () => {
       true
     );
   });
+
+  it('returns false for completely unrelated paths', () => {
+    expect(pathIsInFolder(normalize('/foo/bar'))(normalize('/baz/qux'))).to.equal(false);
+  });
+
+  it('handles relative paths correctly', () => {
+    expect(pathIsInFolder('foo/bar')(normalize('foo/bar/baz'))).to.equal(true);
+    expect(pathIsInFolder('foo/bar')(normalize('foo/baz'))).to.equal(false);
+  });
+
+  it('handles empty folder path gracefully', () => {
+    expect(pathIsInFolder('')(normalize('/foo/bar'))).to.equal(false);
+  });
+
+  it('handles empty target path gracefully', () => {
+    expect(pathIsInFolder(normalize('/foo/bar'))('')).to.equal(false);
+  });
+
+  it('handles both paths being empty', () => {
+    expect(pathIsInFolder('')('')).to.equal(false);
+  });
+
+  it('handles paths with trailing slashes', () => {
+    expect(pathIsInFolder(normalize('/foo/bar/'))(normalize('/foo/bar/baz'))).to.equal(true);
+    expect(pathIsInFolder(normalize('/foo/bar/'))(normalize('/foo/bar'))).to.equal(true);
+    expect(pathIsInFolder(normalize('/foo/bar/'))(normalize('/foo/bar/baz/'))).to.equal(true);
+    expect(pathIsInFolder(normalize('/foo/bar/'))(normalize('/foo/bar/'))).to.equal(true);
+  });
+
+  it('handles paths with mixed separators', () => {
+    expect(pathIsInFolder(normalize('/foo\\bar'))(normalize('/foo/bar/baz'))).to.equal(true);
+  });
+
+  it('handles exact paths', () => {
+    expect(pathIsInFolder(normalize('/foo/bar'))(normalize('/foo/bar'))).to.equal(true);
+  });
 });
