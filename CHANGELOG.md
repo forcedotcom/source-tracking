@@ -1,3 +1,18 @@
+## [7.4.8](https://github.com/forcedotcom/source-tracking/compare/7.4.7...7.4.8) (2025-07-15)
+
+
+### Bug Fixes
+
+* handle case with leading seperator ([b749313](https://github.com/forcedotcom/source-tracking/commit/b7493137b84d56d2bfdc2c5405e2d6731a4348e1))
+
+
+### Performance Improvements
+
+* exit early if the file path is definitely not in the folder path ([c6c916c](https://github.com/forcedotcom/source-tracking/commit/c6c916c19e63d9c01654130e0fd909f971b77bd1))
+* getSequential avoid processing filePaths multiple times ([5d75b06](https://github.com/forcedotcom/source-tracking/commit/5d75b06716a91bad348d5948bf48f5662a043944))
+
+
+
 ## [7.4.7](https://github.com/forcedotcom/source-tracking/compare/7.4.6...7.4.7) (2025-06-28)
 
 
