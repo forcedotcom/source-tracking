@@ -53,11 +53,23 @@ export const excludeLwcLocalOnlyTest = (filePath: string): boolean =>
 export const pathIsInFolder =
   (folder: string) =>
   (filePath: string): boolean => {
-    const biggerStringParts = normalize(filePath).split(sep).filter(nonEmptyStringFilter);
-    return normalize(folder)
+    if (folder === filePath) {
+      return true;
+    }
+
+    // use sep to ensure a folder like foo will not match a filePath like foo-bar
+    // comparing foo/ to foo-bar/ ensure this.
+    const normalizedFolderPath = normalize(`${folder}${sep}`);
+    const normalizedFilePath = normalize(`${filePath}${sep}`);
+    if (normalizedFilePath.startsWith(normalizedFolderPath)) {
+      return true;
+    }
+
+    const filePathParts = normalizedFilePath.split(sep).filter(nonEmptyStringFilter);
+    return normalizedFolderPath
       .split(sep)
       .filter(nonEmptyStringFilter)
-      .every((part, index) => part === biggerStringParts[index]);
+      .every((part, index) => part === filePathParts[index]);
   };
 
 /** just like pathIsInFolder but with the parameter order reversed for iterating a single file against an array of folders */

@@ -111,4 +111,51 @@ describe('groupings', () => {
       ).to.have.length(0);
     });
   });
+
+  it('handles empty packageDirs gracefully', () => {
+    const result = getGroupedFiles({
+      packageDirs: [],
+      nonDeletes: ['one/file1.xml'],
+      deletes: ['one/delete.xml'],
+    });
+
+    expect(result).to.deep.equal([]);
+  });
+
+  it('handles mixed valid and invalid paths in nonDeletes and deletes', () => {
+    const result = getGroupedFiles(
+      {
+        packageDirs,
+        nonDeletes: ['one/file1.xml', 'invalid/file.xml'],
+        deletes: ['two/delete.xml', 'invalid/delete.xml'],
+      },
+      true
+    );
+
+    expect(result).to.deep.equal([
+      {
+        path: 'one',
+        nonDeletes: ['one/file1.xml'],
+        deletes: [],
+      },
+      {
+        path: 'two',
+        nonDeletes: [],
+        deletes: ['two/delete.xml'],
+      },
+    ]);
+  });
+
+  it('handles sequential flag as false with empty nonDeletes and deletes', () => {
+    const result = getGroupedFiles(
+      {
+        packageDirs,
+        nonDeletes: [],
+        deletes: [],
+      },
+      false
+    );
+
+    expect(result).to.deep.equal([]);
+  });
 });
