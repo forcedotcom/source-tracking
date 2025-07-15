@@ -668,7 +668,7 @@
     strip-ansi "6.0.1"
     ts-retry-promise "^0.8.1"
 
-"@salesforce/core@^8.12.0", "@salesforce/core@^8.14.0", "@salesforce/core@^8.8.0":
+"@salesforce/core@^8.14.0", "@salesforce/core@^8.8.0":
   version "8.15.0"
   resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-8.15.0.tgz#95d337a7a219c2d305117c9f5594617784a8642f"
   integrity sha512-vTobdBQ7JRlApUDezUAVlC7O7VUk1e+9AM8+TZIVnj2Glub7E5vtwTJRDT48MJ/wWjdhH+9MFfUi2GPHymHmrQ==
@@ -770,12 +770,12 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.9.0.tgz#ba477a112653a20b4edcf989c61c57bdff9aa3ca"
   integrity sha512-LiN37zG5ODT6z70sL1fxF7BQwtCX9JOWofSU8iliSNIM+WDEeinnoFtVqPInRSNt8I0RiJxIKCrqstsmQRBNvA==
 
-"@salesforce/source-deploy-retrieve@^12.21.1":
-  version "12.21.1"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.21.1.tgz#081ea10b86b1af3c222d9dea3ac3774bdb477954"
-  integrity sha512-VC6sAaLH04z1znJh7f8ftlUTDEzzUFzpaau8kIVjZW7Iq4xSnRORmxlh941C2KSTPRR454ZbnxuWC5czcn5Bcg==
+"@salesforce/source-deploy-retrieve@^12.21.4":
+  version "12.21.4"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.21.4.tgz#dee92e9ad1feb7863f713e3b959a51a998f19279"
+  integrity sha512-ree+qZKUglNb1a80msPUzf4xH84sRze/m62X/FL5kCuCp28qEW/1qh8fjlmCpNFqEp92uwNkM6qKJ/GKr/Mtrw==
   dependencies:
-    "@salesforce/core" "^8.12.0"
+    "@salesforce/core" "^8.18.1"
     "@salesforce/kit" "^3.2.3"
     "@salesforce/ts-types" "^2.0.12"
     "@salesforce/types" "^1.3.0"
