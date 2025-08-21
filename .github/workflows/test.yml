@@ -21,7 +21,7 @@ jobs:
       - name: Build the project
         run: yarn build
       - name: check if bundling runs into failures
-        run: node scripts/testEsbuild.js
+        run: node scripts/esbuild.config.mjs
   linux-unit-tests:
     needs: yarn-lockfile-check
     uses: salesforcecli/github-workflows/.github/workflows/unitTestsLinux.yml@main
