@@ -62,7 +62,7 @@
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^5.3.39",
-    "@salesforce/dev-scripts": "^11.0.2",
+    "@salesforce/dev-scripts": "^11.0.3",
     "@salesforce/schemas": "^1.9.1",
     "@types/graceful-fs": "^4.1.9",
     "esbuild": "^0.25.3",
@@ -139,7 +139,6 @@
     },
     "test": {
       "dependencies": [
-        "test:bundle",
         "test:only",
         "test:compile",
         "link-check"
