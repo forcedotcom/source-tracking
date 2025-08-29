@@ -51,9 +51,9 @@
   },
   "dependencies": {
     "@oclif/core": "^4.4.0",
-    "@salesforce/core": "^8.21.0",
+    "@salesforce/core": "^8.22.0",
     "@salesforce/kit": "^3.2.3",
-    "@salesforce/source-deploy-retrieve": "^12.22.9",
+    "@salesforce/source-deploy-retrieve": "^12.22.11",
     "@salesforce/ts-types": "^2.0.12",
     "fast-xml-parser": "^4.5.3",
     "graceful-fs": "^4.2.11",
