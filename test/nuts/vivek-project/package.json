@@ -4,7 +4,7 @@
   "description": "A Salesforce DX project template optimized for building second-generation packaging.",
   "version": "2.0.0",
   "author": "Vivek M. Chawla @VivekMChawla",
-  "license": "BSD-3-Clause",
+  "license": "Apache-2.0",
   "bugs": "https://github.com/sfdx-isv/sfdx-falcon-template/issues",
   "homepage": "https://github.com/sfdx-isv/sfdx-falcon-template",
   "repository": "sfdx-isv/sfdx-falcon-template",

@@ -51,9 +51,9 @@
   },
   "dependencies": {
     "@oclif/core": "^4.4.0",
-    "@salesforce/core": "^8.21.0",
+    "@salesforce/core": "^8.22.0",
     "@salesforce/kit": "^3.2.3",
-    "@salesforce/source-deploy-retrieve": "^12.22.9",
+    "@salesforce/source-deploy-retrieve": "^12.22.11",
     "@salesforce/ts-types": "^2.0.12",
     "fast-xml-parser": "^4.5.3",
     "graceful-fs": "^4.2.11",
@@ -62,7 +62,7 @@
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^5.3.39",
-    "@salesforce/dev-scripts": "^11.0.2",
+    "@salesforce/dev-scripts": "^11.0.4",
     "@salesforce/schemas": "^1.9.1",
     "@types/graceful-fs": "^4.1.9",
     "esbuild": "^0.25.3",
@@ -139,7 +139,6 @@
     },
     "test": {
       "dependencies": [
-        "test:bundle",
         "test:only",
         "test:compile",
         "link-check"
