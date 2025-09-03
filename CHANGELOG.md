@@ -1,3 +1,12 @@
+## [7.4.10](https://github.com/forcedotcom/source-tracking/compare/7.4.9...7.4.10) (2025-09-03)
+
+
+### Bug Fixes
+
+* oss compliance ([286dc8d](https://github.com/forcedotcom/source-tracking/commit/286dc8d54aca1131dc60f47341bbe038b8559f57))
+
+
+
 ## [7.4.9](https://github.com/forcedotcom/source-tracking/compare/7.4.8...7.4.9) (2025-07-19)
 
 
