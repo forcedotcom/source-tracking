@@ -36,14 +36,14 @@ import {
   FileResponseSuccess,
 } from '@salesforce/source-deploy-retrieve';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
-import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
+import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js';
 import { Performance } from '@oclif/core/performance';
 import {
   RemoteSourceTrackingService,
   remoteChangeElementToChangeResult,
-} from './shared/remote/remoteSourceTrackingService';
-import { ShadowRepo } from './shared/local/localShadowRepo';
-import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
+} from './shared/remote/remoteSourceTrackingService.js';
+import { ShadowRepo } from './shared/local/localShadowRepo.js';
+import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts.js';
 import {
   RemoteSyncInput,
   StatusOutputRow,
@@ -52,7 +52,7 @@ import {
   ChangeOptionType,
   LocalUpdateOptions,
   RemoteChangeElement,
-} from './shared/types';
+} from './shared/types.js';
 import {
   FileResponseHasPath,
   FileResponseIsDeleted,
@@ -60,13 +60,13 @@ import {
   isChangeResultWithNameAndType,
   isDefined,
   isSdrSuccess,
-} from './shared/guards';
-import { removeIgnored } from './shared/remoteChangeIgnoring';
+} from './shared/guards.js';
+import { removeIgnored } from './shared/remoteChangeIgnoring.js';
 import {
   FileResponseSuccessToRemoteSyncInput,
   changeResultToMetadataComponent,
   remoteChangeToMetadataMember,
-} from './shared/functions';
+} from './shared/functions.js';
 import {
   supportsPartialDelete,
   ensureRelative,
@@ -74,12 +74,12 @@ import {
   getAllFiles,
   folderContainsPath,
   forceIgnoreDenies,
-} from './shared/functions';
-import { registrySupportsType } from './shared/metadataKeys';
-import { populateFilePaths } from './shared/populateFilePaths';
-import { populateTypesAndNames } from './shared/populateTypesAndNames';
-import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray';
-import { sourceComponentIsCustomLabel } from './shared/functions';
+} from './shared/functions.js';
+import { registrySupportsType } from './shared/metadataKeys.js';
+import { populateFilePaths } from './shared/populateFilePaths.js';
+import { populateTypesAndNames } from './shared/populateTypesAndNames.js';
+import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray.js';
+import { sourceComponentIsCustomLabel } from './shared/functions.js';
 export type SourceTrackingOptions = {
   org: Org;
   project: SfProject;

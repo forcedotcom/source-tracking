@@ -22,14 +22,13 @@ import {
   RegistryAccess,
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
-// @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
-import * as fs from 'graceful-fs';
+import fs from 'graceful-fs';
 import { Performance } from '@oclif/core/performance';
-import { isDefined } from '../guards';
-import { uniqueArrayConcat } from '../functions';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions';
-import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
+import { isDefined } from '../guards.js';
+import { uniqueArrayConcat } from '../functions.js';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions.js';
+import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types.js';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
 type AddAndDeleteFileInfos = Readonly<{ addedInfo: DetectionFileInfo[]; deletedInfo: DetectionFileInfo[] }>;

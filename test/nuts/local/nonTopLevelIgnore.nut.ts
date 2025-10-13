@@ -16,9 +16,9 @@
 import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
-import * as fs from 'graceful-fs';
+import fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 const registry = new RegistryAccess();
 

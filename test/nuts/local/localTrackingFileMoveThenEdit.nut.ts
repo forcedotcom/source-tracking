@@ -17,12 +17,12 @@
 import * as path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
-import * as fs from 'graceful-fs';
+import fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ProjectJson } from '@salesforce/schemas';
 import { NamedPackageDir } from '@salesforce/core';
 import { PackageDir } from '@salesforce/schemas';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 describe('handles local files moves that also change the file', () => {
   let session: TestSession;

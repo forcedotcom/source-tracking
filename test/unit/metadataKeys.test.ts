@@ -15,7 +15,7 @@
  */
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { getMetadataKeyFromFileResponse, registrySupportsType } from '../../src/shared/metadataKeys';
+import { getMetadataKeyFromFileResponse, registrySupportsType } from '../../src/shared/metadataKeys.js';
 
 describe('metadataKeys', () => {
   it('default behavior', () => {

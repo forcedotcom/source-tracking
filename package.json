@@ -4,8 +4,10 @@
   "version": "7.4.10",
   "author": "Salesforce",
   "license": "Apache-2.0",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": "./lib/index.js",
   "homepage": "https://github.com/forcedotcom/source-tracking#readme",
   "repository": "forcedotcom/source-tracking",
   "scripts": {
@@ -57,7 +59,7 @@
     "@salesforce/ts-types": "^2.0.12",
     "fast-xml-parser": "^4.5.3",
     "graceful-fs": "^4.2.11",
-    "isomorphic-git": "^1.30.1",
+    "isomorphic-git": "^1.34.0",
     "ts-retry-promise": "^0.8.1"
   },
   "devDependencies": {

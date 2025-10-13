@@ -16,8 +16,8 @@
 import { basename, dirname, join, normalize, sep } from 'node:path';
 import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { Lifecycle } from '@salesforce/core/lifecycle';
-import { RemoteSyncInput } from './types';
-import { getMetadataKey } from './functions';
+import { RemoteSyncInput } from './types.js';
+import { getMetadataKey } from './functions.js';
 
 // See UT for examples of the complexity this must handle
 // keys always use forward slashes, even on Windows

@@ -15,7 +15,7 @@
  */
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { StatusRow } from './types';
+import { StatusRow } from './types.js';
 export const IS_WINDOWS = os.type() === 'Windows_NT'; // array members for status results
 
 // filenames were normalized when read from isogit

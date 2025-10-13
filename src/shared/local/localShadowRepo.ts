@@ -16,17 +16,16 @@
 
 import path from 'node:path';
 import * as os from 'node:os';
-import * as fs from 'graceful-fs';
+import fs from 'graceful-fs';
 import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
-// @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
 import { Performance } from '@oclif/core/performance';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
-import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
-import { StatusRow } from './types';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions';
+import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
+import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection.js';
+import { StatusRow } from './types.js';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions.js';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>

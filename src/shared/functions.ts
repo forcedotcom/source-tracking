@@ -27,8 +27,8 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
-import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types';
-import { ensureNameAndType } from './remoteChangeIgnoring';
+import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types.js';
+import { ensureNameAndType } from './remoteChangeIgnoring.js';
 
 const keySplit = '###';
 const legacyKeySplit = '__';

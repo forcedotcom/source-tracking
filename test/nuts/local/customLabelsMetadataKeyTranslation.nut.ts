@@ -17,7 +17,7 @@ import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
-import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys';
+import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys.js';
 
 // this is a NUT to avoid fs-mocking the CustomLabels file that SDR is going to read to getChildren
 describe('end-to-end-test for custom labels', () => {

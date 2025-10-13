@@ -15,11 +15,11 @@
  */
 import { ForceIgnore, MetadataComponent, MetadataMember, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { SfError } from '@salesforce/core/sfError';
-import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
-import { ChangeResult } from './types';
-import { isChangeResultWithNameAndType } from './guards';
-import { ChangeResultWithNameAndType } from './types';
-import { forceIgnoreDenies, changeResultToMetadataComponent } from './functions';
+import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js';
+import { ChangeResult } from './types.js';
+import { isChangeResultWithNameAndType } from './guards.js';
+import { ChangeResultWithNameAndType } from './types.js';
+import { forceIgnoreDenies, changeResultToMetadataComponent } from './functions.js';
 
 export const removeIgnored = (
   changeResults: ChangeResult[],

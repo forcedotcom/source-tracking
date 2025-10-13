@@ -21,20 +21,20 @@ import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { envVars as env, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { Duration } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
-import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types';
-import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from '../metadataKeys';
-import { getMetadataKey } from '../functions';
-import { calculateExpectedSourceMembers } from './expectedSourceMembers';
-import { SourceMember } from './types';
-import { MemberRevision } from './types';
+import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types.js';
+import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from '../metadataKeys.js';
+import { getMetadataKey } from '../functions.js';
+import { calculateExpectedSourceMembers } from './expectedSourceMembers.js';
+import { SourceMember } from './types.js';
+import { MemberRevision } from './types.js';
 import {
   FILENAME,
   getFilePath,
   readFileContents,
   revisionToRemoteChangeElement,
   writeTrackingFile,
-} from './fileOperations';
-import { calculateTimeout, querySourceMembersFrom, querySourceMembersTo } from './orgQueries';
+} from './fileOperations.js';
+import { calculateTimeout, querySourceMembersFrom, querySourceMembersTo } from './orgQueries.js';
 
 export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 

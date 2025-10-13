@@ -15,8 +15,8 @@
  */
 import { Connection, envVars as env, SfError, trimTo15 } from '@salesforce/core';
 import { Duration } from '@salesforce/kit';
-import { PinoLogger } from './remoteSourceTrackingService';
-import { SOURCE_MEMBER_FIELDS, SourceMember } from './types';
+import { PinoLogger } from './remoteSourceTrackingService.js';
+import { SOURCE_MEMBER_FIELDS, SourceMember } from './types.js';
 
 export const calculateTimeout =
   (logger: PinoLogger) =>

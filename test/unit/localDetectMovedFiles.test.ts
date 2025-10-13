@@ -16,12 +16,11 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
-// @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
 import { expect, config } from 'chai';
 import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../src/shared/local/localShadowRepo';
+import { ShadowRepo } from '../../src/shared/local/localShadowRepo.js';
 
 /* eslint-disable no-unused-expressions */
 config.truncateThreshold = 0;

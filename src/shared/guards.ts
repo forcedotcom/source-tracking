@@ -20,8 +20,8 @@ import {
   FileResponseFailure,
   FileResponseSuccess,
 } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult } from './types';
-import { ChangeResultWithNameAndType } from './types';
+import { ChangeResult } from './types.js';
+import { ChangeResultWithNameAndType } from './types.js';
 
 export const metadataMemberGuard = (
   input: MetadataMember | undefined | Partial<MetadataMember>
