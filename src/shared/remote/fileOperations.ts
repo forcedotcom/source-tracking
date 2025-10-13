@@ -112,7 +112,7 @@ export const writeTrackingFile = async ({
   await lockResult.writeAndUnlock(JSON.stringify(contents, null, 4));
 };
 
-export const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
+const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
   getLegacyMetadataKey(member.MemberType, member.MemberName),
   {
     memberType: member.MemberType,

@@ -194,7 +194,7 @@ const toFileInfo = async ({
 };
 
 /** returns a map of <hash+basename, filepath>.  If two items result in the same hash+basename, return that in the ignore bucket */
-export const buildMap = (info: DetectionFileInfoWithType[]): StringMap[] => {
+const buildMap = (info: DetectionFileInfoWithType[]): StringMap[] => {
   const map: StringMap = new Map();
   const ignore: StringMap = new Map();
 
@@ -253,7 +253,7 @@ const getHashFromActualFileContents =
     ).oid,
   });
 
-export const toKey = (input: DetectionFileInfoWithType): string =>
+const toKey = (input: DetectionFileInfoWithType): string =>
   [input.hash, input.basename, input.type, input.type, input.parentType ?? '', input.parentFullName ?? ''].join(
     JOIN_CHAR
   );

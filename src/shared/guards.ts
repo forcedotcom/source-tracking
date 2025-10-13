@@ -13,23 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {
-  MetadataMember,
-  FileResponse,
-  ComponentStatus,
-  FileResponseFailure,
-  FileResponseSuccess,
-} from '@salesforce/source-deploy-retrieve';
+import { FileResponse, ComponentStatus, FileResponseSuccess } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types.js';
 import { ChangeResultWithNameAndType } from './types.js';
-
-export const metadataMemberGuard = (
-  input: MetadataMember | undefined | Partial<MetadataMember>
-): input is MetadataMember =>
-  input !== undefined && typeof input.fullName === 'string' && typeof input.type === 'string';
-
-export const isSdrFailure = (fileResponse: FileResponse): fileResponse is FileResponseFailure =>
-  fileResponse.state === ComponentStatus.Failed;
 
 export const isSdrSuccess = (fileResponse: FileResponse): fileResponse is FileResponseSuccess =>
   fileResponse.state !== ComponentStatus.Failed;

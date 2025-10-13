@@ -98,7 +98,7 @@ export const ensureRelative =
   (filePath: string): string =>
     isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;
 
-export type ParsedCustomLabels = {
+type ParsedCustomLabels = {
   CustomLabels: { labels: Array<{ fullName: string }> };
 };
 

@@ -50,7 +50,7 @@ const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
 const MAX_INSTANCE_CACHE_TTL = 1000 * 60 * 60 * 1; // 1 hour
 
 /** Options for RemoteSourceTrackingService.getInstance */
-export type RemoteSourceTrackingServiceOptions = {
+type RemoteSourceTrackingServiceOptions = {
   org: Org;
   projectPath: string;
 };
