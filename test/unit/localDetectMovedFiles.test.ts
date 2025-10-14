@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as path from 'node:path';
-import * as os from 'node:os';
-import * as fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs';
 import git from 'isomorphic-git';
 import { expect, config } from 'chai';
 import sinon from 'sinon';

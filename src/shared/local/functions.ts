@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as os from 'node:os';
-import * as path from 'node:path';
+import path from 'node:path';
+import os from 'node:os';
 import { StatusRow } from './types.js';
 export const IS_WINDOWS = os.type() === 'Windows_NT'; // array members for status results
 

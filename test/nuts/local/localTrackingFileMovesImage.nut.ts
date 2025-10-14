@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import * as path from 'node:path';
+import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import fs from 'graceful-fs';

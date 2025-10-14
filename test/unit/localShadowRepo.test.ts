@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import path from 'node:path';
-import * as os from 'node:os';
+import os from 'node:os';
 import fs from 'node:fs';
 import git from 'isomorphic-git';
 import { expect } from 'chai';
