@@ -180,7 +180,7 @@ export const remoteChangeToMetadataMember = (cr: ChangeResult): MetadataMember =
 export const FileResponseSuccessToRemoteSyncInput = (fr: FileResponseSuccess): RemoteSyncInput => fr;
 
 export const changeResultToMetadataComponent =
-  (registry: RegistryAccess = new RegistryAccess()) =>
+  (registry: RegistryAccess) =>
   (cr: ChangeResultWithNameAndType): MetadataComponent => ({
     fullName: cr.name,
     type: registry.getTypeByName(cr.type),

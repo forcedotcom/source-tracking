@@ -89,7 +89,7 @@ const getNonSequential = ({
 export const getComponentSets = ({
   groupings,
   sourceApiVersion,
-  registry = new RegistryAccess(),
+  registry,
 }: {
   groupings: GroupedFile[];
   sourceApiVersion?: string;

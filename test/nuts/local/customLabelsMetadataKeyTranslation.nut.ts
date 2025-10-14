@@ -16,8 +16,11 @@
 import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
-import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
+import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys.js';
+
+const registry = new RegistryAccess();
+const getKeys = getMetadataKeyFromFileResponse(registry);
 
 // this is a NUT to avoid fs-mocking the CustomLabels file that SDR is going to read to getChildren
 describe('end-to-end-test for custom labels', () => {
@@ -43,6 +46,6 @@ describe('end-to-end-test for custom labels', () => {
       state: ComponentStatus.Created,
       fullName: 'Test1',
     };
-    expect(getMetadataKeyFromFileResponse(testResponse)).to.deep.equal(['CustomLabel###Label1']);
+    expect(getKeys(testResponse)).to.deep.equal(['CustomLabel###Label1']);
   });
 });

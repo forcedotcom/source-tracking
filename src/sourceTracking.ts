@@ -99,6 +99,9 @@ export type SourceTrackingOptions = {
    * If you're using STL as part of a long running process (ex: vscode extensions), set this to false
    */
   ignoreLocalCache?: boolean;
+
+  /** pass in an instance of SDR's RegistryAccess.  If not provided, a new one will be created */
+  registry?: RegistryAccess;
 };
 
 type RemoteChangesResults = {
@@ -140,7 +143,7 @@ export class SourceTracking extends AsyncCreatable {
     this.ignoreConflicts = options.ignoreConflicts ?? false;
     this.ignoreLocalCache = options.ignoreLocalCache ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
-    this.registry = new RegistryAccess(undefined, this.projectPath);
+    this.registry = options.registry ?? new RegistryAccess(undefined, this.projectPath);
   }
 
   public async init(): Promise<void> {
@@ -213,7 +216,7 @@ export class SourceTracking extends AsyncCreatable {
     );
     // there may be remote adds not in the SBC.  So we add those manually
     (applyIgnore
-      ? removeIgnored(changeResults, this.forceIgnore, this.project.getDefaultPackage().fullPath)
+      ? removeIgnored(changeResults, this.forceIgnore, this.project.getDefaultPackage().fullPath, this.registry)
       : changeResults.map(remoteChangeToMetadataMember)
     ).map((mm) => {
       componentSet.add(mm);
@@ -334,11 +337,11 @@ export class SourceTracking extends AsyncCreatable {
         // skip any remote types not in the registry.  Will emit warnings
         .filter((rce) => registrySupportsType(this.registry)(rce.type));
       if (options.format === 'ChangeResult') {
-        return filteredChanges.map(remoteChangeElementToChangeResult);
+        return filteredChanges.map(remoteChangeElementToChangeResult(this.registry));
       }
       if (options.format === 'ChangeResultWithPaths') {
         return populateFilePaths({
-          elements: filteredChanges.map(remoteChangeElementToChangeResult),
+          elements: filteredChanges.map(remoteChangeElementToChangeResult(this.registry)),
           packageDirPaths: this.project.getPackageDirectories().map((pkgDir) => pkgDir.fullPath),
           registry: this.registry,
         });
@@ -502,9 +505,9 @@ export class SourceTracking extends AsyncCreatable {
     await this.ensureRemoteTracking(false);
     if (!skipPolling) {
       // poll to make sure we have the updates before syncing the ones from metadataKeys
-      await this.remoteSourceTrackingService.pollForSourceTracking(fileResponses);
+      await this.remoteSourceTrackingService.pollForSourceTracking(this.registry, fileResponses);
     }
-    await this.remoteSourceTrackingService.syncSpecifiedElements(fileResponses);
+    await this.remoteSourceTrackingService.syncSpecifiedElements(fileResponses, this.registry);
     marker?.stop();
   }
 
@@ -770,10 +773,7 @@ export class SourceTracking extends AsyncCreatable {
   // reserve the right to do something more sophisticated in the future
   // via async for figuring out hypothetical filenames (ex: getting default packageDir)
   // eslint-disable-next-line @typescript-eslint/require-await
-  private async remoteChangesToOutputRows(
-    input: ChangeResult,
-    registry = new RegistryAccess()
-  ): Promise<StatusOutputRow[]> {
+  private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     const baseObject: StatusOutputRow = {
@@ -793,7 +793,7 @@ export class SourceTracking extends AsyncCreatable {
     // when the file doesn't exist locally, there are no filePaths
     // SDR can generate the hypothetical place it *would* go and check that
     if (isChangeResultWithNameAndType(input)) {
-      const ignored = filePathsFromMetadataComponent(changeResultToMetadataComponent(registry)(input)).some(
+      const ignored = filePathsFromMetadataComponent(changeResultToMetadataComponent(this.registry)(input)).some(
         forceIgnoreDenies(this.forceIgnore)
       );
       return [

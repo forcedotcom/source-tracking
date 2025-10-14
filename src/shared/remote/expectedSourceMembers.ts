@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
+import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { getMetadataKeyFromFileResponse } from '../metadataKeys.js';
 import { RemoteSyncInput } from '../types.js';
 
@@ -67,8 +67,12 @@ const excludedKeys = [
   'ApexEmailNotifications###apexEmailNotifications',
 ];
 
-export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[]): Map<string, RemoteSyncInput> => {
+export const calculateExpectedSourceMembers = (
+  registry: RegistryAccess,
+  expectedMembers: RemoteSyncInput[]
+): Map<string, RemoteSyncInput> => {
   const outstandingSourceMembers = new Map<string, RemoteSyncInput>();
+  const getKeys = getMetadataKeyFromFileResponse(registry);
 
   expectedMembers
     .filter(
@@ -96,7 +100,7 @@ export const calculateExpectedSourceMembers = (expectedMembers: RemoteSyncInput[
         !isSpecialAuraXml(fileResponse.filePath)
     )
     .map((member) => {
-      getMetadataKeyFromFileResponse(member)
+      getKeys(member)
         // remove some individual members known to not work with tracking even when their type does
         .filter(
           (key) =>
