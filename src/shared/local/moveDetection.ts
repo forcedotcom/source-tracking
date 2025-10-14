@@ -24,7 +24,6 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import git from 'isomorphic-git';
 import fs from 'graceful-fs';
-import { Performance } from '@oclif/core/performance';
 import { isDefined } from '../guards.js';
 import { uniqueArrayConcat } from '../functions.js';
 import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions.js';
@@ -177,18 +176,12 @@ const toFileInfo = async ({
   deleted: Set<string>;
 }): Promise<AddAndDeleteFileInfos> => {
   // Track how long it takes to gather the oid information from the git trees
-  const getInfoMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles#toFileInfo', {
-    addedFiles: added.size,
-    deletedFiles: deleted.size,
-  });
 
   const headRef = await git.resolveRef({ fs, dir: projectPath, gitdir: gitDir, ref: 'HEAD' });
   const [addedInfo, deletedInfo] = await Promise.all([
     await Promise.all(Array.from(added).map(getHashForAddedFile(projectPath))),
     await Promise.all(Array.from(deleted).map(getHashFromActualFileContents(gitDir)(projectPath)(headRef))),
   ]);
-
-  getInfoMarker?.stop();
 
   return { addedInfo, deletedInfo };
 };
