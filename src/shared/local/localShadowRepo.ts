@@ -15,16 +15,16 @@
  */
 
 import path from 'node:path';
-import * as os from 'node:os';
+import os from 'node:os';
 import fs from 'graceful-fs';
 import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import git from 'isomorphic-git';
 import { Performance } from '@oclif/core/performance';
-import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
 import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection.js';
-import { StatusRow } from './types.js';
+import type { StatusRow } from './types.js';
 import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions.js';
 
 /** returns the full path to where we store the shadow repo */
