@@ -529,11 +529,6 @@ export class SourceTracking extends AsyncCreatable {
       packageDirs: this.packagesDirs,
       registry: this.registry,
     });
-    console.log('this.projectPath', this.projectPath);
-    console.log('this.localRepo', this.localRepo);
-    console.log('normalized projectPath', normalize(this.projectPath));
-    console.log('packageDirs', this.packagesDirs);
-    console.log('gitdir', this.localRepo.gitDir);
     // loads the status from file so that it's cached
     await this.localRepo.getStatus();
   }
