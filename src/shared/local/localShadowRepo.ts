@@ -16,8 +16,7 @@
 
 import path from 'node:path';
 import os from 'node:os';
-import fs from 'graceful-fs';
-import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
+import { NamedPackageDir, Lifecycle, Logger, SfError, fs } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import git from 'isomorphic-git';
 import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
@@ -57,8 +56,7 @@ type CommitRequest = {
   needsUpdatedStatus?: boolean;
 };
 
-/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
-
+/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files */
 const MAX_FILE_ADD = env.getNumber(
   'SF_SOURCE_TRACKING_BATCH_SIZE',
   env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
@@ -114,6 +112,8 @@ export class ShadowRepo {
    */
   public async gitInit(): Promise<void> {
     this.logger.trace(`initializing git repo at ${this.gitDir}`);
+    // eslint-disable-next-line no-console
+    console.log('initializing git repo at', this.gitDir);
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     try {
       await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
@@ -128,11 +128,7 @@ export class ShadowRepo {
    * @returns the deleted directory
    */
   public async delete(): Promise<string> {
-    if (typeof fs.promises.rm === 'function') {
-      await fs.promises.rm(this.gitDir, { recursive: true, force: true });
-    } else {
-      await fs.promises.rm(this.gitDir, { recursive: true });
-    }
+    await fs.promises.rm(this.gitDir, { recursive: true, force: true });
     return this.gitDir;
   }
   /**
@@ -272,6 +268,8 @@ export class ShadowRepo {
             force: true,
           });
         } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error(e);
           if (e instanceof git.Errors.MultipleGitError) {
             this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
             throw SfError.create({

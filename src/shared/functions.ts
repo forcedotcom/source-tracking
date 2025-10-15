@@ -15,7 +15,7 @@
  */
 
 import { sep, normalize, isAbsolute, relative } from 'node:path';
-import fs from 'node:fs';
+import { fs } from '@salesforce/core';
 import { isString } from '@salesforce/ts-types';
 import {
   FileResponseSuccess,

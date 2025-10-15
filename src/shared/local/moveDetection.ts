@@ -15,7 +15,7 @@
  */
 import path from 'node:path';
 import { EOL } from 'node:os';
-import { Logger, Lifecycle } from '@salesforce/core';
+import { Logger, Lifecycle, fs } from '@salesforce/core';
 import {
   MetadataResolver,
   SourceComponent,
@@ -23,7 +23,6 @@ import {
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import git from 'isomorphic-git';
-import fs from 'graceful-fs';
 import { isDefined } from '../guards.js';
 import { uniqueArrayConcat } from '../functions.js';
 import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions.js';

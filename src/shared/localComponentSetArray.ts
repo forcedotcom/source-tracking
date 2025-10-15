@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import fs from 'node:fs';
 import { resolve } from 'node:path';
-import { NamedPackageDir, Logger } from '@salesforce/core';
+import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import {
   ComponentSet,
   MetadataResolver,

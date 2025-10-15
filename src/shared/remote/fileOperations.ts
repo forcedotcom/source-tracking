@@ -13,10 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { parseJsonMap } from '@salesforce/kit';
-import { lockInit, envVars as env, Logger } from '@salesforce/core';
+import { lockInit, envVars as env, Logger, fs } from '@salesforce/core';
 import {
   getLegacyMetadataKey,
   getMetadataKey,
