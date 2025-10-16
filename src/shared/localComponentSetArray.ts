@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import fs from 'node:fs';
 import { resolve } from 'node:path';
-import { NamedPackageDir, Logger } from '@salesforce/core';
+import { NamedPackageDir, Logger, fs } from '@salesforce/core';
 import {
   ComponentSet,
   MetadataResolver,
@@ -23,8 +22,8 @@ import {
   DestructiveChangesType,
   RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
-import { isDefined } from './guards';
-import { supportsPartialDelete, pathIsInFolder } from './functions';
+import { isDefined } from './guards.js';
+import { supportsPartialDelete, pathIsInFolder } from './functions.js';
 
 type GroupedFileInput = {
   packageDirs: NamedPackageDir[];
@@ -89,7 +88,7 @@ const getNonSequential = ({
 export const getComponentSets = ({
   groupings,
   sourceApiVersion,
-  registry = new RegistryAccess(),
+  registry,
 }: {
   groupings: GroupedFile[];
   sourceApiVersion?: string;

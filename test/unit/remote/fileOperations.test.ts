@@ -17,8 +17,8 @@
 import fs from 'node:fs';
 import { expect } from 'chai';
 import { parseJsonMap } from '@salesforce/kit';
-import { getFilePath, upgradeFileContents, writeTrackingFile } from '../../../src/shared/remote/fileOperations';
-import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from '../../../src/shared/remote/types';
+import { getFilePath, upgradeFileContents, writeTrackingFile } from '../../../src/shared/remote/fileOperations.js';
+import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from '../../../src/shared/remote/types.js';
 
 describe('writing file version based on env', () => {
   const fakeOrgId = '00DFakeFakeFakeFak';

@@ -15,10 +15,10 @@
  */
 import { resolve } from 'node:path';
 import { ComponentSet, ForceIgnore, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ConflictResponse, ChangeResult, SourceConflictError } from './types';
-import { getMetadataKey } from './functions';
-import { populateTypesAndNames } from './populateTypesAndNames';
-import { isChangeResultWithNameAndType } from './guards';
+import { ConflictResponse, ChangeResult, SourceConflictError } from './types.js';
+import { getMetadataKey } from './functions.js';
+import { populateTypesAndNames } from './populateTypesAndNames.js';
+import { isChangeResultWithNameAndType } from './guards.js';
 
 export const throwIfConflicts = (conflicts: ConflictResponse[]): void => {
   if (conflicts.length > 0) {

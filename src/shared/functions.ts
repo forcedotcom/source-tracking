@@ -15,7 +15,7 @@
  */
 
 import { sep, normalize, isAbsolute, relative } from 'node:path';
-import fs from 'node:fs';
+import { fs } from '@salesforce/core';
 import { isString } from '@salesforce/ts-types';
 import {
   FileResponseSuccess,
@@ -27,8 +27,8 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
-import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types';
-import { ensureNameAndType } from './remoteChangeIgnoring';
+import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types.js';
+import { ensureNameAndType } from './remoteChangeIgnoring.js';
 
 const keySplit = '###';
 const legacyKeySplit = '__';
@@ -98,7 +98,7 @@ export const ensureRelative =
   (filePath: string): string =>
     isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;
 
-export type ParsedCustomLabels = {
+type ParsedCustomLabels = {
   CustomLabels: { labels: Array<{ fullName: string }> };
 };
 
@@ -180,7 +180,7 @@ export const remoteChangeToMetadataMember = (cr: ChangeResult): MetadataMember =
 export const FileResponseSuccessToRemoteSyncInput = (fr: FileResponseSuccess): RemoteSyncInput => fr;
 
 export const changeResultToMetadataComponent =
-  (registry: RegistryAccess = new RegistryAccess()) =>
+  (registry: RegistryAccess) =>
   (cr: ChangeResultWithNameAndType): MetadataComponent => ({
     fullName: cr.name,
     type: registry.getTypeByName(cr.type),

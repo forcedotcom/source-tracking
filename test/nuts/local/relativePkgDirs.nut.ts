@@ -15,10 +15,10 @@
  */
 import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
-import * as fs from 'graceful-fs';
+import fs from 'graceful-fs';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 describe('verifies behavior of relative pkgDirs', () => {
   let session: TestSession;

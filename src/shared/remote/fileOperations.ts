@@ -13,18 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { parseJsonMap } from '@salesforce/kit';
-import { lockInit, envVars as env, Logger } from '@salesforce/core';
+import { lockInit, envVars as env, Logger, fs } from '@salesforce/core';
 import {
   getLegacyMetadataKey,
   getMetadataKey,
   getMetadataNameFromLegacyKey,
   getMetadataTypeFromLegacyKey,
-} from '../functions';
-import { RemoteChangeElement } from '../types';
-import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types';
+} from '../functions.js';
+import { RemoteChangeElement } from '../types.js';
+import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types.js';
 
 export const FILENAME = 'maxRevision.json';
 
@@ -112,7 +111,7 @@ export const writeTrackingFile = async ({
   await lockResult.writeAndUnlock(JSON.stringify(contents, null, 4));
 };
 
-export const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
+const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
   getLegacyMetadataKey(member.MemberType, member.MemberName),
   {
     memberType: member.MemberType,

@@ -66,7 +66,7 @@ export type ConflictResponse = {
 // this and the related class are not enforced but a convention of this library.
 // This helps the consumers get correct typing--if the error name matches SourceConflictError,
 // there will be a data property of type ConflictResponse[]
-export type SourceConflictErrorType = {
+type SourceConflictErrorType = {
   name: 'SourceConflictError';
 } & SfError<ConflictResponse[]>;
 

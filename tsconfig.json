@@ -1,11 +1,9 @@
 {
-  "extends": "./node_modules/@salesforce/dev-config/tsconfig-strict",
+  "extends": "./node_modules/@salesforce/dev-config/tsconfig-strict-esm",
   "compilerOptions": {
     "outDir": "./lib",
     "skipLibCheck": true,
-    "plugins": [{ "transform": "@salesforce/core/messageTransformer", "import": "messageTransformer" }],
-    "moduleResolution": "Node16",
-    "module": "Node16"
+    "plugins": [{ "transform": "@salesforce/core/messageTransformer", "import": "messageTransformer" }]
   },
   "include": ["src/**/*.ts"]
 }

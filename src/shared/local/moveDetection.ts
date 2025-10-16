@@ -15,21 +15,18 @@
  */
 import path from 'node:path';
 import { EOL } from 'node:os';
-import { Logger, Lifecycle } from '@salesforce/core';
+import { Logger, Lifecycle, fs } from '@salesforce/core';
 import {
   MetadataResolver,
   SourceComponent,
   RegistryAccess,
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
-// @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
-import * as fs from 'graceful-fs';
-import { Performance } from '@oclif/core/performance';
-import { isDefined } from '../guards';
-import { uniqueArrayConcat } from '../functions';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions';
-import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
+import { isDefined } from '../guards.js';
+import { uniqueArrayConcat } from '../functions.js';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions.js';
+import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types.js';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
 type AddAndDeleteFileInfos = Readonly<{ addedInfo: DetectionFileInfo[]; deletedInfo: DetectionFileInfo[] }>;
@@ -178,10 +175,6 @@ const toFileInfo = async ({
   deleted: Set<string>;
 }): Promise<AddAndDeleteFileInfos> => {
   // Track how long it takes to gather the oid information from the git trees
-  const getInfoMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles#toFileInfo', {
-    addedFiles: added.size,
-    deletedFiles: deleted.size,
-  });
 
   const headRef = await git.resolveRef({ fs, dir: projectPath, gitdir: gitDir, ref: 'HEAD' });
   const [addedInfo, deletedInfo] = await Promise.all([
@@ -189,13 +182,11 @@ const toFileInfo = async ({
     await Promise.all(Array.from(deleted).map(getHashFromActualFileContents(gitDir)(projectPath)(headRef))),
   ]);
 
-  getInfoMarker?.stop();
-
   return { addedInfo, deletedInfo };
 };
 
 /** returns a map of <hash+basename, filepath>.  If two items result in the same hash+basename, return that in the ignore bucket */
-export const buildMap = (info: DetectionFileInfoWithType[]): StringMap[] => {
+const buildMap = (info: DetectionFileInfoWithType[]): StringMap[] => {
   const map: StringMap = new Map();
   const ignore: StringMap = new Map();
 
@@ -254,7 +245,7 @@ const getHashFromActualFileContents =
     ).oid,
   });
 
-export const toKey = (input: DetectionFileInfoWithType): string =>
+const toKey = (input: DetectionFileInfoWithType): string =>
   [input.hash, input.basename, input.type, input.type, input.parentType ?? '', input.parentFullName ?? ''].join(
     JOIN_CHAR
   );

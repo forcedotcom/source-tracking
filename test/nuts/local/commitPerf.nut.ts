@@ -17,7 +17,7 @@ import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 describe('perf testing for big commits', () => {
   let session: TestSession;

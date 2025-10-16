@@ -15,18 +15,15 @@
  */
 
 import path from 'node:path';
-import * as os from 'node:os';
-import * as fs from 'graceful-fs';
-import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
+import os from 'node:os';
+import { NamedPackageDir, Lifecycle, Logger, SfError, fs } from '@salesforce/core';
 import { env } from '@salesforce/kit';
-// @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
 import git from 'isomorphic-git';
-import { Performance } from '@oclif/core/performance';
-import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
-import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
-import { StatusRow } from './types';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions';
+import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
+import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection.js';
+import type { StatusRow } from './types.js';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions.js';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
@@ -59,8 +56,7 @@ type CommitRequest = {
   needsUpdatedStatus?: boolean;
 };
 
-/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files even with graceful-fs */
-
+/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files */
 const MAX_FILE_ADD = env.getNumber(
   'SF_SOURCE_TRACKING_BATCH_SIZE',
   env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
@@ -116,6 +112,8 @@ export class ShadowRepo {
    */
   public async gitInit(): Promise<void> {
     this.logger.trace(`initializing git repo at ${this.gitDir}`);
+    // eslint-disable-next-line no-console
+    console.log('initializing git repo at', this.gitDir);
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     try {
       await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
@@ -130,11 +128,7 @@ export class ShadowRepo {
    * @returns the deleted directory
    */
   public async delete(): Promise<string> {
-    if (typeof fs.promises.rm === 'function') {
-      await fs.promises.rm(this.gitDir, { recursive: true, force: true });
-    } else {
-      await fs.promises.rm(this.gitDir, { recursive: true });
-    }
+    await fs.promises.rm(this.gitDir, { recursive: true, force: true });
     return this.gitDir;
   }
   /**
@@ -149,8 +143,6 @@ export class ShadowRepo {
     this.logger.trace(`start: getStatus (noCache = ${noCache})`);
 
     if (!this.status || noCache) {
-      const marker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.getStatus#withoutCache');
-
       try {
         // status hasn't been initialized yet
         this.status = await git.statusMatrix({
@@ -177,8 +169,6 @@ export class ShadowRepo {
       } catch (e) {
         redirectToCliRepoError(e);
       }
-
-      marker?.stop();
     }
     this.logger.trace(`done: getStatus (noCache = ${noCache})`);
     return this.status;
@@ -259,11 +249,6 @@ export class ShadowRepo {
       return 'no files to commit';
     }
 
-    const marker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.commitChanges', {
-      deployedFiles: deployedFiles.length,
-      deletedFiles: deletedFiles.length,
-    });
-
     if (deployedFiles.length) {
       const chunks = chunkArray(
         // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
@@ -283,6 +268,8 @@ export class ShadowRepo {
             force: true,
           });
         } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error(e);
           if (e instanceof git.Errors.MultipleGitError) {
             this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
             throw SfError.create({
@@ -303,9 +290,7 @@ export class ShadowRepo {
     if (deletedFiles.length) {
       // Using a cache here speeds up the performance by ~24.4%
       let cache = {};
-      const deleteMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.commitChanges#delete', {
-        deletedFiles: deletedFiles.length,
-      });
+
       for (const filepath of [...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
         try {
           // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
@@ -317,7 +302,6 @@ export class ShadowRepo {
       }
       // clear cache
       cache = {};
-      deleteMarker?.stop();
     }
 
     try {
@@ -339,7 +323,6 @@ export class ShadowRepo {
     } catch (e) {
       redirectToCliRepoError(e);
     }
-    marker?.stop();
   }
 
   private async detectMovedFiles(): Promise<void> {
@@ -347,17 +330,11 @@ export class ShadowRepo {
     const matchingFiles = getMatches(await this.getStatus());
     if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
 
-    const movedFilesMarker = Performance.mark('@salesforce/source-tracking', 'localShadowRepo.detectMovedFiles');
     const matches = await filenameMatchesToMap(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
 
-    if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return movedFilesMarker?.stop();
+    if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return;
 
     this.logger.debug(getLogMessage(matches));
-
-    movedFilesMarker?.addDetails({
-      filesMoved: matches.fullMatches.size,
-      filesMovedAndEdited: matches.deleteOnly.size,
-    });
 
     // Commit the moved files and refresh the status
     await this.commitChanges({
@@ -365,8 +342,6 @@ export class ShadowRepo {
       deployedFiles: [...matches.fullMatches.keys()],
       message: 'Committing moved files',
     });
-
-    movedFilesMarker?.stop();
   }
 }
 

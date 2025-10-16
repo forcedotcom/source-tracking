@@ -13,15 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as path from 'node:path';
-import * as os from 'node:os';
-import * as fs from 'node:fs';
-// @ts-expect-error isogit has both ESM and CJS exports but node16 module/resolution identifies it as ESM
+import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs';
 import git from 'isomorphic-git';
 import { expect, config } from 'chai';
 import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../src/shared/local/localShadowRepo';
+import { ShadowRepo } from '../../src/shared/local/localShadowRepo.js';
 
 /* eslint-disable no-unused-expressions */
 config.truncateThreshold = 0;
