@@ -29,8 +29,6 @@ const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
       ).replace(/\\/gi, '/')
     : '';
 
-// const registryAccess = new RegistryAccess();
-
 const getAliasTypes = (registry: RegistryAccess): Array<[string, string]> =>
   registry.getAliasTypes().map((aliasType) => [aliasType.name, registry.getTypeByName(aliasType.aliasFor!).name]);
 

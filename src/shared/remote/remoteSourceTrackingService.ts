@@ -160,7 +160,7 @@ export class RemoteSourceTrackingService {
    * pass in a series of SDR FilResponses .\
    * it sets their last retrieved revision to the current revision counter from the server.
    */
-  public async syncSpecifiedElements(elements: RemoteSyncInput[], registry: RegistryAccess): Promise<void> {
+  public async syncSpecifiedElements(registry: RegistryAccess, elements: RemoteSyncInput[]): Promise<void> {
     if (elements.length === 0) {
       return;
     }

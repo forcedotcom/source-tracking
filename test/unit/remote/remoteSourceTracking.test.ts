@@ -637,17 +637,14 @@ describe('remoteSourceTrackingService', () => {
         },
       } satisfies ContentsV1;
       setContents(contents);
-      await remoteSourceTrackingService.syncSpecifiedElements(
-        [
-          {
-            fullName: 'my(awesome)profile',
-            type: 'Profile',
-            filePath: 'my%28awesome%29profile.profile-meta.xml',
-            state: ComponentStatus.Changed,
-          },
-        ],
-        new RegistryAccess()
-      );
+      await remoteSourceTrackingService.syncSpecifiedElements(new RegistryAccess(), [
+        {
+          fullName: 'my(awesome)profile',
+          type: 'Profile',
+          filePath: 'my%28awesome%29profile.profile-meta.xml',
+          state: ComponentStatus.Changed,
+        },
+      ]);
       // lastRetrievedFromServer should be set to the RevisionCounter
       expect(getContents()).to.deep.equal({
         serverMaxRevisionCounter: 1,

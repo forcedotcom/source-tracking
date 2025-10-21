@@ -500,7 +500,7 @@ export class SourceTracking extends AsyncCreatable {
       // poll to make sure we have the updates before syncing the ones from metadataKeys
       await this.remoteSourceTrackingService.pollForSourceTracking(this.registry, fileResponses);
     }
-    await this.remoteSourceTrackingService.syncSpecifiedElements(fileResponses, this.registry);
+    await this.remoteSourceTrackingService.syncSpecifiedElements(this.registry, fileResponses);
   }
 
   public async reReadLocalTrackingCache(): Promise<void> {
