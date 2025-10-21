@@ -21,20 +21,20 @@ import { envVars as env, Logger, Org, Messages, Lifecycle, SfError, fs } from '@
 import { Duration } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types.js';
-import { getMetadataKeyFromFileResponse, getMappingsForSourceMemberTypesToMetadataType } from '../metadataKeys.js';
-import { getMetadataKey } from '../functions.js';
-import { calculateExpectedSourceMembers } from './expectedSourceMembers.js';
-import { SourceMember } from './types.js';
-import { MemberRevision } from './types.js';
+import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types';
+import { getMetadataKeyFromFileResponse, getMappingsForSourceMemberTypesToMetadataType } from '../metadataKeys';
+import { getMetadataKey } from '../functions';
+import { calculateExpectedSourceMembers } from './expectedSourceMembers';
+import { SourceMember } from './types';
+import { MemberRevision } from './types';
 import {
   FILENAME,
   getFilePath,
   readFileContents,
   revisionToRemoteChangeElement,
   writeTrackingFile,
-} from './fileOperations.js';
-import { calculateTimeout, querySourceMembersFrom, querySourceMembersTo } from './orgQueries.js';
+} from './fileOperations';
+import { calculateTimeout, querySourceMembersFrom, querySourceMembersTo } from './orgQueries';
 
 export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 

@@ -21,9 +21,9 @@ import {
   getMetadataKey,
   getMetadataNameFromLegacyKey,
   getMetadataTypeFromLegacyKey,
-} from '../functions.js';
-import { RemoteChangeElement } from '../types.js';
-import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types.js';
+} from '../functions';
+import { RemoteChangeElement } from '../types';
+import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types';
 
 export const FILENAME = 'maxRevision.json';
 

@@ -13,17 +13,5 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-export { SourceTracking, SourceTrackingOptions } from './sourceTracking';
-export {
-  RemoteSyncInput,
-  ChangeOptionType,
-  ChangeOptions,
-  LocalUpdateOptions,
-  ChangeResult,
-  StatusOutputRow,
-  ConflictResponse,
-  SourceConflictError,
-  SourceMemberPollingEvent,
-} from './shared/types';
-export { getKeyFromObject, deleteCustomLabels } from './shared/functions';
+const path = require('path');
+process.env.TS_NODE_PROJECT = path.resolve('test/tsconfig.json');

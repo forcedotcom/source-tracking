@@ -16,15 +16,15 @@
 import { EOL } from 'node:os';
 import { Logger } from '@salesforce/core/logger';
 import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult } from './types.js';
-import { isChangeResultWithNameAndType } from './guards.js';
+import { ChangeResult } from './types';
+import { isChangeResultWithNameAndType } from './guards';
 import {
   getAllFiles,
   getKeyFromObject,
   getMetadataKey,
   sourceComponentHasFullNameAndType,
   remoteChangeToMetadataMember,
-} from './functions.js';
+} from './functions';
 
 /**
  * Will build a component set, crawling your local directory, to get paths for remote changes

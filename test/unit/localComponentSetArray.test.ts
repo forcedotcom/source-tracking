@@ -15,7 +15,7 @@
  */
 
 import { expect } from 'chai';
-import { getGroupedFiles } from '../../src/shared/localComponentSetArray.js';
+import { getGroupedFiles } from '../../src/shared/localComponentSetArray';
 
 const packageDirs = [
   { name: 'one', fullPath: 'test/path/one', path: 'one' },

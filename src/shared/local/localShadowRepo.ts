@@ -15,15 +15,15 @@
  */
 
 import path from 'node:path';
-import os from 'node:os';
+import * as os from 'node:os';
 import { NamedPackageDir, Lifecycle, Logger, SfError, fs } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import git from 'isomorphic-git';
-import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
-import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection.js';
-import type { StatusRow } from './types.js';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions.js';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
+import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
+import { StatusRow } from './types';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions';
 
 /** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>

@@ -1,7 +1,9 @@
 {
-  "extends": "@salesforce/dev-config/tsconfig-test-strict-esm",
+  "extends": "@salesforce/dev-config/tsconfig-test-strict",
   "include": ["./**/*.ts"],
   "compilerOptions": {
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "moduleResolution": "Node16",
+    "module": "Node16"
   }
 }

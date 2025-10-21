@@ -20,7 +20,7 @@ import git from 'isomorphic-git';
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../src/shared/local/localShadowRepo.js';
+import { ShadowRepo } from '../../src/shared/local/localShadowRepo';
 
 /* eslint-disable no-unused-expressions */
 

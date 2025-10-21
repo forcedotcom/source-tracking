@@ -4,10 +4,8 @@
   "version": "7.4.10",
   "author": "Salesforce",
   "license": "Apache-2.0",
-  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "exports": "./lib/index.js",
   "homepage": "https://github.com/forcedotcom/source-tracking#readme",
   "repository": "forcedotcom/source-tracking",
   "scripts": {

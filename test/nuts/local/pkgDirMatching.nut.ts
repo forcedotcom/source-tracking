@@ -18,7 +18,7 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import fs from 'graceful-fs';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
 describe('verifies exact match of pkgDirs', () => {
   const registry = new RegistryAccess();

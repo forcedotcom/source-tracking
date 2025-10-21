@@ -19,7 +19,7 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import fs from 'graceful-fs';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
+import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
 describe('can match files with the same hash when the have different parents ', () => {
   const registry = new RegistryAccess();

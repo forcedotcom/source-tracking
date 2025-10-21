@@ -23,10 +23,10 @@ import {
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import git from 'isomorphic-git';
-import { isDefined } from '../guards.js';
-import { uniqueArrayConcat } from '../functions.js';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions.js';
-import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types.js';
+import { isDefined } from '../guards';
+import { uniqueArrayConcat } from '../functions';
+import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions';
+import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
 type AddAndDeleteFileInfos = Readonly<{ addedInfo: DetectionFileInfo[]; deletedInfo: DetectionFileInfo[] }>;

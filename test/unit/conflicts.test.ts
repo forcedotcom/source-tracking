@@ -14,17 +14,11 @@
  * limitations under the License.
  */
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import sinon from 'sinon';
 import { expect } from 'chai';
 import { ForceIgnore, ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts.js';
-import { ChangeResult } from '../../src/shared/types.js';
-
-// eslint-disable-next-line no-underscore-dangle
-const __filename = fileURLToPath(import.meta.url);
-// eslint-disable-next-line no-underscore-dangle
-const __dirname = path.dirname(__filename);
+import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts';
+import { ChangeResult } from '../../src/shared/types';
 
 const clsFullName = 'MyClass';
 const clsType = 'ApexClass';

@@ -15,8 +15,8 @@
  */
 import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
-import { calculateExpectedSourceMembers } from '../../../src/shared/remote/expectedSourceMembers.js';
-import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys.js';
+import { calculateExpectedSourceMembers } from '../../../src/shared/remote/expectedSourceMembers';
+import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys';
 
 const registry = new RegistryAccess();
 const getKeys = getMetadataKeyFromFileResponse(registry);

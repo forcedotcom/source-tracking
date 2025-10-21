@@ -17,7 +17,7 @@ import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys.js';
+import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys';
 
 const registry = new RegistryAccess();
 const getKeys = getMetadataKeyFromFileResponse(registry);

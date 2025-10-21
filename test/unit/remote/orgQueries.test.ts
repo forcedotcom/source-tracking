@@ -15,7 +15,7 @@
  */
 import { Logger, envVars } from '@salesforce/core';
 import { expect } from 'chai';
-import { calculateTimeout } from '../../../src/shared/remote/orgQueries.js';
+import { calculateTimeout } from '../../../src/shared/remote/orgQueries';
 
 const reResolveEnvVars = (): void => {
   /* eslint-disable @typescript-eslint/no-unsafe-call */

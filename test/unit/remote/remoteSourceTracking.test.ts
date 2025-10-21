@@ -19,7 +19,6 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync, rmSync } from 'node:fs';
 import { sep, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { EnvVars, envVars, Messages, Org } from '@salesforce/core';
 import { expect, config } from 'chai';
@@ -27,18 +26,13 @@ import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retri
 import {
   RemoteSourceTrackingService,
   remoteChangeElementToChangeResult,
-} from '../../../src/shared/remote/remoteSourceTrackingService.js';
-import { RemoteSyncInput, RemoteChangeElement } from '../../../src/shared/types.js';
+} from '../../../src/shared/remote/remoteSourceTrackingService';
+import { RemoteSyncInput, RemoteChangeElement } from '../../../src/shared/types';
 
-import * as orgQueryMocks from '../../../src/shared/remote/orgQueries.js';
+import * as orgQueryMocks from '../../../src/shared/remote/orgQueries';
 
-import { getMetadataNameFromKey, getMetadataTypeFromKey } from '../../../src/shared/functions.js';
-import { ContentsV0, ContentsV1, MemberRevision, SourceMember } from '../../../src/shared/remote/types.js';
-
-// eslint-disable-next-line no-underscore-dangle
-const __filename = fileURLToPath(import.meta.url);
-// eslint-disable-next-line no-underscore-dangle
-const __dirname = dirname(__filename);
+import { getMetadataNameFromKey, getMetadataTypeFromKey } from '../../../src/shared/functions';
+import { ContentsV0, ContentsV1, MemberRevision, SourceMember } from '../../../src/shared/remote/types';
 
 config.truncateThreshold = 0;
 

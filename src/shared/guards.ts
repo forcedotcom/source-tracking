@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 import { FileResponse, ComponentStatus, FileResponseSuccess } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult } from './types.js';
-import { ChangeResultWithNameAndType } from './types.js';
+import { ChangeResult } from './types';
+import { ChangeResultWithNameAndType } from './types';
 
 export const isSdrSuccess = (fileResponse: FileResponse): fileResponse is FileResponseSuccess =>
   fileResponse.state !== ComponentStatus.Failed;

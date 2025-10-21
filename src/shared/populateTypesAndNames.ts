@@ -21,15 +21,15 @@ import {
   ForceIgnore,
   RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult } from './types.js';
-import { isChangeResultWithNameAndType, isDefined } from './guards.js';
+import { ChangeResult } from './types';
+import { isChangeResultWithNameAndType, isDefined } from './guards';
 import {
   ensureRelative,
   excludeLwcLocalOnlyTest,
   forceIgnoreDenies,
   getAllFiles,
   sourceComponentHasFullNameAndType,
-} from './functions.js';
+} from './functions';
 
 /**
  * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).

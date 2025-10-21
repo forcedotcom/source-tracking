@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 import path from 'node:path';
-import os from 'node:os';
-import { StatusRow } from './types.js';
+import * as os from 'node:os';
+import { StatusRow } from './types';
 export const IS_WINDOWS = os.type() === 'Windows_NT'; // array members for status results
 
 // filenames were normalized when read from isogit

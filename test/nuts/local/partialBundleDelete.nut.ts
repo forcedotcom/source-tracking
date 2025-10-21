@@ -19,7 +19,7 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { getComponentSets } from '../../../src/shared/localComponentSetArray.js';
+import { getComponentSets } from '../../../src/shared/localComponentSetArray';
 
 describe('Bundle-like types delete', () => {
   let session: TestSession;

@@ -22,8 +22,8 @@ import {
   DestructiveChangesType,
   RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
-import { isDefined } from './guards.js';
-import { supportsPartialDelete, pathIsInFolder } from './functions.js';
+import { isDefined } from './guards';
+import { supportsPartialDelete, pathIsInFolder } from './functions';
 
 type GroupedFileInput = {
   packageDirs: NamedPackageDir[];
