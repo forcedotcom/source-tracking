@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 import path from 'node:path';
+import * as fs from 'node:fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
-import fs from 'graceful-fs';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
