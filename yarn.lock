@@ -701,6 +701,31 @@
     semver "^7.6.3"
     ts-retry-promise "^0.8.1"
 
+"@salesforce/core@^8.23.3":
+  version "8.23.3"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-8.23.3.tgz#23d92d6eb887e946e26989552a605fa085e626e8"
+  integrity sha512-BD9cOUOw3wTR8ud6dBacLvA4x0KAfQXkNGdxtU9ujz5nEW86ms5tU1AEUzVXnhuDrrtdQZh7/yTGxqg5mS7rZg==
+  dependencies:
+    "@jsforce/jsforce-node" "^3.10.8"
+    "@salesforce/kit" "^3.2.4"
+    "@salesforce/schemas" "^1.10.3"
+    "@salesforce/ts-types" "^2.0.12"
+    ajv "^8.17.1"
+    change-case "^4.1.2"
+    fast-levenshtein "^3.0.0"
+    faye "^1.4.1"
+    form-data "^4.0.4"
+    js2xmlparser "^4.0.1"
+    jsonwebtoken "9.0.2"
+    jszip "3.10.1"
+    memfs "^4.30.1"
+    pino "^9.7.0"
+    pino-abstract-transport "^1.2.0"
+    pino-pretty "^11.3.0"
+    proper-lockfile "^4.1.2"
+    semver "^7.7.3"
+    ts-retry-promise "^0.8.1"
+
 "@salesforce/dev-config@^4.3.1":
   version "4.3.1"
   resolved "https://registry.npmjs.org/@salesforce/dev-config/-/dev-config-4.3.1.tgz"
@@ -750,9 +775,9 @@
   resolved "https://registry.npmjs.org/@salesforce/prettier-config/-/prettier-config-0.0.3.tgz"
   integrity sha512-hYOhoPTCSYMDYn+U1rlEk16PoBeAJPkrdg4/UtAzupM1mRRJOwEPMG1d7U8DxJFKuXW3DMEYWr2MwAIBDaHmFg==
 
-"@salesforce/schemas@^1.10.0":
+"@salesforce/schemas@^1.10.0", "@salesforce/schemas@^1.10.3":
   version "1.10.3"
-  resolved "https://registry.npmjs.org/@salesforce/schemas/-/schemas-1.10.3.tgz"
+  resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.10.3.tgz#52c867fdd60679cf216110aa49542b7ad391f5d1"
   integrity sha512-FKfvtrYTcvTXE9advzS25/DEY9yJhEyLvStm++eQFtnAaX1pe4G3oGHgiQ0q55BM5+0AlCh0+0CVtQv1t4oJRA==
 
 "@salesforce/schemas@^1.9.1":
@@ -760,15 +785,15 @@
   resolved "https://registry.npmjs.org/@salesforce/schemas/-/schemas-1.9.1.tgz"
   integrity sha512-9I8kZBYT7HFXsbz2ukkSyZDRPjSsfRyx3pKGCsjWe2av8wuNm6tYUnmuXzMH5JoVSu3MvtOeIlwp5fFURdsNjg==
 
-"@salesforce/source-deploy-retrieve@^12.24.0":
-  version "12.24.0"
-  resolved "https://registry.npmjs.org/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.24.0.tgz"
-  integrity sha512-gjS6whT1575UGxwR2foDILlsbDQPwng0rNyXsk39hwg+bRsbHABZGzxU5EeUIzpKqv4bf6C9z/BLYiHMcZocoQ==
+"@salesforce/source-deploy-retrieve@^12.24.3":
+  version "12.24.3"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.24.3.tgz#125be3a3e6d0d0f21068648ce4a2e4bb49ea57b6"
+  integrity sha512-MTpilWa+1mOqZUEmbE7K/vgHAT0FjGDv9L6vn7Cof3kRhk3RZprIjR6Sd9/x1WteI+hR5JAMCDbKT/WiWJcKYw==
   dependencies:
-    "@salesforce/core" "^8.23.1"
-    "@salesforce/kit" "^3.2.3"
+    "@salesforce/core" "^8.23.2"
+    "@salesforce/kit" "^3.2.4"
     "@salesforce/ts-types" "^2.0.12"
-    "@salesforce/types" "^1.4.0"
+    "@salesforce/types" "^1.5.0"
     fast-levenshtein "^3.0.0"
     fast-xml-parser "^4.5.3"
     got "^11.8.6"
@@ -785,10 +810,10 @@
   resolved "https://registry.npmjs.org/@salesforce/ts-types/-/ts-types-2.0.12.tgz"
   integrity sha512-BIJyduJC18Kc8z+arUm5AZ9VkPRyw1KKAm+Tk+9LT99eOzhNilyfKzhZ4t+tG2lIGgnJpmytZfVDZ0e2kFul8g==
 
-"@salesforce/types@^1.4.0":
-  version "1.4.0"
-  resolved "https://registry.npmjs.org/@salesforce/types/-/types-1.4.0.tgz"
-  integrity sha512-WpXzQd+JglQrwUs05ePGa1/vFFn1s7rymw2ltBbFj2Z0p/ez1ft6J39ILVlteS/mGca47Ce8JN+u3USVxfxkKA==
+"@salesforce/types@^1.5.0":
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/@salesforce/types/-/types-1.5.0.tgz#dd1db8651ae9729c133ee5224ec7fbf50b1087ad"
+  integrity sha512-zBihdJ6WwE0JP6BVCXhm7guMQlj4/7nCYqtrkozgxgeKLJq+zKrTRwILeRQbbeqVP4nKjUz/AJr0zCDjrA2IVg==
 
 "@shikijs/core@1.29.2":
   version "1.29.2"
@@ -5388,6 +5413,11 @@ semver@^7.3.4, semver@^7.5.3, semver@^7.5.4, semver@^7.6.0, semver@^7.6.3:
   version "7.7.2"
   resolved "https://registry.npmjs.org/semver/-/semver-7.7.2.tgz"
   integrity sha512-RF0Fw+rO5AMf9MAyaRXI4AV0Ulj5lMHqVxxdSgiVbixSCXoEmmX/jk0CuJw4+3SqroYO9VoUh+HcuJivvtJemA==
+
+semver@^7.7.3:
+  version "7.7.3"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-7.7.3.tgz#4b5f4143d007633a8dc671cd0a6ef9147b8bb946"
+  integrity sha512-SdsKMrI9TdgjdweUSR9MweHA4EJ8YxHn8DFaDisvhVlUOe4BF1tLD7GAj0lIqWVl+dPb/rExr0Btby5loQm20Q==
 
 sentence-case@^3.0.4:
   version "3.0.4"
