@@ -112,8 +112,6 @@ export class ShadowRepo {
    */
   public async gitInit(): Promise<void> {
     this.logger.trace(`initializing git repo at ${this.gitDir}`);
-    // eslint-disable-next-line no-console
-    console.log('initializing git repo at', this.gitDir);
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     try {
       await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
