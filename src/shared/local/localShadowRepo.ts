@@ -266,8 +266,6 @@ export class ShadowRepo {
             force: true,
           });
         } catch (e) {
-          // eslint-disable-next-line no-console
-          console.error(e);
           if (e instanceof git.Errors.MultipleGitError) {
             this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
             throw SfError.create({
