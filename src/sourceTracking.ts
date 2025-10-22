@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import * as fs from 'node:fs';
 import { resolve, sep, normalize } from 'node:path';
-import * as fs from 'graceful-fs';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';

@@ -15,7 +15,7 @@
  */
 
 import path from 'node:path';
-import * as fs from 'node:fs';
+import * as fs from 'graceful-fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';

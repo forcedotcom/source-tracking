@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import { ComponentStatus, type RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { getMetadataKeyFromFileResponse } from '../metadataKeys';
-import { RemoteSyncInput } from '../types';
+import { type RemoteSyncInput } from '../types';
 
 const typesToNoPollFor = [
   'CustomObject',
