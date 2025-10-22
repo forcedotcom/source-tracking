@@ -42,3 +42,9 @@ from eslint, then you get clean output.
 ## `yarn test:nuts:local`
 
 real tests on real local fs, including some scale and perf tests.
+
+## `npx knip`
+
+makes sure that you're not introducing unnecessary exports or leaving dead code
+
+unused exports might be used for tests but not by other code

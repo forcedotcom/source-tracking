@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import path from 'node:path';
-import * as fs from 'graceful-fs';
+import fs from 'node:fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import sinon from 'sinon';
