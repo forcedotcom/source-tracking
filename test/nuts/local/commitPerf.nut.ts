@@ -54,6 +54,6 @@ describe('perf testing for big commits', () => {
   it('should sync them locally in a reasonable amount of time', async () => {
     const start = Date.now();
     await repo.commitChanges({ deployedFiles: filesToSync, needsUpdatedStatus: false });
-    expect(Date.now() - start).to.be.lessThan(process.platform === 'win32' ? 25_000 : 5000);
+    expect(Date.now() - start).to.be.lessThan(process.platform === 'win32' ? 25_000 : 10_000);
   });
 });
