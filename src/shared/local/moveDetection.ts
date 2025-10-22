@@ -15,7 +15,8 @@
  */
 import path from 'node:path';
 import { EOL } from 'node:os';
-import { Logger, Lifecycle, fs } from '@salesforce/core';
+import * as fs from 'graceful-fs';
+import { Logger, Lifecycle } from '@salesforce/core';
 import {
   MetadataResolver,
   SourceComponent,

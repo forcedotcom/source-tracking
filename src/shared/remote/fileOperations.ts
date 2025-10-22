@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 import path from 'node:path';
+import * as fs from 'graceful-fs';
 import { parseJsonMap } from '@salesforce/kit';
-import { lockInit, envVars as env, Logger, fs } from '@salesforce/core';
+import { lockInit, envVars as env, Logger } from '@salesforce/core';
 import {
   getLegacyMetadataKey,
   getMetadataKey,

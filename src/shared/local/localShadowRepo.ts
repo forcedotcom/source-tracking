@@ -16,7 +16,8 @@
 
 import path from 'node:path';
 import * as os from 'node:os';
-import { NamedPackageDir, Lifecycle, Logger, SfError, fs } from '@salesforce/core';
+import * as fs from 'graceful-fs';
+import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import git from 'isomorphic-git';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';

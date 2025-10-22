@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 import { resolve, sep, normalize } from 'node:path';
-import { NamedPackageDir, Logger, Org, SfProject, Lifecycle, fs } from '@salesforce/core';
+import * as fs from 'graceful-fs';
+import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
 import {

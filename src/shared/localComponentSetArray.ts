@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 import { resolve } from 'node:path';
-import { NamedPackageDir, Logger, fs } from '@salesforce/core';
+import * as fs from 'graceful-fs';
+import { NamedPackageDir, Logger } from '@salesforce/core';
 import {
   ComponentSet,
   MetadataResolver,

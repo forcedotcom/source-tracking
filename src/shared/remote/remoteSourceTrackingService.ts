@@ -16,8 +16,9 @@
 
 import path from 'node:path';
 import { EOL } from 'node:os';
+import * as fs from 'graceful-fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
-import { envVars as env, Logger, Org, Messages, Lifecycle, SfError, fs } from '@salesforce/core';
+import { envVars as env, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { Duration } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
