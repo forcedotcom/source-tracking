@@ -1,3 +1,12 @@
+# [7.5.0](https://github.com/forcedotcom/source-tracking/compare/7.4.10...7.5.0) (2025-10-22)
+
+
+### Features
+
+* dependency updates and registry reuse W-19263112 ([#813](https://github.com/forcedotcom/source-tracking/issues/813)) ([2faf81d](https://github.com/forcedotcom/source-tracking/commit/2faf81d987bfe762891e695b5c7c195b1e763933))
+
+
+
 ## [7.4.10](https://github.com/forcedotcom/source-tracking/compare/7.4.9...7.4.10) (2025-09-03)
 
 
