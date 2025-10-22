@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import fs from 'node:fs';
 import path from 'node:path';
+import * as fs from 'graceful-fs';
 import { parseJsonMap } from '@salesforce/kit';
 import { lockInit, envVars as env, Logger } from '@salesforce/core';
 import {
@@ -112,7 +112,7 @@ export const writeTrackingFile = async ({
   await lockResult.writeAndUnlock(JSON.stringify(contents, null, 4));
 };
 
-export const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
+const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
   getLegacyMetadataKey(member.MemberType, member.MemberName),
   {
     memberType: member.MemberType,

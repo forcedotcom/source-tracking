@@ -83,7 +83,7 @@ export const querySourceMembersFrom = async ({
   return queryResultWithResolvedUsers;
 };
 
-export const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
+const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
   try {
     return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records.map(
       sourceMemberCorrections

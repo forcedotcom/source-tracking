@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import fs from 'node:fs';
+import * as fs from 'node:fs';
 import { resolve, sep, normalize } from 'node:path';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
@@ -37,7 +37,6 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
-import { Performance } from '@oclif/core/performance';
 import {
   RemoteSourceTrackingService,
   remoteChangeElementToChangeResult,
@@ -99,6 +98,9 @@ export type SourceTrackingOptions = {
    * If you're using STL as part of a long running process (ex: vscode extensions), set this to false
    */
   ignoreLocalCache?: boolean;
+
+  /** pass in an instance of SDR's RegistryAccess.  If not provided, a new one will be created */
+  registry?: RegistryAccess;
 };
 
 type RemoteChangesResults = {
@@ -140,7 +142,7 @@ export class SourceTracking extends AsyncCreatable {
     this.ignoreConflicts = options.ignoreConflicts ?? false;
     this.ignoreLocalCache = options.ignoreLocalCache ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
-    this.registry = new RegistryAccess(undefined, this.projectPath);
+    this.registry = options.registry ?? new RegistryAccess(undefined, this.projectPath);
   }
 
   public async init(): Promise<void> {
@@ -213,7 +215,7 @@ export class SourceTracking extends AsyncCreatable {
     );
     // there may be remote adds not in the SBC.  So we add those manually
     (applyIgnore
-      ? removeIgnored(changeResults, this.forceIgnore, this.project.getDefaultPackage().fullPath)
+      ? removeIgnored(changeResults, this.forceIgnore, this.project.getDefaultPackage().fullPath, this.registry)
       : changeResults.map(remoteChangeToMetadataMember)
     ).map((mm) => {
       componentSet.add(mm);
@@ -334,11 +336,11 @@ export class SourceTracking extends AsyncCreatable {
         // skip any remote types not in the registry.  Will emit warnings
         .filter((rce) => registrySupportsType(this.registry)(rce.type));
       if (options.format === 'ChangeResult') {
-        return filteredChanges.map(remoteChangeElementToChangeResult);
+        return filteredChanges.map(remoteChangeElementToChangeResult(this.registry));
       }
       if (options.format === 'ChangeResultWithPaths') {
         return populateFilePaths({
-          elements: filteredChanges.map(remoteChangeElementToChangeResult),
+          elements: filteredChanges.map(remoteChangeElementToChangeResult(this.registry)),
           packageDirPaths: this.project.getPackageDirectories().map((pkgDir) => pkgDir.fullPath),
           registry: this.registry,
         });
@@ -448,8 +450,6 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async updateLocalTracking(options: LocalUpdateOptions): Promise<void> {
     this.logger.trace('start: updateLocalTracking', options);
-    const marker = Performance.mark('@salesforce/source-tracking', 'SourceTracking.updateLocalTracking');
-    marker?.addDetails({ nonDeletes: options.files?.length ?? 0, deletes: options.deletedFiles?.length ?? 0 });
     await this.ensureLocalTracking();
 
     this.logger.trace('files', options.files);
@@ -487,7 +487,6 @@ export class SourceTracking extends AsyncCreatable {
         )
       ),
     });
-    marker?.stop();
     this.logger.trace('done: updateLocalTracking', options);
   }
 
@@ -496,16 +495,13 @@ export class SourceTracking extends AsyncCreatable {
    * Optional skip polling for the SourceMembers to exist on the server and be updated in local files
    */
   public async updateRemoteTracking(fileResponses: RemoteSyncInput[], skipPolling = false): Promise<void> {
-    const marker = Performance.mark('@salesforce/source-tracking', 'SourceTracking.updateRemoteTracking');
-    marker?.addDetails({ fileResponseCount: fileResponses.length, skipPolling });
     // false to explicitly NOT query until we do the polling
     await this.ensureRemoteTracking(false);
     if (!skipPolling) {
       // poll to make sure we have the updates before syncing the ones from metadataKeys
-      await this.remoteSourceTrackingService.pollForSourceTracking(fileResponses);
+      await this.remoteSourceTrackingService.pollForSourceTracking(this.registry, fileResponses);
     }
-    await this.remoteSourceTrackingService.syncSpecifiedElements(fileResponses);
-    marker?.stop();
+    await this.remoteSourceTrackingService.syncSpecifiedElements(this.registry, fileResponses);
   }
 
   public async reReadLocalTrackingCache(): Promise<void> {
@@ -599,8 +595,6 @@ export class SourceTracking extends AsyncCreatable {
    * Compares local and remote changes to detect conflicts
    */
   public async getConflicts(): Promise<ChangeResult[]> {
-    const marker = Performance.mark('@salesforce/source-tracking', 'SourceTracking.getConflicts');
-
     // we're going to need have both initialized
     await Promise.all([this.ensureRemoteTracking(), this.ensureLocalTracking()]);
 
@@ -633,7 +627,6 @@ export class SourceTracking extends AsyncCreatable {
       registry: this.registry,
     });
 
-    marker?.stop();
     return result;
   }
 
@@ -770,10 +763,7 @@ export class SourceTracking extends AsyncCreatable {
   // reserve the right to do something more sophisticated in the future
   // via async for figuring out hypothetical filenames (ex: getting default packageDir)
   // eslint-disable-next-line @typescript-eslint/require-await
-  private async remoteChangesToOutputRows(
-    input: ChangeResult,
-    registry = new RegistryAccess()
-  ): Promise<StatusOutputRow[]> {
+  private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
     const baseObject: StatusOutputRow = {
@@ -793,7 +783,7 @@ export class SourceTracking extends AsyncCreatable {
     // when the file doesn't exist locally, there are no filePaths
     // SDR can generate the hypothetical place it *would* go and check that
     if (isChangeResultWithNameAndType(input)) {
-      const ignored = filePathsFromMetadataComponent(changeResultToMetadataComponent(registry)(input)).some(
+      const ignored = filePathsFromMetadataComponent(changeResultToMetadataComponent(this.registry)(input)).some(
         forceIgnoreDenies(this.forceIgnore)
       );
       return [

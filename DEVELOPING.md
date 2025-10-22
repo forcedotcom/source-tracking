@@ -37,9 +37,14 @@ This tests the typescript using ts-node.
 ### `yarn lint`
 
 This lints all the typescript. If there are no errors/warnings
-from tslint, then you get clean output. But, if there are errors from tslint,
-you will see a long error that can be confusing – just focus on the tslint
-errors. The results of this are deeper than what the tslint extension in VS Code
-does because of [semantic lint
-rules](https://palantir.github.io/tslint/usage/type-checking/) which requires a
-tsconfig.json to be passed to tslint.
+from eslint, then you get clean output.
+
+## `yarn test:nuts:local`
+
+real tests on real local fs, including some scale and perf tests.
+
+## `npx knip`
+
+makes sure that you're not introducing unnecessary exports or leaving dead code
+
+unused exports might be used for tests but not by other code

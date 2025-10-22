@@ -15,14 +15,15 @@
  */
 
 import path from 'node:path';
-import fs from 'node:fs';
 import { EOL } from 'node:os';
+import * as fs from 'graceful-fs';
 import { retryDecorator, NotRetryableError } from 'ts-retry-promise';
 import { envVars as env, Logger, Org, Messages, Lifecycle, SfError } from '@salesforce/core';
 import { Duration } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
+import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types';
-import { getMetadataKeyFromFileResponse, mappingsForSourceMemberTypesToMetadataType } from '../metadataKeys';
+import { getMetadataKeyFromFileResponse, getMappingsForSourceMemberTypesToMetadataType } from '../metadataKeys';
 import { getMetadataKey } from '../functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 import { SourceMember } from './types';
@@ -50,7 +51,7 @@ const CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT =
 const MAX_INSTANCE_CACHE_TTL = 1000 * 60 * 60 * 1; // 1 hour
 
 /** Options for RemoteSourceTrackingService.getInstance */
-export type RemoteSourceTrackingServiceOptions = {
+type RemoteSourceTrackingServiceOptions = {
   org: Org;
   projectPath: string;
 };
@@ -160,33 +161,37 @@ export class RemoteSourceTrackingService {
    * pass in a series of SDR FilResponses .\
    * it sets their last retrieved revision to the current revision counter from the server.
    */
-  public async syncSpecifiedElements(elements: RemoteSyncInput[]): Promise<void> {
+  public async syncSpecifiedElements(registry: RegistryAccess, elements: RemoteSyncInput[]): Promise<void> {
     if (elements.length === 0) {
       return;
     }
     const quietLogger =
-      elements.length > 100 ? this.logger.silent.bind(this.logger) : this.logger.debug.bind(this.logger);
+      elements.length > 100
+        ? this.logger.silent?.bind(this.logger) ?? ((): void => {})
+        : this.logger.debug.bind(this.logger);
     quietLogger(`Syncing ${elements.length} Revisions by key`);
 
     // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
     // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
     // so we de-dupe via a set
-    Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(element)))).map((metadataKey) => {
-      const revision = this.sourceMembers.get(metadataKey) ?? this.sourceMembers.get(decodeURI(metadataKey));
-      if (!revision) {
-        this.logger.warn(`found no matching revision for ${metadataKey}`);
-      } else if (doesNotMatchServer(revision)) {
-        quietLogger(
-          `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer ?? 'null'} to ${
-            revision.RevisionCounter
-          }`
-        );
-        this.setMemberRevision(metadataKey, {
-          ...revision,
-          lastRetrievedFromServer: revision.RevisionCounter,
-        });
+    Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(registry)(element)))).map(
+      (metadataKey) => {
+        const revision = this.sourceMembers.get(metadataKey) ?? this.sourceMembers.get(decodeURI(metadataKey));
+        if (!revision) {
+          this.logger.warn(`found no matching revision for ${metadataKey}`);
+        } else if (doesNotMatchServer(revision)) {
+          quietLogger(
+            `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer ?? 'null'} to ${
+              revision.RevisionCounter
+            }`
+          );
+          this.setMemberRevision(metadataKey, {
+            ...revision,
+            lastRetrievedFromServer: revision.RevisionCounter,
+          });
+        }
       }
-    });
+    );
 
     await writeTrackingFile({
       filePath: this.filePath,
@@ -270,7 +275,7 @@ export class RemoteSourceTrackingService {
    * @param expectedMemberNames Array of metadata names to poll
    * @param pollingTimeout maximum amount of time in seconds to poll for SourceMembers
    */
-  public async pollForSourceTracking(expectedMembers: RemoteSyncInput[]): Promise<void> {
+  public async pollForSourceTracking(registry: RegistryAccess, expectedMembers: RemoteSyncInput[]): Promise<void> {
     if (env.getBoolean('SF_DISABLE_SOURCE_MEMBER_POLLING')) {
       return this.logger.warn('Not polling for SourceMembers since SF_DISABLE_SOURCE_MEMBER_POLLING = true.');
     }
@@ -279,7 +284,7 @@ export class RemoteSourceTrackingService {
       return;
     }
 
-    const outstandingSourceMembers = calculateExpectedSourceMembers(expectedMembers);
+    const outstandingSourceMembers = calculateExpectedSourceMembers(registry, expectedMembers);
 
     const originalOutstandingSize = outstandingSourceMembers.size;
     // this will be the absolute timeout from the start of the poll.  We can also exit early if it doesn't look like more results are coming in
@@ -411,7 +416,9 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       return;
     }
     const quietLogger =
-      sourceMembers.length > 100 ? this.logger.silent.bind(this.logger) : this.logger.debug.bind(this.logger);
+      sourceMembers.length > 100
+        ? this.logger.silent?.bind(this.logger) ?? ((): void => {})
+        : this.logger.debug.bind(this.logger);
     quietLogger(`Upserting ${sourceMembers.length} SourceMembers to maxRevision.json`);
 
     // Update the serverMaxRevisionCounter to the highest RevisionCounter
@@ -496,18 +503,23 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
  * pass in an RCE, and this will return a pullable ChangeResult.
  * Useful for correcing bundle types where the files show change results with types but aren't resolvable
  */
-export const remoteChangeElementToChangeResult = (rce: RemoteChangeElement): ChangeResult => ({
-  ...rce,
-  ...(mappingsForSourceMemberTypesToMetadataType.has(rce.type)
-    ? {
-        // SNOWFLAKE: EmailTemplateFolder is treated as an alias for EmailFolder so it has a mapping.
-        // The name must be handled differently than with bundle types.
-        name: rce.type === 'EmailTemplateFolder' ? rce.name : rce.name.split('/')[0],
-        type: mappingsForSourceMemberTypesToMetadataType.get(rce.type),
-      }
-    : {}),
-  origin: 'remote', // we know they're remote
-});
+export const remoteChangeElementToChangeResult = (
+  registry: RegistryAccess
+): ((rce: RemoteChangeElement) => ChangeResult) => {
+  const mappings = getMappingsForSourceMemberTypesToMetadataType(registry);
+  return (rce: RemoteChangeElement): ChangeResult => ({
+    ...rce,
+    ...(mappings.has(rce.type)
+      ? {
+          // SNOWFLAKE: EmailTemplateFolder is treated as an alias for EmailFolder so it has a mapping.
+          // The name must be handled differently than with bundle types.
+          name: rce.type === 'EmailTemplateFolder' ? rce.name : rce.name.split('/')[0],
+          type: mappings.get(rce.type),
+        }
+      : {}),
+    origin: 'remote', // we know they're remote
+  });
+};
 
 /**
  *

@@ -22,7 +22,7 @@ import { sep, dirname, resolve } from 'node:path';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { EnvVars, envVars, Messages, Org } from '@salesforce/core';
 import { expect, config } from 'chai';
-import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
+import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import {
   RemoteSourceTrackingService,
   remoteChangeElementToChangeResult,
@@ -126,6 +126,9 @@ describe('remoteSourceTrackingService', () => {
 
   describe('remoteChangeElementToChangeResult()', () => {
     const memberIdOrName = '00eO4000003cP5J';
+    const registry = new RegistryAccess();
+    const toChangeResult = remoteChangeElementToChangeResult(registry);
+
     it('should return correct ChangeResult for EmailTemplateFolder', () => {
       const rce: RemoteChangeElement = {
         name: 'level1/level2/level3',
@@ -137,7 +140,7 @@ describe('remoteSourceTrackingService', () => {
         memberIdOrName,
         lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
       };
-      const changeResult = remoteChangeElementToChangeResult(rce);
+      const changeResult = toChangeResult(rce);
       expect(changeResult).to.deep.equal({
         origin: 'remote',
         name: 'level1/level2/level3',
@@ -162,7 +165,7 @@ describe('remoteSourceTrackingService', () => {
         memberIdOrName,
         lastModifiedDate: defaultSourceMemberValues.LastModifiedDate,
       };
-      const changeResult = remoteChangeElementToChangeResult(rce);
+      const changeResult = toChangeResult(rce);
       expect(changeResult).to.deep.equal({
         origin: 'remote',
         name: 'fooLWC',
@@ -634,7 +637,7 @@ describe('remoteSourceTrackingService', () => {
         },
       } satisfies ContentsV1;
       setContents(contents);
-      await remoteSourceTrackingService.syncSpecifiedElements([
+      await remoteSourceTrackingService.syncSpecifiedElements(new RegistryAccess(), [
         {
           fullName: 'my(awesome)profile',
           type: 'Profile',

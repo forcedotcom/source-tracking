@@ -98,7 +98,7 @@ export const ensureRelative =
   (filePath: string): string =>
     isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;
 
-export type ParsedCustomLabels = {
+type ParsedCustomLabels = {
   CustomLabels: { labels: Array<{ fullName: string }> };
 };
 
@@ -180,7 +180,7 @@ export const remoteChangeToMetadataMember = (cr: ChangeResult): MetadataMember =
 export const FileResponseSuccessToRemoteSyncInput = (fr: FileResponseSuccess): RemoteSyncInput => fr;
 
 export const changeResultToMetadataComponent =
-  (registry: RegistryAccess = new RegistryAccess()) =>
+  (registry: RegistryAccess) =>
   (cr: ChangeResultWithNameAndType): MetadataComponent => ({
     fullName: cr.name,
     type: registry.getTypeByName(cr.type),

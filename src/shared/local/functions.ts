@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as os from 'node:os';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import { StatusRow } from './types';
 export const IS_WINDOWS = os.type() === 'Windows_NT'; // array members for status results
 
@@ -22,7 +22,6 @@ export const IS_WINDOWS = os.type() === 'Windows_NT'; // array members for statu
 export const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
 export const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
 export const isAdded = (status: StatusRow): boolean => status[HEAD] === 0 && status[WORKDIR] === 2;
-export const ensureWindows = (filepath: string): string => path.win32.normalize(filepath);
 export const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);
 
 // We don't use STAGE (StatusRow[3]). Changes are added and committed in one step

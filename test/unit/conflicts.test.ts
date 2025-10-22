@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import path from 'node:path';
-import * as sinon from 'sinon';
+import sinon from 'sinon';
 import { expect } from 'chai';
 import { ForceIgnore, ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts';

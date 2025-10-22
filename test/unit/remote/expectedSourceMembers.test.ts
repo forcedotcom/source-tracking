@@ -13,10 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
+import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
 import { calculateExpectedSourceMembers } from '../../../src/shared/remote/expectedSourceMembers';
 import { getMetadataKeyFromFileResponse } from '../../../src/shared/metadataKeys';
+
+const registry = new RegistryAccess();
+const getKeys = getMetadataKeyFromFileResponse(registry);
 
 describe('expectedSourceMembers', () => {
   it('filters out standard fields and deleted fields on standardObjects but returns custom fields on same object ', () => {
@@ -40,10 +43,10 @@ describe('expectedSourceMembers', () => {
         state: ComponentStatus.Created,
       },
     ];
-    const result = calculateExpectedSourceMembers(input);
+    const result = calculateExpectedSourceMembers(registry, input);
     expect(result.size).to.equal(1);
     // fields return object, field for their keys
-    const input2 = getMetadataKeyFromFileResponse(input[2]);
+    const input2 = getKeys(input[2]);
     const mdKey = input2.find((f) => f.startsWith('CustomField'));
     if (mdKey) {
       expect(result.get(mdKey)).to.deep.equal(input[2]);
@@ -61,7 +64,7 @@ describe('expectedSourceMembers', () => {
         filePath: 'src/aura/foo/foo.cmp-meta.xml',
       },
     ];
-    const result = calculateExpectedSourceMembers(input);
+    const result = calculateExpectedSourceMembers(registry, input);
     expect(result.size).to.equal(0);
   });
 
@@ -80,9 +83,9 @@ describe('expectedSourceMembers', () => {
         state: ComponentStatus.Created,
       },
     ];
-    const result = calculateExpectedSourceMembers(input);
+    const result = calculateExpectedSourceMembers(registry, input);
     expect(result.size).to.equal(1);
-    expect(result.get(getMetadataKeyFromFileResponse(input[0])[0])).to.deep.equal(input[0]);
+    expect(result.get(getKeys(input[0])[0])).to.deep.equal(input[0]);
   });
 
   it('omits namespaced custom labels', () => {
@@ -94,7 +97,7 @@ describe('expectedSourceMembers', () => {
         state: ComponentStatus.Created,
       },
     ];
-    const result = calculateExpectedSourceMembers(input);
+    const result = calculateExpectedSourceMembers(registry, input);
     expect(result.size).to.equal(0);
   });
 
@@ -107,7 +110,7 @@ describe('expectedSourceMembers', () => {
         state: ComponentStatus.Created,
       },
     ];
-    const result = calculateExpectedSourceMembers(input);
+    const result = calculateExpectedSourceMembers(registry, input);
     expect(result.size).to.equal(0);
   });
 });

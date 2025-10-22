@@ -24,15 +24,14 @@ import { forceIgnoreDenies, changeResultToMetadataComponent } from './functions'
 export const removeIgnored = (
   changeResults: ChangeResult[],
   forceIgnore: ForceIgnore,
-  defaultPkgDir: string
-): MetadataMember[] => {
-  const registry = new RegistryAccess();
-  return changeResults
+  defaultPkgDir: string,
+  registry: RegistryAccess
+): MetadataMember[] =>
+  changeResults
     .map(ensureNameAndType)
     .map(changeResultToMetadataComponent(registry))
     .filter((mc) => !filePathsFromMetadataComponent(mc, defaultPkgDir).some(forceIgnoreDenies(forceIgnore)))
     .map(metadataComponentToMetadataMember);
-};
 
 const metadataComponentToMetadataMember = (mc: MetadataComponent): MetadataMember => ({
   type: mc.type.name,

@@ -29,69 +29,69 @@ const pathAfterFullName = (fileResponse: RemoteSyncInput): string =>
       ).replace(/\\/gi, '/')
     : '';
 
-const registryAccess = new RegistryAccess();
+const getAliasTypes = (registry: RegistryAccess): Array<[string, string]> =>
+  registry.getAliasTypes().map((aliasType) => [aliasType.name, registry.getTypeByName(aliasType.aliasFor!).name]);
 
-// only compute once
-const aliasTypes: Array<[string, string]> = registryAccess
-  .getAliasTypes()
-  // allow assertion because aliasTypes are defined as having that property
-  .map((aliasType) => [aliasType.name, registryAccess.getTypeByName(aliasType.aliasFor!).name]);
-
-const reverseAliasTypes = new Map(aliasTypes.map(([alias, type]) => [type, alias]));
+const reverseStringMap = (original: Array<[string, string]>): Map<string, string> =>
+  new Map(original.map(([k, v]) => [v, k]));
 
 // handle all "weird" type/name translation between SourceMember and SDR FileResponse
 // These get de-duplicated in a set later, so it's ok to have one per file
-export const getMetadataKeyFromFileResponse = (fileResponse: RemoteSyncInput): string[] => {
-  // also create an element for the parent object
-  if (fileResponse.type === 'CustomField' && fileResponse.filePath) {
-    const splits = normalize(fileResponse.filePath).split(sep);
-    const objectFolderIndex = splits.indexOf('objects');
-    return [
-      getMetadataKey('CustomObject', splits[objectFolderIndex + 1]),
-      getMetadataKey(fileResponse.type, fileResponse.fullName),
-    ];
-  }
-  // Aura/LWC need to have both the bundle level and file level keys
-  if (fileResponse.type === 'LightningComponentBundle' && fileResponse.filePath) {
-    return [
-      getMetadataKey('LightningComponentResource', pathAfterFullName(fileResponse)),
-      getMetadataKey(fileResponse.type, fileResponse.fullName),
-    ];
-  }
-  if (fileResponse.type === 'AuraDefinitionBundle' && fileResponse.filePath) {
-    return [
-      getMetadataKey('AuraDefinition', pathAfterFullName(fileResponse)),
-      getMetadataKey(fileResponse.type, fileResponse.fullName),
-    ];
-  }
-  // CustomLabels (file) => CustomLabel[] (how they're stored in SourceMembers)
-  if (fileResponse.type === 'CustomLabels' && fileResponse.filePath) {
-    return ComponentSet.fromSource(fileResponse.filePath)
-      .getSourceComponents()
-      .toArray()
-      .flatMap((component) => component.getChildren().map((child) => getMetadataKey('CustomLabel', child.fullName)));
-  }
-  // if we've aliased a type, we'll have to possibly sync both types--you can't tell from the sourceComponent retrieved which way it was stored on the server
-  if (reverseAliasTypes.has(fileResponse.type)) {
-    return [
-      getMetadataKey(fileResponse.type, fileResponse.fullName),
-      getMetadataKey(reverseAliasTypes.get(fileResponse.type) as string, fileResponse.fullName),
-    ];
-  }
-  // standard key for everything else
-  return [getMetadataKey(fileResponse.type, fileResponse.fullName)];
-};
+export const getMetadataKeyFromFileResponse =
+  (registry: RegistryAccess) =>
+  (fileResponse: RemoteSyncInput): string[] => {
+    // also create an element for the parent object
+    if (fileResponse.type === 'CustomField' && fileResponse.filePath) {
+      const splits = normalize(fileResponse.filePath).split(sep);
+      const objectFolderIndex = splits.indexOf('objects');
+      return [
+        getMetadataKey('CustomObject', splits[objectFolderIndex + 1]),
+        getMetadataKey(fileResponse.type, fileResponse.fullName),
+      ];
+    }
+    // Aura/LWC need to have both the bundle level and file level keys
+    if (fileResponse.type === 'LightningComponentBundle' && fileResponse.filePath) {
+      return [
+        getMetadataKey('LightningComponentResource', pathAfterFullName(fileResponse)),
+        getMetadataKey(fileResponse.type, fileResponse.fullName),
+      ];
+    }
+    if (fileResponse.type === 'AuraDefinitionBundle' && fileResponse.filePath) {
+      return [
+        getMetadataKey('AuraDefinition', pathAfterFullName(fileResponse)),
+        getMetadataKey(fileResponse.type, fileResponse.fullName),
+      ];
+    }
+    // CustomLabels (file) => CustomLabel[] (how they're stored in SourceMembers)
+    if (fileResponse.type === 'CustomLabels' && fileResponse.filePath) {
+      return ComponentSet.fromSource(fileResponse.filePath)
+        .getSourceComponents()
+        .toArray()
+        .flatMap((component) => component.getChildren().map((child) => getMetadataKey('CustomLabel', child.fullName)));
+    }
+    const reverseAliasTypesResult = reverseStringMap(getAliasTypes(registry));
+    // if we've aliased a type, we'll have to possibly sync both types--you can't tell from the sourceComponent retrieved which way it was stored on the server
+    if (reverseAliasTypesResult.has(fileResponse.type)) {
+      return [
+        getMetadataKey(fileResponse.type, fileResponse.fullName),
+        getMetadataKey(reverseAliasTypesResult.get(fileResponse.type) as string, fileResponse.fullName),
+      ];
+    }
+    // standard key for everything else
+    return [getMetadataKey(fileResponse.type, fileResponse.fullName)];
+  };
 
-export const mappingsForSourceMemberTypesToMetadataType = new Map<string, string>([
-  ...aliasTypes,
-  ['AuraDefinition', 'AuraDefinitionBundle'],
-  ['LightningComponentResource', 'LightningComponentBundle'],
-]);
+export const getMappingsForSourceMemberTypesToMetadataType = (registry: RegistryAccess): Map<string, string> =>
+  new Map<string, string>([
+    ...getAliasTypes(registry),
+    ['AuraDefinition', 'AuraDefinitionBundle'],
+    ['LightningComponentResource', 'LightningComponentBundle'],
+  ]);
 
 export const registrySupportsType =
-  (registry: RegistryAccess = new RegistryAccess()) =>
+  (registry: RegistryAccess) =>
   (type: string): boolean => {
-    if (mappingsForSourceMemberTypesToMetadataType.has(type)) {
+    if (getMappingsForSourceMemberTypesToMetadataType(registry).has(type)) {
       return true;
     }
     if (type === 'PicklistValue') {

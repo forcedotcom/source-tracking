@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 import { expect } from 'chai';
-import { ComponentStatus } from '@salesforce/source-deploy-retrieve';
+import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { getMetadataKeyFromFileResponse, registrySupportsType } from '../../src/shared/metadataKeys';
+
+const registry = new RegistryAccess();
+const getKeys = getMetadataKeyFromFileResponse(registry);
+const supportsType = registrySupportsType(registry);
 
 describe('metadataKeys', () => {
   it('default behavior', () => {
@@ -26,7 +30,7 @@ describe('metadataKeys', () => {
       filePath: 'force-app/main/default/tabs/Order__c.tab-meta.xml',
     };
 
-    expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal(['CustomTab###Order__c']);
+    expect(getKeys(fileResponse)).to.deep.equal(['CustomTab###Order__c']);
   });
 
   describe('lwc', () => {
@@ -37,7 +41,7 @@ describe('metadataKeys', () => {
         state: ComponentStatus.Created,
         filePath: 'force-app/main/productTileList/lwc/productTileList/productTileList.css',
       };
-      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
+      expect(getKeys(fileResponse)).to.deep.equal([
         'LightningComponentResource###productTileList/productTileList.css',
         'LightningComponentBundle###productTileList',
       ]);
@@ -50,7 +54,7 @@ describe('metadataKeys', () => {
         state: ComponentStatus.Created,
         filePath: 'force-app/main/default/lwc/productTileList/productTileList.css',
       };
-      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
+      expect(getKeys(fileResponse)).to.deep.equal([
         'LightningComponentResource###productTileList/productTileList.css',
         'LightningComponentBundle###productTileList',
       ]);
@@ -63,7 +67,7 @@ describe('metadataKeys', () => {
         state: ComponentStatus.Created,
         filePath: 'force-app/main/default/lwc/errorPanel/templates/noDataIllustration.html',
       };
-      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
+      expect(getKeys(fileResponse)).to.deep.equal([
         'LightningComponentResource###errorPanel/templates/noDataIllustration.html',
         'LightningComponentBundle###errorPanel',
       ]);
@@ -78,7 +82,7 @@ describe('metadataKeys', () => {
         state: ComponentStatus.Created,
         filePath: 'force-app/main/default/aura/pageTemplate_2_7_3/pageTemplate_2_7_3.cmp',
       };
-      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
+      expect(getKeys(fileResponse)).to.deep.equal([
         'AuraDefinition###pageTemplate_2_7_3/pageTemplate_2_7_3.cmp',
         'AuraDefinitionBundle###pageTemplate_2_7_3',
       ]);
@@ -93,10 +97,7 @@ describe('metadataKeys', () => {
         state: ComponentStatus.Created,
         filePath: 'force-app/main/default/objects/Case/fields/Product__c.field-meta.xml',
       };
-      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
-        'CustomObject###Case',
-        'CustomField###Case.Product__c',
-      ]);
+      expect(getKeys(fileResponse)).to.deep.equal(['CustomObject###Case', 'CustomField###Case.Product__c']);
     });
   });
 
@@ -108,22 +109,19 @@ describe('metadataKeys', () => {
         state: ComponentStatus.Created,
         filePath: 'force-app/main/default/email/ETF_WTF.emailFolder-meta.xml',
       };
-      expect(getMetadataKeyFromFileResponse(fileResponse)).to.deep.equal([
-        'EmailFolder###ETF_WTF',
-        'EmailTemplateFolder###ETF_WTF',
-      ]);
+      expect(getKeys(fileResponse)).to.deep.equal(['EmailFolder###ETF_WTF', 'EmailTemplateFolder###ETF_WTF']);
     });
   });
 });
 
 describe('registrySupportsType', () => {
   it('custom mapped types', () => {
-    expect(registrySupportsType()('AuraDefinition')).to.equal(true);
-    expect(registrySupportsType()('LightningComponentResource')).to.equal(true);
+    expect(supportsType('AuraDefinition')).to.equal(true);
+    expect(supportsType('LightningComponentResource')).to.equal(true);
   });
   it('other real types types', () => {
-    expect(registrySupportsType()('CustomObject')).to.equal(true);
-    expect(registrySupportsType()('ApexClass')).to.equal(true);
+    expect(supportsType('CustomObject')).to.equal(true);
+    expect(supportsType('ApexClass')).to.equal(true);
   });
   it('bad type returns false and emits warning', async () => {
     const warningEmitted: string[] = [];
@@ -133,7 +131,7 @@ describe('registrySupportsType', () => {
       warningEmitted.push(w);
       return Promise.resolve();
     });
-    expect(registrySupportsType()(badType)).to.equal(false);
+    expect(supportsType(badType)).to.equal(false);
     expect(
       warningEmitted.some((w) => w.includes(badType)),
       'warning not emitted'
