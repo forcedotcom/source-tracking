@@ -50,7 +50,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@salesforce/core": "^8.23.3",
+    "@salesforce/core": "^8.23.4",
     "@salesforce/kit": "^3.2.4",
     "@salesforce/source-deploy-retrieve": "^12.25.0",
     "@salesforce/ts-types": "^2.0.12",
