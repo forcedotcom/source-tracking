@@ -3695,10 +3695,10 @@ isexe@^3.1.1:
   resolved "https://registry.npmjs.org/isexe/-/isexe-3.1.1.tgz"
   integrity sha512-LpB/54B+/2J5hqQ7imZHfdU31OlgQqx7ZicVlkm9kzg9/w8GKLEcFfJl/t7DCEDueOyBAD6zCCwTO6Fzs0NoEQ==
 
-isomorphic-git@^1.34.0:
-  version "1.34.0"
-  resolved "https://registry.yarnpkg.com/isomorphic-git/-/isomorphic-git-1.34.0.tgz#a86546b14e8fc34152ee16e71cfe1befe94265a4"
-  integrity sha512-J82yRa/4wm9VuOWSlI37I9Sa+n1gWaSWuKQk8zhpo6RqTW+ZTcK5c/KubLMcuVU3Btc+maRCa3YlRKqqY9q7qQ==
+isomorphic-git@^1.34.2:
+  version "1.34.2"
+  resolved "https://registry.yarnpkg.com/isomorphic-git/-/isomorphic-git-1.34.2.tgz#e3bd3c3a83829a036559863ae178448acb35867e"
+  integrity sha512-wPKs5a4sLn18SGd8MPNKe089wTnI4agfAY8et+q0GabtgJyNLRdC3ukHZ4EEC5XnczIwJOZ2xPvvTFgPXm80wg==
   dependencies:
     async-lock "^1.4.1"
     clean-git-ref "^2.0.1"
