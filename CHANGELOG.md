@@ -1,3 +1,12 @@
+## [7.5.2](https://github.com/forcedotcom/source-tracking/compare/7.5.1...7.5.2) (2025-11-01)
+
+
+### Bug Fixes
+
+* **deps:** bump isomorphic-git from 1.34.0 to 1.34.2 ([714f524](https://github.com/forcedotcom/source-tracking/commit/714f5244ce8537f41f5f9a75c474efef11ab741e))
+
+
+
 ## [7.5.1](https://github.com/forcedotcom/source-tracking/compare/7.5.0...7.5.1) (2025-10-25)
 
 
