@@ -22,6 +22,7 @@ import {
   VirtualTreeContainer,
   DestructiveChangesType,
   RegistryAccess,
+  NodeFSTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { isDefined } from './guards';
 import { supportsPartialDelete, pathIsInFolder } from './functions';
@@ -90,15 +91,18 @@ export const getComponentSets = ({
   groupings,
   sourceApiVersion,
   registry,
+  projectPath,
 }: {
   groupings: GroupedFile[];
   sourceApiVersion?: string;
   registry: RegistryAccess;
+  /** absolute path to the project root */
+  projectPath: string;
 }): ComponentSet[] => {
   const logger = Logger.childFromRoot('localComponentSetArray');
 
   // optimistic resolution...some files may not be possible to resolve
-  const resolverForNonDeletes = new MetadataResolver(registry);
+  const resolverForNonDeletes = new MetadataResolver(registry, new NodeFSTreeContainer(projectPath));
 
   return groupings
     .map((grouping) => {
