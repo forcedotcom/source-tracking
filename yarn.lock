@@ -780,10 +780,10 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.10.3.tgz#52c867fdd60679cf216110aa49542b7ad391f5d1"
   integrity sha512-FKfvtrYTcvTXE9advzS25/DEY9yJhEyLvStm++eQFtnAaX1pe4G3oGHgiQ0q55BM5+0AlCh0+0CVtQv1t4oJRA==
 
-"@salesforce/source-deploy-retrieve@^12.26.1":
-  version "12.26.1"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.26.1.tgz#161a37bf7f94273de49fbfb771e7f333937a00b2"
-  integrity sha512-PQJoURhTBCVM2Q4Sgo6iKZnZfQ1x+fE3r4uUKQ2nzDhPxrICm8OsGRXOS82NVPo8M8jL68sZ6CxPrRYgxZyCfg==
+"@salesforce/source-deploy-retrieve@^12.27.1":
+  version "12.27.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.27.1.tgz#22f104e8519bda9d61de4dd3b9fa55a3b83d323b"
+  integrity sha512-bCZ5Q09IXUgQSt12ihi+5cD0S+FwSu/DbaIK4ajInQsmG3WJhvgyaXXc/5/PLjD7+SdwoBSrs6nV1iTYhzBvoA==
   dependencies:
     "@salesforce/core" "^8.23.4"
     "@salesforce/kit" "^3.2.4"
