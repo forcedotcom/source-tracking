@@ -1,3 +1,12 @@
+# [7.6.0](https://github.com/forcedotcom/source-tracking/compare/7.5.2...7.6.0) (2025-11-11)
+
+
+### Features
+
+* construct a tree container from the project path for cmp resolver W-20175875 ([#820](https://github.com/forcedotcom/source-tracking/issues/820)) ([b9597d2](https://github.com/forcedotcom/source-tracking/commit/b9597d275d1474aa195dc895a35253b2041e9525))
+
+
+
 ## [7.5.2](https://github.com/forcedotcom/source-tracking/compare/7.5.1...7.5.2) (2025-11-01)
 
 
