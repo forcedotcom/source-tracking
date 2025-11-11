@@ -102,7 +102,10 @@ export const getComponentSets = ({
   const logger = Logger.childFromRoot('localComponentSetArray');
 
   // optimistic resolution...some files may not be possible to resolve
-  const resolverForNonDeletes = new MetadataResolver(registry, new NodeFSTreeContainer(projectPath));
+  const resolverForNonDeletes = new MetadataResolver(
+    registry,
+    process.env.ESBUILD_PLATFORM === 'web' ? new NodeFSTreeContainer(projectPath) : undefined
+  );
 
   return groupings
     .map((grouping) => {
