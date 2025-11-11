@@ -182,7 +182,7 @@ export class SourceTracking extends AsyncCreatable {
     ); // if the users specified true or false for the param, that overrides the project config
     this.logger.debug(`will build array of ${groupings.length} componentSet(s)`);
 
-    return getComponentSets({ groupings, sourceApiVersion, registry: this.registry });
+    return getComponentSets({ groupings, sourceApiVersion, registry: this.registry, projectPath: this.projectPath });
   }
 
   /** reads tracking files for remote changes.  It DOES NOT consider the effects of .forceignore unless told to */
@@ -505,6 +505,7 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   public async reReadLocalTrackingCache(): Promise<void> {
+    await this.ensureLocalTracking();
     await this.localRepo.getStatus(true);
   }
   /**

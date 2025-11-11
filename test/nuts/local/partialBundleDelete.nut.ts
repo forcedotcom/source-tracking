@@ -23,6 +23,7 @@ import { getComponentSets } from '../../../src/shared/localComponentSetArray';
 
 describe('Bundle-like types delete', () => {
   let session: TestSession;
+  let projectPath: string;
 
   before(async () => {
     session = await TestSession.create({
@@ -31,6 +32,7 @@ describe('Bundle-like types delete', () => {
       },
       devhubAuthStrategy: 'NONE',
     });
+    projectPath = session.project.dir;
   });
 
   // We need a sinon sandbox to stub the file system to make it look like we
@@ -60,6 +62,7 @@ describe('Bundle-like types delete', () => {
         },
       ],
       registry,
+      projectPath,
     });
 
     expect(compSets.length).to.equal(1);
@@ -87,6 +90,7 @@ describe('Bundle-like types delete', () => {
         },
       ],
       registry,
+      projectPath,
     });
 
     expect(compSets.length).to.equal(1);
@@ -112,6 +116,7 @@ describe('Bundle-like types delete', () => {
         },
       ],
       registry,
+      projectPath,
     });
 
     expect(compSets.length).to.equal(1);
@@ -139,6 +144,7 @@ describe('Bundle-like types delete', () => {
         },
       ],
       registry,
+      projectPath,
     });
 
     expect(compSets.length).to.equal(1);
@@ -162,6 +168,7 @@ describe('Bundle-like types delete', () => {
         },
       ],
       registry,
+      projectPath,
     });
 
     expect(compSets.length).to.equal(1);
@@ -186,6 +193,7 @@ describe('Bundle-like types delete', () => {
         },
       ],
       registry,
+      projectPath,
     });
 
     expect(compSets.length).to.equal(1);
