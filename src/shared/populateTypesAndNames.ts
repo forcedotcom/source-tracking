@@ -28,6 +28,7 @@ import {
   excludeLwcLocalOnlyTest,
   forceIgnoreDenies,
   getAllFiles,
+  maybeGetTreeContainer,
   sourceComponentHasFullNameAndType,
 } from './functions';
 
@@ -65,7 +66,7 @@ export const populateTypesAndNames =
     // component set generated from the filenames on all local changes
     const resolver = new MetadataResolver(
       registry,
-      resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : undefined,
+      resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : maybeGetTreeContainer(projectPath),
       !!forceIgnore
     );
     const sourceComponents = filenames
