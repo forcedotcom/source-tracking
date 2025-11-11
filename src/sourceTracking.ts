@@ -64,6 +64,7 @@ import { removeIgnored } from './shared/remoteChangeIgnoring';
 import {
   FileResponseSuccessToRemoteSyncInput,
   changeResultToMetadataComponent,
+  maybeGetTreeContainer,
   remoteChangeToMetadataMember,
 } from './shared/functions';
 import {
@@ -311,7 +312,9 @@ export class SourceTracking extends AsyncCreatable {
       if (options.format === 'SourceComponent') {
         const resolver = new MetadataResolver(
           this.registry,
-          options.state === 'delete' ? VirtualTreeContainer.fromFilePaths(filenames) : undefined
+          options.state === 'delete'
+            ? VirtualTreeContainer.fromFilePaths(filenames)
+            : maybeGetTreeContainer(this.projectPath)
         );
 
         return filenames
