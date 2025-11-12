@@ -194,4 +194,7 @@ export const uniqueArrayConcat = <T>(arr1: T[] | Set<T>, arr2: T[] | Set<T>): T[
 
 /** for web, where cwd does not existconstruct a TreeContainer with the projectPath to keep SDR MetadataResolver from trying to use cwd  */
 export const maybeGetTreeContainer = (projectPath: string): TreeContainer | undefined =>
-  process.env.ESBUILD_PLATFORM === 'web' ? new NodeFSTreeContainer(projectPath) : undefined;
+  // cwd is '/' in extensions unless it's set by some process.
+  process.env.ESBUILD_PLATFORM === 'web' || process.cwd() !== projectPath
+    ? new NodeFSTreeContainer(projectPath)
+    : undefined;

@@ -469,6 +469,9 @@ export class SourceTracking extends AsyncCreatable {
       tree: VirtualTreeContainer.fromFilePaths(relativeOptions.files),
       registry: this.registry,
     });
+
+    deployedFilesAsVirtualComponentSet.projectDirectory = this.projectPath;
+
     // these are top-level bundle paths like lwc/foo
     const bundlesWithDeletedFiles = (
       await this.getChanges({ origin: 'local', state: 'delete', format: 'SourceComponent' })

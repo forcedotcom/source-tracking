@@ -157,6 +157,7 @@ export const getComponentSets = ({
       componentSet.forceIgnoredPaths = new Set(
         [...(componentSet.forceIgnoredPaths ?? [])].concat(Array.from(resolverForNonDeletes.forceIgnoredPaths))
       );
+      componentSet.projectDirectory = projectPath;
       return componentSet;
     })
     .filter((componentSet) => componentSet.size > 0 || componentSet.forceIgnoredPaths?.size);
