@@ -357,7 +357,7 @@ export class SourceTracking extends AsyncCreatable {
         this.registry
       );
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-        fsPaths: this.packagesDirs.map((dir) => resolve(dir.fullPath)),
+        fsPaths: this.packagesDirs.map((dir) => resolve(this.projectPath, dir.fullPath)),
         include: remoteChangesAsComponentSet,
         registry: this.registry,
       });

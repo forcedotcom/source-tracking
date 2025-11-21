@@ -128,7 +128,7 @@ export const getComponentSets = ({
             // all bundle types have a directory name
             try {
               resolverForNonDeletes
-                .getComponentsFromPath(resolve(component.content))
+                .getComponentsFromPath(resolve(projectPath, component.content))
                 .filter(isDefined)
                 .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
             } catch (e) {
@@ -144,7 +144,7 @@ export const getComponentSets = ({
       grouping.nonDeletes
         .flatMap((filename) => {
           try {
-            return resolverForNonDeletes.getComponentsFromPath(resolve(filename));
+            return resolverForNonDeletes.getComponentsFromPath(resolve(projectPath, filename));
           } catch (e) {
             logger.warn(`unable to resolve ${filename}`);
             return undefined;
