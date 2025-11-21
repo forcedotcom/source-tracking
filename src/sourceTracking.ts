@@ -64,6 +64,7 @@ import { removeIgnored } from './shared/remoteChangeIgnoring';
 import {
   FileResponseSuccessToRemoteSyncInput,
   changeResultToMetadataComponent,
+  maybeGetTreeContainer,
   remoteChangeToMetadataMember,
 } from './shared/functions';
 import {
@@ -311,7 +312,9 @@ export class SourceTracking extends AsyncCreatable {
       if (options.format === 'SourceComponent') {
         const resolver = new MetadataResolver(
           this.registry,
-          options.state === 'delete' ? VirtualTreeContainer.fromFilePaths(filenames) : undefined
+          options.state === 'delete'
+            ? VirtualTreeContainer.fromFilePaths(filenames)
+            : maybeGetTreeContainer(this.projectPath)
         );
 
         return filenames
@@ -354,7 +357,7 @@ export class SourceTracking extends AsyncCreatable {
         this.registry
       );
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-        fsPaths: this.packagesDirs.map((dir) => resolve(dir.fullPath)),
+        fsPaths: this.packagesDirs.map((dir) => resolve(this.projectPath, dir.fullPath)),
         include: remoteChangesAsComponentSet,
         registry: this.registry,
       });
@@ -466,6 +469,9 @@ export class SourceTracking extends AsyncCreatable {
       tree: VirtualTreeContainer.fromFilePaths(relativeOptions.files),
       registry: this.registry,
     });
+
+    deployedFilesAsVirtualComponentSet.projectDirectory = this.projectPath;
+
     // these are top-level bundle paths like lwc/foo
     const bundlesWithDeletedFiles = (
       await this.getChanges({ origin: 'local', state: 'delete', format: 'SourceComponent' })

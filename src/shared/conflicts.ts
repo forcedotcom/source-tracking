@@ -44,7 +44,7 @@ export const findConflictsInComponentSet = (cs: ComponentSet, conflicts: ChangeR
           state: 'Conflict',
           fullName: cr.name,
           type: cr.type,
-          filePath: resolve(f),
+          filePath: resolve(...[...(cs.projectDirectory ? [cs.projectDirectory, f] : [f])]),
         });
       });
     });

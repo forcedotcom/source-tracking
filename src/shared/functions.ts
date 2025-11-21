@@ -22,8 +22,10 @@ import {
   ForceIgnore,
   MetadataComponent,
   MetadataMember,
+  NodeFSTreeContainer,
   RegistryAccess,
   SourceComponent,
+  TreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
@@ -189,3 +191,10 @@ export const changeResultToMetadataComponent =
 // TODO: use set.union when node 22 is everywhere
 export const uniqueArrayConcat = <T>(arr1: T[] | Set<T>, arr2: T[] | Set<T>): T[] =>
   Array.from(new Set([...arr1, ...arr2]));
+
+/** for web, where cwd does not existconstruct a TreeContainer with the projectPath to keep SDR MetadataResolver from trying to use cwd  */
+export const maybeGetTreeContainer = (projectPath: string): TreeContainer | undefined =>
+  // cwd is '/' in extensions unless it's set by some process.
+  process.env.ESBUILD_PLATFORM === 'web' || process.cwd() !== projectPath
+    ? new NodeFSTreeContainer(projectPath)
+    : undefined;
