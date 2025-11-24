@@ -22,10 +22,9 @@ import {
   VirtualTreeContainer,
   DestructiveChangesType,
   RegistryAccess,
-  NodeFSTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { isDefined } from './guards';
-import { supportsPartialDelete, pathIsInFolder } from './functions';
+import { supportsPartialDelete, pathIsInFolder, maybeGetTreeContainer } from './functions';
 
 type GroupedFileInput = {
   packageDirs: NamedPackageDir[];
@@ -102,10 +101,7 @@ export const getComponentSets = ({
   const logger = Logger.childFromRoot('localComponentSetArray');
 
   // optimistic resolution...some files may not be possible to resolve
-  const resolverForNonDeletes = new MetadataResolver(
-    registry,
-    process.env.ESBUILD_PLATFORM === 'web' ? new NodeFSTreeContainer(projectPath) : undefined
-  );
+  const resolverForNonDeletes = new MetadataResolver(registry, maybeGetTreeContainer(projectPath));
 
   return groupings
     .map((grouping) => {
@@ -132,7 +128,7 @@ export const getComponentSets = ({
             // all bundle types have a directory name
             try {
               resolverForNonDeletes
-                .getComponentsFromPath(resolve(component.content))
+                .getComponentsFromPath(resolve(projectPath, component.content))
                 .filter(isDefined)
                 .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
             } catch (e) {
@@ -148,7 +144,7 @@ export const getComponentSets = ({
       grouping.nonDeletes
         .flatMap((filename) => {
           try {
-            return resolverForNonDeletes.getComponentsFromPath(resolve(filename));
+            return resolverForNonDeletes.getComponentsFromPath(resolve(projectPath, filename));
           } catch (e) {
             logger.warn(`unable to resolve ${filename}`);
             return undefined;
@@ -161,6 +157,7 @@ export const getComponentSets = ({
       componentSet.forceIgnoredPaths = new Set(
         [...(componentSet.forceIgnoredPaths ?? [])].concat(Array.from(resolverForNonDeletes.forceIgnoredPaths))
       );
+      componentSet.projectDirectory = projectPath;
       return componentSet;
     })
     .filter((componentSet) => componentSet.size > 0 || componentSet.forceIgnoredPaths?.size);
