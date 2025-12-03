@@ -510,7 +510,7 @@ export class SourceTracking extends AsyncCreatable {
     await this.remoteSourceTrackingService.syncSpecifiedElements(this.registry, fileResponses);
   }
 
-  public async rereadRemoteTracking(): Promise<void> {
+  public async reReadRemoteTracking(): Promise<void> {
     await this.ensureRemoteTracking(false);
     await this.remoteSourceTrackingService.retrieveUpdates(false);
   }
