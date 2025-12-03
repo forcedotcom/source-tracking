@@ -241,13 +241,13 @@ export class RemoteSourceTrackingService {
   // to sync the retrieved SourceMembers; meaning it will update the lastRetrievedFromServer
   // field to the SourceMember's RevisionCounter, and update the serverMaxRevisionCounter
   // to the highest RevisionCounter.
-  public async retrieveUpdates(): Promise<RemoteChangeElement[]> {
+  public async retrieveUpdates(cache = true): Promise<RemoteChangeElement[]> {
     // Always track new SourceMember data, or update tracking when we sync.
     const queriedSourceMembers = await querySourceMembersFrom({
       fromRevision: this.serverMaxRevisionCounter,
       logger: this.logger,
       userQueryCache: this.userQueryCache,
-      queryCache: this.queryCache,
+      queryCache: cache ? this.queryCache : undefined,
       conn: this.org.getConnection(),
     });
     await this.trackSourceMembers(queriedSourceMembers);

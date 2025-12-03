@@ -510,6 +510,11 @@ export class SourceTracking extends AsyncCreatable {
     await this.remoteSourceTrackingService.syncSpecifiedElements(this.registry, fileResponses);
   }
 
+  public async rereadRemoteTracking(): Promise<void> {
+    await this.ensureRemoteTracking(false);
+    await this.remoteSourceTrackingService.retrieveUpdates(false);
+  }
+
   public async reReadLocalTrackingCache(): Promise<void> {
     await this.ensureLocalTracking();
     await this.localRepo.getStatus(true);
@@ -552,7 +557,7 @@ export class SourceTracking extends AsyncCreatable {
       projectPath: this.projectPath,
     });
     if (initializeWithQuery) {
-      await this.remoteSourceTrackingService.retrieveUpdates();
+      await this.remoteSourceTrackingService.retrieveUpdates(false);
     }
   }
 
