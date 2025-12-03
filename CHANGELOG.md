@@ -1,3 +1,12 @@
+# [7.8.0](https://github.com/forcedotcom/source-tracking/compare/7.7.0...7.8.0) (2025-12-03)
+
+
+### Features
+
+* reread remote like you can local W-20175985 ([#825](https://github.com/forcedotcom/source-tracking/issues/825)) ([2b0e97e](https://github.com/forcedotcom/source-tracking/commit/2b0e97e3b591075247309f212b11ea94d718607d))
+
+
+
 # [7.7.0](https://github.com/forcedotcom/source-tracking/compare/7.6.0...7.7.0) (2025-11-24)
 
 
