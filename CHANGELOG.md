@@ -1,3 +1,13 @@
+## [7.8.1](https://github.com/forcedotcom/source-tracking/compare/7.8.0...7.8.1) (2026-01-12)
+
+
+### Bug Fixes
+
+* bump SDR to 12.31.5 ([12ed3c9](https://github.com/forcedotcom/source-tracking/commit/12ed3c98d715149ed12ea3608dc53ad82622fc12))
+* cwd-less relative paths on web ([dc26cce](https://github.com/forcedotcom/source-tracking/commit/dc26cce4bc4a2bcb3b2fb3e0b4592f7a9ef94993))
+
+
+
 # [7.8.0](https://github.com/forcedotcom/source-tracking/compare/7.7.0...7.8.0) (2025-12-03)
 
 
