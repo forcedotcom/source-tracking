@@ -1,5 +1,5 @@
 /*
- * Copyright 2025, Salesforce, Inc.
+ * Copyright 2026, Salesforce, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import * as fs from 'node:fs';
-import { resolve, sep, normalize } from 'node:path';
+import { sep, normalize } from 'node:path';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
@@ -191,7 +191,7 @@ export class SourceTracking extends AsyncCreatable {
     applyIgnore = false,
   }: { applyIgnore?: boolean } = {}): Promise<ComponentSet> {
     if (applyIgnore) {
-      this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+      this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
     }
     const [changeResults, sourceBackedComponents, projectConfig] = await Promise.all([
       // all changes based on remote tracking
@@ -357,7 +357,7 @@ export class SourceTracking extends AsyncCreatable {
         this.registry
       );
       const matchingLocalSourceComponentsSet = ComponentSet.fromSource({
-        fsPaths: this.packagesDirs.map((dir) => resolve(this.projectPath, dir.fullPath)),
+        fsPaths: this.packagesDirs.map((dir) => dir.fullPath),
         include: remoteChangesAsComponentSet,
         registry: this.registry,
       });
@@ -629,7 +629,7 @@ export class SourceTracking extends AsyncCreatable {
     if (remoteChanges.length === 0) {
       return [];
     }
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
 
     const result = getDedupedConflictsFromChanges({
       localChanges,
@@ -754,7 +754,7 @@ export class SourceTracking extends AsyncCreatable {
 
   private async getLocalStatusRows(): Promise<StatusOutputRow[]> {
     await this.ensureLocalTracking();
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path); // ensure forceignore is initialized
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath); // ensure forceignore is initialized
 
     const [adds, modifies, deletes] = await Promise.all(
       (['add', 'modify', 'delete'] as const).map((state) =>
@@ -777,7 +777,7 @@ export class SourceTracking extends AsyncCreatable {
   // eslint-disable-next-line @typescript-eslint/require-await
   private async remoteChangesToOutputRows(input: ChangeResult): Promise<StatusOutputRow[]> {
     this.logger.debug('converting ChangeResult to a row', input);
-    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().path);
+    this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
     const baseObject: StatusOutputRow = {
       type: input.type ?? '',
       origin: input.origin,
