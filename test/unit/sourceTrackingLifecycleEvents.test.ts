@@ -56,8 +56,8 @@ describe('SourceTracking lifecycle events cleanup', () => {
       subscribeSDREvents: true,
     });
 
-    expect(removeAllListenersSpy.calledWith('scopedPreDeploy')).to.be.true;
-    expect(removeAllListenersSpy.calledWith('scopedPreRetrieve')).to.be.true;
+    expect(removeAllListenersSpy.calledWith('scopedPreDeploy')).to.equal(true);
+    expect(removeAllListenersSpy.calledWith('scopedPreRetrieve')).to.equal(true);
   });
 
   it('does not remove listeners when subscribeSDREvents is false', async () => {
@@ -88,7 +88,7 @@ describe('SourceTracking lifecycle events cleanup', () => {
       subscribeSDREvents: false,
     });
 
-    expect(removeAllListenersSpy.calledWith('scopedPreDeploy')).to.be.false;
-    expect(removeAllListenersSpy.calledWith('scopedPreRetrieve')).to.be.false;
+    expect(removeAllListenersSpy.calledWith('scopedPreDeploy')).to.equal(false);
+    expect(removeAllListenersSpy.calledWith('scopedPreRetrieve')).to.equal(false);
   });
 });
