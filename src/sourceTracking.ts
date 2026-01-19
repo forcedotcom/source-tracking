@@ -700,6 +700,14 @@ export class SourceTracking extends AsyncCreatable {
   private async maybeSubscribeLifecycleEvents(): Promise<void> {
     if (this.subscribeSDREvents && (await this.org.tracksSource())) {
       const lifecycle = Lifecycle.getInstance();
+
+      // Always remove the pre events when `maybeSubscribeLifecycleEvents` is called.
+      // Events are attached to a singleton (sfdx-core's Lifecycle), so when
+      // instantiating `SourceTracking` multiple times in the same process we need
+      // each instance starts clean.
+      lifecycle.removeAllListeners('scopedPreDeploy')
+      lifecycle.removeAllListeners('scopedPreRetrieve')
+
       // the only thing STL uses pre events for is to check conflicts.  So if you don't care about conflicts, don't listen!
       if (!this.ignoreConflicts) {
         this.logger.debug('subscribing to predeploy/retrieve events');
