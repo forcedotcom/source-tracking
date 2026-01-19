@@ -601,14 +601,12 @@ describe('remoteSourceTrackingService', () => {
 
       queryStub.onFirstCall().resolves([]);
       const queryResult = [1, 2, 3].map((rev) => getSourceMember(rev));
-      // @ts-ignore
       queryStub.onSecondCall().resolves(queryResult);
 
-      // @ts-ignore
+      // @ts-expect-error stubbing private method for testing
       const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
 
-      // @ts-ignore
-      await remoteSourceTrackingService.pollForSourceTracking(memberNames, 2);
+      await remoteSourceTrackingService.pollForSourceTracking(new RegistryAccess(), memberNames);
       // this test changed from toolbelt because each server query now update the tracking files
       expect(
         trackSpy.calledTwice,
@@ -704,11 +702,10 @@ describe('remoteSourceTrackingService', () => {
       it('should stop if the computed pollingTimeout is exceeded', async () => {
         const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom').resolves([]);
 
-        // @ts-ignore
+        // @ts-expect-error stubbing private method for testing
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
 
-        // @ts-ignore
-        await remoteSourceTrackingService.pollForSourceTracking(memberNames);
+        await remoteSourceTrackingService.pollForSourceTracking(new RegistryAccess(), memberNames);
         // changed from toolbelt because each query result goes to tracking
         expect(trackSpy.callCount).to.equal(6);
         expect(warns.size).to.be.greaterThan(0);
@@ -722,11 +719,10 @@ describe('remoteSourceTrackingService', () => {
         reResolveEnvVars();
         const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom').resolves([]);
 
-        // @ts-ignore
+        // @ts-expect-error stubbing private method for testing
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
 
-        // @ts-ignore
-        await remoteSourceTrackingService.pollForSourceTracking(memberNames);
+        await remoteSourceTrackingService.pollForSourceTracking(new RegistryAccess(), memberNames);
         expect(trackSpy.called).to.equal(true);
 
         expect(warns.size).to.be.greaterThan(0);
@@ -739,11 +735,10 @@ describe('remoteSourceTrackingService', () => {
         reResolveEnvVars();
         const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom').resolves([]);
 
-        // @ts-ignore
+        // @ts-expect-error stubbing private method for testing
         const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
 
-        // @ts-ignore
-        await remoteSourceTrackingService.pollForSourceTracking(memberNames);
+        await remoteSourceTrackingService.pollForSourceTracking(new RegistryAccess(), memberNames);
         expect(trackSpy.called).to.equal(true);
 
         expect(warns.size).to.be.greaterThan(0);
