@@ -73,7 +73,9 @@ describe('pathIsInFolder', () => {
   });
 
   it('handles paths with mixed separators', () => {
-    expect(pathIsInFolder(normalize('/foo\\bar'))(normalize('/foo/bar/baz'))).to.equal(true);
+    // On Unix, backslash is a valid filename character, not a separator
+    // So '/foo\\bar' is a single folder named 'foo\bar', not '/foo/bar'
+    expect(pathIsInFolder(normalize('/foo\\bar'))(normalize('/foo/bar/baz'))).to.equal(false);
   });
 
   it('handles exact paths', () => {
