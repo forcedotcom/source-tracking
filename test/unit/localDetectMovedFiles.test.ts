@@ -272,7 +272,7 @@ describe('local detect moved files', () => {
     }
   });
 
-  it.only('automatically commits moved files and leaves other changes alone', async () => {
+  it('automatically commits moved files and leaves other changes alone', async () => {
     let projectDir!: string;
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
