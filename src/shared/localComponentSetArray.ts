@@ -78,13 +78,16 @@ const getNonSequential = ({
   packageDirs,
   nonDeletes: nonDeletes,
   deletes: deletes,
-}: GroupedFileInput): GroupedFile[] => [
-  {
-    nonDeletes,
-    deletes,
-    path: packageDirs.map((dir) => dir.name).join(';'),
-  },
-];
+}: GroupedFileInput): GroupedFile[] => {
+  if (packageDirs.length === 0) return [];
+  return [
+    {
+      nonDeletes,
+      deletes,
+      path: packageDirs.map((dir) => dir.name).join(';'),
+    },
+  ];
+};
 
 export const getComponentSets = ({
   groupings,

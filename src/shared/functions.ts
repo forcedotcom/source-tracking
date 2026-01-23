@@ -64,6 +64,10 @@ export const excludeLwcLocalOnlyTest = (filePath: string): boolean =>
 export const pathIsInFolder =
   (folder: string) =>
   (filePath: string): boolean => {
+    // empty paths should not match anything; an empty folder would normalize to '/' and match everything
+    if (!folder || !filePath) {
+      return false;
+    }
     if (folder === filePath) {
       return true;
     }

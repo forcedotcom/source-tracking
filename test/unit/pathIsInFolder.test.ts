@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { normalize } from 'node:path';
+import { normalize, sep } from 'node:path';
 import { expect } from 'chai';
 import { pathIsInFolder } from '../../src/shared/functions';
 
@@ -73,7 +73,10 @@ describe('pathIsInFolder', () => {
   });
 
   it('handles paths with mixed separators', () => {
-    expect(pathIsInFolder(normalize('/foo\\bar'))(normalize('/foo/bar/baz'))).to.equal(true);
+    // On Windows, backslash is a path separator, so normalize('/foo\\bar') becomes '/foo/bar'
+    // On Unix, backslash is a valid filename character, so it stays as '/foo\\bar'
+    const isWindows = sep === '\\';
+    expect(pathIsInFolder(normalize('/foo\\bar'))(normalize('/foo/bar/baz'))).to.equal(isWindows);
   });
 
   it('handles exact paths', () => {
