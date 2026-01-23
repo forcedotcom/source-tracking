@@ -3522,11 +3522,6 @@ is-generator-function@^1.0.10:
     has-tostringtag "^1.0.2"
     safe-regex-test "^1.1.0"
 
-is-git-ref-name-valid@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/is-git-ref-name-valid/-/is-git-ref-name-valid-1.0.0.tgz#6e151779357dd4f7888e1a83a07db329e3de119d"
-  integrity sha512-2hLTg+7IqMSP9nNp/EVCxzvAOJGsAn0f/cKtF8JaBeivjH5UgE/XZo3iJ0AvibdE7KSF1f/7JbjBTB8Wqgbn/w==
-
 is-glob@^4.0.0, is-glob@^4.0.1, is-glob@^4.0.3, is-glob@~4.0.1:
   version "4.0.3"
   resolved "https://registry.npmjs.org/is-glob/-/is-glob-4.0.3.tgz"
@@ -3695,22 +3690,20 @@ isexe@^3.1.1:
   resolved "https://registry.npmjs.org/isexe/-/isexe-3.1.1.tgz"
   integrity sha512-LpB/54B+/2J5hqQ7imZHfdU31OlgQqx7ZicVlkm9kzg9/w8GKLEcFfJl/t7DCEDueOyBAD6zCCwTO6Fzs0NoEQ==
 
-isomorphic-git@^1.34.2:
-  version "1.34.2"
-  resolved "https://registry.yarnpkg.com/isomorphic-git/-/isomorphic-git-1.34.2.tgz#e3bd3c3a83829a036559863ae178448acb35867e"
-  integrity sha512-wPKs5a4sLn18SGd8MPNKe089wTnI4agfAY8et+q0GabtgJyNLRdC3ukHZ4EEC5XnczIwJOZ2xPvvTFgPXm80wg==
+isomorphic-git@^1.35.0:
+  version "1.35.0"
+  resolved "https://registry.yarnpkg.com/isomorphic-git/-/isomorphic-git-1.35.0.tgz#bfc3a9cd4c9e69ef30dfe69bcacc93ff4d07c3a7"
+  integrity sha512-+pRiwWDld5yAjdTFFh9+668kkz4uzCZBs+mw+ZFxPAxJBX8KCqd/zAP7Zak0BK5BQ+dXVqEurR5DkEnqrLpHlQ==
   dependencies:
     async-lock "^1.4.1"
     clean-git-ref "^2.0.1"
     crc-32 "^1.2.0"
     diff3 "0.0.3"
     ignore "^5.1.4"
-    is-git-ref-name-valid "^1.0.0"
     minimisted "^2.0.0"
     pako "^1.0.10"
-    path-browserify "^1.0.1"
     pify "^4.0.1"
-    readable-stream "^3.4.0"
+    readable-stream "^4.0.0"
     sha.js "^2.4.12"
     simple-get "^4.0.1"
 
@@ -4807,11 +4800,6 @@ pascal-case@^3.1.2:
   dependencies:
     no-case "^3.0.4"
     tslib "^2.0.3"
-
-path-browserify@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/path-browserify/-/path-browserify-1.0.1.tgz#d98454a9c3753d5790860f16f68867b9e46be1fd"
-  integrity sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==
 
 path-case@^3.0.4:
   version "3.0.4"
