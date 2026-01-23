@@ -1,3 +1,12 @@
+## [7.8.2](https://github.com/forcedotcom/source-tracking/compare/7.8.1...7.8.2) (2026-01-23)
+
+
+### Bug Fixes
+
+* always clean up `pre` events W-20002028 ([#828](https://github.com/forcedotcom/source-tracking/issues/828)) ([1a83d93](https://github.com/forcedotcom/source-tracking/commit/1a83d93ad8ee0d1d67452448c9480bcd340977d9)), closes [#829](https://github.com/forcedotcom/source-tracking/issues/829)
+
+
+
 ## [7.8.1](https://github.com/forcedotcom/source-tracking/compare/7.8.0...7.8.1) (2026-01-12)
 
 
