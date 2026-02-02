@@ -154,7 +154,7 @@ export const deleteCustomLabels = async (
       indentBy: '    ',
     });
     // and then write that json back to xml and back to the fs
-    const xml = builder.build(cls) as string;
+    const xml = builder.build(cls);
     await fs.promises.writeFile(filename, xml);
     return cls;
   }
