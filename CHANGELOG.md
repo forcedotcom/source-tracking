@@ -1,3 +1,13 @@
+## [7.8.3](https://github.com/forcedotcom/source-tracking/compare/7.8.2...7.8.3) (2026-02-02)
+
+
+### Bug Fixes
+
+* bump fast-xml-parser ([725560e](https://github.com/forcedotcom/source-tracking/commit/725560e71c105113a8f52402c082bfc267cf4c97))
+* remove unnecessary assertion ([aee4cab](https://github.com/forcedotcom/source-tracking/commit/aee4cab37c1c96a389006b6bd98b5e5a06212e11))
+
+
+
 ## [7.8.2](https://github.com/forcedotcom/source-tracking/compare/7.8.1...7.8.2) (2026-01-23)
 
 
