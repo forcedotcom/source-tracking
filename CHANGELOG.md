@@ -1,3 +1,12 @@
+## [7.8.5](https://github.com/forcedotcom/source-tracking/compare/7.8.4...7.8.5) (2026-03-11)
+
+
+### Bug Fixes
+
+* bump core and sdr lib to latest ([#836](https://github.com/forcedotcom/source-tracking/issues/836)) ([4ff9b97](https://github.com/forcedotcom/source-tracking/commit/4ff9b97cdaccf6701d5cd20eb54a62f8c98fb3d7))
+
+
+
 ## [7.8.4](https://github.com/forcedotcom/source-tracking/compare/7.8.3...7.8.4) (2026-02-03)
 
 
