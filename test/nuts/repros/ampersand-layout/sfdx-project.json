@@ -1,0 +1,6 @@
+{
+  "packageDirectories": [{ "path": "force-app", "default": true }],
+  "namespace": "",
+  "sfdcLoginUrl": "https://orgfarm-e9d72a40bb-dev-ed.develop.my.salesforce.com",
+  "sourceApiVersion": "56.0"
+}

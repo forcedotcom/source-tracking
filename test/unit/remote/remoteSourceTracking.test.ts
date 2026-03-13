@@ -658,6 +658,41 @@ describe('remoteSourceTrackingService', () => {
         },
       });
     });
+
+    /**
+     * Reproduces forcedotcom/cli#3504: Layout with ampersand in name.
+     * File path has %26, server/tracking has &. Keys must match for sync to work.
+     */
+    it('should sync layout with ampersand when file has %26 and sourceMembers has &', async () => {
+      const decodedKey = 'Layout###Account-Legal & Compliance Layout';
+      const encodedKey = 'Layout###Account-Legal %26 Compliance Layout';
+      const contents = {
+        serverMaxRevisionCounter: 2,
+        sourceMembers: {
+          [decodedKey]: {
+            ...defaultSourceMemberValues,
+            MemberName: 'Account-Legal & Compliance Layout',
+            MemberType: 'Layout',
+            RevisionCounter: 2,
+            lastRetrievedFromServer: undefined,
+            IsNameObsolete: false,
+          },
+        },
+      } satisfies SetContentsInput;
+      setContents(contents);
+
+      await remoteSourceTrackingService.syncSpecifiedElements(new RegistryAccess(), [
+        {
+          fullName: 'Account-Legal %26 Compliance Layout',
+          type: 'Layout',
+          filePath: 'layouts/Account-Legal %26 Compliance Layout.layout-meta.xml',
+          state: ComponentStatus.Changed,
+        },
+      ]);
+
+      const result = getContents();
+      expect(result.sourceMembers[decodedKey].lastRetrievedFromServer).to.equal(2);
+    });
     it('should not poll when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
       envVars.setString('SFDX_DISABLE_SOURCE_MEMBER_POLLING', 'true');
 
