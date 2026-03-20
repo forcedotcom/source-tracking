@@ -717,10 +717,35 @@
     ts-retry-promise "^0.8.1"
     zod "^4.1.12"
 
-"@salesforce/core@^8.26.3", "@salesforce/core@^8.27.0":
+"@salesforce/core@^8.27.0":
   version "8.27.0"
   resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-8.27.0.tgz#171660a3d98770d3dd09b2ac16e49d139dff7578"
   integrity sha512-Je//0ySHRJRTD16dFxdm6J624i+oufKNq+o8O1AoUNYlT/k4SJi/YGt+iGlKesZGxPf7X1zzUPY1S6C99c/UBA==
+  dependencies:
+    "@jsforce/jsforce-node" "^3.10.13"
+    "@salesforce/kit" "^3.2.4"
+    "@salesforce/ts-types" "^2.0.12"
+    ajv "^8.18.0"
+    change-case "^4.1.2"
+    fast-levenshtein "^3.0.0"
+    faye "^1.4.1"
+    form-data "^4.0.4"
+    js2xmlparser "^4.0.1"
+    jsonwebtoken "9.0.3"
+    jszip "3.10.1"
+    memfs "4.38.1"
+    pino "^9.7.0"
+    pino-abstract-transport "^1.2.0"
+    pino-pretty "^11.3.0"
+    proper-lockfile "^4.1.2"
+    semver "^7.7.3"
+    ts-retry-promise "^0.8.1"
+    zod "^4.1.12"
+
+"@salesforce/core@^8.27.1":
+  version "8.27.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-8.27.1.tgz#26b08b0d68dd1fc210d1dd7a7e3770e3b9f27e74"
+  integrity sha512-1WpVt9tQAEINGzsQsSiVRmcmYUpKeK4P54624f9HvLIv7o7jTjdARwirJpOqivIihbDE8OJnYOdsr0vV5Dz93A==
   dependencies:
     "@jsforce/jsforce-node" "^3.10.13"
     "@salesforce/kit" "^3.2.4"
@@ -796,12 +821,12 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.10.3.tgz#52c867fdd60679cf216110aa49542b7ad391f5d1"
   integrity sha512-FKfvtrYTcvTXE9advzS25/DEY9yJhEyLvStm++eQFtnAaX1pe4G3oGHgiQ0q55BM5+0AlCh0+0CVtQv1t4oJRA==
 
-"@salesforce/source-deploy-retrieve@^12.31.20":
-  version "12.31.20"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.31.20.tgz#1497d6f3ace3ee0fd715e2cd2a50989f75124ed0"
-  integrity sha512-EJOjQKtzBGmZhlV1zReNPKphAuNHrLLpGrr5erruwBQs4hcf0utnA1wjGVowaGiztaBTiE+P0ExrXWGbLeGQZg==
+"@salesforce/source-deploy-retrieve@^12.31.22":
+  version "12.31.22"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-12.31.22.tgz#e6c0857cbccd0bdf8de9f6226903122bab882fea"
+  integrity sha512-JoWS5utKRbqicUceyz4o3DXzNi2nI0pHroxUqxg4JNUwD1a1Ghe4vHaOQqDogxyt0nrsa++9MiIoirbBRIecAA==
   dependencies:
-    "@salesforce/core" "^8.26.3"
+    "@salesforce/core" "^8.27.0"
     "@salesforce/kit" "^3.2.4"
     "@salesforce/ts-types" "^2.0.12"
     "@salesforce/types" "^1.6.0"
