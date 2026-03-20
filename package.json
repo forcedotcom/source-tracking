@@ -52,7 +52,7 @@
   "dependencies": {
     "@salesforce/core": "^8.27.1",
     "@salesforce/kit": "^3.2.4",
-    "@salesforce/source-deploy-retrieve": "^12.31.22",
+    "@salesforce/source-deploy-retrieve": "^12.31.23",
     "@salesforce/ts-types": "^2.0.12",
     "fast-xml-parser": "^5.5.7",
     "graceful-fs": "^4.2.11",

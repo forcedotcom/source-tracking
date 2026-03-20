@@ -130,6 +130,11 @@ export const deleteCustomLabels = async (
   // for custom labels, we need to remove the individual label from the xml file
   // so we'll parse the xml
   const parser = new XMLParser({
+    // Max entity expansion limit (1000) was enforced in fast-xml-parser 5.5.6.
+    processEntities: {
+      enabled: true,
+      maxTotalExpansions: 50_000,
+    },
     ignoreDeclaration: false,
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
