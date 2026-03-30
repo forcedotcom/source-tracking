@@ -1,3 +1,12 @@
+## [7.8.8](https://github.com/forcedotcom/source-tracking/compare/7.8.7...7.8.8) (2026-03-30)
+
+
+### Bug Fixes
+
+* bump sdr ([44218b4](https://github.com/forcedotcom/source-tracking/commit/44218b42b2823760f8a435fa736f9ec1dada0430))
+
+
+
 ## [7.8.7](https://github.com/forcedotcom/source-tracking/compare/7.8.6...7.8.7) (2026-03-24)
 
 
