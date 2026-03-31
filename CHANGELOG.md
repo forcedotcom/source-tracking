@@ -1,3 +1,12 @@
+## [7.8.9](https://github.com/forcedotcom/source-tracking/compare/7.8.8...7.8.9) (2026-03-31)
+
+
+### Bug Fixes
+
+* **deps:** bump yaml from 2.8.1 to 2.8.3 ([20ba771](https://github.com/forcedotcom/source-tracking/commit/20ba7712812f5a6cfa9b977bb50a31e635cef313))
+
+
+
 ## [7.8.8](https://github.com/forcedotcom/source-tracking/compare/7.8.7...7.8.8) (2026-03-30)
 
 
