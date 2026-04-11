@@ -69,25 +69,34 @@ export const populateTypesAndNames =
       resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : maybeGetTreeContainer(projectPath),
       !!forceIgnore
     );
-    const sourceComponents = filenames
-      .flatMap((filename) => {
-        try {
-          return resolver.getComponentsFromPath(filename);
-        } catch (e) {
-          logger.warn(`unable to resolve ${filename}`);
-          return undefined;
-        }
-      })
-      .filter(isDefined);
-
-    logger.debug(` matching SourceComponents have ${sourceComponents.length} items from local`);
-
     const elementMap = new Map(
       elements.flatMap((e) => (e.filenames ?? []).map((f) => [ensureRelative(projectPath)(f), e]))
     );
 
+    // Deduplicate by fullName+type: all files in the same bundle component (e.g. uiBundles)
+    // resolve to the same SourceComponent, so without dedup getAllFiles/walkContent is called
+    // once per input file rather than once per unique component (O(N) walks instead of O(1)).
+    const uniqueSourceComponents = [
+      ...new Map(
+        filenames
+          .flatMap((filename) => {
+            try {
+              return resolver.getComponentsFromPath(filename);
+            } catch (e) {
+              logger.warn(`unable to resolve ${filename}`);
+              return undefined;
+            }
+          })
+          .filter(isDefined)
+          .filter(sourceComponentHasFullNameAndType)
+          .map((sc) => [`${sc.fullName}:${sc.type.name}`, sc] as const)
+      ).values(),
+    ];
+
+    logger.debug(`populateTypesAndNames resolved ${uniqueSourceComponents.length} unique components`);
+
     // iterates the local components and sets their filenames
-    sourceComponents.filter(sourceComponentHasFullNameAndType).map((matchingComponent) => {
+    uniqueSourceComponents.map((matchingComponent) => {
       const filenamesFromMatchingComponent = getAllFiles(matchingComponent);
       const ignored = filenamesFromMatchingComponent
         .filter(excludeLwcLocalOnlyTest)
