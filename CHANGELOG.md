@@ -1,3 +1,12 @@
+## [7.8.11](https://github.com/forcedotcom/source-tracking/compare/7.8.10...7.8.11) (2026-04-11)
+
+
+### Bug Fixes
+
+* **perf:** optimize populateTypesAndNames component deduplication W-21991374 ([#849](https://github.com/forcedotcom/source-tracking/issues/849)) ([e7b0ee4](https://github.com/forcedotcom/source-tracking/commit/e7b0ee402a939b30416ec6566efa13902b22ff2a))
+
+
+
 ## [7.8.10](https://github.com/forcedotcom/source-tracking/compare/7.8.9...7.8.10) (2026-04-11)
 
 
