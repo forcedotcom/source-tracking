@@ -1,6 +1,7 @@
 {
   "extends": "@salesforce/dev-config/tsconfig-test-strict",
   "include": ["./**/*.ts"],
+  "exclude": ["nuts/repros/reactinternalapp/**"],
   "compilerOptions": {
     "skipLibCheck": true,
     "moduleResolution": "Node16",
