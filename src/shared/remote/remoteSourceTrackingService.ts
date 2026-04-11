@@ -113,6 +113,9 @@ export class RemoteSourceTrackingService {
   private queryCache = new Map<number, SourceMember[]>();
   private userQueryCache = new Map<string, string>();
 
+  /** Lazily-built reverse index: decoded key → stored key, for O(1) URI-encoded key resolution */
+  private decodedKeyIndex: Map<string, string> | undefined;
+
   /**
    * Initializes the service with existing remote source tracking data, or sets
    * the state to begin source tracking of metadata changes in the org.
@@ -482,20 +485,22 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
 
   /** Return a tracked element as MemberRevision data.*/
   private getSourceMember(key: string): MemberRevision | undefined {
-    return (
-      this.sourceMembers.get(key) ??
-      this.sourceMembers.get(
-        getDecodedKeyIfSourceMembersHas({ sourceMembers: this.sourceMembers, key, logger: this.logger })
-      )
-    );
+    return this.sourceMembers.get(key) ?? this.sourceMembers.get(this.resolveDecodedKey(key));
   }
 
   private setMemberRevision(key: string, sourceMember: MemberRevision): void {
-    const sourceMembers = this.sourceMembers;
-    const matchingKey = sourceMembers.get(key)
-      ? key
-      : getDecodedKeyIfSourceMembersHas({ sourceMembers, key, logger: this.logger });
+    const matchingKey = this.sourceMembers.has(key) ? key : this.resolveDecodedKey(key);
     this.sourceMembers.set(matchingKey, { ...sourceMember, MemberName: decodeURIComponent(sourceMember.MemberName) });
+    // incrementally update the index instead of invalidating (avoids O(n) rebuild per insert)
+    if (this.decodedKeyIndex) {
+      this.decodedKeyIndex.set(decodeURIComponent(matchingKey), matchingKey);
+    }
+  }
+
+  /** O(1) decoded-key lookup via lazily-built reverse index */
+  private resolveDecodedKey(key: string): string {
+    this.decodedKeyIndex ??= buildDecodedKeyIndex(this.sourceMembers);
+    return resolveDecodedKey(key, this.decodedKeyIndex, this.logger);
   }
 }
 
@@ -521,31 +526,19 @@ export const remoteChangeElementToChangeResult = (
   });
 };
 
-/**
- *
- * iterate SourceMember keys and compare their decoded value with the decoded key.
- * if there's a match, return the matching decoded key, otherwise, return the original key
- */
-const getDecodedKeyIfSourceMembersHas = ({
-  key,
-  sourceMembers,
-  logger,
-}: {
-  sourceMembers: Map<string, MemberRevision>;
-  key: string;
-  logger: PinoLogger;
-}): string => {
+/** Build a reverse index: decoded key → stored key for O(1) URI-encoded key resolution */
+const buildDecodedKeyIndex = (sourceMembers: Map<string, MemberRevision>): Map<string, string> =>
+  new Map(Array.from(sourceMembers.keys()).map((k) => [decodeURIComponent(k), k]));
+
+/** Resolve a key against the decoded-key index, returning the stored key if found */
+const resolveDecodedKey = (key: string, index: Map<string, string>, logger: PinoLogger): string => {
   try {
-    const originalKeyDecoded = decodeURIComponent(key);
-    const match = Array.from(sourceMembers.keys()).find(
-      (memberKey) => decodeURIComponent(memberKey) === originalKeyDecoded
-    );
+    const match = index.get(decodeURIComponent(key));
     if (match) {
       logger.debug(`${match} matches already tracked member: ${key}`);
       return match;
     }
   } catch (e: unknown) {
-    // Log the error and the key
     const errMsg = e instanceof Error ? e.message : isString(e) ? e : 'unknown';
     logger.debug(`Could not decode metadata key: ${key} due to: ${errMsg}`);
   }

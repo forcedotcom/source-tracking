@@ -356,6 +356,8 @@ const fileFilter =
   (f: string): boolean =>
     // no hidden files
     !f.includes(`${path.sep}.`) &&
+    // no node_modules (e.g. uiBundle packages inside force-app)
+    !f.split(path.sep).includes('node_modules') &&
     // no lwc tests
     excludeLwcLocalOnlyTest(f) &&
     // no gitignore files
