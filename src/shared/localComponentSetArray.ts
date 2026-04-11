@@ -119,9 +119,12 @@ export const getComponentSets = ({
 
       // we need virtual components for the deletes.
       // TODO: could we use the same for the non-deletes?
-      const resolverForDeletes = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(grouping.deletes));
+      const uniqueDeletes = [...new Set(grouping.deletes)];
+      const uniqueNonDeletes = [...new Set(grouping.nonDeletes)];
 
-      grouping.deletes
+      const resolverForDeletes = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(uniqueDeletes));
+
+      uniqueDeletes
         .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
         .filter(isDefined)
         .map((component) => {
@@ -144,7 +147,7 @@ export const getComponentSets = ({
           }
         });
 
-      grouping.nonDeletes
+      uniqueNonDeletes
         .flatMap((filename) => {
           try {
             return resolverForNonDeletes.getComponentsFromPath(resolve(projectPath, filename));
