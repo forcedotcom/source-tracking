@@ -1,3 +1,12 @@
+## [7.8.10](https://github.com/forcedotcom/source-tracking/compare/7.8.9...7.8.10) (2026-04-11)
+
+
+### Bug Fixes
+
+* **perf:** stl remote indexing, no node_modules in local tracking W-21986538 ([#847](https://github.com/forcedotcom/source-tracking/issues/847)) ([7bf1d7a](https://github.com/forcedotcom/source-tracking/commit/7bf1d7a7ae414026ef5b460f9e0b5f9aa080e42d))
+
+
+
 ## [7.8.9](https://github.com/forcedotcom/source-tracking/compare/7.8.8...7.8.9) (2026-03-31)
 
 
