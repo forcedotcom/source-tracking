@@ -1,3 +1,12 @@
+## [7.8.12](https://github.com/forcedotcom/source-tracking/compare/7.8.11...7.8.12) (2026-04-12)
+
+
+### Bug Fixes
+
+* **deps:** bump lodash from 4.17.23 to 4.18.1 ([3d32926](https://github.com/forcedotcom/source-tracking/commit/3d3292659d71051b415a239f04e9484155e0e822))
+
+
+
 ## [7.8.11](https://github.com/forcedotcom/source-tracking/compare/7.8.10...7.8.11) (2026-04-11)
 
 
