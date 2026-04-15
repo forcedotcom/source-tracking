@@ -34,6 +34,7 @@ const typesToNoPollFor = [
   'ManagedContentType',
   'CustomObjectTranslation',
   'TopicsForObjects',
+  'UIBundle',
 ];
 
 const typesNotToPollForIfNamespace = ['CustomLabels', 'CustomMetadata', 'DuplicateRule', 'WebLink'];

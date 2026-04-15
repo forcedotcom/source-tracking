@@ -113,4 +113,37 @@ describe('expectedSourceMembers', () => {
     const result = calculateExpectedSourceMembers(registry, input);
     expect(result.size).to.equal(0);
   });
+
+  it('omits UIBundle type from polling', () => {
+    const input = [
+      {
+        type: 'UIBundle',
+        fullName: 'myApp',
+        filePath: 'src/uiBundles/myApp/myApp.uibundle-meta.xml',
+        state: ComponentStatus.Created,
+      },
+    ];
+    const result = calculateExpectedSourceMembers(registry, input);
+    expect(result.size).to.equal(0);
+  });
+
+  it('omits UIBundle while keeping other valid types', () => {
+    const input = [
+      {
+        type: 'UIBundle',
+        fullName: 'myApp',
+        filePath: 'src/uiBundles/myApp/myApp.uibundle-meta.xml',
+        state: ComponentStatus.Created,
+      },
+      {
+        type: 'ApexClass',
+        fullName: 'MyClass',
+        filePath: 'src/classes/MyClass.cls',
+        state: ComponentStatus.Created,
+      },
+    ];
+    const result = calculateExpectedSourceMembers(registry, input);
+    expect(result.size).to.equal(1);
+    expect(result.has('ApexClass###MyClass')).to.equal(true);
+  });
 });
