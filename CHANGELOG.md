@@ -1,3 +1,12 @@
+## [7.8.13](https://github.com/forcedotcom/source-tracking/compare/7.8.12...7.8.13) (2026-04-15)
+
+
+### Bug Fixes
+
+* exclude UIBundle from source tracking polling ([ddbcb9c](https://github.com/forcedotcom/source-tracking/commit/ddbcb9ce96e4611d82ee50adbcfc955ba6349143))
+
+
+
 ## [7.8.12](https://github.com/forcedotcom/source-tracking/compare/7.8.11...7.8.12) (2026-04-12)
 
 
