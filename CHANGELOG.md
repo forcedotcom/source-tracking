@@ -1,3 +1,12 @@
+## [7.8.14](https://github.com/forcedotcom/source-tracking/compare/7.8.13...7.8.14) (2026-04-17)
+
+
+### Bug Fixes
+
+* **deps:** bump basic-ftp from 5.0.5 to 5.3.0 ([4891294](https://github.com/forcedotcom/source-tracking/commit/489129409001d07c9d2947ccb5d9129cb9335069))
+
+
+
 ## [7.8.13](https://github.com/forcedotcom/source-tracking/compare/7.8.12...7.8.13) (2026-04-15)
 
 
