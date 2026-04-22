@@ -73,13 +73,14 @@ describe('localShadowRepo', () => {
         ],
       });
 
-      const gitAdd = sinon.spy(git, 'add');
+      const writeBlob = sinon.spy(git, 'writeBlob');
 
       const labelsFile = path.join('force-app', 'CustomLabels.labels-meta.xml');
       const sha = await shadowRepo.commitChanges({ deployedFiles: [labelsFile, labelsFile] });
 
       expect(sha).to.not.be.empty;
-      expect(gitAdd.calledOnce).to.be.true;
+      // Deduplication via Set means only one blob write despite duplicate input
+      expect(writeBlob.calledOnce).to.be.true;
     } finally {
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
@@ -94,10 +95,10 @@ describe('git index locking', () => {
       let lockExistedDuringAdd = false;
       const lockDir = path.join(shadowRepo.gitDir, 'index.lock');
 
-      const origAdd = git.add.bind(git);
-      sinon.stub(git, 'add').callsFake(async (args) => {
+      const origWriteBlob = git.writeBlob.bind(git);
+      sinon.stub(git, 'writeBlob').callsFake(async (args) => {
         lockExistedDuringAdd = fs.existsSync(lockDir);
-        return origAdd(args);
+        return origWriteBlob(args);
       });
 
       const labelsFile = path.join('force-app', 'CustomLabels.labels-meta.xml');

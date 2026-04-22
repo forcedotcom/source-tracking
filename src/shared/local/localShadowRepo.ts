@@ -20,6 +20,8 @@ import * as fs from 'graceful-fs';
 import { NamedPackageDir, Lifecycle, Logger, SfError, lockInit } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import git from 'isomorphic-git';
+import { GitIndexManager } from 'isomorphic-git/managers';
+import { FileSystem as IsoGitFS } from 'isomorphic-git/models';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
 import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
@@ -259,57 +261,81 @@ export class ShadowRepo {
     }
 
     return this.withGitLock(async () => {
+      // Phase 1: Write blob objects and collect file metadata.
+      // Blob writes go to .git/objects/ and are independent of the index.
+      // Chunked to avoid EMFILE (too many open files).
+      const insertions: Array<{ filepath: string; stats: fs.Stats; oid: string }> = [];
+
       if (deployedFiles.length) {
-        const chunks = chunkArray(
-          // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
-          [...new Set(IS_WINDOWS ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
-          MAX_FILE_ADD
-        );
+        // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
+        const uniqueFiles = [...new Set(IS_WINDOWS ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)];
+        const chunks = chunkArray(uniqueFiles, MAX_FILE_ADD);
+
         for (const chunk of chunks) {
-          try {
-            this.logger.debug(`adding ${chunk.length} files of ${deployedFiles.length} deployedFiles to git`);
-            // these need to be done sequentially (it's already batched) because isogit manages file locking
-            // eslint-disable-next-line no-await-in-loop
-            await git.add({
-              fs,
-              dir: this.projectPath,
-              gitdir: this.gitDir,
-              filepath: chunk,
-              force: true,
-            });
-          } catch (e) {
-            if (e instanceof git.Errors.MultipleGitError) {
-              this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
-              throw SfError.create({
-                message: e.message,
-                name: e.name,
-                data: e.errors.map((err) => err.message),
-                cause: e,
-                actions: [
-                  `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${MAX_FILE_ADD}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
-                ],
+          this.logger.debug(`writing ${chunk.length} blobs of ${uniqueFiles.length} deployedFiles`);
+          // eslint-disable-next-line no-await-in-loop
+          const settled = await Promise.allSettled(
+            chunk.map(async (filepath) => {
+              const fullPath = path.join(this.projectPath, filepath);
+              const stats = await fs.promises.lstat(fullPath);
+              const fileBuffer = await fs.promises.readFile(fullPath);
+              const oid = await git.writeBlob({
+                fs,
+                dir: this.projectPath,
+                gitdir: this.gitDir,
+                blob: fileBuffer,
               });
-            }
-            redirectToCliRepoError(e);
+              return { filepath, stats, oid };
+            })
+          );
+
+          // Mirror isomorphic-git's addToIndex: allSettled -> aggregate errors
+          const rejected = settled
+            .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+            .map((r) => r.reason as Error);
+          if (rejected.length > 1) {
+            this.logger.error(`${rejected.length} errors writing blobs, showing the first 5:`, rejected.slice(0, 5));
+            throw SfError.create({
+              message: `Multiple errors occurred writing blob objects (${rejected.length} failures)`,
+              name: 'MultipleGitError',
+              data: rejected.map((err) => err.message),
+              cause: rejected[0],
+              actions: [
+                `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${MAX_FILE_ADD}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
+              ],
+            });
           }
+          if (rejected.length === 1) {
+            redirectToCliRepoError(rejected[0]);
+          }
+
+          insertions.push(
+            ...settled
+              .filter(
+                (r): r is PromiseFulfilledResult<{ filepath: string; stats: fs.Stats; oid: string }> =>
+                  r.status === 'fulfilled'
+              )
+              .map((r) => r.value)
+          );
         }
       }
 
-      if (deletedFiles.length) {
-        // Using a cache here speeds up the performance by ~24.4%
-        let cache = {};
+      const deletions = deletedFiles.length
+        ? [...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]
+        : [];
 
-        for (const filepath of [...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
-          try {
-            // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
-            // eslint-disable-next-line no-await-in-loop
-            await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
-          } catch (e) {
-            redirectToCliRepoError(e);
+      // Phase 2: Single index update — one GitIndexManager.acquire() call reads the index,
+      // applies all inserts and deletes in memory, and writes it back once when the callback resolves.
+      if (insertions.length || deletions.length) {
+        const isoGitFS = new IsoGitFS(fs);
+        await GitIndexManager.acquire({ fs: isoGitFS, gitdir: this.gitDir, cache: {} }, (index) => {
+          for (const { filepath, stats, oid } of insertions) {
+            index.insert({ filepath, stats, oid });
           }
-        }
-        // clear cache
-        cache = {};
+          for (const filepath of deletions) {
+            index.delete({ filepath });
+          }
+        });
       }
 
       try {
