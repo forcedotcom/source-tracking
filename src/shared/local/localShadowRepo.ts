@@ -380,11 +380,11 @@ export class ShadowRepo {
       this.lockHeld = false;
       try {
         await unlock();
+        this.logger.trace('released git index lock');
       } catch (e) {
         // unlock can fail if gitDir was deleted (e.g., by delete()), which is expected
         this.logger.trace('could not release git index lock (lock dir may have been removed)', e);
       }
-      this.logger.trace('released git index lock');
     }
   }
 
