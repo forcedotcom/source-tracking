@@ -1,3 +1,12 @@
+## [7.8.15](https://github.com/forcedotcom/source-tracking/compare/7.8.14...7.8.15) (2026-05-12)
+
+
+### Reverts
+
+* Revert "chore: bump sdr and core to latest" ([cdf60b3](https://github.com/forcedotcom/source-tracking/commit/cdf60b33375ea3afc1d9822d8728c4ea5d142963))
+
+
+
 ## [7.8.14](https://github.com/forcedotcom/source-tracking/compare/7.8.13...7.8.14) (2026-04-17)
 
 
