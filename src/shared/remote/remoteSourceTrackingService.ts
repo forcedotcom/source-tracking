@@ -40,7 +40,7 @@ import { calculateTimeout, querySourceMembersFrom, querySourceMembersTo } from '
 export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 
 /*
- * after some results have returned, how many times should we poll for missing sourcemembers
+ * after some results have returned, how many times should we poll for missing sourceMembers
  * even when there is a longer timeout remaining (because the deployment is very large)
  */
 const POLLING_DELAY_MS = 1000;
@@ -90,7 +90,7 @@ type RemoteSourceTrackingServiceOptions = {
  * Tracking files are written to the older format described in `MemberRevisionLegacy`
  * if the environment variable CURRENT_FILE_VERSION_ENV is not set to 1
  *
- * The "in memorgy" storage is in MemberRevision format.
+ * The "in memory" storage is in MemberRevision format.
  */
 type CachedInstance = {
   service: RemoteSourceTrackingService;
@@ -506,7 +506,7 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
 
 /**
  * pass in an RCE, and this will return a pullable ChangeResult.
- * Useful for correcing bundle types where the files show change results with types but aren't resolvable
+ * Useful for correcting bundle types where the files show change results with types but aren't resolvable
  */
 export const remoteChangeElementToChangeResult = (
   registry: RegistryAccess

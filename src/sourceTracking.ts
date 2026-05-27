@@ -37,6 +37,8 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
+import * as Effect from 'effect/Effect';
+import { runtime } from './shared/runtime';
 import {
   RemoteSourceTrackingService,
   remoteChangeElementToChangeResult,
@@ -373,7 +375,7 @@ export class SourceTracking extends AsyncCreatable {
   /**
    *
    * Convenience method to reduce duplicated steps required to do a fka pull
-   * It's full of side effects: retrieving remote deletes, deleting those files locall, and then updating tracking files
+   * It's full of side effects: retrieving remote deletes, deleting those files locally, and then updating tracking files
    * Most bizarrely, it then returns a ComponentSet of the remote nonDeletes and the FileResponses from the delete
    *
    * @returns the ComponentSet for what you would retrieve now that the deletes are done, and optionally, a FileResponses array for the deleted files
@@ -631,15 +633,13 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
 
-    const result = getDedupedConflictsFromChanges({
+    return getDedupedConflictsFromChanges({
       localChanges,
       remoteChanges,
       projectPath: this.projectPath,
       forceIgnore: this.forceIgnore,
       registry: this.registry,
     });
-
-    return result;
   }
 
   /**
@@ -705,8 +705,8 @@ export class SourceTracking extends AsyncCreatable {
       // Events are attached to a singleton (sfdx-core's Lifecycle), so when
       // instantiating `SourceTracking` multiple times in the same process we need
       // each instance starts clean.
-      lifecycle.removeAllListeners('scopedPreDeploy')
-      lifecycle.removeAllListeners('scopedPreRetrieve')
+      lifecycle.removeAllListeners('scopedPreDeploy');
+      lifecycle.removeAllListeners('scopedPreRetrieve');
 
       // the only thing STL uses pre events for is to check conflicts.  So if you don't care about conflicts, don't listen!
       if (!this.ignoreConflicts) {
@@ -773,10 +773,24 @@ export class SourceTracking extends AsyncCreatable {
     const base = { projectPath: this.projectPath, registry: this.registry, excludeUnresolvable: true };
     const toOutput = localChangesToOutputRow(this.logger)(this.forceIgnore);
 
+    // One runPromise on the shared ManagedRuntime so the three populate calls
+    // share one fiber/runtime. Adds/modifies use the FS resolver; deletes use
+    // a virtual tree (resolveDeleted).
+    const [resolvedAdds, resolvedModifies, resolvedDeletes] = await runtime.runPromise(
+      Effect.all(
+        [
+          populateTypesAndNames(base)(adds),
+          populateTypesAndNames(base)(modifies),
+          populateTypesAndNames({ ...base, resolveDeleted: true })(deletes),
+        ],
+        { concurrency: 'unbounded' }
+      )
+    );
+
     return [
-      ...populateTypesAndNames(base)(adds).flatMap(toOutput('add')),
-      ...populateTypesAndNames(base)(modifies).flatMap(toOutput('modify')),
-      ...populateTypesAndNames({ ...base, resolveDeleted: true })(deletes).flatMap(toOutput('delete')),
+      ...resolvedAdds.flatMap(toOutput('add')),
+      ...resolvedModifies.flatMap(toOutput('modify')),
+      ...resolvedDeletes.flatMap(toOutput('delete')),
     ];
   }
 

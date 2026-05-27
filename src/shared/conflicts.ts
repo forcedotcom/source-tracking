@@ -19,6 +19,7 @@ import { ConflictResponse, ChangeResult, SourceConflictError } from './types';
 import { getMetadataKey } from './functions';
 import { populateTypesAndNames } from './populateTypesAndNames';
 import { isChangeResultWithNameAndType } from './guards';
+import { runtime } from './runtime';
 
 export const throwIfConflicts = (conflicts: ConflictResponse[]): void => {
   if (conflicts.length > 0) {
@@ -52,7 +53,7 @@ export const findConflictsInComponentSet = (cs: ComponentSet, conflicts: ChangeR
   return reformattedConflicts;
 };
 
-export const getDedupedConflictsFromChanges = ({
+export const getDedupedConflictsFromChanges = async ({
   localChanges = [],
   remoteChanges = [],
   projectPath,
@@ -64,7 +65,7 @@ export const getDedupedConflictsFromChanges = ({
   projectPath: string;
   forceIgnore: ForceIgnore;
   registry: RegistryAccess;
-}): ChangeResult[] => {
+}): Promise<ChangeResult[]> => {
   const metadataKeyIndex = new Map(
     remoteChanges
       .filter(isChangeResultWithNameAndType)
@@ -74,16 +75,18 @@ export const getDedupedConflictsFromChanges = ({
     remoteChanges.flatMap((change) => (change.filenames ?? []).map((filename) => [filename, change]))
   );
 
-  return populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
-    .filter(isChangeResultWithNameAndType)
-    .flatMap((change) => {
-      const metadataKey = getMetadataKey(change.name, change.type);
-      return metadataKeyIndex.has(metadataKey)
-        ? // option 1: name and type match
-          [metadataKeyIndex.get(metadataKey)!]
-        : // option 2: some of the filenames match
-          (change.filenames ?? [])
-            .filter((filename) => fileNameIndex.has(filename))
-            .map((filename) => fileNameIndex.get(filename)!);
-    });
+  const populated = await runtime.runPromise(
+    populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
+  );
+
+  return populated.filter(isChangeResultWithNameAndType).flatMap((change) => {
+    const metadataKey = getMetadataKey(change.name, change.type);
+    return metadataKeyIndex.has(metadataKey)
+      ? // option 1: name and type match
+        [metadataKeyIndex.get(metadataKey)!]
+      : // option 2: some of the filenames match
+        (change.filenames ?? [])
+          .filter((filename) => fileNameIndex.has(filename))
+          .map((filename) => fileNameIndex.get(filename)!);
+  });
 };

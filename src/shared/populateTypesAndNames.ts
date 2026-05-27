@@ -13,16 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import * as Effect from 'effect/Effect';
+import * as Stream from 'effect/Stream';
+import * as HashMap from 'effect/HashMap';
+import * as HashSet from 'effect/HashSet';
+import * as Data from 'effect/Data';
+import { pipe } from 'effect/Function';
 import { Logger } from '@salesforce/core/logger';
 import { isString } from '@salesforce/ts-types';
 import {
-  MetadataResolver,
-  VirtualTreeContainer,
   ForceIgnore,
+  MetadataResolver,
   RegistryAccess,
+  SourceComponent,
+  VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
-import { isChangeResultWithNameAndType, isDefined } from './guards';
+import { isChangeResultWithNameAndType } from './guards';
 import {
   ensureRelative,
   excludeLwcLocalOnlyTest,
@@ -32,89 +39,161 @@ import {
   sourceComponentHasFullNameAndType,
 } from './functions';
 
+type Deps = {
+  readonly projectPath: string;
+  readonly forceIgnore?: ForceIgnore;
+  readonly excludeUnresolvable?: boolean;
+  readonly resolveDeleted?: boolean;
+  readonly registry: RegistryAccess;
+};
+
 /**
- * uses SDR to translate remote metadata records into local file paths (which only typically have the filename).
+ * Effect-based populateTypesAndNames using a resolve-then-claim fold over a
+ * `Stream` pipeline.
  *
- * @input elements: ChangeResult[]
- * @input projectPath
- * @input forceIgnore: ForceIgnore.  If provided, result will indicate whether the file is ignored
- * @input excludeUnresolvable: boolean Filter out components where you can't get the name and type (that is, it's probably not a valid source component)
- * @input resolveDeleted: constructs a virtualTree instead of the actual filesystem--useful when the files no longer exist
+ * Legacy algorithm: O(N) calls to SDR.MetadataResolver.getComponentsFromPath,
+ * one per input filename, even though all files in the same bundle resolve to
+ * the same SourceComponent. For an N-file project with K unique components,
+ * legacy does N resolves + K walkContent calls.
+ *
+ * Resolve-then-claim: walk filenames in order. For each filename, either
+ * skip if it's already in the `claimed` HashSet (covered by a previously
+ * resolved component's getAllFiles), or resolve it, walk the resulting
+ * components' content files, and add those files to `claimed`.
+ *
+ * Result: K resolves + K walkContent calls. For 35k files / ~350 components
+ * that's a ~100x reduction in SDR work.
+ *
+ * The `byKey` HashMap is keyed by `Data.struct({ fullName, type })` — Effect
+ * derives Equal/Hash from the struct shape, so two components with the same
+ * (fullName, type) hash to the same key without manual stringification. The
+ * `claimed` HashSet uses plain string keys (relative file paths).
+ *
+ * Spans emitted: `populateTypesAndNames` (outer). No-op unless the consumer
+ * provides a NodeSdk Layer.
  */
-export const populateTypesAndNames =
-  ({
-    projectPath,
-    forceIgnore,
-    excludeUnresolvable = false,
-    resolveDeleted = false,
-    registry,
-  }: {
-    projectPath: string;
-    forceIgnore?: ForceIgnore;
-    excludeUnresolvable?: boolean;
-    resolveDeleted?: boolean;
-    registry: RegistryAccess;
-  }) =>
-  (elements: ChangeResult[]): ChangeResult[] => {
-    if (elements.length === 0) {
-      return [];
-    }
+
+type DedupeKey = Readonly<{ fullName: string; type: string }>;
+type ResolvedEntry = { readonly sc: SourceComponent; readonly files: readonly string[] };
+type Patch = Readonly<{ type: string; name: string; ignored: boolean }>;
+
+type FoldState = {
+  readonly claimed: HashSet.HashSet<string>;
+  readonly byKey: HashMap.HashMap<DedupeKey, ResolvedEntry>;
+  readonly claimedSkipped: number;
+};
+
+const emptyState: FoldState = {
+  claimed: HashSet.empty<string>(),
+  byKey: HashMap.empty<DedupeKey, ResolvedEntry>(),
+  claimedSkipped: 0,
+};
+
+const resolveOne = (resolver: MetadataResolver, logger: Logger) => (filename: string) =>
+  Effect.try((): readonly SourceComponent[] => resolver.getComponentsFromPath(filename)).pipe(
+    Effect.tapError(() => Effect.sync(() => logger.warn(`unable to resolve ${filename}`))),
+    Effect.orElseSucceed((): readonly SourceComponent[] => [])
+  );
+
+const claimComponent = (relativize: (s: string) => string) => (state: FoldState, sc: SourceComponent) =>
+  Effect.sync(() => {
+    if (!sourceComponentHasFullNameAndType(sc)) return state;
+    const key: DedupeKey = Data.struct({ fullName: sc.fullName, type: sc.type.name });
+    if (HashMap.has(state.byKey, key)) return state;
+    const relFiles = getAllFiles(sc).filter(isString).map(relativize);
+    return {
+      claimed: relFiles.reduce<HashSet.HashSet<string>>((s, f) => HashSet.add(s, f), state.claimed),
+      byKey: HashMap.set(state.byKey, key, { sc, files: relFiles }),
+      claimedSkipped: state.claimedSkipped,
+    };
+  });
+
+const stepFold =
+  (resolver: MetadataResolver, logger: Logger, relativize: (s: string) => string) =>
+  (state: FoldState, filename: string) =>
+    HashSet.has(state.claimed, relativize(filename))
+      ? Effect.succeed({ ...state, claimedSkipped: state.claimedSkipped + 1 })
+      : pipe(
+          resolveOne(resolver, logger)(filename),
+          Effect.flatMap((components) => Effect.reduce(components, state, claimComponent(relativize)))
+        );
+
+const enrichmentsFromState =
+  (forceIgnore: ForceIgnore | undefined) =>
+  (state: FoldState): ReadonlyMap<string, Patch> =>
+    new Map(
+      Array.from(HashMap.values(state.byKey)).flatMap(({ sc, files }) => {
+        const ignored = files.filter(excludeLwcLocalOnlyTest).some(forceIgnoreDenies(forceIgnore));
+        return files.map((f) => [f, { type: sc.type.name, name: sc.fullName, ignored }] as const);
+      })
+    );
+
+/**
+ * Wrap a ChangeResult with `Data.struct` (and `Data.array` for `filenames`) so
+ * it carries Effect's `Equal`/`Hash` traits — that lets HashSet dedupe by
+ * structural equality instead of object identity. Type stays `ChangeResult`
+ * (Schema-derived); the Data symbols are invisible to consumers.
+ */
+const toData = (cr: ChangeResult): ChangeResult =>
+  Data.struct({
+    ...cr,
+    filenames: cr.filenames ? Data.array(cr.filenames) : undefined,
+  });
+
+const applyAndDedupe =
+  (elementMap: ReadonlyMap<string, ChangeResult>) =>
+  (enrichments: ReadonlyMap<string, Patch>): HashSet.HashSet<ChangeResult> =>
+    HashSet.fromIterable(
+      Array.from(elementMap.entries()).map(([f, cr]) => {
+        const p = enrichments.get(f);
+        return toData(p ? { ...cr, ...p } : cr);
+      })
+    );
+
+const maybeFilter =
+  (excludeUnresolvable: boolean) =>
+  (set: HashSet.HashSet<ChangeResult>): HashSet.HashSet<ChangeResult> =>
+    excludeUnresolvable ? HashSet.filter(set, isChangeResultWithNameAndType) : set;
+
+export const populateTypesAndNames = (deps: Deps) =>
+  Effect.fn('populateTypesAndNames')(function* (elements: readonly ChangeResult[]) {
+    if (elements.length === 0) return [] as ChangeResult[];
+
     const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
     logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
-    const filenames = elements.flatMap((element) => element.filenames).filter(isString);
 
-    // component set generated from the filenames on all local changes
+    const relativize = ensureRelative(deps.projectPath);
+
+    // Single pass over elements: flatten to (filename, relativeFilename, element)
+    // triples so we can derive both the resolver's filename list and the
+    // filename→element lookup map without iterating `elements` twice.
+    const triples = elements.flatMap((e) =>
+      (e.filenames ?? []).filter(isString).map((f) => [f, relativize(f), e] as const)
+    );
+    const filenames = triples.map(([f]) => f);
+    const elementMap = new Map(triples.map(([, rel, e]) => [rel, e] as const));
+
     const resolver = new MetadataResolver(
-      registry,
-      resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : maybeGetTreeContainer(projectPath),
-      !!forceIgnore
-    );
-    const elementMap = new Map(
-      elements.flatMap((e) => (e.filenames ?? []).map((f) => [ensureRelative(projectPath)(f), e]))
+      deps.registry,
+      deps.resolveDeleted ? VirtualTreeContainer.fromFilePaths(filenames) : maybeGetTreeContainer(deps.projectPath),
+      !!deps.forceIgnore
     );
 
-    // Deduplicate by fullName+type: all files in the same bundle component (e.g. uiBundles)
-    // resolve to the same SourceComponent, so without dedup getAllFiles/walkContent is called
-    // once per input file rather than once per unique component (O(N) walks instead of O(1)).
-    const uniqueSourceComponents = [
-      ...new Map(
-        filenames
-          .flatMap((filename) => {
-            try {
-              return resolver.getComponentsFromPath(filename);
-            } catch (e) {
-              logger.warn(`unable to resolve ${filename}`);
-              return undefined;
-            }
-          })
-          .filter(isDefined)
-          .filter(sourceComponentHasFullNameAndType)
-          .map((sc) => [`${sc.fullName}:${sc.type.name}`, sc] as const)
-      ).values(),
-    ];
+    const fold = stepFold(resolver, logger, relativize);
 
-    logger.debug(`populateTypesAndNames resolved ${uniqueSourceComponents.length} unique components`);
+    const finalState = yield* pipe(Stream.fromIterable(filenames), Stream.runFoldEffect(emptyState, fold));
 
-    // iterates the local components and sets their filenames
-    uniqueSourceComponents.map((matchingComponent) => {
-      const filenamesFromMatchingComponent = getAllFiles(matchingComponent);
-      const ignored = filenamesFromMatchingComponent
-        .filter(excludeLwcLocalOnlyTest)
-        .some(forceIgnoreDenies(forceIgnore));
-      filenamesFromMatchingComponent.map((filename) => {
-        if (filename && elementMap.has(filename)) {
-          // add the type/name from the componentSet onto the element
-          elementMap.set(filename, {
-            origin: 'remote',
-            ...elementMap.get(filename),
-            type: matchingComponent.type.name,
-            name: matchingComponent.fullName,
-            ignored,
-          });
-        }
-      });
+    yield* Effect.annotateCurrentSpan({
+      elementCount: elements.length,
+      uniqueComponentCount: HashMap.size(finalState.byKey),
+      claimedSkipped: finalState.claimedSkipped,
     });
-    return excludeUnresolvable
-      ? Array.from(new Set(elementMap.values())).filter(isChangeResultWithNameAndType)
-      : Array.from(new Set(elementMap.values()));
-  };
+
+    return yield* pipe(
+      Effect.succeed(finalState),
+      Effect.map(enrichmentsFromState(deps.forceIgnore)),
+      Effect.map(applyAndDedupe(elementMap)),
+      Effect.map(maybeFilter(!!deps.excludeUnresolvable)),
+      Effect.map(HashSet.toValues)
+    );
+  });

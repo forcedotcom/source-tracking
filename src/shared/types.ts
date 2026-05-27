@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import * as Schema from 'effect/Schema';
 import { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { SfError } from '@salesforce/core/sfError';
 
@@ -48,13 +49,32 @@ export type RemoteChangeElement = {
 };
 
 /**
- * Summary type that supports both local and remote change types
+ * Effect Schema for ChangeResult. The public type below is derived from this
+ * schema, so anything we want to do internally (structural Equal/Hash via
+ * `Data.struct`, parse/encode, etc.) stays consistent with what consumers see.
+ *
+ * `Schema.Data(Schema.Array(...))` enables deep-equality on `filenames` so two
+ * structurally-identical ChangeResults hash the same in a HashSet.
  */
-export type ChangeResult = Partial<RemoteChangeElement> & {
-  origin: 'local' | 'remote';
-  filenames?: string[];
-  ignored?: boolean;
-};
+export const ChangeResultSchema = Schema.Struct({
+  origin: Schema.Literal('local', 'remote'),
+  filenames: Schema.optional(Schema.Data(Schema.Array(Schema.String))),
+  ignored: Schema.optional(Schema.Boolean),
+  name: Schema.optional(Schema.String),
+  type: Schema.optional(Schema.String),
+  deleted: Schema.optional(Schema.Boolean),
+  modified: Schema.optional(Schema.Boolean),
+  changedBy: Schema.optional(Schema.String),
+  revisionCounter: Schema.optional(Schema.Number),
+  lastModifiedDate: Schema.optional(Schema.String),
+  memberIdOrName: Schema.optional(Schema.String),
+});
+
+/**
+ * Summary type that supports both local and remote change types. Derived from
+ * `ChangeResultSchema`.
+ */
+export type ChangeResult = Schema.Schema.Type<typeof ChangeResultSchema>;
 
 export type ConflictResponse = {
   state: 'Conflict';
