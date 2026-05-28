@@ -297,7 +297,6 @@ export class ShadowRepo {
 
           const sha = yield* Effect.tryPromise({
             try: async () => {
-              this.logger.trace('start: commitChanges git.commit');
               const result = await git.commit({
                 fs,
                 dir: this.projectPath,
@@ -308,7 +307,6 @@ export class ShadowRepo {
               if (needsUpdatedStatus) {
                 await this.getStatus(true);
               }
-              this.logger.trace('done: commitChanges git.commit');
               return result;
             },
             catch: (e) => e,
@@ -316,7 +314,7 @@ export class ShadowRepo {
             Effect.catchAll((e) =>
               Effect.sync(() => {
                 redirectToCliRepoError(e);
-                return undefined as string | undefined;
+                return undefined;
               })
             )
           );
