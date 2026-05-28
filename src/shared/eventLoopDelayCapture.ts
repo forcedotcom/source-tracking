@@ -21,33 +21,40 @@ import * as Effect from 'effect/Effect';
  * `elMaxMs`. Same instrument + percentiles as `populateTypesAndNamesPerf.nut.ts`
  * so numbers are comparable across spans.
  *
- * Gated on `STL_OTEL_SPANS=1` so bundlers targeting non-Node environments
- * (e.g. VS Code web extensions, which run in a Web Worker without `node:*`
- * APIs — https://code.visualstudio.com/api/extension-guides/web-extensions)
- * can dead-code-eliminate the dynamic require. When the flag isn't set, the
- * finalizer is a no-op and `node:perf_hooks` is never loaded.
+ * Gated on `STL_OTEL_SPANS=1` so the histogram only runs when explicitly
+ * requested. Additionally gated on `process.env.ESBUILD_PLATFORM !== 'web'`
+ * so VS Code web bundles (which set `ESBUILD_PLATFORM='web'` via esbuild's
+ * `define`) dead-code-eliminate the `node:perf_hooks` require — Web Workers
+ * don't have `node:*` APIs.
+ * https://code.visualstudio.com/api/extension-guides/web-extensions
  */
+const noop: { finalize: () => Effect.Effect<void> } = { finalize: (): Effect.Effect<void> => Effect.void };
+
 export const eventLoopDelayCapture = (): { finalize: () => Effect.Effect<void> } => {
-  if (process.env.STL_OTEL_SPANS !== '1') {
-    return { finalize: () => Effect.void };
+  // The `if` (rather than an early return) keeps the require inside a branch
+  // that esbuild can statically eliminate for web bundles when `define` rewrites
+  // `process.env.ESBUILD_PLATFORM` to `'web'`. Early returns don't trigger DCE
+  // of subsequent statements in esbuild.
+  if (process.env.ESBUILD_PLATFORM !== 'web' && process.env.STL_OTEL_SPANS === '1') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const { monitorEventLoopDelay } = require('node:perf_hooks') as typeof import('node:perf_hooks');
+    const histogram = monitorEventLoopDelay({ resolution: 1 });
+    histogram.enable();
+    return {
+      finalize: () =>
+        Effect.gen(function* () {
+          // give the sampler one more tick to record any block that finished before its timer fired
+          yield* Effect.async<void>((resume) => {
+            setImmediate(() => resume(Effect.void));
+          });
+          histogram.disable();
+          yield* Effect.annotateCurrentSpan({
+            elP50Ms: histogram.percentile(50) / 1_000_000,
+            elP99Ms: histogram.percentile(99) / 1_000_000,
+            elMaxMs: histogram.max / 1_000_000,
+          });
+        }),
+    };
   }
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-  const { monitorEventLoopDelay } = require('node:perf_hooks') as typeof import('node:perf_hooks');
-  const histogram = monitorEventLoopDelay({ resolution: 1 });
-  histogram.enable();
-  return {
-    finalize: () =>
-      Effect.gen(function* () {
-        // give the sampler one more tick to record any block that finished before its timer fired
-        yield* Effect.async<void>((resume) => {
-          setImmediate(() => resume(Effect.void));
-        });
-        histogram.disable();
-        yield* Effect.annotateCurrentSpan({
-          elP50Ms: histogram.percentile(50) / 1_000_000,
-          elP99Ms: histogram.percentile(99) / 1_000_000,
-          elMaxMs: histogram.max / 1_000_000,
-        });
-      }),
-  };
+  return noop;
 };
