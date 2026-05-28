@@ -15,7 +15,7 @@
  */
 
 import * as Schema from 'effect/Schema';
-import { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
+import type { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { SfError } from '@salesforce/core/sfError';
 
 export type ChangeOptions = {
@@ -56,7 +56,7 @@ export type RemoteChangeElement = {
  * `Schema.Data(Schema.Array(...))` enables deep-equality on `filenames` so two
  * structurally-identical ChangeResults hash the same in a HashSet.
  */
-export const ChangeResultSchema = Schema.Struct({
+const ChangeResultSchema = Schema.Struct({
   origin: Schema.Literal('local', 'remote'),
   filenames: Schema.optional(Schema.Data(Schema.Array(Schema.String))),
   ignored: Schema.optional(Schema.Boolean),

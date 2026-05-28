@@ -45,3 +45,6 @@ node_modules
 .idea
 
 testProj*
+
+.claude/.edit-marker
+.claude/settings.local.json

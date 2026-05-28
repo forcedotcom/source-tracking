@@ -13,14 +13,78 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { mkdirSync, appendFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
+import { NodeSdk } from '@effect/opentelemetry';
+import { SimpleSpanProcessor, ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
+import { ExportResult, ExportResultCode } from '@opentelemetry/core';
+import { type Attributes, SpanStatusCode } from '@opentelemetry/api';
 
 /**
  * Shared module-level ManagedRuntime so every `runPromise` in src/ executes
  * on the same fiber/runtime instead of paying ManagedRuntime/Runtime
- * construction cost per call. Library code provides no services; consumers
- * (e.g. the perf NUT) attach their own Layer via `Effect.provide` on the
- * effect they pass in.
+ * construction cost per call. Library code provides no services by default.
+ *
+ * When STL_OTEL_SPANS=1, attach a NodeSdk Layer that writes spans to
+ * `${STL_OTEL_DIR ?? ~/.sf/source-tracking-spans}/spans-{timestamp}.jsonl`.
+ * Used to capture baselines from the existing NUT suite without modifying NUTs.
  */
-export const runtime = ManagedRuntime.make(Layer.empty);
+
+const spanDuration = (s: ReadableSpan): number => (s.duration ? s.duration[0] * 1000 + s.duration[1] / 1_000_000 : 0);
+
+const stringifyAttrs = (attrs: Attributes): Attributes =>
+  Object.fromEntries(
+    Object.entries(attrs)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .map(([k, v]) => [k, String(v)])
+  );
+
+const serialize = (s: ReadableSpan): string =>
+  JSON.stringify({
+    name: s.name,
+    traceId: s.spanContext().traceId,
+    spanId: s.spanContext().spanId,
+    parentSpanId: s.parentSpanContext?.spanId ?? '',
+    durationMs: spanDuration(s),
+    status: s.status?.code === SpanStatusCode.ERROR ? 'ERROR' : 'OK',
+    startTime: new Date(s.startTime[0] * 1000 + s.startTime[1] / 1_000_000).toISOString(),
+    attributes: stringifyAttrs(s.attributes),
+  });
+
+class JsonlFileExporter implements SpanExporter {
+  public constructor(private readonly filePath: string) {}
+
+  public export(spans: ReadableSpan[], cb: (r: ExportResult) => void): void {
+    if (spans.length === 0) return cb({ code: ExportResultCode.SUCCESS });
+    const lines = spans.map(serialize).join('\n') + '\n';
+    // eslint-disable-next-line functional/no-try-statements
+    try {
+      appendFileSync(this.filePath, lines);
+      cb({ code: ExportResultCode.SUCCESS });
+    } catch (error) {
+      cb({ code: ExportResultCode.FAILED, error: error as Error });
+    }
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  public shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+const buildOtelLayer = (): Layer.Layer<never> => {
+  const dir = process.env.STL_OTEL_DIR ?? join(process.env.HOME ?? '/tmp', '.sf', 'source-tracking-spans');
+  mkdirSync(dir, { recursive: true });
+  const filePath = join(dir, `spans-${new Date().toISOString().replaceAll(/[:.]/g, '-')}-${process.pid}.jsonl`);
+  // eslint-disable-next-line no-console
+  console.log(`[STL_OTEL_SPANS] writing spans to ${filePath}`);
+  const exporter = new JsonlFileExporter(filePath);
+  return NodeSdk.layer(() => ({
+    resource: { serviceName: 'source-tracking' },
+    spanProcessor: [new SimpleSpanProcessor(exporter)],
+  })) as unknown as Layer.Layer<never>;
+};
+
+export const runtime = ManagedRuntime.make(process.env.STL_OTEL_SPANS === '1' ? buildOtelLayer() : Layer.empty);

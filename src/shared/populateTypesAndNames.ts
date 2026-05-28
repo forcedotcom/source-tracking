@@ -30,6 +30,7 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types';
 import { isChangeResultWithNameAndType } from './guards';
+import { eventLoopDelayCapture } from './eventLoopDelayCapture';
 import {
   ensureRelative,
   excludeLwcLocalOnlyTest,
@@ -157,7 +158,11 @@ const maybeFilter =
 
 export const populateTypesAndNames = (deps: Deps) =>
   Effect.fn('populateTypesAndNames')(function* (elements: readonly ChangeResult[]) {
-    if (elements.length === 0) return [] as ChangeResult[];
+    const elCapture = eventLoopDelayCapture();
+    if (elements.length === 0) {
+      yield* elCapture.finalize();
+      return [] as ChangeResult[];
+    }
 
     const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
     logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
@@ -189,11 +194,13 @@ export const populateTypesAndNames = (deps: Deps) =>
       claimedSkipped: finalState.claimedSkipped,
     });
 
-    return yield* pipe(
+    const result = yield* pipe(
       Effect.succeed(finalState),
       Effect.map(enrichmentsFromState(deps.forceIgnore)),
       Effect.map(applyAndDedupe(elementMap)),
       Effect.map(maybeFilter(!!deps.excludeUnresolvable)),
       Effect.map(HashSet.toValues)
     );
+    yield* elCapture.finalize();
+    return result;
   });

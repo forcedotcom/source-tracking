@@ -20,7 +20,10 @@ import * as fs from 'graceful-fs';
 import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
 import { env } from '@salesforce/kit';
 import git from 'isomorphic-git';
-import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import * as Effect from 'effect/Effect';
+import { runtime } from '../runtime';
+import { eventLoopDelayCapture } from '../eventLoopDelayCapture';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
 import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
 import { StatusRow } from './types';
@@ -138,39 +141,50 @@ export class ShadowRepo {
    *
    * @returns StatusRow[] (paths are os-specific)
    */
-  public async getStatus(noCache = false): Promise<StatusRow[]> {
-    this.logger.trace(`start: getStatus (noCache = ${noCache})`);
+  public getStatus(noCache = false): Promise<StatusRow[]> {
+    return runtime.runPromise(
+      Effect.fn('ShadowRepo.getStatus')(
+        // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+        function* (this: ShadowRepo) {
+          const elCapture = eventLoopDelayCapture();
+          yield* Effect.annotateCurrentSpan({ noCache, packageDirCount: this.packageDirs.length });
+          this.logger.trace(`start: getStatus (noCache = ${noCache})`);
 
-    if (!this.status || noCache) {
-      try {
-        // status hasn't been initialized yet
-        this.status = await git.statusMatrix({
-          fs,
-          dir: this.projectPath,
-          gitdir: this.gitDir,
-          filepaths: this.packageDirs,
-          ignored: true,
-          filter: fileFilter(this.packageDirs),
-        });
+          if (!this.status || noCache) {
+            yield* Effect.tryPromise({
+              try: async () => {
+                this.status = await git.statusMatrix({
+                  fs,
+                  dir: this.projectPath,
+                  gitdir: this.gitDir,
+                  filepaths: this.packageDirs,
+                  ignored: true,
+                  filter: fileFilter(this.packageDirs),
+                });
 
-        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-        if (IS_WINDOWS) {
-          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
-        }
+                // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+                if (IS_WINDOWS) {
+                  this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+                }
 
-        if (env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true) {
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
-        } else {
-          // Check for moved files and update local git status accordingly
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
-          await this.detectMovedFiles();
-        }
-      } catch (e) {
-        redirectToCliRepoError(e);
-      }
-    }
-    this.logger.trace(`done: getStatus (noCache = ${noCache})`);
-    return this.status;
+                if (env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true) {
+                  await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
+                } else {
+                  await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
+                  await this.detectMovedFiles();
+                }
+              },
+              catch: (e) => e,
+            }).pipe(Effect.catchAll((e) => Effect.sync(() => redirectToCliRepoError(e))));
+          }
+
+          yield* Effect.annotateCurrentSpan({ rowCount: this.status.length });
+          yield* elCapture.finalize();
+          this.logger.trace(`done: getStatus (noCache = ${noCache})`);
+          return this.status;
+        }.bind(this)
+      )()
+    );
   }
 
   /**
@@ -236,109 +250,166 @@ export class ShadowRepo {
    *
    * @returns sha (string)
    */
-  public async commitChanges({
-    deployedFiles = [],
-    deletedFiles = [],
-    message = 'sfdx source tracking',
-    needsUpdatedStatus = true,
-  }: CommitRequest = {}): Promise<string | undefined> {
-    // if no files are specified, commit all changes
-    if (deployedFiles.length === 0 && deletedFiles.length === 0) {
-      // this is valid, might not be an error
-      return 'no files to commit';
-    }
+  public commitChanges(request: CommitRequest = {}): Promise<string | undefined> {
+    return runtime.runPromise(
+      Effect.fn('ShadowRepo.commitChanges')(
+        // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+        function* (this: ShadowRepo) {
+          const elCapture = eventLoopDelayCapture();
+          const {
+            deployedFiles = [],
+            deletedFiles = [],
+            message = 'sfdx source tracking',
+            needsUpdatedStatus = true,
+          } = request;
 
-    if (deployedFiles.length) {
-      const chunks = chunkArray(
-        // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
-        [...new Set(IS_WINDOWS ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
-        MAX_FILE_ADD
-      );
-      for (const chunk of chunks) {
-        try {
-          this.logger.debug(`adding ${chunk.length} files of ${deployedFiles.length} deployedFiles to git`);
-          // these need to be done sequentially (it's already batched) because isogit manages file locking
-          // eslint-disable-next-line no-await-in-loop
-          await git.add({
-            fs,
-            dir: this.projectPath,
-            gitdir: this.gitDir,
-            filepath: chunk,
-            force: true,
+          yield* Effect.annotateCurrentSpan({
+            deployedCount: deployedFiles.length,
+            deletedCount: deletedFiles.length,
           });
-        } catch (e) {
-          if (e instanceof git.Errors.MultipleGitError) {
-            this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
-            throw SfError.create({
-              message: e.message,
-              name: e.name,
-              data: e.errors.map((err) => err.message),
-              cause: e,
-              actions: [
-                `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${MAX_FILE_ADD}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
-              ],
-            });
+
+          if (deployedFiles.length === 0 && deletedFiles.length === 0) {
+            yield* elCapture.finalize();
+            return 'no files to commit';
           }
-          redirectToCliRepoError(e);
+
+          if (deployedFiles.length) {
+            const chunks = chunkArray(
+              [...new Set(IS_WINDOWS ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
+              MAX_FILE_ADD
+            );
+            yield* Effect.annotateCurrentSpan({ addChunkCount: chunks.length });
+            yield* Effect.tryPromise({
+              try: () => this.runGitAdd(chunks, deployedFiles.length),
+              catch: (e) => e,
+            }).pipe(Effect.catchAll((e) => Effect.sync(() => redirectToCliRepoError(e))));
+          }
+
+          if (deletedFiles.length) {
+            yield* Effect.tryPromise({
+              try: () =>
+                this.runGitRemove([
+                  ...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles),
+                ]),
+              catch: (e) => e,
+            }).pipe(Effect.catchAll((e) => Effect.sync(() => redirectToCliRepoError(e))));
+          }
+
+          const sha = yield* Effect.tryPromise({
+            try: async () => {
+              this.logger.trace('start: commitChanges git.commit');
+              const result = await git.commit({
+                fs,
+                dir: this.projectPath,
+                gitdir: this.gitDir,
+                message,
+                author: { name: 'sfdx source tracking' },
+              });
+              if (needsUpdatedStatus) {
+                await this.getStatus(true);
+              }
+              this.logger.trace('done: commitChanges git.commit');
+              return result;
+            },
+            catch: (e) => e,
+          }).pipe(
+            Effect.catchAll((e) =>
+              Effect.sync(() => {
+                redirectToCliRepoError(e);
+                return undefined as string | undefined;
+              })
+            )
+          );
+
+          yield* elCapture.finalize();
+          return sha;
+        }.bind(this)
+      )()
+    );
+  }
+
+  private async runGitAdd(chunks: string[][], totalDeployed: number): Promise<void> {
+    for (const chunk of chunks) {
+      try {
+        this.logger.debug(`adding ${chunk.length} files of ${totalDeployed} deployedFiles to git`);
+        // these need to be done sequentially (it's already batched) because isogit manages file locking
+        // eslint-disable-next-line no-await-in-loop
+        await git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath: chunk, force: true });
+      } catch (e) {
+        if (e instanceof git.Errors.MultipleGitError) {
+          this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
+          throw SfError.create({
+            message: e.message,
+            name: e.name,
+            data: e.errors.map((err) => err.message),
+            cause: e,
+            actions: [
+              `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${MAX_FILE_ADD}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
+            ],
+          });
         }
+        redirectToCliRepoError(e);
       }
-    }
-
-    if (deletedFiles.length) {
-      // Using a cache here speeds up the performance by ~24.4%
-      let cache = {};
-
-      for (const filepath of [...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
-        try {
-          // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
-          // eslint-disable-next-line no-await-in-loop
-          await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
-        } catch (e) {
-          redirectToCliRepoError(e);
-        }
-      }
-      // clear cache
-      cache = {};
-    }
-
-    try {
-      this.logger.trace('start: commitChanges git.commit');
-
-      const sha = await git.commit({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        message,
-        author: { name: 'sfdx source tracking' },
-      });
-      // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
-      if (needsUpdatedStatus) {
-        await this.getStatus(true);
-      }
-      this.logger.trace('done: commitChanges git.commit');
-      return sha;
-    } catch (e) {
-      redirectToCliRepoError(e);
     }
   }
 
-  private async detectMovedFiles(): Promise<void> {
-    // get status will return os-specific paths
-    const matchingFiles = getMatches(await this.getStatus());
-    if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
+  private async runGitRemove(filepaths: string[]): Promise<void> {
+    // Using a cache here speeds up the performance by ~24.4%
+    const cache = {};
+    for (const filepath of filepaths) {
+      try {
+        // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
+        // eslint-disable-next-line no-await-in-loop
+        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
+      } catch (e) {
+        redirectToCliRepoError(e);
+      }
+    }
+  }
 
-    const matches = await filenameMatchesToMap(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
+  private detectMovedFiles(): Promise<void> {
+    return runtime.runPromise(
+      Effect.fn('ShadowRepo.detectMovedFiles')(
+        // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+        function* (this: ShadowRepo) {
+          const elCapture = eventLoopDelayCapture();
+          const matchingFiles = getMatches(this.status);
+          yield* Effect.annotateCurrentSpan({
+            addedCount: matchingFiles.added.size,
+            deletedCount: matchingFiles.deleted.size,
+          });
+          if (!matchingFiles.added.size || !matchingFiles.deleted.size) {
+            yield* elCapture.finalize();
+            return;
+          }
 
-    if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return;
+          const matches = yield* Effect.promise(() =>
+            filenameMatchesToMap(this.registry)(this.projectPath)(this.gitDir)(matchingFiles)
+          );
 
-    this.logger.debug(getLogMessage(matches));
+          yield* Effect.annotateCurrentSpan({
+            fullMatchCount: matches.fullMatches.size,
+            deleteOnlyCount: matches.deleteOnly.size,
+          });
 
-    // Commit the moved files and refresh the status
-    await this.commitChanges({
-      deletedFiles: [...matches.fullMatches.values(), ...matches.deleteOnly.values()],
-      deployedFiles: [...matches.fullMatches.keys()],
-      message: 'Committing moved files',
-    });
+          if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) {
+            yield* elCapture.finalize();
+            return;
+          }
+
+          this.logger.debug(getLogMessage(matches));
+
+          yield* Effect.promise(() =>
+            this.commitChanges({
+              deletedFiles: [...matches.fullMatches.values(), ...matches.deleteOnly.values()],
+              deployedFiles: [...matches.fullMatches.keys()],
+              message: 'Committing moved files',
+            })
+          );
+          yield* elCapture.finalize();
+        }.bind(this)
+      )()
+    );
   }
 }
 
