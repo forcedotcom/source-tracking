@@ -19,7 +19,7 @@ import { ConflictResponse, ChangeResult, SourceConflictError } from './types';
 import { getMetadataKey } from './functions';
 import { populateTypesAndNames } from './populateTypesAndNames';
 import { isChangeResultWithNameAndType } from './guards';
-import { runtime } from './runtime';
+import { runPromise } from './runtime';
 
 export const throwIfConflicts = (conflicts: ConflictResponse[]): void => {
   if (conflicts.length > 0) {
@@ -75,7 +75,7 @@ export const getDedupedConflictsFromChanges = async ({
     remoteChanges.flatMap((change) => (change.filenames ?? []).map((filename) => [filename, change]))
   );
 
-  const populated = await runtime.runPromise(
+  const populated = await runPromise(
     populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
   );
 

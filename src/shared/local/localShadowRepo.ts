@@ -22,7 +22,7 @@ import { env } from '@salesforce/kit';
 import git from 'isomorphic-git';
 import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import * as Effect from 'effect/Effect';
-import { runtime } from '../runtime';
+import { runPromise } from '../runtime';
 import { eventLoopDelayCapture } from '../eventLoopDelayCapture';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
 import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
@@ -142,7 +142,7 @@ export class ShadowRepo {
    * @returns StatusRow[] (paths are os-specific)
    */
   public getStatus(noCache = false): Promise<StatusRow[]> {
-    return runtime.runPromise(
+    return runPromise(
       Effect.fn('ShadowRepo.getStatus')(
         // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
         function* (this: ShadowRepo) {
@@ -251,7 +251,7 @@ export class ShadowRepo {
    * @returns sha (string)
    */
   public commitChanges(request: CommitRequest = {}): Promise<string | undefined> {
-    return runtime.runPromise(
+    return runPromise(
       Effect.fn('ShadowRepo.commitChanges')(
         // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
         function* (this: ShadowRepo) {
@@ -366,7 +366,7 @@ export class ShadowRepo {
   }
 
   private detectMovedFiles(): Promise<void> {
-    return runtime.runPromise(
+    return runPromise(
       Effect.fn('ShadowRepo.detectMovedFiles')(
         // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
         function* (this: ShadowRepo) {

@@ -38,7 +38,7 @@ import {
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
 import * as Effect from 'effect/Effect';
-import { runtime } from './shared/runtime';
+import { runPromise } from './shared/runtime';
 import {
   RemoteSourceTrackingService,
   remoteChangeElementToChangeResult,
@@ -776,7 +776,7 @@ export class SourceTracking extends AsyncCreatable {
     // One runPromise on the shared ManagedRuntime so the three populate calls
     // share one fiber/runtime. Adds/modifies use the FS resolver; deletes use
     // a virtual tree (resolveDeleted).
-    const [resolvedAdds, resolvedModifies, resolvedDeletes] = await runtime.runPromise(
+    const [resolvedAdds, resolvedModifies, resolvedDeletes] = await runPromise(
       Effect.all(
         [
           populateTypesAndNames(base)(adds),

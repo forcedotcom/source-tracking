@@ -15,7 +15,11 @@
  */
 import { mkdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import * as Effect from 'effect/Effect';
+import * as Cause from 'effect/Cause';
+import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
+import * as Option from 'effect/Option';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import { NodeSdk } from '@effect/opentelemetry';
 import { SimpleSpanProcessor, ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
@@ -87,4 +91,20 @@ const buildOtelLayer = (): Layer.Layer<never> => {
   })) as unknown as Layer.Layer<never>;
 };
 
-export const runtime = ManagedRuntime.make(process.env.STL_OTEL_SPANS === '1' ? buildOtelLayer() : Layer.empty);
+const runtime = ManagedRuntime.make(process.env.STL_OTEL_SPANS === '1' ? buildOtelLayer() : Layer.empty);
+
+/**
+ * `runtime.runPromise` rejects with `FiberFailure` for both typed failures and
+ * defects, breaking callers that branch on `e instanceof SfError` or read
+ * `e.name`. This helper runs the effect and rejects with the original
+ * underlying error so legacy throw semantics are preserved.
+ */
+export const runPromise = async <A>(eff: Effect.Effect<A, unknown, never>): Promise<A> => {
+  const exit = await runtime.runPromiseExit(eff);
+  if (Exit.isSuccess(exit)) return exit.value;
+  const fail = Cause.failureOption(exit.cause);
+  if (Option.isSome(fail)) throw fail.value;
+  const die = Cause.dieOption(exit.cause);
+  if (Option.isSome(die)) throw die.value;
+  throw Cause.squash(exit.cause);
+};
