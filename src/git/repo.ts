@@ -24,14 +24,15 @@ import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
 import { CapabilitiesTag, type Capabilities } from './capabilities';
 import {
+  ObjectCorruptError,
   RepoNotConfiguredError,
   type IndexCorruptError,
-  type ObjectCorruptError,
   type ObjectNotFoundError,
   type RefNotFoundError,
   type RepoError,
   type WorkdirIoError,
 } from './errors';
+import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import {
   type Author,
   type CommitOid,
@@ -159,16 +160,30 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
         Effect.flatMap(() => notImplemented('applyChanges'))
       )) as (args: ApplyChangesArgs) => Effect.Effect<CommitOid, RepoError>;
 
-    const hashBlob = ((bytes: Uint8Array): Effect.Effect<Oid> =>
-      Effect.annotateCurrentSpan('byteLength', bytes.byteLength).pipe(
-        Effect.flatMap(() => notImplemented('hashBlob'))
-      )) as (bytes: Uint8Array) => Effect.Effect<Oid>;
+    const hashBlob = (bytes: Uint8Array): Effect.Effect<Oid> => hashBlobImpl(bytes);
 
-    const readBlob = ((oid: Oid) =>
+    const readBlob = (
+      oid: Oid
+    ): Effect.Effect<Uint8Array, ObjectNotFoundError | ObjectCorruptError | RepoNotConfiguredError> =>
       requireHandle(handleRef, 'readBlob').pipe(
-        Effect.tap(() => Effect.annotateCurrentSpan('oid', oid)),
-        Effect.flatMap(() => notImplemented('readBlob'))
-      )) as (oid: Oid) => Effect.Effect<Uint8Array, ObjectNotFoundError | ObjectCorruptError | RepoNotConfiguredError>;
+        Effect.flatMap((h) =>
+          readLooseObject(h.cfg.gitdir, oid).pipe(
+            Effect.flatMap((obj) =>
+              obj.type === 'blob'
+                ? Effect.succeed(obj.content)
+                : Effect.fail(
+                    new ObjectCorruptError({
+                      oid,
+                      reason: `expected blob, got ${obj.type}`,
+                      message: `Repo.readBlob ${oid}: not a blob`,
+                    })
+                  )
+            ),
+            Effect.provideService(FileSystem, fs),
+            Effect.provideService(Path, path)
+          )
+        )
+      );
 
     const resolveRef = ((ref: RefName) =>
       requireHandle(handleRef, 'resolveRef').pipe(

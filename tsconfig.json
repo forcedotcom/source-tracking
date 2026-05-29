@@ -5,7 +5,8 @@
     "skipLibCheck": true,
     "plugins": [{ "transform": "@salesforce/core/messageTransformer", "import": "messageTransformer" }],
     "moduleResolution": "Node16",
-    "module": "Node16"
+    "module": "Node16",
+    "lib": ["ES2023", "DOM"]
   },
   "include": ["src/**/*.ts"]
 }
