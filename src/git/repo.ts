@@ -38,6 +38,7 @@ import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import { resolveRef as resolveRefImpl } from './refs';
 import { cold as coldStatus } from './statusMatrix';
 import { streamHeadTree as streamHeadTreeImpl } from './trees';
+import { probeUntr } from './untrProbe';
 import {
   type Author,
   type CommitOid,
@@ -125,6 +126,18 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
       yield* swapSemaphore.withPermits(1)(
         Effect.gen(function* () {
           const next = yield* buildHandle(cfg, capabilities, serviceScope);
+          // First-switch UNTR probe per phase 11. Result is logged at trace
+          // and stashed on `internals.untrProbe` for phase 11's warm path.
+          if (capabilities.supportsUntr) {
+            const probed = yield* probeUntr(cfg.gitdir).pipe(
+              Effect.catchAll(() => Effect.succeed({ kind: 'failed' as const, reason: 'unstable_ino' as const })),
+              Effect.provideService(FileSystem, fs),
+              Effect.provideService(Path, path)
+            );
+            if (probed.kind === 'failed') {
+              yield* Effect.logTrace(`untr probe failed for ${cfg.gitdir}: ${probed.reason}`);
+            }
+          }
           const prior = yield* Ref.getAndSet(handleRef, Option.some(next));
           yield* Option.match(prior, {
             onNone: () => Effect.void,
