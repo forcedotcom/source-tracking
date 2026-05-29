@@ -72,6 +72,7 @@
   },
   "devDependencies": {
     "@effect/eslint-plugin": "^0.3.2",
+    "@effect/platform-node": "^0.106.0",
     "@salesforce/cli-plugins-testkit": "^5.3.39",
     "@salesforce/dev-scripts": "^11.0.4",
     "@salesforce/schemas": "^1.10.3",
