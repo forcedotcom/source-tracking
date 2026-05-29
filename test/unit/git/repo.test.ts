@@ -71,23 +71,21 @@ describe('git/Repo lifecycle (phase 1)', () => {
   });
 
   it('switchTo installs a handle (subsequent ops no longer fail with RepoNotConfiguredError)', async () => {
+    // collectStatus now implements (phase 8). Against /tmp/lite-test/.git
+    // it'll fail with IndexCorruptError (no index file) — what we care
+    // about is that it does NOT fail with RepoNotConfiguredError.
     const exit = await runUnit(
       Effect.gen(function* () {
         const repo = yield* Repo;
-        yield* repo.switchTo(cfg('/tmp/lite-test/.git')); // doesn't touch fs in phase 1
-        // collectStatus still dies with "not implemented", but that's a defect,
-        // not a typed RepoNotConfiguredError. Verify by catching the typed
-        // failure channel: it must be empty.
-        return yield* repo.collectStatus().pipe(Effect.catchAll(() => Effect.succeed('typed-failure')));
+        yield* repo.switchTo(cfg('/tmp/lite-test/.git'));
+        return yield* repo.collectStatus();
       })
     );
-    // Defect ("not implemented") => isFailure but no typed failure
-    expect(Exit.isFailure(exit)).to.equal(true);
     if (Exit.isFailure(exit)) {
-      const typed = Cause.failureOption(exit.cause);
-      expect(Option.isNone(typed)).to.equal(true); // RepoNotConfigured is gone
-      const die = Cause.dieOption(exit.cause);
-      expect(Option.isSome(die)).to.equal(true);
+      const fail = Cause.failureOption(exit.cause);
+      if (Option.isSome(fail)) {
+        expect(fail.value).to.not.be.instanceOf(RepoNotConfiguredError);
+      }
     }
   });
 

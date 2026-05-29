@@ -35,6 +35,7 @@ import {
 import { init as initImpl } from './init';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import { resolveRef as resolveRefImpl } from './refs';
+import { cold as coldStatus } from './statusMatrix';
 import { streamHeadTree as streamHeadTreeImpl } from './trees';
 import {
   type Author,
@@ -143,14 +144,23 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
     const statusMatrix = (): Stream.Stream<StatusEntry, RepoError> =>
       Stream.unwrap(
         requireHandle(handleRef, 'statusMatrix').pipe(
-          Effect.map(() => Stream.fromEffect(notImplemented('statusMatrix')) as Stream.Stream<StatusEntry, RepoError>)
+          Effect.map((h) =>
+            coldStatus(h.cfg).pipe(Stream.provideService(FileSystem, fs), Stream.provideService(Path, path))
+          )
         )
       );
 
-    const collectStatus = Effect.fn('Repo.collectStatus')(function* () {
-      yield* requireHandle(handleRef, 'collectStatus');
-      return yield* notImplemented('collectStatus');
-    }) as () => Effect.Effect<readonly StatusEntry[], RepoError>;
+    const collectStatus = (): Effect.Effect<readonly StatusEntry[], RepoError> =>
+      requireHandle(handleRef, 'collectStatus').pipe(
+        Effect.flatMap((h) =>
+          coldStatus(h.cfg).pipe(
+            Stream.runCollect,
+            Effect.map((c) => Array.from(c)),
+            Effect.provideService(FileSystem, fs),
+            Effect.provideService(Path, path)
+          )
+        )
+      );
 
     type ApplyChangesArgs = {
       readonly adds: Stream.Stream<RepoPath>;

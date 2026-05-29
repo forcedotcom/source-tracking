@@ -67,6 +67,7 @@
     "effect": "^3.21.2",
     "fast-xml-parser": "^5.5.7",
     "graceful-fs": "^4.2.11",
+    "ignore": "^7.0.5",
     "isomorphic-git": "1.38.3",
     "ts-retry-promise": "^0.8.1"
   },
