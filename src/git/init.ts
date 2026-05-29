@@ -130,9 +130,10 @@ export const init = (
     const infoExcludePath = path.join(cfg.gitdir, 'info', 'exclude');
     const configPath = path.join(cfg.gitdir, 'config');
 
-    const headExists = yield* exists(headPath);
-    const mainExists = yield* exists(mainPath);
-    const objectsExists = yield* exists(objectsDir);
+    const [headExists, mainExists, objectsExists] = yield* Effect.all(
+      [exists(headPath), exists(mainPath), exists(objectsDir)],
+      { concurrency: 'unbounded' }
+    );
 
     // Idempotency: valid shadow → no-op (return existing HEAD oid).
     if (headExists && mainExists && objectsExists) {

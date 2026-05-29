@@ -26,7 +26,7 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
-import { withIndexLock, withSimpleLock } from '../../../src/git/lock';
+import { withIndexLock, withIndexLockCtx } from '../../../src/git/lock';
 import { RepoLockedError } from '../../../src/git/errors';
 
 const TestLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
@@ -45,7 +45,10 @@ describe('git/lock (phase 4)', () => {
     const { tmp, gitdir } = await mkGitdir();
     try {
       const exit = await run(
-        withIndexLock(gitdir)((ctx) =>
+        withIndexLockCtx(
+          gitdir,
+          'rename-to-index'
+        )((ctx) =>
           Effect.gen(function* () {
             const platform = yield* FileSystem;
             const bytes = new TextEncoder().encode('fresh-index-bytes');
@@ -71,7 +74,7 @@ describe('git/lock (phase 4)', () => {
   it('failure inside the effect removes the lockfile (no orphan)', async () => {
     const { tmp, gitdir } = await mkGitdir();
     try {
-      const exit = await run(withSimpleLock(gitdir)(Effect.fail(new Error('boom'))));
+      const exit = await run(Effect.fail(new Error('boom')).pipe(withIndexLock(gitdir)));
       expect(Exit.isFailure(exit)).to.equal(true);
       const lockExists = await fs
         .access(path.join(gitdir, 'index.lock'))
@@ -88,24 +91,20 @@ describe('git/lock (phase 4)', () => {
     try {
       const order: string[] = [];
       const a = run(
-        withSimpleLock(gitdir)(
-          Effect.gen(function* () {
-            order.push('a-start');
-            yield* Effect.sleep('50 millis');
-            order.push('a-end');
-            return 'a';
-          })
-        )
+        Effect.gen(function* () {
+          order.push('a-start');
+          yield* Effect.sleep('50 millis');
+          order.push('a-end');
+          return 'a';
+        }).pipe(withIndexLock(gitdir))
       );
       // small delay so a definitely starts first
       await new Promise((r) => setTimeout(r, 5));
       const b = run(
-        withSimpleLock(gitdir)(
-          Effect.sync(() => {
-            order.push('b-start');
-            return 'b';
-          })
-        )
+        Effect.sync(() => {
+          order.push('b-start');
+          return 'b';
+        }).pipe(withIndexLock(gitdir))
       );
       const [exitA, exitB] = await Promise.all([a, b]);
       expect(Exit.isSuccess(exitA)).to.equal(true);
@@ -126,7 +125,7 @@ describe('git/lock (phase 4)', () => {
       const ancient = new Date(Date.now() - 60_000);
       await fs.utimes(stale, ancient, ancient);
 
-      const exit = await run(withSimpleLock(gitdir)(Effect.succeed('ok')));
+      const exit = await run(Effect.succeed('ok').pipe(withIndexLock(gitdir)));
       expect(Exit.isSuccess(exit)).to.equal(true);
     } finally {
       delete process.env.SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS;
@@ -141,7 +140,7 @@ describe('git/lock (phase 4)', () => {
     try {
       // Plant a young lock
       await fs.writeFile(path.join(gitdir, 'index.lock'), 'held');
-      const exit = await run(withSimpleLock(gitdir)(Effect.succeed('ok')));
+      const exit = await run(Effect.succeed('ok').pipe(withIndexLock(gitdir)));
       expect(Exit.isFailure(exit)).to.equal(true);
       if (Exit.isFailure(exit)) {
         const fail = Cause.failureOption(exit.cause);

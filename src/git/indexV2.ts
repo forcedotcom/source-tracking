@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as Effect from 'effect/Effect';
-import * as Schema from 'effect/Schema';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
+import * as Effect from 'effect/Effect';
+import * as Schema from 'effect/Schema';
 import { IndexCorruptError } from './errors';
 import { Oid } from './schemas';
 
@@ -68,22 +68,83 @@ export type IndexV2 = {
   readonly trailer: Uint8Array;
 };
 
-const HEX = '0123456789abcdef';
-const oidFromBytes = (bytes: Uint8Array): Oid => {
-  // eslint-disable-next-line functional/no-let
-  let out = '';
-  for (let i = 0; i < 20; i += 1) {
-    const b = bytes[i] ?? 0;
-    out += HEX[b >>> 4] ?? '';
-    out += HEX[b & 0x0f] ?? '';
-  }
-  return Schema.decodeUnknownSync(Oid)(out);
-};
+const HEX_CHARS = '0123456789abcdef';
+const hexNibble = (n: number): string => HEX_CHARS[n] ?? '';
+
+const oidFromBytes = (bytes: Uint8Array): Oid =>
+  Schema.decodeUnknownSync(Oid)(
+    Array.from(bytes.subarray(0, 20), (b) => `${hexNibble(b >>> 4)}${hexNibble(b & 0x0f)}`).join('')
+  );
 
 const ASCII = new TextDecoder('utf-8', { fatal: false });
 
 const corrupt = (reason: string, gitdir: string): IndexCorruptError =>
   new IndexCorruptError({ gitdir, reason, message: `index v2 parse: ${reason}` });
+
+type ParsedEntry = { readonly entry: IndexEntry; readonly nextOffset: number };
+
+const findNul = (raw: Uint8Array, from: number, end: number): number => {
+  const ix = raw.subarray(from, end).indexOf(0);
+  return ix < 0 ? -1 : from + ix;
+};
+
+const parseEntryAt = (raw: Uint8Array, view: DataView, offset: number, gitdir: string, i: number): ParsedEntry => {
+  const start = offset;
+  const trailerStart = raw.byteLength - TRAILER_BYTES;
+  if (offset + ENTRY_FIXED_BYTES > trailerStart) {
+    throw corrupt(`entry ${i} fixed-fields overflow at offset ${offset}`, gitdir);
+  }
+  const flags = view.getUint16(offset + 60, false);
+  const extended = (flags & 0x40_00) !== 0;
+  if (extended) throw corrupt(`entry ${i} sets extended flag (v3 only)`, gitdir);
+  const nameLen = flags & 0x0f_ff;
+  const pathStart = offset + ENTRY_FIXED_BYTES;
+  const pathEnd = nameLen === 0x0f_ff ? findNul(raw, pathStart, trailerStart) : pathStart + nameLen;
+  if (pathEnd < 0 || pathEnd > trailerStart) throw corrupt(`entry ${i} path overflow`, gitdir);
+  const total = pathEnd - start;
+  const pad = 8 - (total % 8);
+  return {
+    entry: {
+      path: ASCII.decode(raw.subarray(pathStart, pathEnd)),
+      oid: oidFromBytes(raw.subarray(offset + 40, offset + 60)),
+      mode: view.getUint32(offset + 24, false),
+      stage: ((flags >> 12) & 0x3) as 0 | 1 | 2 | 3,
+      assumeValid: (flags & 0x80_00) !== 0,
+      stat: {
+        ctimeSec: view.getUint32(offset, false),
+        ctimeNsec: view.getUint32(offset + 4, false),
+        mtimeSec: view.getUint32(offset + 8, false),
+        mtimeNsec: view.getUint32(offset + 12, false),
+        dev: view.getUint32(offset + 16, false),
+        ino: view.getUint32(offset + 20, false),
+        uid: view.getUint32(offset + 28, false),
+        gid: view.getUint32(offset + 32, false),
+        size: view.getUint32(offset + 36, false),
+      },
+    },
+    nextOffset: pathEnd + pad,
+  };
+};
+
+type ParsedExtension = { readonly signature: string; readonly payload: Uint8Array };
+
+const parseExtensionsFrom = (
+  raw: Uint8Array,
+  view: DataView,
+  start: number,
+  end: number,
+  gitdir: string,
+  acc: readonly ParsedExtension[] = []
+): readonly ParsedExtension[] => {
+  if (start === end) return acc;
+  if (start + 8 > end) throw corrupt('truncated extension header', gitdir);
+  const signature = ASCII.decode(raw.subarray(start, start + 4));
+  const size = view.getUint32(start + 4, false);
+  const payloadStart = start + 8;
+  if (payloadStart + size > end) throw corrupt(`extension ${signature} payload overflow`, gitdir);
+  const payload = raw.subarray(payloadStart, payloadStart + size);
+  return parseExtensionsFrom(raw, view, payloadStart + size, end, gitdir, [...acc, { signature, payload }]);
+};
 
 /**
  * Parse `.git/index` (version 2 only). Rejects v3/v4 with IndexCorruptError.
@@ -103,99 +164,40 @@ export const parseIndexV2 = (gitdir: string, raw: Uint8Array): Effect.Effect<Ind
     if (version !== VERSION_V2) throw corrupt(`unsupported version ${version}; only v2 is supported`, gitdir);
     const entryCount = view.getUint32(8, false);
 
-    // eslint-disable-next-line functional/no-let
-    let offset = HEADER_BYTES;
-    const entries: IndexEntry[] = [];
-    // eslint-disable-next-line functional/no-loop-statements
-    for (let i = 0; i < entryCount; i += 1) {
-      const start = offset;
-      if (offset + ENTRY_FIXED_BYTES > raw.byteLength - TRAILER_BYTES) {
-        throw corrupt(`entry ${i} fixed-fields overflow at offset ${offset}`, gitdir);
-      }
-      const ctimeSec = view.getUint32(offset, false);
-      const ctimeNsec = view.getUint32(offset + 4, false);
-      const mtimeSec = view.getUint32(offset + 8, false);
-      const mtimeNsec = view.getUint32(offset + 12, false);
-      const dev = view.getUint32(offset + 16, false);
-      const ino = view.getUint32(offset + 20, false);
-      const mode = view.getUint32(offset + 24, false);
-      const uid = view.getUint32(offset + 28, false);
-      const gid = view.getUint32(offset + 32, false);
-      const size = view.getUint32(offset + 36, false);
-      const oid = oidFromBytes(raw.subarray(offset + 40, offset + 60));
-      const flags = view.getUint16(offset + 60, false);
-      const assumeValid = (flags & 0x80_00) !== 0;
-      const extended = (flags & 0x40_00) !== 0;
-      if (extended) throw corrupt(`entry ${i} sets extended flag (v3 only)`, gitdir);
-      const stage = ((flags >> 12) & 0x3) as 0 | 1 | 2 | 3;
-      const nameLen = flags & 0x0f_ff;
-      offset += ENTRY_FIXED_BYTES;
-      // path can exceed 0xfff; in that case nameLen is 0xfff and we scan
-      // until NUL.
-      const pathStart = offset;
-      // eslint-disable-next-line functional/no-let
-      let pathEnd = nameLen === 0x0f_ff ? -1 : offset + nameLen;
-      if (pathEnd === -1) {
-        // eslint-disable-next-line functional/no-let
-        let scan = offset;
-        // eslint-disable-next-line functional/no-loop-statements
-        while (scan < raw.byteLength - TRAILER_BYTES && raw[scan] !== 0) scan += 1;
-        pathEnd = scan;
-      }
-      if (pathEnd > raw.byteLength - TRAILER_BYTES) throw corrupt(`entry ${i} path overflow`, gitdir);
-      const pathBytes = raw.subarray(pathStart, pathEnd);
-      const decodedPath = ASCII.decode(pathBytes);
-      offset = pathEnd; // currently sits on the NUL
-      // pad to 8-byte boundary from `start`. v2 stores at least one NUL.
-      const total = offset - start;
-      const pad = 8 - (total % 8);
-      offset += pad;
-      entries.push({
-        path: decodedPath,
-        oid,
-        mode,
-        stage,
-        assumeValid,
-        stat: { ctimeSec, ctimeNsec, mtimeSec, mtimeNsec, dev, ino, uid, gid, size },
-      });
-    }
-    const entriesByteLength = offset - HEADER_BYTES;
+    // Fold over `entryCount` indices, threading the byte offset.
+    const { entries, offset } = Array.from({ length: entryCount }, (_, i) => i).reduce<{
+      readonly entries: readonly IndexEntry[];
+      readonly offset: number;
+    }>(
+      (acc, i) => {
+        const { entry, nextOffset } = parseEntryAt(raw, view, acc.offset, gitdir, i);
+        return { entries: [...acc.entries, entry], offset: nextOffset };
+      },
+      { entries: [], offset: HEADER_BYTES }
+    );
 
-    // Extensions, until 20 bytes from end.
+    const entriesByteLength = offset - HEADER_BYTES;
     const extEnd = raw.byteLength - TRAILER_BYTES;
-    const extensions: Array<{ readonly signature: string; readonly payload: Uint8Array }> = [];
-    // eslint-disable-next-line functional/no-loop-statements
-    while (offset < extEnd) {
-      if (offset + 8 > extEnd) throw corrupt('truncated extension header', gitdir);
-      const signature = ASCII.decode(raw.subarray(offset, offset + 4));
-      const size = view.getUint32(offset + 4, false);
-      offset += 8;
-      if (offset + size > extEnd) throw corrupt(`extension ${signature} payload overflow`, gitdir);
-      const payload = raw.subarray(offset, offset + size);
-      extensions.push({ signature, payload });
-      offset += size;
-    }
-    if (offset !== extEnd) throw corrupt(`extension parse stopped at ${offset}, expected ${extEnd}`, gitdir);
+    const extensions = parseExtensionsFrom(raw, view, offset, extEnd, gitdir);
     const trailer = raw.subarray(extEnd);
     return { entries, entriesByteLength, extensions, trailer };
   });
 
 /** Read + parse `<gitdir>/index`. Honors mtime cache (caller passes via cache). */
-export const readIndex = (gitdir: string): Effect.Effect<IndexV2, IndexCorruptError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const path = yield* Path;
-    const file = path.join(gitdir, 'index');
-    const raw = yield* fs.readFile(file).pipe(
-      Effect.catchAll((cause) =>
-        Effect.fail(
-          new IndexCorruptError({
-            gitdir,
-            reason: 'read-failed',
-            message: `failed to read ${file}: ${cause.message}`,
-          })
-        )
+export const readIndex = Effect.fn('readIndex')(function* (gitdir: string) {
+  const fs = yield* FileSystem;
+  const path = yield* Path;
+  const file = path.join(gitdir, 'index');
+  const raw = yield* fs.readFile(file).pipe(
+    Effect.catchAll((cause) =>
+      Effect.fail(
+        new IndexCorruptError({
+          gitdir,
+          reason: 'read-failed',
+          message: `failed to read ${file}: ${cause.message}`,
+        })
       )
-    );
-    return yield* parseIndexV2(gitdir, raw);
-  });
+    )
+  );
+  return yield* parseIndexV2(gitdir, raw);
+});
