@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from '@effect/platform/FileSystem';
@@ -188,16 +189,34 @@ export const cold = (cfg: {
             let workdirOid: Oid | undefined;
             if (inWorkdir) {
               const abs = path.join(cfg.dir, p);
-              const bytes = yield* fs
-                .readFile(abs)
-                .pipe(
-                  Effect.catchAll((cause) =>
-                    isNotFound(cause as never)
-                      ? Effect.succeed(null as Uint8Array | null)
-                      : Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))
-                  )
+              // Stat-trust: if workdir stat (size + mtimeMs) matches the
+              // index entry, trust the recorded oid. Real-git's racy-stat.
+              if (index !== undefined && index.stat.size > 0) {
+                const stat = yield* fs.stat(abs).pipe(
+                  Effect.map((s) => Option.some(s)),
+                  Effect.catchAll(() => Effect.succeed(Option.none<never>()))
                 );
-              if (bytes !== null) workdirOid = yield* hashBlob(bytes);
+                if (Option.isSome(stat)) {
+                  const info = stat.value as unknown as { size: bigint; mtime: Option.Option<Date> };
+                  const mtimeMs = Option.getOrElse(info.mtime, () => new Date(0)).getTime();
+                  const recordedMs = index.stat.mtimeSec * 1000 + Math.floor(index.stat.mtimeNsec / 1_000_000);
+                  if (Number(info.size) === index.stat.size && mtimeMs === recordedMs) {
+                    workdirOid = index.oid;
+                  }
+                }
+              }
+              if (workdirOid === undefined) {
+                const bytes = yield* fs
+                  .readFile(abs)
+                  .pipe(
+                    Effect.catchAll((cause) =>
+                      isNotFound(cause as never)
+                        ? Effect.succeed(null as Uint8Array | null)
+                        : Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))
+                    )
+                  );
+                if (bytes !== null) workdirOid = yield* hashBlob(bytes);
+              }
             }
             return collapse(p, head, index === undefined ? undefined : indexEntryToHeadOid(index), workdirOid, matcher);
           }),
