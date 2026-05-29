@@ -35,6 +35,7 @@ import {
 import { init as initImpl } from './init';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import { resolveRef as resolveRefImpl } from './refs';
+import { streamHeadTree as streamHeadTreeImpl } from './trees';
 import {
   type Author,
   type CommitOid,
@@ -202,12 +203,11 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
     const streamHeadTree = (): Stream.Stream<{ readonly path: RepoPath; readonly oid: Oid }, RepoError> =>
       Stream.unwrap(
         requireHandle(handleRef, 'streamHeadTree').pipe(
-          Effect.map(
-            () =>
-              Stream.fromEffect(notImplemented('streamHeadTree')) as Stream.Stream<
-                { readonly path: RepoPath; readonly oid: Oid },
-                RepoError
-              >
+          Effect.map((h) =>
+            streamHeadTreeImpl(h.cfg.gitdir).pipe(
+              Stream.provideService(FileSystem, fs),
+              Stream.provideService(Path, path)
+            )
           )
         )
       );
