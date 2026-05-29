@@ -1,0 +1,16 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	ignorecase = true
+	precomposeunicode = true
+	autocrlf = false
+	symlinks = true
+	untrackedCache = false
+[commit]
+	gpgsign = false
+[tag]
+	gpgsign = false
+[gc]
+	auto = 0
