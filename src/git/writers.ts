@@ -13,8 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { FileSystem } from '@effect/platform/FileSystem';
+import { Path } from '@effect/platform/Path';
 import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
+import { type WorkdirIoError } from './errors';
 import { hashLooseObject, writeLooseObject } from './objects';
 import { Oid } from './schemas';
 import type { IndexEntry } from './indexV2';
@@ -64,14 +68,10 @@ export const buildTreeMap = (
     // eslint-disable-next-line functional/no-let
     let node = root;
     // eslint-disable-next-line functional/no-loop-statements
-    for (let i = 0; i < segs.length - 1; i += 1) {
-      const seg = segs[i] ?? '';
-      // eslint-disable-next-line functional/no-let
-      let next = node.subtrees.get(seg);
-      if (next === undefined) {
-        next = newTreeNode();
-        node.subtrees.set(seg, next);
-      }
+    for (const seg of segs.slice(0, -1)) {
+      const existing = node.subtrees.get(seg);
+      const next = existing ?? newTreeNode();
+      if (existing === undefined) node.subtrees.set(seg, next);
       node = next;
     }
     const leaf = segs[segs.length - 1] ?? '';
@@ -90,41 +90,47 @@ const compareTreeName = (a: string, aIsTree: boolean, b: string, bIsTree: boolea
   return ka < kb ? -1 : ka > kb ? 1 : 0;
 };
 
-/** Encode one tree object body. Recursively writes subtrees first (bottom-up). */
-const writeTreeObject = (gitdir: string, node: TreeMapNode): Effect.Effect<Oid, never, never> =>
-  // The complex Effect typing above is too noisy; just rely on inference:
-  Effect.gen(function* () {
-    // 1. Recurse into subtrees, get their oids.
-    const subOids = new Map<string, Oid>();
-    // eslint-disable-next-line functional/no-loop-statements
-    for (const [name, sub] of node.subtrees) {
-      const subOid = yield* writeTreeObject(gitdir, sub);
-      subOids.set(name, subOid);
-    }
-    // 2. Build the entry list: files + subtree-oids, sorted by canonical name.
-    type Entry = { name: string; mode: number; oid: Oid; isTree: boolean };
-    const all: Entry[] = [];
-    node.entries.forEach((e, name) => all.push({ name, mode: e.mode, oid: e.oid, isTree: false }));
-    subOids.forEach((oid, name) => all.push({ name, mode: 0o040000, oid, isTree: true }));
-    all.sort((a, b) => compareTreeName(a.name, a.isTree, b.name, b.isTree));
-    // 3. Encode: `<mode-octal-no-padding> <name>\0<20-byte-oid>` repeated.
-    const parts: Uint8Array[] = [];
-    all.forEach((e) => {
-      parts.push(TEXT.encode(`${e.mode.toString(8)} ${e.name}\0`));
-      parts.push(oidToBytes(e.oid));
-    });
-    const total = parts.reduce((n, p) => n + p.byteLength, 0);
-    const body = new Uint8Array(total);
-    // eslint-disable-next-line functional/no-let
-    let off = 0;
-    parts.forEach((p) => {
-      body.set(p, off);
-      off += p.byteLength;
-    });
-    return yield* writeLooseObject(gitdir, 'tree', body);
-  }) as never;
+/** Encode one tree-object body from a tree-map node's leaves + subtree-oids. */
+const buildTreeBody = (
+  fileEntries: ReadonlyMap<string, { readonly mode: number; readonly oid: Oid }>,
+  subtreeOids: ReadonlyMap<string, Oid>
+): Uint8Array => {
+  type Entry = { readonly name: string; readonly mode: number; readonly oid: Oid; readonly isTree: boolean };
+  const all: readonly Entry[] = [
+    ...Array.from(fileEntries, ([name, e]) => ({ name, mode: e.mode, oid: e.oid, isTree: false } satisfies Entry)),
+    ...Array.from(subtreeOids, ([name, oid]) => ({ name, mode: 0o04_0000, oid, isTree: true } satisfies Entry)),
+  ].sort((a, b) => compareTreeName(a.name, a.isTree, b.name, b.isTree));
+  const parts = all.flatMap((e) => [TEXT.encode(`${e.mode.toString(8)} ${e.name}\0`), oidToBytes(e.oid)]);
+  return concat(parts);
+};
 
-export const writeTreeFromMap = writeTreeObject;
+/**
+ * Bottom-up: write each subtree object first to obtain its oid, then write
+ * the parent tree referencing the children. Uses Effect.gen at the recursive
+ * call site (TS can't infer the return type of an `Effect.fn` that recurses
+ * into itself) and exposes a non-recursive `Effect.fn` wrapper for the
+ * public entry point so traces still show the call.
+ */
+// Recursive helper: an explicit return type breaks TS's self-reference cycle
+// when an Effect-returning function calls itself.
+const writeTreeRecursive = (
+  gitdir: string,
+  node: TreeMapNode
+  // eslint-disable-next-line local-rules/no-explicit-effect-return-type
+): Effect.Effect<Oid, WorkdirIoError, FileSystem | Path> =>
+  Effect.gen(function* () {
+    const childOids = yield* Effect.forEach(
+      Array.from(node.subtrees),
+      ([name, sub]) => writeTreeRecursive(gitdir, sub).pipe(Effect.map((oid) => [name, oid] as const)),
+      { concurrency: 'unbounded' }
+    );
+    const subtreeOids = new Map<string, Oid>(childOids);
+    return yield* writeLooseObject(gitdir, 'tree', buildTreeBody(node.entries, subtreeOids));
+  });
+
+export const writeTreeFromMap = Effect.fn('writeTreeFromMap')(function* (gitdir: string, node: TreeMapNode) {
+  return yield* writeTreeRecursive(gitdir, node);
+});
 
 // =================== INDEX V2 WRITER ===================
 
@@ -134,8 +140,8 @@ const ENTRY_FIXED_BYTES = 62;
 /** Encode one index entry; pads to 8-byte alignment from the entry start. */
 const encodeIndexEntry = (e: IndexEntry): Uint8Array => {
   const pathBytes = TEXT.encode(e.path);
-  const nameLen = Math.min(pathBytes.byteLength, 0x0fff);
-  const flags = (e.assumeValid ? 0x8000 : 0) | ((e.stage & 0x3) << 12) | (nameLen & 0x0fff);
+  const nameLen = Math.min(pathBytes.byteLength, 0x0f_ff);
+  const flags = (e.assumeValid ? 0x80_00 : 0) | ((e.stage & 0x3) << 12) | (nameLen & 0x0f_ff);
   // entry size = fixed + path + at least one NUL + pad to 8
   const minSize = ENTRY_FIXED_BYTES + pathBytes.byteLength + 1; // +1 for NUL terminator
   const padded = Math.ceil(minSize / 8) * 8;
@@ -166,7 +172,7 @@ const encodeIndexEntry = (e: IndexEntry): Uint8Array => {
 export const writeIndexV2 = (
   entries: readonly IndexEntry[],
   extensions: ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }> = []
-): Effect.Effect<Uint8Array> =>
+) =>
   Effect.promise(async () => {
     const sorted = [...entries].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     const header = new Uint8Array(HEADER_BYTES);
@@ -204,48 +210,48 @@ const concat = (parts: readonly Uint8Array[]): Uint8Array => {
 
 export type CommitArgs = {
   readonly tree: Oid;
-  readonly parent: Oid | null;
+  readonly parent: Option.Option<Oid>;
   readonly author: { readonly name: string; readonly email: string };
   readonly tsSeconds: number;
   readonly message: string;
 };
 
-export const writeCommit = (gitdir: string, args: CommitArgs): Effect.Effect<Oid, never, never> =>
+export const writeCommit = Effect.fn('writeCommit')(function* (gitdir: string, args: CommitArgs) {
+  const ts = `${args.tsSeconds} +0000`;
+  const lines = [
+    `tree ${args.tree}`,
+    ...Option.match(args.parent, {
+      onNone: () => [] as readonly string[],
+      onSome: (oid) => [`parent ${oid}`] as readonly string[],
+    }),
+    `author ${args.author.name} <${args.author.email}> ${ts}`,
+    `committer ${args.author.name} <${args.author.email}> ${ts}`,
+    '',
+    args.message,
+  ];
+  const body = TEXT.encode(`${lines.join('\n')}\n`);
+  return yield* writeLooseObject(gitdir, 'commit', body);
+});
+
+// Recursive helper: an explicit return type breaks TS's self-reference cycle.
+const hashTreeRecursive = (
+  node: TreeMapNode
+  // eslint-disable-next-line local-rules/no-explicit-effect-return-type
+): Effect.Effect<Oid> =>
   Effect.gen(function* () {
-    const ts = `${args.tsSeconds} +0000`;
-    const lines = [
-      `tree ${args.tree}`,
-      ...(args.parent ? [`parent ${args.parent}`] : []),
-      `author ${args.author.name} <${args.author.email}> ${ts}`,
-      `committer ${args.author.name} <${args.author.email}> ${ts}`,
-      '',
-      args.message,
-    ];
-    const body = TEXT.encode(`${lines.join('\n')}\n`);
-    return yield* writeLooseObject(gitdir, 'commit', body);
-  }) as never;
+    const childOids = yield* Effect.forEach(
+      Array.from(node.subtrees),
+      ([name, sub]) => hashTreeRecursive(sub).pipe(Effect.map((oid) => [name, oid] as const)),
+      { concurrency: 'unbounded' }
+    );
+    const subtreeOids = new Map<string, Oid>(childOids);
+    return yield* hashLooseObject('tree', buildTreeBody(node.entries, subtreeOids));
+  });
 
 /** Hash a tree map without writing — for callers that want the oid first. */
-export const hashTreeFromMap = (node: TreeMapNode): Effect.Effect<Oid> =>
-  Effect.gen(function* () {
-    const subOids = new Map<string, Oid>();
-    // eslint-disable-next-line functional/no-loop-statements
-    for (const [name, sub] of node.subtrees) {
-      const subOid = yield* hashTreeFromMap(sub);
-      subOids.set(name, subOid);
-    }
-    type Entry = { name: string; mode: number; oid: Oid; isTree: boolean };
-    const all: Entry[] = [];
-    node.entries.forEach((e, name) => all.push({ name, mode: e.mode, oid: e.oid, isTree: false }));
-    subOids.forEach((oid, name) => all.push({ name, mode: 0o040000, oid, isTree: true }));
-    all.sort((a, b) => compareTreeName(a.name, a.isTree, b.name, b.isTree));
-    const parts: Uint8Array[] = [];
-    all.forEach((e) => {
-      parts.push(TEXT.encode(`${e.mode.toString(8)} ${e.name}\0`));
-      parts.push(oidToBytes(e.oid));
-    });
-    return yield* hashLooseObject('tree', concat(parts));
-  });
+export const hashTreeFromMap = Effect.fn('hashTreeFromMap')(function* (node: TreeMapNode) {
+  return yield* hashTreeRecursive(node);
+});
 
 // keep Schema import used (decode in tests via re-export)
 void Schema;

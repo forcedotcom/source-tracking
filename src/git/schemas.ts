@@ -27,13 +27,13 @@ export type Oid = Schema.Schema.Type<typeof Oid>;
 // branded posix workdir-relative path; normalized + .. rejected
 const REJECTED_SEGMENTS = new Set(['', '.', '..']);
 
-const validateRepoPath = (raw: string): string | null => {
+const validateRepoPath = (raw: string): string | undefined => {
   if (raw.length === 0) return 'path must not be empty';
   if (raw.startsWith('/')) return 'path must be workdir-relative (no leading "/")';
   if (raw.includes('\\')) return 'path must be posix-normalized (no backslashes)';
   if (raw.includes('\0')) return 'path must not contain NUL';
   const segments = raw.split('/');
-  return segments.some((s) => REJECTED_SEGMENTS.has(s)) ? 'path must not contain "", "." or ".." segments' : null;
+  return segments.some((s) => REJECTED_SEGMENTS.has(s)) ? 'path must not contain "", "." or ".." segments' : undefined;
 };
 
 export const RepoPath = Schema.String.pipe(

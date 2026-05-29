@@ -13,41 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as Effect from 'effect/Effect';
-import * as Stream from 'effect/Stream';
-import * as Ref from 'effect/Ref';
-import * as Option from 'effect/Option';
-import * as Scope from 'effect/Scope';
-import * as ExecutionStrategy from 'effect/ExecutionStrategy';
-import * as Exit from 'effect/Exit';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
-import { CapabilitiesTag, type Capabilities } from './capabilities';
-import {
-  ObjectCorruptError,
-  RepoNotConfiguredError,
-  type IndexCorruptError,
-  type ObjectNotFoundError,
-  type RefNotFoundError,
-  type RepoError,
-  type WorkdirIoError,
-} from './errors';
+import * as Effect from 'effect/Effect';
+import * as ExecutionStrategy from 'effect/ExecutionStrategy';
+import * as Exit from 'effect/Exit';
+import * as Option from 'effect/Option';
+import * as Ref from 'effect/Ref';
+import * as Scope from 'effect/Scope';
+import * as Stream from 'effect/Stream';
 import { applyChanges as applyChangesImpl } from './applyChanges';
+import { CapabilitiesTag, type Capabilities } from './capabilities';
+import { ObjectCorruptError, RepoNotConfiguredError } from './errors';
 import { init as initImpl } from './init';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import { resolveRef as resolveRefImpl } from './refs';
+import { type Author, type Oid, type RefName, type RepoPath, type SwitchCfg } from './schemas';
 import { cold as coldStatus } from './statusMatrix';
 import { streamHeadTree as streamHeadTreeImpl } from './trees';
 import { probeUntr } from './untrProbe';
-import {
-  type Author,
-  type CommitOid,
-  type Oid,
-  type RefName,
-  type RepoPath,
-  type StatusEntry,
-  type SwitchCfg,
-} from './schemas';
 
 /**
  * One swappable handle. `internals` is the slot phases 2+ extend (Effect.Cache,
@@ -66,10 +50,7 @@ const notConfigured = (op: string): RepoNotConfiguredError =>
     message: `Repo.${op} called before switchTo; pass a SwitchCfg first`,
   });
 
-const requireHandle = (
-  handleRef: Ref.Ref<Option.Option<RepoHandle>>,
-  op: string
-): Effect.Effect<RepoHandle, RepoNotConfiguredError> =>
+const requireHandle = (handleRef: Ref.Ref<Option.Option<RepoHandle>>, op: string) =>
   Ref.get(handleRef).pipe(
     Effect.flatMap((maybe) =>
       Option.match(maybe, {
@@ -79,32 +60,21 @@ const requireHandle = (
     )
   );
 
-const notImplemented = (op: string): Effect.Effect<never> =>
-  Effect.die(new Error(`Repo.${op}: not implemented (phase scaffolding only)`));
-
-/**
- * Build a fresh handle in its own forked child scope. Phase 1 is empty:
- * caches and matchers will register their finalizers on this inner scope
- * starting in phase 2.
- */
-const buildHandle = (
-  cfg: SwitchCfg,
-  capabilities: Capabilities,
-  serviceScope: Scope.Scope
-): Effect.Effect<RepoHandle> =>
+const buildHandle = (cfg: SwitchCfg, capabilities: Capabilities, serviceScope: Scope.Scope) =>
   Scope.fork(serviceScope, ExecutionStrategy.sequential).pipe(
-    Effect.map((scope) => ({
-      cfg,
-      capabilities,
-      internals: Object.freeze({}),
-      scope,
-    }))
+    Effect.map(
+      (scope): RepoHandle => ({
+        cfg,
+        capabilities,
+        internals: Object.freeze({}),
+        scope,
+      })
+    )
   );
 
 /**
  * The Repo service. One swappable handle, no multi-org. Methods that need
- * the handle fail with RepoNotConfiguredError pre-switchTo; everything else
- * dies with "not implemented" until the relevant phase lands.
+ * the handle fail with RepoNotConfiguredError pre-switchTo.
  */
 export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
   scoped: Effect.gen(function* () {
@@ -116,23 +86,36 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
     const handleRef = yield* Ref.make<Option.Option<RepoHandle>>(Option.none());
     const swapSemaphore = yield* Effect.makeSemaphore(1);
 
+    const provideFsAndPath = <A, E, R>(eff: Effect.Effect<A, E, R | FileSystem | Path>) =>
+      eff.pipe(Effect.provideService(FileSystem, fs), Effect.provideService(Path, path)) as Effect.Effect<
+        A,
+        E,
+        Exclude<R, FileSystem | Path>
+      >;
+
+    const provideFsAndPathStream = <A, E, R>(stream: Stream.Stream<A, E, R | FileSystem | Path>) =>
+      stream.pipe(Stream.provideService(FileSystem, fs), Stream.provideService(Path, path)) as Stream.Stream<
+        A,
+        E,
+        Exclude<R, FileSystem | Path>
+      >;
+
     /**
      * Atomic publish + prior-scope close. The semaphore serializes
      * concurrent switchTo calls; in-flight operations against the prior
-     * handle hold their own reference to it (captured at op entry) and so
-     * keep the prior scope alive until they complete.
+     * handle hold their own reference (captured at op entry) and so keep
+     * the prior scope alive until they complete.
      */
     const switchTo = Effect.fn('Repo.switchTo')(function* (cfg: SwitchCfg) {
       yield* swapSemaphore.withPermits(1)(
         Effect.gen(function* () {
           const next = yield* buildHandle(cfg, capabilities, serviceScope);
-          // First-switch UNTR probe per phase 11. Result is logged at trace
-          // and stashed on `internals.untrProbe` for phase 11's warm path.
+          // First-switch UNTR probe per phase 11. Result is logged at trace.
           if (capabilities.supportsUntr) {
-            const probed = yield* probeUntr(cfg.gitdir).pipe(
-              Effect.catchAll(() => Effect.succeed({ kind: 'failed' as const, reason: 'unstable_ino' as const })),
-              Effect.provideService(FileSystem, fs),
-              Effect.provideService(Path, path)
+            const probed = yield* provideFsAndPath(
+              probeUntr(cfg.gitdir).pipe(
+                Effect.catchAll(() => Effect.succeed({ kind: 'failed' as const, reason: 'unstable_ino' as const }))
+              )
             );
             if (probed.kind === 'failed') {
               yield* Effect.logTrace(`untr probe failed for ${cfg.gitdir}: ${probed.reason}`);
@@ -147,34 +130,25 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
       );
     });
 
-    const init = (cfg: SwitchCfg): Effect.Effect<void, IndexCorruptError | WorkdirIoError | RepoNotConfiguredError> =>
-      initImpl({ cfg }).pipe(
-        Effect.provideService(FileSystem, fs),
-        Effect.provideService(Path, path),
-        Effect.provideService(CapabilitiesTag, capabilities),
-        Effect.flatMap(() => switchTo(cfg))
-      );
+    const init = Effect.fn('Repo.init')(function* (cfg: SwitchCfg) {
+      yield* provideFsAndPath(initImpl({ cfg }).pipe(Effect.provideService(CapabilitiesTag, capabilities)));
+      yield* switchTo(cfg);
+    });
 
-    const statusMatrix = (): Stream.Stream<StatusEntry, RepoError> =>
+    const statusMatrix = () =>
       Stream.unwrap(
-        requireHandle(handleRef, 'statusMatrix').pipe(
-          Effect.map((h) =>
-            coldStatus(h.cfg).pipe(Stream.provideService(FileSystem, fs), Stream.provideService(Path, path))
-          )
-        )
+        requireHandle(handleRef, 'statusMatrix').pipe(Effect.map((h) => provideFsAndPathStream(coldStatus(h.cfg))))
       );
 
-    const collectStatus = (): Effect.Effect<readonly StatusEntry[], RepoError> =>
-      requireHandle(handleRef, 'collectStatus').pipe(
-        Effect.flatMap((h) =>
-          coldStatus(h.cfg).pipe(
-            Stream.runCollect,
-            Effect.map((c) => Array.from(c)),
-            Effect.provideService(FileSystem, fs),
-            Effect.provideService(Path, path)
-          )
+    const collectStatus = Effect.fn('Repo.collectStatus')(function* () {
+      const h = yield* requireHandle(handleRef, 'collectStatus');
+      return yield* provideFsAndPath(
+        coldStatus(h.cfg).pipe(
+          Stream.runCollect,
+          Effect.map((c) => Array.from(c))
         )
       );
+    });
 
     type ApplyChangesArgs = {
       readonly adds: Stream.Stream<RepoPath>;
@@ -183,74 +157,54 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
       readonly author: Author;
     };
 
-    const applyChanges = (args: ApplyChangesArgs): Effect.Effect<CommitOid, RepoError> =>
-      requireHandle(handleRef, 'applyChanges').pipe(
-        Effect.flatMap((h) =>
-          applyChangesImpl({
-            cfg: { dir: h.cfg.dir, gitdir: h.cfg.gitdir },
-            adds: args.adds,
-            removes: args.removes,
-            message: args.message,
-            author: args.author,
-          }).pipe(Effect.provideService(FileSystem, fs), Effect.provideService(Path, path))
-        )
+    const applyChanges = Effect.fn('Repo.applyChanges')(function* (args: ApplyChangesArgs) {
+      const h = yield* requireHandle(handleRef, 'applyChanges');
+      return yield* provideFsAndPath(
+        applyChangesImpl({
+          cfg: { dir: h.cfg.dir, gitdir: h.cfg.gitdir },
+          adds: args.adds,
+          removes: args.removes,
+          message: args.message,
+          author: args.author,
+        })
       );
+    });
 
-    const hashBlob = (bytes: Uint8Array): Effect.Effect<Oid> => hashBlobImpl(bytes);
+    const hashBlob = (bytes: Uint8Array) => hashBlobImpl(bytes);
 
-    const readBlob = (
-      oid: Oid
-    ): Effect.Effect<Uint8Array, ObjectNotFoundError | ObjectCorruptError | RepoNotConfiguredError> =>
-      requireHandle(handleRef, 'readBlob').pipe(
-        Effect.flatMap((h) =>
-          readLooseObject(h.cfg.gitdir, oid).pipe(
-            Effect.flatMap((obj) =>
-              obj.type === 'blob'
-                ? Effect.succeed(obj.content)
-                : Effect.fail(
-                    new ObjectCorruptError({
-                      oid,
-                      reason: `expected blob, got ${obj.type}`,
-                      message: `Repo.readBlob ${oid}: not a blob`,
-                    })
-                  )
-            ),
-            Effect.provideService(FileSystem, fs),
-            Effect.provideService(Path, path)
-          )
-        )
-      );
+    const readBlob = Effect.fn('Repo.readBlob')(function* (oid: Oid) {
+      const h = yield* requireHandle(handleRef, 'readBlob');
+      const obj = yield* provideFsAndPath(readLooseObject(h.cfg.gitdir, oid));
+      if (obj.type !== 'blob') {
+        return yield* Effect.fail(
+          new ObjectCorruptError({
+            oid,
+            reason: `expected blob, got ${obj.type}`,
+            message: `Repo.readBlob ${oid}: not a blob`,
+          })
+        );
+      }
+      return obj.content;
+    });
 
-    const resolveRef = (ref: RefName): Effect.Effect<Oid, RefNotFoundError | RepoNotConfiguredError | WorkdirIoError> =>
-      requireHandle(handleRef, 'resolveRef').pipe(
-        Effect.flatMap((h) =>
-          resolveRefImpl(h.cfg.gitdir, ref).pipe(
-            Effect.provideService(FileSystem, fs),
-            Effect.provideService(Path, path)
-          )
-        )
-      );
+    const resolveRef = Effect.fn('Repo.resolveRef')(function* (ref: RefName) {
+      const h = yield* requireHandle(handleRef, 'resolveRef');
+      return yield* provideFsAndPath(resolveRefImpl(h.cfg.gitdir, ref));
+    });
 
-    const streamHeadTree = (): Stream.Stream<{ readonly path: RepoPath; readonly oid: Oid }, RepoError> =>
+    const streamHeadTree = () =>
       Stream.unwrap(
         requireHandle(handleRef, 'streamHeadTree').pipe(
-          Effect.map((h) =>
-            streamHeadTreeImpl(h.cfg.gitdir).pipe(
-              Stream.provideService(FileSystem, fs),
-              Stream.provideService(Path, path)
-            )
-          )
+          Effect.map((h) => provideFsAndPathStream(streamHeadTreeImpl(h.cfg.gitdir)))
         )
       );
 
-    const setInfoExclude = ((content: string) =>
-      requireHandle(handleRef, 'setInfoExclude').pipe(
-        Effect.tap(() => Effect.annotateCurrentSpan('byteLength', content.length)),
-        Effect.flatMap(() => notImplemented('setInfoExclude'))
-      )) as (content: string) => Effect.Effect<void, WorkdirIoError | RepoNotConfiguredError | IndexCorruptError>;
-
-    void fs;
-    void path;
+    const setInfoExclude = Effect.fn('Repo.setInfoExclude')(function* (content: string) {
+      yield* requireHandle(handleRef, 'setInfoExclude');
+      // Phase 12 follow-up wires this to fs.writeFile of <gitdir>/info/exclude.
+      yield* Effect.annotateCurrentSpan('byteLength', content.length);
+      return yield* Effect.die(new Error('Repo.setInfoExclude: not implemented'));
+    });
 
     return {
       init,

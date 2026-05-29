@@ -18,6 +18,7 @@ import { Path } from '@effect/platform/Path';
 import * as Clock from 'effect/Clock';
 import * as Effect from 'effect/Effect';
 import * as HashSet from 'effect/HashSet';
+import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import * as Stream from 'effect/Stream';
 import { WorkdirIoError } from './errors';
@@ -55,7 +56,7 @@ const stageAdd = Effect.fn('stageAdd')(function* (cfg: ApplyArgs['cfg'], p: Repo
     {
       path: p,
       oid,
-      mode: 0o100_644,
+      mode: 0o10_0644,
       stage: 0,
       assumeValid: false,
       stat: {
@@ -81,10 +82,7 @@ const buildAndCommit = Effect.fn('buildAndCommit')(function* (
 ) {
   // Read current index (empty if absent — first applyChanges after init).
   const current = yield* readIndex(args.cfg.gitdir).pipe(
-    Effect.catchAll(
-      (): Effect.Effect<{ readonly entries: readonly IndexEntry[] }> =>
-        Effect.succeed({ entries: [] as readonly IndexEntry[] })
-    )
+    Effect.catchAll(() => Effect.succeed({ entries: [] as readonly IndexEntry[] }))
   );
   const byPath = new Map<string, IndexEntry>();
   current.entries.forEach((e) => byPath.set(e.path, e));
@@ -111,7 +109,7 @@ const buildAndCommit = Effect.fn('buildAndCommit')(function* (
   const tsMs = yield* Clock.currentTimeMillis;
   const commitOid = yield* writeCommit(args.cfg.gitdir, {
     tree: treeOid,
-    parent: headOid,
+    parent: Option.some(headOid),
     author: args.author,
     tsSeconds: Math.floor(tsMs / 1000),
     message: args.message,

@@ -15,6 +15,7 @@
  */
 import * as Effect from 'effect/Effect';
 import * as Either from 'effect/Either';
+import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
@@ -31,16 +32,15 @@ const isNotFound = (cause: { readonly _tag: string; readonly reason?: string }):
   // eslint-disable-next-line no-underscore-dangle
   cause._tag === 'SystemError' && cause.reason === 'NotFound';
 
-const readUtf8 = (file: string): Effect.Effect<string | null, WorkdirIoError, FileSystem> =>
+const readUtf8 = (file: string) =>
   FileSystem.pipe(
     Effect.flatMap((fs) =>
       fs.readFile(file).pipe(
-        Effect.map((bytes): string | null => TEXT.decode(bytes)),
-        Effect.catchAll(
-          (cause): Effect.Effect<string | null, WorkdirIoError> =>
-            isNotFound(cause as never)
-              ? Effect.succeed(null)
-              : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
+        Effect.map((bytes) => Option.some(TEXT.decode(bytes))),
+        Effect.catchAll((cause) =>
+          isNotFound(cause as never)
+            ? Effect.succeed(Option.none<string>())
+            : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
         )
       )
     )
@@ -66,69 +66,56 @@ export type HeadValue =
 
 const HEAD_REF: RefName = Schema.decodeUnknownSync(RefName)('HEAD');
 
-export const readHead = (
-  gitdir: string
-): Effect.Effect<HeadValue, RefNotFoundError | WorkdirIoError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const path = yield* Path;
-    const file = refFile(path, gitdir, HEAD_REF);
-    const raw = yield* readUtf8(file);
-    if (raw === null) {
-      return yield* Effect.fail(new RefNotFoundError({ ref: HEAD_REF, message: `HEAD missing at ${file}` }));
-    }
-    const trimmed = raw.replace(/\n$/, '');
-    if (trimmed.startsWith(SYMBOLIC_PREFIX)) {
-      const targetRaw = trimmed.slice(SYMBOLIC_PREFIX.length).trim();
-      return yield* Either.match(Schema.decodeUnknownEither(RefName)(targetRaw), {
-        onLeft: (): Effect.Effect<HeadValue, WorkdirIoError> =>
-          Effect.fail(badArgumentError(file, 'readHead', `HEAD points to invalid ref "${targetRaw}"`)),
-        onRight: (target): Effect.Effect<HeadValue, WorkdirIoError> =>
-          Effect.succeed({ kind: 'symbolic', target } satisfies HeadValue),
-      });
-    }
-    return yield* Either.match(Schema.decodeUnknownEither(Oid)(trimmed), {
-      onLeft: (): Effect.Effect<HeadValue, WorkdirIoError> =>
-        Effect.fail(
-          badArgumentError(file, 'readHead', `HEAD content "${trimmed}" is neither a symbolic ref nor a 40-hex oid`)
-        ),
-      onRight: (oid): Effect.Effect<HeadValue, WorkdirIoError> =>
-        Effect.succeed({ kind: 'direct', oid } satisfies HeadValue),
+export const readHead = Effect.fn('readHead')(function* (gitdir: string) {
+  const path = yield* Path;
+  const file = refFile(path, gitdir, HEAD_REF);
+  const raw = yield* readUtf8(file);
+  if (Option.isNone(raw)) {
+    return yield* Effect.fail(new RefNotFoundError({ ref: HEAD_REF, message: `HEAD missing at ${file}` }));
+  }
+  const trimmed = raw.value.replace(/\n$/, '');
+  if (trimmed.startsWith(SYMBOLIC_PREFIX)) {
+    const targetRaw = trimmed.slice(SYMBOLIC_PREFIX.length).trim();
+    return yield* Either.match(Schema.decodeUnknownEither(RefName)(targetRaw), {
+      onLeft: () => Effect.fail(badArgumentError(file, 'readHead', `HEAD points to invalid ref "${targetRaw}"`)),
+      onRight: (target) => Effect.succeed({ kind: 'symbolic', target } satisfies HeadValue),
     });
+  }
+  return yield* Either.match(Schema.decodeUnknownEither(Oid)(trimmed), {
+    onLeft: () =>
+      Effect.fail(
+        badArgumentError(file, 'readHead', `HEAD content "${trimmed}" is neither a symbolic ref nor a 40-hex oid`)
+      ),
+    onRight: (oid) => Effect.succeed({ kind: 'direct', oid } satisfies HeadValue),
   });
+});
 
 /**
  * Read a leaf ref like `refs/heads/main` (40-hex + LF).
  */
-export const readDirectRef = (
-  gitdir: string,
-  ref: RefName
-): Effect.Effect<Oid, RefNotFoundError | WorkdirIoError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const path = yield* Path;
-    const file = refFile(path, gitdir, ref);
-    const raw = yield* readUtf8(file);
-    if (raw === null) {
-      return yield* Effect.fail(new RefNotFoundError({ ref, message: `ref ${ref} missing at ${file}` }));
-    }
-    const trimmed = raw.replace(/\n$/, '').trim();
-    return yield* Either.match(Schema.decodeUnknownEither(Oid)(trimmed), {
-      onLeft: () =>
-        Effect.fail(
-          badArgumentError(file, 'readDirectRef', `ref ${ref} contains "${trimmed}", expected 40-hex`)
-        ) as Effect.Effect<Oid, WorkdirIoError>,
-      onRight: (oid) => Effect.succeed(oid),
-    });
+export const readDirectRef = Effect.fn('readDirectRef')(function* (gitdir: string, ref: RefName) {
+  const path = yield* Path;
+  const file = refFile(path, gitdir, ref);
+  const raw = yield* readUtf8(file);
+  if (Option.isNone(raw)) {
+    return yield* Effect.fail(new RefNotFoundError({ ref, message: `ref ${ref} missing at ${file}` }));
+  }
+  const trimmed = raw.value.replace(/\n$/, '').trim();
+  return yield* Either.match(Schema.decodeUnknownEither(Oid)(trimmed), {
+    onLeft: () =>
+      Effect.fail(
+        badArgumentError(file, 'readDirectRef', `ref ${ref} contains "${trimmed}", expected 40-hex`)
+      ) as Effect.Effect<Oid, WorkdirIoError>,
+    onRight: (oid) => Effect.succeed(oid),
   });
+});
 
 /**
  * Resolve a ref name to an oid. Single-hop deref: HEAD chains through
  * (symbolic→leaf) to oid; a leaf ref returns its oid directly. Lite has
  * no other ref types, so multi-hop deref is unnecessary.
  */
-export const resolveRef = (
-  gitdir: string,
-  ref: RefName
-): Effect.Effect<Oid, RefNotFoundError | WorkdirIoError, FileSystem | Path> =>
+export const resolveRef = (gitdir: string, ref: RefName) =>
   ref === HEAD_REF
     ? readHead(gitdir).pipe(
         Effect.flatMap((head) =>
@@ -137,41 +124,30 @@ export const resolveRef = (
       )
     : readDirectRef(gitdir, ref);
 
-const writeAtomically = (
-  gitdir: string,
-  ref: RefName,
-  bytes: Uint8Array
-): Effect.Effect<void, WorkdirIoError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const path = yield* Path;
-    const file = refFile(path, gitdir, ref);
-    const tmp = `${file}.tmp.${Math.random().toString(36).slice(2)}`;
-    yield* fs
-      .makeDirectory(path.dirname(file), { recursive: true })
-      .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(path.dirname(file), cause))));
-    yield* fs
-      .writeFile(tmp, bytes)
-      .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(tmp, cause))));
-    yield* fs
-      .rename(tmp, file)
-      .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
-  });
+const writeAtomically = Effect.fn('writeAtomically')(function* (gitdir: string, ref: RefName, bytes: Uint8Array) {
+  const fs = yield* FileSystem;
+  const path = yield* Path;
+  const file = refFile(path, gitdir, ref);
+  const tmp = `${file}.tmp.${Math.random().toString(36).slice(2)}`;
+  yield* fs
+    .makeDirectory(path.dirname(file), { recursive: true })
+    .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(path.dirname(file), cause))));
+  yield* fs
+    .writeFile(tmp, bytes)
+    .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(tmp, cause))));
+  yield* fs
+    .rename(tmp, file)
+    .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
+});
 
 /**
  * Write `.git/HEAD` as a symbolic ref pointing at `target`.
  */
-export const writeSymbolicHead = (
-  gitdir: string,
-  target: RefName
-): Effect.Effect<void, WorkdirIoError, FileSystem | Path> =>
+export const writeSymbolicHead = (gitdir: string, target: RefName) =>
   writeAtomically(gitdir, HEAD_REF, ENCODER.encode(`${SYMBOLIC_PREFIX}${target}\n`));
 
 /**
  * Write a leaf ref (40-hex + LF) atomically via temp + rename.
  */
-export const writeDirectRef = (
-  gitdir: string,
-  ref: RefName,
-  oid: Oid
-): Effect.Effect<void, WorkdirIoError, FileSystem | Path> => writeAtomically(gitdir, ref, ENCODER.encode(`${oid}\n`));
+export const writeDirectRef = (gitdir: string, ref: RefName, oid: Oid) =>
+  writeAtomically(gitdir, ref, ENCODER.encode(`${oid}\n`));

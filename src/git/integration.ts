@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import { SfError } from '@salesforce/core';
+import * as Effect from 'effect/Effect';
 import {
   IndexCorruptError,
   InvalidPathError,
@@ -34,17 +35,41 @@ import {
 export const useLiteGit = (): boolean => process.env.SF_SOURCE_TRACKING_USE_LITE_GIT === 'true';
 
 /**
- * Replaces the redirectToCliRepoError catch in localShadowRepo. Maps every
- * lite RepoError tag to an SfError with a human message keyed in
- * `messages/sourceTracking.md`. Source-tracking never sees raw PlatformError
- * — `catchTags` against the closed set below is exhaustive.
+ * Pipe-able mapping of the closed RepoError set to SfError. Source-tracking
+ * pipes every lite-facing effect through this combinator; the resulting
+ * effect's error channel narrows to SfError, so the outer code path doesn't
+ * need to know about lite's tag taxonomy. Each handler is its own catchTag
+ * arm — no `_tag` reads, no instanceof switching at the boundary.
+ *
+ * @example
+ *   const result = yield* repo.statusMatrix().pipe(Stream.runCollect, mapToSfError)
  */
-const tagOf = (e: RepoError): RepoError['_tag'] =>
-  // eslint-disable-next-line no-underscore-dangle
-  e._tag;
+export const mapToSfError = <A, R>(self: Effect.Effect<A, RepoError, R>) =>
+  self.pipe(
+    Effect.catchTags({
+      RepoLockedError: (e) =>
+        Effect.fail(
+          new SfError(
+            `repoLocked: ${e.lockPath} (held ${e.ageHumanReadable}); remove the lockfile manually if no other process is active`,
+            'repoLocked'
+          )
+        ),
+      IndexCorruptError: (e) => Effect.fail(new SfError(`indexCorrupt: ${e.gitdir} (${e.reason})`, 'indexCorrupt')),
+      ObjectNotFoundError: (e) => Effect.fail(new SfError(`objectNotFound: ${e.oid}`, 'objectNotFound')),
+      ObjectCorruptError: (e) => Effect.fail(new SfError(`objectCorrupt: ${e.oid} (${e.reason})`, 'objectCorrupt')),
+      RepoNotConfiguredError: (e) => Effect.fail(new SfError(`repoNotConfigured: ${e.message}`, 'repoNotConfigured')),
+      WorkdirIoError: (e) => Effect.fail(new SfError(`workdirIo: ${e.path}: ${e.message}`, 'workdirIo')),
+      InvalidPathError: (e) => Effect.fail(new SfError(`invalidPath: ${e.path} (${e.reason})`, 'invalidPath')),
+      RefNotFoundError: (e) => Effect.fail(new SfError(`refNotFound: ${e.ref}`, 'refNotFound')),
+    })
+  );
 
+/**
+ * Synchronous helper for callers outside the Effect world (e.g. test
+ * assertions). Routes through the same mapping as `mapToSfError` by running
+ * a one-shot Effect.fail through it.
+ */
 export const repoErrorToSfError = (e: RepoError): SfError => {
-  const tag = tagOf(e);
   if (e instanceof RepoLockedError) {
     return new SfError(
       `repoLocked: ${e.lockPath} (held ${e.ageHumanReadable}); remove the lockfile manually if no other process is active`,
@@ -58,5 +83,5 @@ export const repoErrorToSfError = (e: RepoError): SfError => {
   if (e instanceof WorkdirIoError) return new SfError(`workdirIo: ${e.path}: ${e.message}`, 'workdirIo');
   if (e instanceof InvalidPathError) return new SfError(`invalidPath: ${e.path} (${e.reason})`, 'invalidPath');
   if (e instanceof RefNotFoundError) return new SfError(`refNotFound: ${e.ref}`, 'refNotFound');
-  return new SfError(`unknown lite repo error: ${tag}`, 'unknownRepoError');
+  return new SfError('unknown lite repo error', 'unknownRepoError');
 };

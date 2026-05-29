@@ -15,9 +15,7 @@
  */
 import * as Effect from 'effect/Effect';
 import * as Schema from 'effect/Schema';
-import { FileSystem } from '@effect/platform/FileSystem';
-import { Path } from '@effect/platform/Path';
-import { IndexCorruptError, type WorkdirIoError } from './errors';
+import { IndexCorruptError } from './errors';
 import { readIndex } from './indexV2';
 import { readDirectRef, readHead } from './refs';
 import { RefName } from './schemas';
@@ -39,52 +37,49 @@ export const isEnabled = (): boolean => process.env[ENV_FLAG] === 'true';
 
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 
-export const runIntegrityCheck = (
-  gitdir: string
-): Effect.Effect<void, IndexCorruptError | WorkdirIoError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const head = yield* readHead(gitdir).pipe(
-      Effect.catchTag('RefNotFoundError', (cause) =>
-        Effect.fail(
-          new IndexCorruptError({
-            gitdir,
-            reason: 'head-missing',
-            message: `integrity check: HEAD not found (${cause.message})`,
-          })
-        )
-      )
-    );
-    if (head.kind !== 'symbolic' || head.target !== MAIN_REF) {
-      return yield* Effect.fail(
+export const runIntegrityCheck = Effect.fn('runIntegrityCheck')(function* (gitdir: string) {
+  const head = yield* readHead(gitdir).pipe(
+    Effect.catchTag('RefNotFoundError', (cause) =>
+      Effect.fail(
         new IndexCorruptError({
           gitdir,
-          reason: 'head-not-symbolic-main',
-          message: `integrity check: HEAD is ${
-            head.kind === 'symbolic' ? `symbolic to ${head.target}` : 'detached'
-          }, expected refs/heads/main`,
+          reason: 'head-missing',
+          message: `integrity check: HEAD not found (${cause.message})`,
         })
-      );
-    }
-    yield* readDirectRef(gitdir, MAIN_REF).pipe(
-      Effect.catchTag('RefNotFoundError', (cause) =>
-        Effect.fail(
-          new IndexCorruptError({
-            gitdir,
-            reason: 'main-missing',
-            message: `integrity check: refs/heads/main not found (${cause.message})`,
-          })
-        )
       )
+    )
+  );
+  if (head.kind !== 'symbolic' || head.target !== MAIN_REF) {
+    return yield* Effect.fail(
+      new IndexCorruptError({
+        gitdir,
+        reason: 'head-not-symbolic-main',
+        message: `integrity check: HEAD is ${
+          head.kind === 'symbolic' ? `symbolic to ${head.target}` : 'detached'
+        }, expected refs/heads/main`,
+      })
     );
-    yield* readIndex(gitdir).pipe(
-      Effect.catchTag('IndexCorruptError', (cause) =>
-        Effect.fail(
-          new IndexCorruptError({
-            gitdir,
-            reason: 'index-corrupt',
-            message: `integrity check: ${cause.message}`,
-          })
-        )
+  }
+  yield* readDirectRef(gitdir, MAIN_REF).pipe(
+    Effect.catchTag('RefNotFoundError', (cause) =>
+      Effect.fail(
+        new IndexCorruptError({
+          gitdir,
+          reason: 'main-missing',
+          message: `integrity check: refs/heads/main not found (${cause.message})`,
+        })
       )
-    );
-  });
+    )
+  );
+  yield* readIndex(gitdir).pipe(
+    Effect.catchTag('IndexCorruptError', (cause) =>
+      Effect.fail(
+        new IndexCorruptError({
+          gitdir,
+          reason: 'index-corrupt',
+          message: `integrity check: ${cause.message}`,
+        })
+      )
+    )
+  );
+});

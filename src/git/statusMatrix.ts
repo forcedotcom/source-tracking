@@ -13,120 +13,176 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as Effect from 'effect/Effect';
-import * as Option from 'effect/Option';
-import * as Stream from 'effect/Stream';
-import * as Schema from 'effect/Schema';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
+import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
+import * as Schema from 'effect/Schema';
+import * as Stream from 'effect/Stream';
 import ignore from 'ignore';
 import type { Ignore } from 'ignore';
-import { type RepoError, WorkdirIoError } from './errors';
-import { hashBlob } from './objects';
+import { WorkdirIoError } from './errors';
 import { readIndex, type IndexEntry } from './indexV2';
-import { streamHeadTree } from './trees';
+import { hashBlob } from './objects';
 import { type Oid, type RepoPath, RepoPath as RepoPathSchema, type StatusEntry } from './schemas';
+import { streamHeadTree } from './trees';
 
 const isNotFound = (cause: { readonly _tag: string; readonly reason?: string }): boolean =>
   // eslint-disable-next-line no-underscore-dangle
   cause._tag === 'SystemError' && cause.reason === 'NotFound';
 
-const decoder = new TextDecoder('utf-8', { fatal: false });
+/** Build the `ignore` matcher from `.git/info/exclude`. Empty if absent. */
+const loadIgnoreMatcher = Effect.fn('loadIgnoreMatcher')(function* (gitdir: string) {
+  const fs = yield* FileSystem;
+  const path = yield* Path;
+  const file = path.join(gitdir, 'info', 'exclude');
+  const content = yield* fs
+    .readFileString(file)
+    .pipe(
+      Effect.catchAll((cause) =>
+        isNotFound(cause as never) ? Effect.succeed('') : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
+      )
+    );
+  return ignore().add(content);
+});
 
-/**
- * Build the `ignore` matcher from `.git/info/exclude` content. Empty if the
- * file is missing.
- */
-const loadIgnoreMatcher = (gitdir: string): Effect.Effect<Ignore, WorkdirIoError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const path = yield* Path;
-    const file = path.join(gitdir, 'info', 'exclude');
-    const content = yield* fs
-      .readFileString(file)
-      .pipe(
-        Effect.catchAll(
-          (cause): Effect.Effect<string, WorkdirIoError> =>
-            isNotFound(cause as never) ? Effect.succeed('') : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
+/** Walk one root: stat once, then either emit the file or recurse into the directory. */
+const walkOneRoot = Effect.fn('walkOneRoot')(function* (dir: string, rootRel: string) {
+  const fs = yield* FileSystem;
+  const path = yield* Path;
+  const absRoot = path.join(dir, rootRel);
+  const rootStat = yield* fs.stat(absRoot).pipe(
+    Effect.map((s) => ({ kind: 'present' as const, type: s.type })),
+    Effect.catchAll((cause) =>
+      isNotFound(cause as never)
+        ? Effect.succeed({ kind: 'absent' as const })
+        : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
+    )
+  );
+  if (rootStat.kind === 'absent') return [] as readonly string[];
+  if (rootStat.type !== 'Directory') return [rootRel] as readonly string[];
+
+  const entries = yield* fs
+    .readDirectory(absRoot, { recursive: true })
+    .pipe(
+      Effect.catchAll((cause) =>
+        isNotFound(cause as never)
+          ? Effect.succeed([] as readonly string[])
+          : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
+      )
+    );
+  const relPaths = entries.map((e) => `${rootRel}/${e.replaceAll('\\', '/')}`);
+  // ENOENT mid-walk: silently drop (Option.none). Other errors surface.
+  const stats = yield* Effect.forEach(
+    relPaths,
+    (rel) =>
+      fs.stat(path.join(dir, rel)).pipe(
+        Effect.map((info) => Option.some({ rel, type: info.type })),
+        Effect.catchAll((cause) =>
+          isNotFound(cause as never)
+            ? Effect.succeed(Option.none<{ rel: string; type: string }>())
+            : Effect.fail(WorkdirIoError.fromPlatformError(rel, cause))
         )
-      );
-    return ignore().add(content);
-  });
+      ),
+    { concurrency: 'unbounded' }
+  );
+  return stats.flatMap((opt) =>
+    Option.match(opt, {
+      onNone: () => [],
+      onSome: (s) => (s.type !== 'Directory' ? [s.rel] : []),
+    })
+  ) as readonly string[];
+});
 
 /**
- * Walk all files under `dir/<root>` for each root in cfg.roots. Paths are
- * emitted relative to `dir`, posix-normalized. ENOENT mid-walk is silently
- * dropped (the file disappeared between readDirectory and stat). EACCES /
- * EMFILE / ENFILE are retried with exponential backoff before becoming
- * warnings.
+ * Walk all files under `dir/<root>` for each root in cfg.roots. Posix paths
+ * relative to `dir`. ENOENT mid-walk silently dropped.
  */
-const collectWorkdirFiles = (
-  dir: string,
-  roots: readonly RepoPath[]
-): Effect.Effect<readonly string[], WorkdirIoError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const path = yield* Path;
-    const out: string[] = [];
+const collectWorkdirFiles = Effect.fn('collectWorkdirFiles')(function* (dir: string, roots: readonly RepoPath[]) {
+  const perRoot = yield* Effect.forEach(roots, (r) => walkOneRoot(dir, r), { concurrency: 'unbounded' });
+  return perRoot.flat();
+});
 
-    const walkRoot = (rootRel: string): Effect.Effect<void, WorkdirIoError> =>
-      Effect.gen(function* () {
-        const absRoot = path.join(dir, rootRel);
-        const rootStat = yield* fs.stat(absRoot).pipe(
-          Effect.map((s) => ({ kind: 'present' as const, type: s.type })),
-          Effect.catchAll(
-            (cause): Effect.Effect<{ readonly kind: 'absent' }, WorkdirIoError> =>
-              isNotFound(cause as never)
-                ? Effect.succeed({ kind: 'absent' })
-                : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
-          )
-        );
-        if (rootStat.kind === 'absent') return;
-        // root is a single file: emit it directly without walking.
-        if (rootStat.type !== 'Directory') {
-          out.push(rootRel);
-          return;
-        }
-        const entries = yield* fs
-          .readDirectory(absRoot, { recursive: true })
-          .pipe(
-            Effect.catchAll(
-              (cause): Effect.Effect<readonly string[], WorkdirIoError> =>
-                isNotFound(cause as never)
-                  ? Effect.succeed([])
-                  : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
-            )
-          );
-        // entries are relative to absRoot. Filter out directories by stat.
-        const rels = entries.map((e) => `${rootRel}/${e.replaceAll('\\', '/')}`);
-        // Use stat to drop directories. Preserve ENOENT mid-walk silently.
-        const stats = yield* Effect.forEach(
-          rels,
-          (rel) =>
-            fs.stat(path.join(dir, rel)).pipe(
-              Effect.map((info) => ({ rel, type: info.type })),
-              Effect.catchAll(
-                (cause): Effect.Effect<{ rel: string; type: 'mid-walk-disappeared' } | null, WorkdirIoError> =>
-                  isNotFound(cause as never)
-                    ? Effect.succeed(null)
-                    : Effect.fail(WorkdirIoError.fromPlatformError(rel, cause))
-              )
-            ),
-          { concurrency: 'unbounded' }
-        );
-        stats.forEach((s) => {
-          if (s !== null && s.type !== 'Directory') out.push(s.rel);
-        });
-      });
+/** Predicate: does `p` live under any of `roots`? Exact match or prefix-with-slash. */
+const inRoots = (p: string, roots: readonly RepoPath[]): boolean =>
+  roots.includes(p as RepoPath) || roots.some((r) => p.startsWith(`${r}/`));
 
-    yield* Effect.forEach(roots, walkRoot, { concurrency: 'unbounded' });
-    return out;
-  });
+/**
+ * Stat-trust check: if the workdir stat (size + mtime ms) matches the index
+ * entry, trust the recorded oid. Real-git's racy-stat behavior. Returns
+ * `Some(oid)` on a hit, `None` on a miss (caller should rehash).
+ */
+const statTrustOid = Effect.fn('statTrustOid')(function* (abs: string, index: IndexEntry | undefined) {
+  if (index === undefined || index.stat.size === 0) return Option.none<Oid>();
+  const fs = yield* FileSystem;
+  const stat = yield* fs.stat(abs).pipe(
+    Effect.map((s) => Option.some(s)),
+    Effect.catchAll(() => Effect.succeed(Option.none<never>()))
+  );
+  if (Option.isNone(stat)) return Option.none<Oid>();
+  const info = stat.value as unknown as { size: bigint; mtime: Option.Option<Date> };
+  const mtimeMs = Option.getOrElse(info.mtime, () => new Date(0)).getTime();
+  const recordedMs = index.stat.mtimeSec * 1000 + Math.floor(index.stat.mtimeNsec / 1_000_000);
+  return Number(info.size) === index.stat.size && mtimeMs === recordedMs ? Option.some(index.oid) : Option.none<Oid>();
+});
 
-const indexEntryToHeadOid = (e: IndexEntry): Oid => e.oid;
+/** Hash workdir bytes for one path, or None if the file vanished mid-walk. */
+const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string) {
+  const fs = yield* FileSystem;
+  const bytes = yield* fs.readFile(abs).pipe(
+    Effect.map((b) => Option.some(b)),
+    Effect.catchAll((cause) =>
+      isNotFound(cause as never)
+        ? Effect.succeed(Option.none<Uint8Array>())
+        : Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))
+    )
+  );
+  if (Option.isNone(bytes)) return Option.none<Oid>();
+  return Option.some(yield* hashBlob(bytes.value));
+});
 
-const decode = decoder.decode.bind(decoder);
-void decode;
+/** Resolve the workdir oid for one path: stat-trust first, then rehash. */
+const workdirOidFor = Effect.fn('workdirOidFor')(function* (dir: string, rel: string, index: IndexEntry | undefined) {
+  const path = yield* Path;
+  const abs = path.join(dir, rel);
+  const trusted = yield* statTrustOid(abs, index);
+  if (Option.isSome(trusted)) return trusted;
+  return yield* hashWorkdirOid(abs);
+});
+
+/**
+ * Collapse (head, index, workdir) → public StatusEntry per
+ * STATUS-COLLAPSE.md. Returns Option.none when the path has no observable
+ * state (head/index/workdir all empty).
+ */
+const collapse = (
+  rawPath: string,
+  head: Oid | undefined,
+  index: Oid | undefined,
+  workdir: Oid | undefined,
+  matcher: Ignore
+): Option.Option<StatusEntry> => {
+  const path = Schema.decodeUnknownSync(RepoPathSchema)(rawPath);
+  if (head === undefined && index === undefined) {
+    if (workdir === undefined) return Option.none();
+    return Option.some(matcher.ignores(rawPath) ? { path, status: 'ignored' } : { path, status: 'added' });
+  }
+  if (workdir === undefined) return Option.some({ path, status: 'deleted' });
+  if (head === workdir && index === workdir) return Option.some({ path, status: 'unmodified' });
+  return Option.some({ path, status: 'modified' });
+};
+
+const cellFor = Effect.fn('cellFor')(function* (
+  cfg: { readonly dir: string },
+  rel: string,
+  head: Oid | undefined,
+  index: IndexEntry | undefined,
+  inWorkdir: boolean,
+  matcher: Ignore
+) {
+  const workdirOid = inWorkdir ? yield* workdirOidFor(cfg.dir, rel, index) : Option.none<Oid>();
+  return collapse(rel, head, index?.oid, Option.getOrUndefined(workdirOid), matcher);
+});
 
 /**
  * Cold statusMatrix: union of HEAD-tree paths, index entries, and workdir
@@ -134,120 +190,33 @@ void decode;
  *
  * Phase 8 has no UNTR; phase 11 layers a warm path on top.
  */
-export const cold = (cfg: {
-  readonly dir: string;
-  readonly gitdir: string;
-  readonly roots: readonly RepoPath[];
-}): Stream.Stream<StatusEntry, RepoError, FileSystem | Path> =>
+export const cold = (cfg: { readonly dir: string; readonly gitdir: string; readonly roots: readonly RepoPath[] }) =>
   Stream.unwrap(
     Effect.gen(function* () {
       const matcher = yield* loadIgnoreMatcher(cfg.gitdir);
       const idx = yield* readIndex(cfg.gitdir);
-      const indexByPath = new Map<string, IndexEntry>();
-      idx.entries.forEach((e) => indexByPath.set(e.path, e));
+      const indexByPath = new Map(idx.entries.map((e) => [e.path, e] as const));
 
-      // HEAD-tree paths
-      const headByPath = new Map<string, Oid>();
-      yield* streamHeadTree(cfg.gitdir).pipe(
-        Stream.runForEach((p) =>
-          Effect.sync(() => {
-            headByPath.set(p.path, p.oid);
-          })
-        )
+      const headPairs: ReadonlyArray<readonly [string, Oid]> = yield* streamHeadTree(cfg.gitdir).pipe(
+        Stream.map((p) => [p.path, p.oid] as const),
+        Stream.runCollect,
+        Effect.map((c) => Array.from(c))
       );
+      const headByPath = new Map(headPairs);
 
       const workdirFiles = yield* collectWorkdirFiles(cfg.dir, cfg.roots);
       const workdirSet = new Set(workdirFiles);
 
-      // Union of all keys
-      const allPaths = new Set<string>();
-      headByPath.forEach((_, p) => allPaths.add(p));
-      indexByPath.forEach((_, p) => allPaths.add(p));
-      workdirFiles.forEach((p) => allPaths.add(p));
-
-      // Filter to roots: only paths whose first segment is in cfg.roots set.
-      const rootPrefixes = cfg.roots.map((r) => `${r}/`);
-      const inRoots = (p: string): boolean =>
-        cfg.roots.includes(p as RepoPath) || rootPrefixes.some((r) => p.startsWith(r));
-
-      // For each path, decide its StatusEntry. We need to hash workdir
-      // bytes for paths whose stat doesn't match the index entry — phase 8
-      // does the conservative thing: hash on every workdir presence, since
-      // stat-trust optimization belongs to phase 11. Tests assert
-      // correctness, not perf, here.
-      const fs = yield* FileSystem;
-      const path = yield* Path;
+      // Union all keys, filter to roots, sort once.
+      const allPaths = Array.from(new Set([...headByPath.keys(), ...indexByPath.keys(), ...workdirFiles]))
+        .filter((p) => inRoots(p, cfg.roots))
+        .sort();
 
       const cells = yield* Effect.forEach(
-        Array.from(allPaths).filter(inRoots).sort(),
-        (p) =>
-          Effect.gen(function* () {
-            const head = headByPath.get(p);
-            const index = indexByPath.get(p);
-            const inWorkdir = workdirSet.has(p);
-            // eslint-disable-next-line functional/no-let
-            let workdirOid: Oid | undefined;
-            if (inWorkdir) {
-              const abs = path.join(cfg.dir, p);
-              // Stat-trust: if workdir stat (size + mtimeMs) matches the
-              // index entry, trust the recorded oid. Real-git's racy-stat.
-              if (index !== undefined && index.stat.size > 0) {
-                const stat = yield* fs.stat(abs).pipe(
-                  Effect.map((s) => Option.some(s)),
-                  Effect.catchAll(() => Effect.succeed(Option.none<never>()))
-                );
-                if (Option.isSome(stat)) {
-                  const info = stat.value as unknown as { size: bigint; mtime: Option.Option<Date> };
-                  const mtimeMs = Option.getOrElse(info.mtime, () => new Date(0)).getTime();
-                  const recordedMs = index.stat.mtimeSec * 1000 + Math.floor(index.stat.mtimeNsec / 1_000_000);
-                  if (Number(info.size) === index.stat.size && mtimeMs === recordedMs) {
-                    workdirOid = index.oid;
-                  }
-                }
-              }
-              if (workdirOid === undefined) {
-                const bytes = yield* fs
-                  .readFile(abs)
-                  .pipe(
-                    Effect.catchAll((cause) =>
-                      isNotFound(cause as never)
-                        ? Effect.succeed(null as Uint8Array | null)
-                        : Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))
-                    )
-                  );
-                if (bytes !== null) workdirOid = yield* hashBlob(bytes);
-              }
-            }
-            return collapse(p, head, index === undefined ? undefined : indexEntryToHeadOid(index), workdirOid, matcher);
-          }),
+        allPaths,
+        (p) => cellFor(cfg, p, headByPath.get(p), indexByPath.get(p), workdirSet.has(p), matcher),
         { concurrency: 'unbounded' }
       );
-
-      return Stream.fromIterable(cells.filter((c): c is StatusEntry => c !== null));
+      return Stream.fromIterable(cells.flatMap((c) => (Option.isSome(c) ? [c.value] : [])));
     })
   );
-
-/** Collapse (head, index, workdir) → public StatusEntry per STATUS-COLLAPSE.md. */
-const collapse = (
-  rawPath: string,
-  head: Oid | undefined,
-  index: Oid | undefined,
-  workdir: Oid | undefined,
-  matcher: Ignore
-): StatusEntry | null => {
-  const path = Schema.decodeUnknownSync(RepoPathSchema)(rawPath);
-
-  // Untracked AND ignored => "ignored"
-  if (head === undefined && index === undefined) {
-    if (workdir === undefined) return null;
-    if (matcher.ignores(rawPath)) return { path, status: 'ignored' };
-    return { path, status: 'added' };
-  }
-
-  // Tracked file gone from workdir
-  if (workdir === undefined) return { path, status: 'deleted' };
-
-  // workdir present + tracked
-  if (head === workdir && index === workdir) return { path, status: 'unmodified' };
-  return { path, status: 'modified' };
-};

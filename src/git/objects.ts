@@ -53,7 +53,7 @@ const concat = (parts: readonly Uint8Array[]): Uint8Array => {
   return out;
 };
 
-const sha1Hex = (bytes: Uint8Array): Effect.Effect<string> =>
+const sha1Hex = (bytes: Uint8Array) =>
   Effect.promise(() =>
     crypto.subtle.digest('SHA-1', bytes as unknown as ArrayBuffer).then((buf) => toHex(new Uint8Array(buf)))
   );
@@ -70,33 +70,29 @@ const transform = async (bytes: Uint8Array, ts: GenericTransformStream): Promise
   return new Uint8Array(buf);
 };
 
-const deflate = (bytes: Uint8Array): Effect.Effect<Uint8Array> =>
-  Effect.promise(() => transform(bytes, new CompressionStream('deflate')));
+const deflate = (bytes: Uint8Array) => Effect.promise(() => transform(bytes, new CompressionStream('deflate')));
 
-const inflate = (bytes: Uint8Array): Effect.Effect<Uint8Array> =>
-  Effect.promise(() => transform(bytes, new DecompressionStream('deflate')));
+const inflate = (bytes: Uint8Array) => Effect.promise(() => transform(bytes, new DecompressionStream('deflate')));
 
 /**
  * Hash a blob with git's loose-object framing: `blob <size>\0<content>`.
  * Public API; pure function over bytes, no fs.
  */
-export const hashBlob = (bytes: Uint8Array): Effect.Effect<Oid> =>
-  Effect.gen(function* () {
-    const framed = frameLooseObject('blob', bytes);
-    const hex = yield* sha1Hex(framed);
-    return Schema.decodeUnknownSync(Oid)(hex);
-  });
+export const hashBlob = Effect.fn('hashBlob')(function* (bytes: Uint8Array) {
+  const framed = frameLooseObject('blob', bytes);
+  const hex = yield* sha1Hex(framed);
+  return Schema.decodeUnknownSync(Oid)(hex);
+});
 
 /**
  * Hash arbitrary loose-object framing (tree, commit). Internal helper used
  * by phases 5 and 9.
  */
-export const hashLooseObject = (type: LooseObjectType, content: Uint8Array): Effect.Effect<Oid> =>
-  Effect.gen(function* () {
-    const framed = frameLooseObject(type, content);
-    const hex = yield* sha1Hex(framed);
-    return Schema.decodeUnknownSync(Oid)(hex);
-  });
+export const hashLooseObject = Effect.fn('hashLooseObject')(function* (type: LooseObjectType, content: Uint8Array) {
+  const framed = frameLooseObject(type, content);
+  const hex = yield* sha1Hex(framed);
+  return Schema.decodeUnknownSync(Oid)(hex);
+});
 
 const frameLooseObject = (type: LooseObjectType, content: Uint8Array): Uint8Array => {
   const header = TEXT.encode(`${type} ${content.byteLength}\0`);
@@ -114,81 +110,82 @@ const looseObjectPath = (path: Path, gitdir: string, oid: Oid): { dir: string; f
  * `.git/objects/<oid[0:2]>/<oid[2:]>`. Idempotent — git is content-addressed,
  * so re-writing the same content over a pre-existing oid is harmless.
  */
-export const writeLooseObject = (
+export const writeLooseObject = Effect.fn('writeLooseObject')(function* (
   gitdir: string,
   type: LooseObjectType,
   content: Uint8Array
-): Effect.Effect<Oid, WorkdirIoError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const path = yield* Path;
+) {
+  const fs = yield* FileSystem;
+  const path = yield* Path;
 
-    const framed = frameLooseObject(type, content);
-    const oid = yield* hashLooseObject(type, content);
-    const { dir, file } = looseObjectPath(path, gitdir, oid);
+  const framed = frameLooseObject(type, content);
+  const oid = yield* hashLooseObject(type, content);
+  const { dir, file } = looseObjectPath(path, gitdir, oid);
 
-    // Skip the write if the object already exists (cheap idempotency for the
-    // hot path where applyChanges re-stages identical files).
-    const exists = yield* fs.exists(file).pipe(Effect.orElseSucceed(() => false));
-    if (exists) return oid;
+  // Skip the write if the object already exists (cheap idempotency for the
+  // hot path where applyChanges re-stages identical files).
+  const exists = yield* fs.exists(file).pipe(Effect.orElseSucceed(() => false));
+  if (exists) return oid;
 
-    const compressed = yield* deflate(framed);
-    yield* fs
-      .makeDirectory(dir, { recursive: true })
-      .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(dir, cause))));
-    yield* fs
-      .writeFile(file, compressed)
-      .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
-    return oid;
-  });
+  const compressed = yield* deflate(framed);
+  yield* fs
+    .makeDirectory(dir, { recursive: true })
+    .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(dir, cause))));
+  yield* fs
+    .writeFile(file, compressed)
+    .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
+  return oid;
+});
 
 /**
  * Read a loose object by oid. Verifies the sha after inflating. Missing path
  * → ObjectNotFoundError; truncated/malformed → ObjectCorruptError.
  */
-export const readLooseObject = (
-  gitdir: string,
-  oid: Oid
-): Effect.Effect<LooseObject, ObjectNotFoundError | ObjectCorruptError, FileSystem | Path> =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const path = yield* Path;
-    const { file } = looseObjectPath(path, gitdir, oid);
+export const readLooseObject = Effect.fn('readLooseObject')(function* (gitdir: string, oid: Oid) {
+  const fs = yield* FileSystem;
+  const path = yield* Path;
+  const { file } = looseObjectPath(path, gitdir, oid);
 
-    const compressed = yield* fs.readFile(file).pipe(
-      Effect.catchAll((cause): Effect.Effect<never, ObjectNotFoundError | ObjectCorruptError> => {
-        // eslint-disable-next-line no-underscore-dangle
-        const tag: string = cause._tag;
-        const isNotFound = tag === 'SystemError' && (cause as { reason: string }).reason === 'NotFound';
-        return isNotFound
+  const compressed = yield* fs.readFile(file).pipe(
+    Effect.catchTags({
+      SystemError: (cause) =>
+        cause.reason === 'NotFound'
           ? Effect.fail(new ObjectNotFoundError({ oid, message: `loose object ${oid} not found at ${file}` }))
           : Effect.fail(
               new ObjectCorruptError({
                 oid,
-                reason: tag,
+                reason: cause.reason,
                 message: `loose object ${oid} read failed: ${cause.message}`,
               })
-            );
+            ),
+      BadArgument: (cause) =>
+        Effect.fail(
+          new ObjectCorruptError({
+            oid,
+            reason: 'BadArgument',
+            message: `loose object ${oid} read failed: ${cause.message}`,
+          })
+        ),
+    })
+  );
+
+  const inflated = yield* inflate(compressed);
+  const parsed = parseLooseObject(oid, inflated);
+  if (parsed.kind === 'corrupt') return yield* Effect.fail(parsed.error);
+
+  // verify the sha matches the framed content
+  const verifiedHex = yield* sha1Hex(inflated);
+  if (verifiedHex !== oid) {
+    return yield* Effect.fail(
+      new ObjectCorruptError({
+        oid,
+        reason: 'sha1 mismatch',
+        message: `loose object ${oid} content hashes to ${verifiedHex}`,
       })
     );
-
-    const inflated = yield* inflate(compressed);
-    const parsed = parseLooseObject(oid, inflated);
-    if (parsed.kind === 'corrupt') return yield* Effect.fail(parsed.error);
-
-    // verify the sha matches the framed content
-    const verifiedHex = yield* sha1Hex(inflated);
-    if (verifiedHex !== oid) {
-      return yield* Effect.fail(
-        new ObjectCorruptError({
-          oid,
-          reason: 'sha1 mismatch',
-          message: `loose object ${oid} content hashes to ${verifiedHex}`,
-        })
-      );
-    }
-    return { type: parsed.type, content: parsed.content };
-  });
+  }
+  return { type: parsed.type, content: parsed.content };
+});
 
 type ParseResult =
   | { readonly kind: 'ok'; readonly type: LooseObjectType; readonly content: Uint8Array }

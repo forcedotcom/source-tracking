@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/* eslint-disable functional/no-throw-statements --
+ * Parser short-circuits via `throw corrupt(...)` from inside `Effect.try`'s
+ * sync body. The throws never escape the Effect boundary; `Effect.try`
+ * catches and routes to the IndexCorruptError failure channel.
+ */
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
 import * as Effect from 'effect/Effect';
@@ -151,36 +156,43 @@ const parseExtensionsFrom = (
  * The trailing SHA is captured but not verified here — verification is the
  * writer's mirror; verifying on read costs 1 sha1 per parse and the index
  * is parsed in the hot status path.
+ *
+ * `Effect.try` captures the synchronous throws from the parse helpers
+ * (which use `throw corrupt(...)` to short-circuit on malformed bytes) and
+ * routes them into the failure channel as IndexCorruptError. The throws
+ * never escape the Effect boundary.
  */
-export const parseIndexV2 = (gitdir: string, raw: Uint8Array): Effect.Effect<IndexV2, IndexCorruptError> =>
-  Effect.sync(() => {
-    if (raw.byteLength < HEADER_BYTES + TRAILER_BYTES) {
-      throw corrupt(`buffer too short (${raw.byteLength} bytes)`, gitdir);
-    }
-    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-    const sig = view.getUint32(0, false);
-    if (sig !== SIGNATURE_DIRC) throw corrupt(`bad magic ${sig.toString(16)}`, gitdir);
-    const version = view.getUint32(4, false);
-    if (version !== VERSION_V2) throw corrupt(`unsupported version ${version}; only v2 is supported`, gitdir);
-    const entryCount = view.getUint32(8, false);
+export const parseIndexV2 = (gitdir: string, raw: Uint8Array) =>
+  Effect.try({
+    try: (): IndexV2 => {
+      if (raw.byteLength < HEADER_BYTES + TRAILER_BYTES) {
+        throw corrupt(`buffer too short (${raw.byteLength} bytes)`, gitdir);
+      }
+      const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+      const sig = view.getUint32(0, false);
+      if (sig !== SIGNATURE_DIRC) throw corrupt(`bad magic ${sig.toString(16)}`, gitdir);
+      const version = view.getUint32(4, false);
+      if (version !== VERSION_V2) throw corrupt(`unsupported version ${version}; only v2 is supported`, gitdir);
+      const entryCount = view.getUint32(8, false);
 
-    // Fold over `entryCount` indices, threading the byte offset.
-    const { entries, offset } = Array.from({ length: entryCount }, (_, i) => i).reduce<{
-      readonly entries: readonly IndexEntry[];
-      readonly offset: number;
-    }>(
-      (acc, i) => {
-        const { entry, nextOffset } = parseEntryAt(raw, view, acc.offset, gitdir, i);
-        return { entries: [...acc.entries, entry], offset: nextOffset };
-      },
-      { entries: [], offset: HEADER_BYTES }
-    );
+      const { entries, offset } = Array.from({ length: entryCount }, (_, i) => i).reduce<{
+        readonly entries: readonly IndexEntry[];
+        readonly offset: number;
+      }>(
+        (acc, i) => {
+          const { entry, nextOffset } = parseEntryAt(raw, view, acc.offset, gitdir, i);
+          return { entries: [...acc.entries, entry], offset: nextOffset };
+        },
+        { entries: [], offset: HEADER_BYTES }
+      );
 
-    const entriesByteLength = offset - HEADER_BYTES;
-    const extEnd = raw.byteLength - TRAILER_BYTES;
-    const extensions = parseExtensionsFrom(raw, view, offset, extEnd, gitdir);
-    const trailer = raw.subarray(extEnd);
-    return { entries, entriesByteLength, extensions, trailer };
+      const entriesByteLength = offset - HEADER_BYTES;
+      const extEnd = raw.byteLength - TRAILER_BYTES;
+      const extensions = parseExtensionsFrom(raw, view, offset, extEnd, gitdir);
+      const trailer = raw.subarray(extEnd);
+      return { entries, entriesByteLength, extensions, trailer };
+    },
+    catch: (e) => (e instanceof IndexCorruptError ? e : corrupt(`unexpected: ${String(e)}`, gitdir)),
   });
 
 /** Read + parse `<gitdir>/index`. Honors mtime cache (caller passes via cache). */

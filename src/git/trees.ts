@@ -13,7 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/* eslint-disable functional/no-throw-statements --
+ * Parser short-circuits via `throw new ObjectCorruptError(...)` from inside
+ * `Effect.try`'s sync body. The throws never escape the Effect boundary.
+ */
 import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from '@effect/platform/FileSystem';
@@ -34,63 +39,63 @@ type TreeEntry = {
   readonly oid: Oid;
 };
 
-const oidFromBytes = (bytes: Uint8Array): Oid => {
-  // eslint-disable-next-line functional/no-let
-  let out = '';
-  for (let i = 0; i < 20; i += 1) {
-    const b = bytes[i] ?? 0;
-    out += HEX[b >>> 4] ?? '';
-    out += HEX[b & 0x0f] ?? '';
-  }
-  return Schema.decodeUnknownSync(Oid)(out);
-};
+const hexNibble = (n: number): string => HEX[n] ?? '';
+
+const oidFromBytes = (bytes: Uint8Array): Oid =>
+  Schema.decodeUnknownSync(Oid)(
+    Array.from(bytes.subarray(0, 20), (b) => `${hexNibble(b >>> 4)}${hexNibble(b & 0x0f)}`).join('')
+  );
 
 /**
  * Decode a tree object body into entries. Real-git's encoding is
  * `<mode-as-octal-ascii> <name>\0<20-byte-oid>` repeated.
  */
-const parseTreeObject = (oid: Oid, content: Uint8Array): Effect.Effect<readonly TreeEntry[], ObjectCorruptError> =>
-  Effect.sync(() => {
-    const entries: TreeEntry[] = [];
-    // eslint-disable-next-line functional/no-let
-    let offset = 0;
-    // eslint-disable-next-line functional/no-loop-statements
-    while (offset < content.byteLength) {
-      const spIx = content.indexOf(SP, offset);
-      if (spIx < 0) {
-        throw new ObjectCorruptError({
-          oid,
-          reason: 'no SP after mode',
-          message: `tree ${oid}: malformed entry header`,
-        });
-      }
-      const modeStr = ASCII.decode(content.subarray(offset, spIx));
-      const mode = Number.parseInt(modeStr, 8);
-      if (!Number.isFinite(mode)) {
-        throw new ObjectCorruptError({ oid, reason: `bad mode "${modeStr}"`, message: `tree ${oid}: bad mode` });
-      }
-      const nulIx = content.indexOf(0, spIx + 1);
-      if (nulIx < 0) {
-        throw new ObjectCorruptError({
-          oid,
-          reason: 'no NUL after name',
-          message: `tree ${oid}: malformed entry name`,
-        });
-      }
-      const name = ASCII.decode(content.subarray(spIx + 1, nulIx));
-      const oidStart = nulIx + 1;
-      const oidEnd = oidStart + 20;
-      if (oidEnd > content.byteLength) {
-        throw new ObjectCorruptError({
-          oid,
-          reason: 'truncated oid',
-          message: `tree ${oid}: oid truncated for ${name}`,
-        });
-      }
-      entries.push({ mode, name, oid: oidFromBytes(content.subarray(oidStart, oidEnd)) });
-      offset = oidEnd;
-    }
-    return entries;
+type ParsedTreeEntry = { readonly entry: TreeEntry; readonly nextOffset: number };
+
+const parseOneTreeEntry = (oid: Oid, content: Uint8Array, offset: number): ParsedTreeEntry => {
+  const spIx = content.indexOf(SP, offset);
+  if (spIx < 0) {
+    throw new ObjectCorruptError({ oid, reason: 'no SP after mode', message: `tree ${oid}: malformed entry header` });
+  }
+  const modeStr = ASCII.decode(content.subarray(offset, spIx));
+  const mode = Number.parseInt(modeStr, 8);
+  if (!Number.isFinite(mode)) {
+    throw new ObjectCorruptError({ oid, reason: `bad mode "${modeStr}"`, message: `tree ${oid}: bad mode` });
+  }
+  const nulIx = content.indexOf(0, spIx + 1);
+  if (nulIx < 0) {
+    throw new ObjectCorruptError({ oid, reason: 'no NUL after name', message: `tree ${oid}: malformed entry name` });
+  }
+  const name = ASCII.decode(content.subarray(spIx + 1, nulIx));
+  const oidStart = nulIx + 1;
+  const oidEnd = oidStart + 20;
+  if (oidEnd > content.byteLength) {
+    throw new ObjectCorruptError({ oid, reason: 'truncated oid', message: `tree ${oid}: oid truncated for ${name}` });
+  }
+  return {
+    entry: { mode, name, oid: oidFromBytes(content.subarray(oidStart, oidEnd)) },
+    nextOffset: oidEnd,
+  };
+};
+
+const parseTreeEntries = (
+  oid: Oid,
+  content: Uint8Array,
+  acc: readonly TreeEntry[],
+  offset: number
+): readonly TreeEntry[] => {
+  if (offset >= content.byteLength) return acc;
+  const { entry, nextOffset } = parseOneTreeEntry(oid, content, offset);
+  return parseTreeEntries(oid, content, [...acc, entry], nextOffset);
+};
+
+const parseTreeObject = (oid: Oid, content: Uint8Array) =>
+  Effect.try({
+    try: (): readonly TreeEntry[] => parseTreeEntries(oid, content, [], 0),
+    catch: (e) =>
+      e instanceof ObjectCorruptError
+        ? e
+        : new ObjectCorruptError({ oid, reason: 'unexpected', message: `tree ${oid}: ${String(e)}` }),
   });
 
 /**
@@ -99,8 +104,8 @@ const parseTreeObject = (oid: Oid, content: Uint8Array): Effect.Effect<readonly 
  * sort with directory suffix `/`). Submodule entries (mode 160000) are
  * emitted but not recursed.
  */
-const SUBMODULE_MODE = 0o160000;
-const TREE_MODE = 0o040000;
+const SUBMODULE_MODE = 0o16_0000;
+const TREE_MODE = 0o04_0000;
 
 const readTree = (
   gitdir: string,
@@ -139,7 +144,7 @@ const buildStream = (
 > =>
   Stream.flatMap(Stream.fromIterable(entries), (e) => {
     const fullPath = prefix.length === 0 ? e.name : `${prefix}/${e.name}`;
-    const isTree = (e.mode & 0o170000) === TREE_MODE;
+    const isTree = (e.mode & 0o17_0000) === TREE_MODE;
     if (e.mode === SUBMODULE_MODE) {
       // Submodule: emit but don't recurse (per spec).
       return Stream.succeed({ path: Schema.decodeUnknownSync(RepoPath)(fullPath), oid: e.oid });
@@ -179,8 +184,8 @@ export const streamHeadTree = (
       // first line is `tree <oid>`
       const decoded = ASCII.decode(commit.content);
       const firstLine = decoded.split('\n', 1)[0] ?? '';
-      const m = /^tree ([0-9a-f]{40})$/.exec(firstLine);
-      if (m === null) {
+      const matched = Option.fromNullable(/^tree ([0-9a-f]{40})$/.exec(firstLine));
+      if (Option.isNone(matched)) {
         return yield* Effect.fail(
           new ObjectCorruptError({
             oid: headOid,
@@ -189,7 +194,7 @@ export const streamHeadTree = (
           })
         );
       }
-      const treeOid = Schema.decodeUnknownSync(Oid)(m[1] ?? '');
+      const treeOid = Schema.decodeUnknownSync(Oid)(matched.value[1] ?? '');
       return readTree(gitdir, treeOid);
     })
   );
