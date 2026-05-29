@@ -20,13 +20,20 @@ import { Path } from '@effect/platform/Path';
 import { ObjectCorruptError, ObjectNotFoundError, WorkdirIoError } from './errors';
 import { Oid } from './schemas';
 
-export type LooseObjectType = 'blob' | 'tree' | 'commit';
-export const LooseObjectType: ReadonlySet<LooseObjectType> = new Set<LooseObjectType>(['blob', 'tree', 'commit']);
+export const LooseObjectType = Schema.Literal('blob', 'tree', 'commit');
+export type LooseObjectType = Schema.Schema.Type<typeof LooseObjectType>;
+const LOOSE_OBJECT_TYPES = new Set<LooseObjectType>(LooseObjectType.literals);
 
-export type LooseObject = {
-  readonly type: LooseObjectType;
-  readonly content: Uint8Array;
-};
+/**
+ * A decoded loose object: type discriminator + raw content bytes. Pairs
+ * with the framing helpers `frameLooseObject` (encode) and
+ * `parseLooseObject` (decode).
+ */
+export const LooseObject = Schema.Struct({
+  type: LooseObjectType,
+  content: Schema.instanceOf(Uint8Array),
+});
+export type LooseObject = Schema.Schema.Type<typeof LooseObject>;
 
 const TEXT = new TextEncoder();
 const ASCII_DECODER = new TextDecoder('ascii', { fatal: false });
@@ -209,7 +216,7 @@ const parseLooseObject = (oid: Oid, framed: Uint8Array): ParseResult => {
   }
   const typeStr = ASCII_DECODER.decode(framed.subarray(0, spIx));
   const sizeStr = ASCII_DECODER.decode(framed.subarray(spIx + 1, nulIx));
-  if (!LooseObjectType.has(typeStr as LooseObjectType)) {
+  if (!LOOSE_OBJECT_TYPES.has(typeStr as LooseObjectType)) {
     return {
       kind: 'corrupt',
       error: new ObjectCorruptError({

@@ -17,6 +17,7 @@ import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
 import * as Clock from 'effect/Clock';
 import * as Effect from 'effect/Effect';
+import * as HashMap from 'effect/HashMap';
 import * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
@@ -84,20 +85,21 @@ const buildAndCommit = Effect.fn('buildAndCommit')(function* (
   const current = yield* readIndex(args.cfg.gitdir).pipe(
     Effect.catchAll(() => Effect.succeed({ entries: [] as readonly IndexEntry[] }))
   );
-  const byPath = new Map<string, IndexEntry>();
-  current.entries.forEach((e) => byPath.set(e.path, e));
 
-  // Apply removes.
-  HashSet.forEach(removesSet, (p) => byPath.delete(p));
-
-  // Apply adds in parallel.
+  // Stage adds in parallel into [path, IndexEntry] pairs.
   const stagedPairs = yield* Effect.forEach(Array.from(HashSet.values(addsSet)), (p) => stageAdd(args.cfg, p), {
     concurrency: 'unbounded',
   });
-  stagedPairs.forEach(([p, entry]) => byPath.set(p, entry));
 
-  // Build new index entries (sorted by path).
-  const newEntries = Array.from(byPath.values()).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  // current entries → HashMap, drop removes, merge in adds.
+  const fromCurrent = HashMap.fromIterable<string, IndexEntry>(current.entries.map((e) => [e.path, e] as const));
+  const afterRemoves = HashSet.reduce(removesSet, fromCurrent, (acc, p) => HashMap.remove(acc, p));
+  const finalMap = stagedPairs.reduce((acc, [p, entry]) => HashMap.set(acc, p, entry), afterRemoves);
+
+  // Materialize the sorted entry list for tree/index serialization.
+  const newEntries = Array.from(HashMap.values(finalMap)).sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+  );
 
   // Build the tree from the new index entries.
   const treeMap = buildTreeMap(newEntries.map((e) => ({ path: e.path, mode: e.mode, oid: e.oid })));
