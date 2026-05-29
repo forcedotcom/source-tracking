@@ -32,6 +32,7 @@ import {
   type RepoError,
   type WorkdirIoError,
 } from './errors';
+import { applyChanges as applyChangesImpl } from './applyChanges';
 import { init as initImpl } from './init';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import { resolveRef as resolveRefImpl } from './refs';
@@ -169,11 +170,18 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
       readonly author: Author;
     };
 
-    const applyChanges = ((args: ApplyChangesArgs): Effect.Effect<CommitOid, RepoError> =>
+    const applyChanges = (args: ApplyChangesArgs): Effect.Effect<CommitOid, RepoError> =>
       requireHandle(handleRef, 'applyChanges').pipe(
-        Effect.tap(() => Effect.annotateCurrentSpan('argCount', Object.keys(args).length)),
-        Effect.flatMap(() => notImplemented('applyChanges'))
-      )) as (args: ApplyChangesArgs) => Effect.Effect<CommitOid, RepoError>;
+        Effect.flatMap((h) =>
+          applyChangesImpl({
+            cfg: { dir: h.cfg.dir, gitdir: h.cfg.gitdir },
+            adds: args.adds,
+            removes: args.removes,
+            message: args.message,
+            author: args.author,
+          }).pipe(Effect.provideService(FileSystem, fs), Effect.provideService(Path, path))
+        )
+      );
 
     const hashBlob = (bytes: Uint8Array): Effect.Effect<Oid> => hashBlobImpl(bytes);
 
