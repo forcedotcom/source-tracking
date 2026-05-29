@@ -32,6 +32,7 @@ import {
   type RepoError,
   type WorkdirIoError,
 } from './errors';
+import { init as initImpl } from './init';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import { resolveRef as resolveRefImpl } from './refs';
 import {
@@ -130,11 +131,13 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
       );
     });
 
-    const init = Effect.fn('Repo.init')(function* (cfg: SwitchCfg) {
-      yield* switchTo(cfg);
-      // phase 5 lands the actual byte-writing here.
-      return yield* notImplemented('init');
-    });
+    const init = (cfg: SwitchCfg): Effect.Effect<void, IndexCorruptError | WorkdirIoError | RepoNotConfiguredError> =>
+      initImpl({ cfg }).pipe(
+        Effect.provideService(FileSystem, fs),
+        Effect.provideService(Path, path),
+        Effect.provideService(CapabilitiesTag, capabilities),
+        Effect.flatMap(() => switchTo(cfg))
+      );
 
     const statusMatrix = (): Stream.Stream<StatusEntry, RepoError> =>
       Stream.unwrap(
