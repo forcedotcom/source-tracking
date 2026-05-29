@@ -33,6 +33,7 @@ import {
   type WorkdirIoError,
 } from './errors';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
+import { resolveRef as resolveRefImpl } from './refs';
 import {
   type Author,
   type CommitOid,
@@ -185,11 +186,15 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
         )
       );
 
-    const resolveRef = ((ref: RefName) =>
+    const resolveRef = (ref: RefName): Effect.Effect<Oid, RefNotFoundError | RepoNotConfiguredError | WorkdirIoError> =>
       requireHandle(handleRef, 'resolveRef').pipe(
-        Effect.tap(() => Effect.annotateCurrentSpan('ref', ref)),
-        Effect.flatMap(() => notImplemented('resolveRef'))
-      )) as (ref: RefName) => Effect.Effect<Oid, RefNotFoundError | RepoNotConfiguredError>;
+        Effect.flatMap((h) =>
+          resolveRefImpl(h.cfg.gitdir, ref).pipe(
+            Effect.provideService(FileSystem, fs),
+            Effect.provideService(Path, path)
+          )
+        )
+      );
 
     const streamHeadTree = (): Stream.Stream<{ readonly path: RepoPath; readonly oid: Oid }, RepoError> =>
       Stream.unwrap(
