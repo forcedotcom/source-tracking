@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 import { SfError } from '@salesforce/core';
-import * as Effect from 'effect/Effect';
 import {
   IndexCorruptError,
   InvalidPathError,
@@ -35,39 +34,11 @@ import {
 export const useLiteGit = (): boolean => process.env.SF_SOURCE_TRACKING_USE_LITE_GIT === 'true';
 
 /**
- * Pipe-able mapping of the closed RepoError set to SfError. Source-tracking
- * pipes every lite-facing effect through this combinator; the resulting
- * effect's error channel narrows to SfError, so the outer code path doesn't
- * need to know about lite's tag taxonomy. Each handler is its own catchTag
- * arm — no `_tag` reads, no instanceof switching at the boundary.
- *
- * @example
- *   const result = yield* repo.statusMatrix().pipe(Stream.runCollect, mapToSfError)
- */
-export const mapToSfError = <A, R>(self: Effect.Effect<A, RepoError, R>) =>
-  self.pipe(
-    Effect.catchTags({
-      RepoLockedError: (e) =>
-        Effect.fail(
-          new SfError(
-            `repoLocked: ${e.lockPath} (held ${e.ageHumanReadable}); remove the lockfile manually if no other process is active`,
-            'repoLocked'
-          )
-        ),
-      IndexCorruptError: (e) => Effect.fail(new SfError(`indexCorrupt: ${e.gitdir} (${e.reason})`, 'indexCorrupt')),
-      ObjectNotFoundError: (e) => Effect.fail(new SfError(`objectNotFound: ${e.oid}`, 'objectNotFound')),
-      ObjectCorruptError: (e) => Effect.fail(new SfError(`objectCorrupt: ${e.oid} (${e.reason})`, 'objectCorrupt')),
-      RepoNotConfiguredError: (e) => Effect.fail(new SfError(`repoNotConfigured: ${e.message}`, 'repoNotConfigured')),
-      WorkdirIoError: (e) => Effect.fail(new SfError(`workdirIo: ${e.path}: ${e.message}`, 'workdirIo')),
-      InvalidPathError: (e) => Effect.fail(new SfError(`invalidPath: ${e.path} (${e.reason})`, 'invalidPath')),
-      RefNotFoundError: (e) => Effect.fail(new SfError(`refNotFound: ${e.ref}`, 'refNotFound')),
-    })
-  );
-
-/**
- * Synchronous helper for callers outside the Effect world (e.g. test
- * assertions). Routes through the same mapping as `mapToSfError` by running
- * a one-shot Effect.fail through it.
+ * Map a lite RepoError to an SfError with a stable name. Source-tracking's
+ * existing redirectToCliRepoError catch site is sync, so we expose this as
+ * a plain function. When source-tracking integrates lite per-call inside
+ * Effect chains, mirror this with `Effect.catchTags(...)` directly there;
+ * the names below match the keys in messages/sourceTracking.md.
  */
 export const repoErrorToSfError = (e: RepoError): SfError => {
   if (e instanceof RepoLockedError) {

@@ -28,10 +28,6 @@ import { Path } from '@effect/platform/Path';
  * `mtime_nsec` and `ctime` advance, and the child's `ino` is non-zero
  * (memfs and some web fs polyfills return 0 for ino).
  */
-export type UntrProbeResult =
-  | { readonly kind: 'ok' }
-  | { readonly kind: 'failed'; readonly reason: 'unstable_ino' | 'coarse_mtime' | 'ctime_static' };
-
 export const probeUntr = Effect.fn('probeUntr')(function* (gitdir: string) {
   const fs = yield* FileSystem;
   const path = yield* Path;

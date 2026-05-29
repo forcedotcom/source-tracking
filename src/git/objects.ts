@@ -27,13 +27,14 @@ const LOOSE_OBJECT_TYPES = new Set<LooseObjectType>(LooseObjectType.literals);
 /**
  * A decoded loose object: type discriminator + raw content bytes. Pairs
  * with the framing helpers `frameLooseObject` (encode) and
- * `parseLooseObject` (decode).
+ * `parseLooseObject` (decode). Kept as a Schema.Struct so future call
+ * sites can decode through Schema if they need validation.
  */
-export const LooseObject = Schema.Struct({
+const LooseObjectSchema = Schema.Struct({
   type: LooseObjectType,
   content: Schema.instanceOf(Uint8Array),
 });
-export type LooseObject = Schema.Schema.Type<typeof LooseObject>;
+void LooseObjectSchema;
 
 const TEXT = new TextEncoder();
 const ASCII_DECODER = new TextDecoder('ascii', { fatal: false });

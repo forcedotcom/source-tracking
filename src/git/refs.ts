@@ -60,7 +60,7 @@ const badArgumentError = (path: string, method: string, message: string): Workdi
  * lite does not write this form but reads are supported for symmetry).
  * Fails with RefNotFoundError if HEAD itself is missing.
  */
-export type HeadValue =
+type HeadValue =
   | { readonly kind: 'symbolic'; readonly target: RefName }
   | { readonly kind: 'direct'; readonly oid: Oid };
 
