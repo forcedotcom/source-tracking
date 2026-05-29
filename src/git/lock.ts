@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 import * as Effect from 'effect/Effect';
-import * as Schedule from 'effect/Schedule';
 import * as Duration from 'effect/Duration';
 import * as Clock from 'effect/Clock';
 import { FileSystem } from '@effect/platform/FileSystem';
@@ -212,12 +211,3 @@ export const withSimpleLock =
     effect: Effect.Effect<A, E, R>
   ): Effect.Effect<A, E | RepoLockedError | WorkdirIoError, R | FileSystem | Path> =>
     withIndexLock(gitdir, 'remove')(() => effect);
-
-/**
- * Schedule helper for callers that need their own polling loop. Phase 9's
- * applyChanges uses `withIndexLock` directly; this is for tests + edge cases.
- */
-export const lockBackoffSchedule = Schedule.exponential(Duration.millis(50)).pipe(
-  Schedule.either(Schedule.spaced(Duration.millis(1000))),
-  Schedule.jittered
-);

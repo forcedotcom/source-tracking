@@ -27,7 +27,7 @@ const ASCII = new TextDecoder('utf-8', { fatal: false });
 const HEX = '0123456789abcdef';
 const SP = 0x20;
 
-export type TreeEntry = {
+type TreeEntry = {
   /** Posix mode as decimal-encoded ASCII in real-git: 040000, 100644, 100755, 120000, 160000 */
   readonly mode: number;
   readonly name: string;
@@ -49,10 +49,7 @@ const oidFromBytes = (bytes: Uint8Array): Oid => {
  * Decode a tree object body into entries. Real-git's encoding is
  * `<mode-as-octal-ascii> <name>\0<20-byte-oid>` repeated.
  */
-export const parseTreeObject = (
-  oid: Oid,
-  content: Uint8Array
-): Effect.Effect<readonly TreeEntry[], ObjectCorruptError> =>
+const parseTreeObject = (oid: Oid, content: Uint8Array): Effect.Effect<readonly TreeEntry[], ObjectCorruptError> =>
   Effect.sync(() => {
     const entries: TreeEntry[] = [];
     // eslint-disable-next-line functional/no-let
@@ -105,7 +102,7 @@ export const parseTreeObject = (
 const SUBMODULE_MODE = 0o160000;
 const TREE_MODE = 0o040000;
 
-export const readTree = (
+const readTree = (
   gitdir: string,
   treeOid: Oid
 ): Stream.Stream<

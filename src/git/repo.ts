@@ -54,7 +54,7 @@ import {
  * `ignore` matcher, fd semaphore, UNTR-disabled flag). Phase 1 keeps it empty
  * so the lifecycle is testable in isolation.
  */
-export type RepoHandle = {
+type RepoHandle = {
   readonly cfg: SwitchCfg;
   readonly capabilities: Capabilities;
   readonly internals: Readonly<Record<string, unknown>>;

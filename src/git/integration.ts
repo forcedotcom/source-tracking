@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 import { SfError } from '@salesforce/core';
-import * as Effect from 'effect/Effect';
 import {
   IndexCorruptError,
   InvalidPathError,
@@ -61,10 +60,3 @@ export const repoErrorToSfError = (e: RepoError): SfError => {
   if (e instanceof RefNotFoundError) return new SfError(`refNotFound: ${e.ref}`, 'refNotFound');
   return new SfError(`unknown lite repo error: ${tag}`, 'unknownRepoError');
 };
-
-/**
- * Convenience: catchTags-style mapping that source-tracking can call once
- * at the boundary instead of switching at each call site.
- */
-export const provideRepoErrorMapping = <A, R>(eff: Effect.Effect<A, RepoError, R>): Effect.Effect<A, SfError, R> =>
-  eff.pipe(Effect.catchAll((e) => Effect.fail(repoErrorToSfError(e))));

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 import * as Schema from 'effect/Schema';
-import * as Equivalence from 'effect/Equivalence';
-import * as Hash from 'effect/Hash';
 
 const HEX_40 = /^[0-9a-f]{40}$/;
 
@@ -25,9 +23,6 @@ export const Oid = Schema.String.pipe(
   Schema.brand('@source-tracking/Oid')
 );
 export type Oid = Schema.Schema.Type<typeof Oid>;
-
-export const oidEquivalence: Equivalence.Equivalence<Oid> = Equivalence.string;
-export const oidHash = (oid: Oid): number => Hash.string(oid);
 
 // branded posix workdir-relative path; normalized + .. rejected
 const REJECTED_SEGMENTS = new Set(['', '.', '..']);
@@ -46,9 +41,6 @@ export const RepoPath = Schema.String.pipe(
   Schema.brand('@source-tracking/RepoPath')
 );
 export type RepoPath = Schema.Schema.Type<typeof RepoPath>;
-
-export const repoPathEquivalence: Equivalence.Equivalence<RepoPath> = Equivalence.string;
-export const repoPathHash = (path: RepoPath): number => Hash.string(path);
 
 // branded ref name (e.g. "refs/heads/main", "HEAD")
 const REF_PATTERN = /^(?:HEAD|refs\/[A-Za-z0-9_./-]+)$/;
@@ -84,5 +76,4 @@ export const SwitchCfg = Schema.Struct({
 export type SwitchCfg = Schema.Schema.Type<typeof SwitchCfg>;
 
 // CommitOid is the result of applyChanges / init.
-export const CommitOid = Oid;
-export type CommitOid = Schema.Schema.Type<typeof CommitOid>;
+export type CommitOid = Oid;
