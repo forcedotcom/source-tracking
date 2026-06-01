@@ -61,13 +61,6 @@ export class RepoLockedError extends Schema.TaggedError<RepoLockedError>()('Repo
   message: Schema.String,
 }) {}
 
-// caller-side programmer error: path outside roots, bad branding, etc.
-export class InvalidPathError extends Schema.TaggedError<InvalidPathError>()('InvalidPathError', {
-  path: Schema.String,
-  reason: Schema.String,
-  message: Schema.String,
-}) {}
-
 export class RefNotFoundError extends Schema.TaggedError<RefNotFoundError>()('RefNotFoundError', {
   ref: RefName,
   message: Schema.String,
@@ -82,5 +75,4 @@ export type RepoError =
   | ObjectCorruptError
   | WorkdirIoError
   | RepoLockedError
-  | InvalidPathError
   | RefNotFoundError;

@@ -100,11 +100,16 @@ describe('git/indexV2 (phase 6)', () => {
     expect(Exit.isFailure(exit)).to.equal(true);
   });
 
-  it('readIndex on a missing file → IndexCorruptError', async () => {
+  it('readIndex on a missing file → empty IndexV2', async () => {
     const tmp = await fs.mkdtemp(path.join(__dirname, 'tmp-'));
     try {
       const exit = await run(readIndex(tmp));
-      expect(Exit.isFailure(exit)).to.equal(true);
+      expect(Exit.isSuccess(exit)).to.equal(true);
+      if (Exit.isSuccess(exit)) {
+        expect(exit.value.entries).to.deep.equal([]);
+        expect(exit.value.entriesByteLength).to.equal(0);
+        expect(exit.value.extensions).to.deep.equal([]);
+      }
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }

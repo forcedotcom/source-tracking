@@ -38,6 +38,7 @@ import {
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
 import * as Effect from 'effect/Effect';
+import { isNotUndefined } from 'effect/Predicate';
 import { runPromise } from './shared/runtime';
 import {
   RemoteSourceTrackingService,
@@ -59,7 +60,6 @@ import {
   FileResponseIsDeleted,
   FileResponseIsNotDeleted,
   isChangeResultWithNameAndType,
-  isDefined,
   isSdrSuccess,
 } from './shared/guards';
 import { removeIgnored } from './shared/remoteChangeIgnoring';
@@ -328,7 +328,7 @@ export class SourceTracking extends AsyncCreatable {
               return undefined;
             }
           })
-          .filter(isDefined);
+          .filter(isNotUndefined);
       }
     }
 

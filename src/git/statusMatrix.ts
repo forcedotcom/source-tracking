@@ -13,10 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { FileSystem } from '@effect/platform/FileSystem';
+import { SystemError } from '@effect/platform/Error';
+import { FileSystem, type File as PlatformFile } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
+import * as Arr from 'effect/Array';
 import * as Effect from 'effect/Effect';
+import * as Match from 'effect/Match';
 import * as Option from 'effect/Option';
+import * as Order from 'effect/Order';
 import * as Schema from 'effect/Schema';
 import * as Stream from 'effect/Stream';
 import ignore from 'ignore';
@@ -27,9 +31,7 @@ import { hashBlob } from './objects';
 import { type Oid, type RepoPath, RepoPath as RepoPathSchema, type StatusEntry } from './schemas';
 import { streamHeadTree } from './trees';
 
-const isNotFound = (cause: { readonly _tag: string; readonly reason?: string }): boolean =>
-  // eslint-disable-next-line no-underscore-dangle
-  cause._tag === 'SystemError' && cause.reason === 'NotFound';
+const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'NotFound';
 
 /** Build the `ignore` matcher from `.git/info/exclude`. Empty if absent. */
 const loadIgnoreMatcher = Effect.fn('loadIgnoreMatcher')(function* (gitdir: string) {
@@ -40,7 +42,7 @@ const loadIgnoreMatcher = Effect.fn('loadIgnoreMatcher')(function* (gitdir: stri
     .readFileString(file)
     .pipe(
       Effect.catchAll((cause) =>
-        isNotFound(cause as never) ? Effect.succeed('') : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
+        isNotFound(cause) ? Effect.succeed('') : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
       )
     );
   return ignore().add(content);
@@ -54,58 +56,57 @@ const walkOneRoot = Effect.fn('walkOneRoot')(function* (dir: string, rootRel: st
   const rootStat = yield* fs.stat(absRoot).pipe(
     Effect.map((s) => ({ kind: 'present' as const, type: s.type })),
     Effect.catchAll((cause) =>
-      isNotFound(cause as never)
+      isNotFound(cause)
         ? Effect.succeed({ kind: 'absent' as const })
         : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
     )
   );
-  if (rootStat.kind === 'absent') return [] as readonly string[];
-  if (rootStat.type !== 'Directory') return [rootRel] as readonly string[];
+  if (rootStat.kind === 'absent') return [];
+  if (rootStat.type !== 'Directory') return [rootRel];
 
-  const entries = yield* fs
+  const entries: readonly string[] = yield* fs
     .readDirectory(absRoot, { recursive: true })
     .pipe(
       Effect.catchAll((cause) =>
-        isNotFound(cause as never)
-          ? Effect.succeed([] as readonly string[])
-          : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
+        isNotFound(cause) ? Effect.succeed([]) : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
       )
     );
   const relPaths = entries.map((e) => `${rootRel}/${e.replaceAll('\\', '/')}`);
-  // ENOENT mid-walk: silently drop (Option.none). Other errors surface.
+  // ENOENT mid-walk: silently drop. Other errors surface. Concurrency
+  // capped (was 'unbounded') because 200k parallel fibers cost more in
+  // fiber overhead than the OS can usefully service against ~256 fd
+  // permits — and an unbounded forEach pegged the event loop hard
+  // (elP99 ~4.7s on the 200k-file scale test).
   const stats = yield* Effect.forEach(
     relPaths,
     (rel) =>
       fs.stat(path.join(dir, rel)).pipe(
         Effect.map((info) => Option.some({ rel, type: info.type })),
         Effect.catchAll((cause) =>
-          isNotFound(cause as never)
+          isNotFound(cause)
             ? Effect.succeed(Option.none<{ rel: string; type: string }>())
             : Effect.fail(WorkdirIoError.fromPlatformError(rel, cause))
         )
       ),
-    { concurrency: 'unbounded' }
+    { concurrency: 256 }
   );
   return stats.flatMap((opt) =>
     Option.match(opt, {
-      onNone: () => [],
-      onSome: (s) => (s.type !== 'Directory' ? [s.rel] : []),
+      onNone: (): readonly string[] => [],
+      onSome: (s): readonly string[] => (s.type !== 'Directory' ? [s.rel] : []),
     })
-  ) as readonly string[];
+  );
 });
 
 /**
  * Walk all files under `dir/<root>` for each root in cfg.roots. Posix paths
  * relative to `dir`. ENOENT mid-walk silently dropped.
  */
-const collectWorkdirFiles = Effect.fn('collectWorkdirFiles')(function* (dir: string, roots: readonly RepoPath[]) {
-  const perRoot = yield* Effect.forEach(roots, (r) => walkOneRoot(dir, r), { concurrency: 'unbounded' });
-  return perRoot.flat();
-});
+const collectWorkdirFiles = (dir: string, roots: readonly RepoPath[]) =>
+  Effect.forEach(roots, (r) => walkOneRoot(dir, r), { concurrency: 'unbounded' }).pipe(Effect.map((p) => p.flat()));
 
 /** Predicate: does `p` live under any of `roots`? Exact match or prefix-with-slash. */
-const inRoots = (p: string, roots: readonly RepoPath[]): boolean =>
-  roots.includes(p as RepoPath) || roots.some((r) => p.startsWith(`${r}/`));
+const inRoots = (p: string, roots: readonly RepoPath[]): boolean => roots.some((r) => r === p || p.startsWith(`${r}/`));
 
 /**
  * Stat-trust check: if the workdir stat (size + mtime ms) matches the index
@@ -116,14 +117,15 @@ const statTrustOid = Effect.fn('statTrustOid')(function* (abs: string, index: In
   if (index === undefined || index.stat.size === 0) return Option.none<Oid>();
   const fs = yield* FileSystem;
   const stat = yield* fs.stat(abs).pipe(
-    Effect.map((s) => Option.some(s)),
-    Effect.catchAll(() => Effect.succeed(Option.none<never>()))
+    Effect.map(Option.some),
+    Effect.catchAll(() => Effect.succeed(Option.none<PlatformFile.Info>()))
   );
   if (Option.isNone(stat)) return Option.none<Oid>();
-  const info = stat.value as unknown as { size: bigint; mtime: Option.Option<Date> };
-  const mtimeMs = Option.getOrElse(info.mtime, () => new Date(0)).getTime();
+  const mtimeMs = Option.getOrElse(stat.value.mtime, () => new Date(0)).getTime();
   const recordedMs = index.stat.mtimeSec * 1000 + Math.floor(index.stat.mtimeNsec / 1_000_000);
-  return Number(info.size) === index.stat.size && mtimeMs === recordedMs ? Option.some(index.oid) : Option.none<Oid>();
+  return Number(stat.value.size) === index.stat.size && mtimeMs === recordedMs
+    ? Option.some(index.oid)
+    : Option.none<Oid>();
 });
 
 /** Hash workdir bytes for one path, or None if the file vanished mid-walk. */
@@ -132,13 +134,12 @@ const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string) {
   const bytes = yield* fs.readFile(abs).pipe(
     Effect.map((b) => Option.some(b)),
     Effect.catchAll((cause) =>
-      isNotFound(cause as never)
+      isNotFound(cause)
         ? Effect.succeed(Option.none<Uint8Array>())
         : Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))
     )
   );
-  if (Option.isNone(bytes)) return Option.none<Oid>();
-  return Option.some(yield* hashBlob(bytes.value));
+  return Option.isNone(bytes) ? Option.none<Oid>() : Option.some(yield* hashBlob(bytes.value));
 });
 
 /** Resolve the workdir oid for one path: stat-trust first, then rehash. */
@@ -146,8 +147,7 @@ const workdirOidFor = Effect.fn('workdirOidFor')(function* (dir: string, rel: st
   const path = yield* Path;
   const abs = path.join(dir, rel);
   const trusted = yield* statTrustOid(abs, index);
-  if (Option.isSome(trusted)) return trusted;
-  return yield* hashWorkdirOid(abs);
+  return Option.isSome(trusted) ? trusted : yield* hashWorkdirOid(abs);
 });
 
 /**
@@ -160,28 +160,56 @@ const collapse = (
   head: Oid | undefined,
   index: Oid | undefined,
   workdir: Oid | undefined,
-  matcher: Ignore
+  matcher: Ignore,
+  hasWorkdir: boolean
 ): Option.Option<StatusEntry> => {
   const path = Schema.decodeUnknownSync(RepoPathSchema)(rawPath);
-  if (head === undefined && index === undefined) {
-    if (workdir === undefined) return Option.none();
-    return Option.some(matcher.ignores(rawPath) ? { path, status: 'ignored' } : { path, status: 'added' });
-  }
-  if (workdir === undefined) return Option.some({ path, status: 'deleted' });
-  if (head === workdir && index === workdir) return Option.some({ path, status: 'unmodified' });
-  return Option.some({ path, status: 'modified' });
+  const tracked = head !== undefined || index !== undefined;
+  return Match.value({ tracked, hasWorkdir }).pipe(
+    Match.when({ tracked: false, hasWorkdir: false }, () => Option.none<StatusEntry>()),
+    Match.when({ tracked: false, hasWorkdir: true }, () =>
+      Option.some<StatusEntry>({ path, status: matcher.ignores(rawPath) ? 'ignored' : 'added' })
+    ),
+    Match.when({ tracked: true, hasWorkdir: false }, () => Option.some<StatusEntry>({ path, status: 'deleted' })),
+    Match.when({ tracked: true, hasWorkdir: true }, () =>
+      Option.some<StatusEntry>({
+        path,
+        status: head === workdir && index === workdir ? 'unmodified' : 'modified',
+      })
+    ),
+    Match.exhaustive
+  );
 };
 
-const cellFor = Effect.fn('cellFor')(function* (
+/**
+ * Pure cell evaluation for paths that DON'T need a workdir hash (untracked,
+ * or tracked-but-deleted). We only need the workdir oid to distinguish
+ * modified vs unmodified — every other branch in `collapse` ignores it.
+ * Hashing every added file just to throw the oid away costs O(workdir-size)
+ * fiber overhead on first-time `getStatus`.
+ */
+const cellPure = (
+  rel: string,
+  head: Oid | undefined,
+  indexOid: Oid | undefined,
+  inWorkdir: boolean,
+  matcher: Ignore
+): Option.Option<StatusEntry> => collapse(rel, head, indexOid, undefined, matcher, inWorkdir);
+
+/**
+ * Effectful cell evaluation for tracked-and-present-in-workdir paths.
+ * These are the ones we genuinely have to hash — there's no other way to
+ * know modified vs unmodified.
+ */
+const cellHashing = Effect.fn('cellHashing')(function* (
   cfg: { readonly dir: string },
   rel: string,
   head: Oid | undefined,
   index: IndexEntry | undefined,
-  inWorkdir: boolean,
   matcher: Ignore
 ) {
-  const workdirOid = inWorkdir ? yield* workdirOidFor(cfg.dir, rel, index) : Option.none<Oid>();
-  return collapse(rel, head, index?.oid, Option.getOrUndefined(workdirOid), matcher);
+  const workdirOid = yield* workdirOidFor(cfg.dir, rel, index);
+  return collapse(rel, head, index?.oid, Option.getOrUndefined(workdirOid), matcher, true);
 });
 
 /**
@@ -197,26 +225,45 @@ export const cold = (cfg: { readonly dir: string; readonly gitdir: string; reado
       const idx = yield* readIndex(cfg.gitdir);
       const indexByPath = new Map(idx.entries.map((e) => [e.path, e] as const));
 
-      const headPairs: ReadonlyArray<readonly [string, Oid]> = yield* streamHeadTree(cfg.gitdir).pipe(
-        Stream.map((p) => [p.path, p.oid] as const),
-        Stream.runCollect,
-        Effect.map((c) => Array.from(c))
+      const headByPath = new Map(
+        yield* streamHeadTree(cfg.gitdir).pipe(
+          Stream.map((p) => [p.path, p.oid] as const),
+          Stream.runCollect,
+          Effect.map((c): ReadonlyArray<readonly [string, Oid]> => Array.from(c))
+        )
       );
-      const headByPath = new Map(headPairs);
 
       const workdirFiles = yield* collectWorkdirFiles(cfg.dir, cfg.roots);
       const workdirSet = new Set(workdirFiles);
 
       // Union all keys, filter to roots, sort once.
-      const allPaths = Array.from(new Set([...headByPath.keys(), ...indexByPath.keys(), ...workdirFiles]))
-        .filter((p) => inRoots(p, cfg.roots))
-        .sort();
-
-      const cells = yield* Effect.forEach(
-        allPaths,
-        (p) => cellFor(cfg, p, headByPath.get(p), indexByPath.get(p), workdirSet.has(p), matcher),
-        { concurrency: 'unbounded' }
+      const allPaths = Arr.sort(Order.string)(
+        Arr.fromIterable(new Set([...headByPath.keys(), ...indexByPath.keys(), ...workdirFiles])).filter((p) =>
+          inRoots(p, cfg.roots)
+        )
       );
+
+      // Partition: paths that need a workdir hash vs paths that don't.
+      // The hashing cohort is usually tiny (only modified-or-unmodified
+      // tracked files); the pure cohort is the rest. Doing the pure
+      // majority synchronously avoids spawning N fibers for pure-CPU work.
+      const pure: Array<Option.Option<StatusEntry>> = [];
+      const needsHash: string[] = [];
+      // eslint-disable-next-line functional/no-loop-statements
+      for (const p of allPaths) {
+        const head = headByPath.get(p);
+        const indexEntry = indexByPath.get(p);
+        const tracked = head !== undefined || indexEntry !== undefined;
+        const inWd = workdirSet.has(p);
+        if (tracked && inWd) needsHash.push(p);
+        else pure.push(cellPure(p, head, indexEntry?.oid, inWd, matcher));
+      }
+      const hashed = yield* Effect.forEach(
+        needsHash,
+        (p) => cellHashing(cfg, p, headByPath.get(p), indexByPath.get(p), matcher),
+        { concurrency: 256 }
+      );
+      const cells = [...pure, ...hashed];
       return Stream.fromIterable(cells.flatMap((c) => (Option.isSome(c) ? [c.value] : [])));
     })
   );

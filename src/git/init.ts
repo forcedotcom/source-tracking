@@ -16,9 +16,10 @@
 import * as Effect from 'effect/Effect';
 import * as Clock from 'effect/Clock';
 import * as Schema from 'effect/Schema';
+import { SystemError } from '@effect/platform/Error';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
-import { CapabilitiesTag } from './capabilities';
+import { type Capabilities, CapabilitiesTag } from './capabilities';
 import { IndexCorruptError, WorkdirIoError } from './errors';
 import { hashLooseObject, writeLooseObject } from './objects';
 import { readDirectRef, readHead, writeDirectRef, writeSymbolicHead } from './refs';
@@ -28,9 +29,7 @@ const ENCODER = new TextEncoder();
 const EMPTY_TREE_OID: Oid = Schema.decodeUnknownSync(Oid)('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 
-const isNotFound = (cause: { readonly _tag: string; readonly reason?: string }): boolean =>
-  // eslint-disable-next-line no-underscore-dangle
-  cause._tag === 'SystemError' && cause.reason === 'NotFound';
+const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'NotFound';
 
 const exists = (file: string) =>
   FileSystem.pipe(
@@ -39,9 +38,7 @@ const exists = (file: string) =>
         .exists(file)
         .pipe(
           Effect.catchAll((cause) =>
-            isNotFound(cause as never)
-              ? Effect.succeed(false)
-              : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
+            isNotFound(cause) ? Effect.succeed(false) : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
           )
         )
     )
@@ -61,19 +58,22 @@ const writeFile = Effect.fn('writeFile')(function* (file: string, bytes: Uint8Ar
 /** Format a timestamp as `<seconds> +0000` (lite always uses UTC). */
 const fmtTs = (ms: number): string => `${Math.floor(ms / 1000)} +0000`;
 
-/** Build an initial commit body: tree + author + committer + message. */
-const buildInitialCommitBody = (treeOid: Oid, author: Author, ts: string, message: string): Uint8Array => {
-  const lines = [
-    `tree ${treeOid}`,
-    `author ${author.name} <${author.email}> ${ts}`,
-    `committer ${author.name} <${author.email}> ${ts}`,
-    '',
-    message,
-  ];
-  // Trailing LF after the message is required to match real-git's commit
-  // serialization (e.g. `init\n`, not bare `init`).
-  return ENCODER.encode(`${lines.join('\n')}\n`);
-};
+/**
+ * Build an initial commit body: tree + author + committer + message. The
+ * trailing empty line yields a final LF after the message — required to
+ * match real-git's commit serialization (e.g. `init\n`, not bare `init`).
+ */
+const buildInitialCommitBody = (treeOid: Oid, author: Author, ts: string, message: string): Uint8Array =>
+  ENCODER.encode(
+    [
+      `tree ${treeOid}`,
+      `author ${author.name} <${author.email}> ${ts}`,
+      `committer ${author.name} <${author.email}> ${ts}`,
+      '',
+      message,
+      '',
+    ].join('\n')
+  );
 
 /** Default `core.untrackedCache` is rendered iff capabilities allow it. */
 const buildConfig = (untrackedCache: boolean): Uint8Array =>
@@ -119,110 +119,86 @@ export const init = Effect.fn('init')(function* (args: InitArgs) {
   const message = args.message ?? 'init';
   const timestampMs = args.timestampMs ?? (yield* Clock.currentTimeMillis);
 
-  const headPath = path.join(cfg.gitdir, 'HEAD');
-  const mainPath = path.join(cfg.gitdir, 'refs', 'heads', 'main');
-  const objectsDir = path.join(cfg.gitdir, 'objects');
-  const infoExcludePath = path.join(cfg.gitdir, 'info', 'exclude');
-  const configPath = path.join(cfg.gitdir, 'config');
-
   const [headExists, mainExists, objectsExists] = yield* Effect.all(
-    [exists(headPath), exists(mainPath), exists(objectsDir)],
+    [
+      exists(path.join(cfg.gitdir, 'HEAD')),
+      exists(path.join(cfg.gitdir, 'refs', 'heads', 'main')),
+      exists(path.join(cfg.gitdir, 'objects')),
+    ],
     { concurrency: 'unbounded' }
   );
 
+  const fail = (reason: string, msg: string) =>
+    Effect.fail(new IndexCorruptError({ gitdir: cfg.gitdir, reason, message: msg }));
+
   // Idempotency: valid shadow → no-op (return existing HEAD oid).
-  if (headExists && mainExists && objectsExists) {
-    return yield* readDirectRef(cfg.gitdir, MAIN_REF).pipe(
-      Effect.catchTag('RefNotFoundError', (cause) =>
-        Effect.fail(
-          new IndexCorruptError({
-            gitdir: cfg.gitdir,
-            reason: 'main-ref-readback-failed',
-            message: `init found a shadow at ${cfg.gitdir} but could not read refs/heads/main: ${cause.message}`,
-          })
+  return yield* headExists && mainExists && objectsExists
+    ? readDirectRef(cfg.gitdir, MAIN_REF).pipe(
+        Effect.catchTag('RefNotFoundError', (cause) =>
+          fail(
+            'main-ref-readback-failed',
+            `init found a shadow at ${cfg.gitdir} but could not read refs/heads/main: ${cause.message}`
+          )
         )
       )
-    );
-  }
+    : headExists !== mainExists || (headExists && !objectsExists)
+    ? fail(
+        'partial-shadow',
+        `init refuses to overwrite partial shadow at ${cfg.gitdir} (HEAD=${headExists}, refs/heads/main=${mainExists}, objects/=${objectsExists})`
+      )
+    : freshInit({
+        cfg,
+        author,
+        message,
+        timestampMs,
+        infoExcludePath: path.join(cfg.gitdir, 'info', 'exclude'),
+        configPath: path.join(cfg.gitdir, 'config'),
+        capabilities,
+      });
+});
 
-  // Partial state: refuse to overwrite — user has either an in-flight
-  // crash or external mutation, and clobbering risks data loss.
-  if (headExists !== mainExists || (headExists && !objectsExists)) {
-    return yield* Effect.fail(
-      new IndexCorruptError({
-        gitdir: cfg.gitdir,
-        reason: 'partial-shadow',
-        message: `init refuses to overwrite partial shadow at ${cfg.gitdir} (HEAD=${headExists}, refs/heads/main=${mainExists}, objects/=${objectsExists})`,
-      })
-    );
-  }
+const freshInit = Effect.fn('freshInit')(function* (a: {
+  readonly cfg: SwitchCfg;
+  readonly author: Author;
+  readonly message: string;
+  readonly timestampMs: number;
+  readonly infoExcludePath: string;
+  readonly configPath: string;
+  readonly capabilities: Capabilities;
+}) {
+  const fail = (reason: string, message: string) =>
+    Effect.fail(new IndexCorruptError({ gitdir: a.cfg.gitdir, reason, message }));
 
-  // Fresh init.
-  // 1. empty-tree object.
-  const emptyTreeOid = yield* writeLooseObject(cfg.gitdir, 'tree', new Uint8Array(0));
-  if (emptyTreeOid !== EMPTY_TREE_OID) {
-    // Defensive: if our hash impl ever drifted from the canonical,
-    // surface it loudly. The empty tree's oid is the most-recognized
-    // sha1 in git.
-    return yield* Effect.fail(
-      new IndexCorruptError({
-        gitdir: cfg.gitdir,
-        reason: 'empty-tree-oid-mismatch',
-        message: `init: hashed empty tree to ${emptyTreeOid}, expected ${EMPTY_TREE_OID}`,
-      })
-    );
-  }
+  // 1. empty-tree object. Sanity-check our hash impl against the canonical.
+  const emptyTreeOid = yield* writeLooseObject(a.cfg.gitdir, 'tree', new Uint8Array(0));
+  yield* emptyTreeOid === EMPTY_TREE_OID
+    ? Effect.void
+    : fail('empty-tree-oid-mismatch', `init: hashed empty tree to ${emptyTreeOid}, expected ${EMPTY_TREE_OID}`);
 
-  // 2. initial commit.
-  const ts = fmtTs(timestampMs);
-  const commitBody = buildInitialCommitBody(emptyTreeOid, author, ts, message);
-  const commitOid = yield* writeLooseObject(cfg.gitdir, 'commit', commitBody);
-  // Sanity-check that hashLooseObject and writeLooseObject agree.
+  // 2. initial commit + sanity-check that hashLooseObject agrees.
+  const commitBody = buildInitialCommitBody(emptyTreeOid, a.author, fmtTs(a.timestampMs), a.message);
+  const commitOid = yield* writeLooseObject(a.cfg.gitdir, 'commit', commitBody);
   const hashed = yield* hashLooseObject('commit', commitBody);
-  if (hashed !== commitOid) {
-    return yield* Effect.fail(
-      new IndexCorruptError({
-        gitdir: cfg.gitdir,
-        reason: 'commit-oid-mismatch',
-        message: `init: writeLooseObject returned ${commitOid} but hashLooseObject says ${hashed}`,
-      })
-    );
-  }
+  yield* hashed === commitOid
+    ? Effect.void
+    : fail('commit-oid-mismatch', `init: writeLooseObject returned ${commitOid} but hashLooseObject says ${hashed}`);
 
-  // 3. refs/heads/main → commit oid.
-  yield* writeDirectRef(cfg.gitdir, MAIN_REF, commitOid);
+  // 3. refs/heads/main → commit oid; 4. HEAD → ref: refs/heads/main.
+  yield* writeDirectRef(a.cfg.gitdir, MAIN_REF, commitOid);
+  yield* writeSymbolicHead(a.cfg.gitdir, MAIN_REF);
 
-  // 4. HEAD → ref: refs/heads/main.
-  yield* writeSymbolicHead(cfg.gitdir, MAIN_REF);
-
-  // 5. info/exclude (empty) — only if absent. Caller mutates via
-  //    setInfoExclude.
-  const excludeExists = yield* exists(infoExcludePath);
-  if (!excludeExists) yield* writeFile(infoExcludePath, new Uint8Array(0));
+  // 5. info/exclude (empty) — only if absent. Caller mutates via setInfoExclude.
+  const excludeExists = yield* exists(a.infoExcludePath);
+  yield* excludeExists ? Effect.void : writeFile(a.infoExcludePath, new Uint8Array(0));
 
   // 6. config.
-  yield* writeFile(configPath, buildConfig(capabilities.supportsUntr));
+  yield* writeFile(a.configPath, buildConfig(a.capabilities.supportsUntr));
 
-  // Sanity: HEAD must resolve back to commitOid.
-  const verified = yield* readHead(cfg.gitdir).pipe(
-    Effect.catchAll((cause) =>
-      Effect.fail(
-        new IndexCorruptError({
-          gitdir: cfg.gitdir,
-          reason: 'head-readback-failed',
-          message: `init: HEAD readback failed: ${cause.message}`,
-        })
-      )
-    )
+  // Sanity: HEAD must resolve back to a symbolic ref pointing at main.
+  const verified = yield* readHead(a.cfg.gitdir).pipe(
+    Effect.catchAll((cause) => fail('head-readback-failed', `init: HEAD readback failed: ${cause.message}`))
   );
-  if (verified.kind !== 'symbolic' || verified.target !== MAIN_REF) {
-    return yield* Effect.fail(
-      new IndexCorruptError({
-        gitdir: cfg.gitdir,
-        reason: 'head-readback-mismatch',
-        message: 'init: HEAD did not round-trip to symbolic ref refs/heads/main',
-      })
-    );
-  }
-  return commitOid;
+  return yield* verified.kind === 'symbolic' && verified.target === MAIN_REF
+    ? Effect.succeed(commitOid)
+    : fail('head-readback-mismatch', 'init: HEAD did not round-trip to symbolic ref refs/heads/main');
 });

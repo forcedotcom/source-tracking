@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import { Logger } from '@salesforce/core';
+
+export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
+
 /** represents the contents of the config file stored in 'maxRevision.json' */
 
 export type ContentsV1 = {

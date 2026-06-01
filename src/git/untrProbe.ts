@@ -46,21 +46,20 @@ export const probeUntr = Effect.fn('probeUntr')(function* (gitdir: string) {
     yield* fs.writeFileString(child, 'p');
     const after = yield* fs.stat(probeDir);
     const childStat = yield* fs.stat(child);
-    // 1. inode must be non-zero (memfs returns 0).
-    if (Option.isNone(childStat.ino) || Number(childStat.ino.value) === 0) {
-      return { kind: 'failed', reason: 'unstable_ino' } as const;
-    }
-    // 2. mtime must advance after the child write.
     const mtA = Option.getOrElse(before.mtime, () => new Date(0)).getTime();
     const mtB = Option.getOrElse(after.mtime, () => new Date(0)).getTime();
-    if (mtA === mtB) return { kind: 'failed', reason: 'coarse_mtime' } as const;
-    // 3. ctime must advance similarly.
     const ctA = Option.getOrElse(before.birthtime, () => new Date(0)).getTime();
     const ctB = Option.getOrElse(after.birthtime, () => new Date(0)).getTime();
-    // Some platforms tie ctime to creation only; treat equal as
-    // ctime_static which is the conservative answer.
-    if (ctA === ctB && ctA === 0) return { kind: 'failed', reason: 'ctime_static' } as const;
-    return { kind: 'ok' } as const;
+    // Three invariants in order of severity. Some platforms tie ctime to
+    // creation only; treat ctime that never advances and starts at 0 as
+    // ctime_static (the conservative answer).
+    return Option.isNone(childStat.ino) || Number(childStat.ino.value) === 0
+      ? ({ kind: 'failed', reason: 'unstable_ino' } as const)
+      : mtA === mtB
+      ? ({ kind: 'failed', reason: 'coarse_mtime' } as const)
+      : ctA === ctB && ctA === 0
+      ? ({ kind: 'failed', reason: 'ctime_static' } as const)
+      : ({ kind: 'ok' } as const);
   }).pipe(Effect.scoped);
 
   const result = yield* tryProbe.pipe(

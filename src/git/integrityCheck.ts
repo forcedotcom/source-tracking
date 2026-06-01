@@ -49,17 +49,17 @@ export const runIntegrityCheck = Effect.fn('runIntegrityCheck')(function* (gitdi
       )
     )
   );
-  if (head.kind !== 'symbolic' || head.target !== MAIN_REF) {
-    return yield* Effect.fail(
-      new IndexCorruptError({
-        gitdir,
-        reason: 'head-not-symbolic-main',
-        message: `integrity check: HEAD is ${
-          head.kind === 'symbolic' ? `symbolic to ${head.target}` : 'detached'
-        }, expected refs/heads/main`,
-      })
-    );
-  }
+  yield* head.kind === 'symbolic' && head.target === MAIN_REF
+    ? Effect.void
+    : Effect.fail(
+        new IndexCorruptError({
+          gitdir,
+          reason: 'head-not-symbolic-main',
+          message: `integrity check: HEAD is ${
+            head.kind === 'symbolic' ? `symbolic to ${head.target}` : 'detached'
+          }, expected refs/heads/main`,
+        })
+      );
   yield* readDirectRef(gitdir, MAIN_REF).pipe(
     Effect.catchTag('RefNotFoundError', (cause) =>
       Effect.fail(

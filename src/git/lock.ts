@@ -16,7 +16,10 @@
 import * as Clock from 'effect/Clock';
 import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
+import * as Option from 'effect/Option';
 import * as Schedule from 'effect/Schedule';
+import { SystemError } from '@effect/platform/Error';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
 import { RepoLockedError, WorkdirIoError } from './errors';
@@ -37,13 +40,9 @@ const statSentinel = Symbol('stat-not-found');
 
 const humanReadable = (ms: number): string => Duration.format(Duration.millis(ms));
 
-const isAlreadyExists = (cause: { readonly _tag: string; readonly reason?: string }): boolean =>
-  // eslint-disable-next-line no-underscore-dangle
-  cause._tag === 'SystemError' && cause.reason === 'AlreadyExists';
+const isAlreadyExists = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'AlreadyExists';
 
-const isNotFound = (cause: { readonly _tag: string; readonly reason?: string }): boolean =>
-  // eslint-disable-next-line no-underscore-dangle
-  cause._tag === 'SystemError' && cause.reason === 'NotFound';
+const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'NotFound';
 
 /**
  * Acquire `<gitdir>/index.lock` exclusively (`open({flag:'wx'})`), run the
@@ -75,15 +74,14 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
       .stat(lockPath)
       .pipe(
         Effect.catchAll((cause) =>
-          isNotFound(cause as never)
+          isNotFound(cause)
             ? Effect.succeed(statSentinel)
             : Effect.fail(WorkdirIoError.fromPlatformError(lockPath, cause))
         )
       );
     if (info === statSentinel) return false;
     const now = yield* Clock.currentTimeMillis;
-    // eslint-disable-next-line no-underscore-dangle
-    const mtimeMs = info.mtime._tag === 'Some' ? info.mtime.value.getTime() : now;
+    const mtimeMs = Option.getOrElse(info.mtime, () => new Date(now)).getTime();
     const ageMs = now - mtimeMs;
     if (ageMs <= autoclearMs) return false;
     yield* Effect.logWarning(
@@ -93,7 +91,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
       .remove(lockPath)
       .pipe(
         Effect.catchAll((cause) =>
-          isNotFound(cause as never) ? Effect.void : Effect.fail(WorkdirIoError.fromPlatformError(lockPath, cause))
+          isNotFound(cause) ? Effect.void : Effect.fail(WorkdirIoError.fromPlatformError(lockPath, cause))
         )
       );
     return true;
@@ -103,48 +101,49 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
   // (after auto-clear has had a chance), or WorkdirIoError on real fs
   // failure. Effect.retry below drives the backoff loop, retrying only on
   // RepoLockedError.
+  const wxOpen = Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
+    Effect.catchAll((c) => Effect.fail(WorkdirIoError.fromPlatformError(lockPath, c)))
+  );
+
+  const lockedFailure = Clock.currentTimeMillis.pipe(
+    Effect.flatMap((now) => {
+      const ageMs = now - startMs;
+      return Effect.fail(
+        new RepoLockedError({
+          lockPath,
+          ageMs,
+          ageHumanReadable: humanReadable(ageMs),
+          message: `index.lock at ${lockPath} held; waited ${humanReadable(ageMs)}`,
+        })
+      );
+    })
+  );
+
   const tryAcquireOnce = Effect.fn('tryAcquireOnce')(function* () {
-    const opened = yield* Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
-      Effect.map(() => true as const),
+    const opened: boolean = yield* Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
+      Effect.map(() => true),
       Effect.catchAll((cause) =>
-        isAlreadyExists(cause as never)
-          ? Effect.succeed(false as boolean)
-          : Effect.fail(WorkdirIoError.fromPlatformError(lockPath, cause))
+        isAlreadyExists(cause) ? Effect.succeed(false) : Effect.fail(WorkdirIoError.fromPlatformError(lockPath, cause))
       )
     );
-    if (opened) return { lockPath, indexPath };
-    const cleared = yield* tryAutoclear();
-    if (cleared) {
-      yield* Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
-        Effect.catchAll((c) => Effect.fail(WorkdirIoError.fromPlatformError(lockPath, c)))
-      );
-      return { lockPath, indexPath };
-    }
-    const now = yield* Clock.currentTimeMillis;
-    const ageMs = now - startMs;
-    return yield* Effect.fail(
-      new RepoLockedError({
-        lockPath,
-        ageMs,
-        ageHumanReadable: humanReadable(ageMs),
-        message: `index.lock at ${lockPath} held; waited ${humanReadable(ageMs)}`,
-      })
-    );
+    return opened
+      ? { lockPath, indexPath }
+      : (yield* tryAutoclear())
+      ? (yield* wxOpen, { lockPath, indexPath })
+      : yield* lockedFailure;
   });
 
   // Native retry: exponential backoff jittered, capped at 1s spacing,
-  // bounded by the user-configured timeout. Only RepoLockedError retries.
+  // bounded by the user-configured timeout. The `while` predicate uses
+  // an instanceof check on the tagged-error class — the structurally
+  // typed discriminant Effect's tagged errors are designed for.
   const backoff = Schedule.exponential(Duration.millis(50)).pipe(
     Schedule.either(Schedule.spaced(Duration.millis(1000))),
     Schedule.jittered,
     Schedule.upTo(Duration.millis(timeoutMs))
   );
   return yield* tryAcquireOnce().pipe(
-    Effect.retry({
-      schedule: backoff,
-      // eslint-disable-next-line no-underscore-dangle
-      while: (e: RepoLockedError | WorkdirIoError) => e._tag === 'RepoLockedError',
-    }),
+    Effect.retry({ schedule: backoff, while: (e) => e instanceof RepoLockedError }),
     // After timeout, repackage with the canonical "remove manually" message.
     Effect.catchTag('RepoLockedError', () =>
       Effect.fail(
@@ -176,9 +175,7 @@ const releaseLock = (lockPath: string, indexPath: string, succeeded: boolean, st
             .remove(lockPath)
             .pipe(
               Effect.catchAll((cause) =>
-                isNotFound(cause as never)
-                  ? Effect.void
-                  : Effect.logWarning(`failed to remove ${lockPath}: ${cause.message}`)
+                isNotFound(cause) ? Effect.void : Effect.logWarning(`failed to remove ${lockPath}: ${cause.message}`)
               )
             )
     )
@@ -200,9 +197,7 @@ export const withIndexLock =
     Effect.acquireUseRelease(
       acquireLock(gitdir),
       () => self,
-      (ctx, exit) =>
-        // eslint-disable-next-line no-underscore-dangle
-        releaseLock(ctx.lockPath, ctx.indexPath, exit._tag === 'Success', strategy)
+      (ctx, exit) => releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
     );
 
 /**
@@ -218,7 +213,5 @@ export const withIndexLockCtx =
     Effect.acquireUseRelease(
       acquireLock(gitdir),
       (ctx) => body(ctx),
-      (ctx, exit) =>
-        // eslint-disable-next-line no-underscore-dangle
-        releaseLock(ctx.lockPath, ctx.indexPath, exit._tag === 'Success', strategy)
+      (ctx, exit) => releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
     );

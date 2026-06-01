@@ -24,7 +24,7 @@ import {
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import git from 'isomorphic-git';
-import { isDefined } from '../guards';
+import { isNotUndefined } from 'effect/Predicate';
 import { uniqueArrayConcat } from '../functions';
 import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions';
 import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
@@ -145,7 +145,7 @@ const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMapsFo
           return [addedValue, deletedValue] as const;
         }
       })
-      .filter(isDefined)
+      .filter(isNotUndefined)
   );
 
   if (addedMap.size && deletedMap.size) {
@@ -231,7 +231,7 @@ const resolveType =
           return undefined;
         }
       })
-      .filter(isDefined);
+      .filter(isNotUndefined);
 
 /** where we don't have git objects to use, read the file contents to generate the hash */
 const getHashFromActualFileContents =

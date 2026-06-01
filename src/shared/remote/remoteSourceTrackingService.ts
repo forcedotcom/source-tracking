@@ -36,8 +36,9 @@ import {
   writeTrackingFile,
 } from './fileOperations';
 import { calculateTimeout, querySourceMembersFrom, querySourceMembersTo } from './orgQueries';
+import { type PinoLogger } from './types';
 
-export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
+export type { PinoLogger };
 
 /*
  * after some results have returned, how many times should we poll for missing sourceMembers

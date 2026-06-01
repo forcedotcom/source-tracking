@@ -23,7 +23,7 @@ import {
   DestructiveChangesType,
   RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
-import { isDefined } from './guards';
+import { isNotUndefined } from 'effect/Predicate';
 import { supportsPartialDelete, pathIsInFolder, maybeGetTreeContainer } from './functions';
 
 type GroupedFileInput = {
@@ -123,7 +123,7 @@ export const getComponentSets = ({
 
       grouping.deletes
         .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-        .filter(isDefined)
+        .filter(isNotUndefined)
         .map((component) => {
           // if the component supports partial delete AND there are files that are not deleted,
           // set the component for deploy, not for delete.
@@ -132,7 +132,7 @@ export const getComponentSets = ({
             try {
               resolverForNonDeletes
                 .getComponentsFromPath(resolve(projectPath, component.content))
-                .filter(isDefined)
+                .filter(isNotUndefined)
                 .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
             } catch (e) {
               logger.warn(
@@ -153,7 +153,7 @@ export const getComponentSets = ({
             return undefined;
           }
         })
-        .filter(isDefined)
+        .filter(isNotUndefined)
         .map((component) => componentSet.add(component));
       // there may have been ignored files, but componentSet.add doesn't automatically track them.
       // We'll manually set the ignored paths from what the resolver has been tracking

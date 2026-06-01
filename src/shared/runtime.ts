@@ -22,7 +22,7 @@ import * as Layer from 'effect/Layer';
 import * as Option from 'effect/Option';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import { NodeSdk } from '@effect/opentelemetry';
-import { SimpleSpanProcessor, ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
+import { BatchSpanProcessor, ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { ExportResult, ExportResultCode } from '@opentelemetry/core';
 import { type Attributes, SpanStatusCode } from '@opentelemetry/api';
 
@@ -78,7 +78,16 @@ class JsonlFileExporter implements SpanExporter {
   }
 }
 
-const buildOtelLayer = (): Layer.Layer<never> => {
+/**
+ * Build the OTel layer that writes spans to a jsonl file. Active iff
+ * `STL_OTEL_SPANS=1`; otherwise returns `Layer.empty` so callers can use
+ * the same factory unconditionally.
+ *
+ * Exported so the lite shadow's ManagedRuntime can compose it too —
+ * otherwise spans inside lite operations don't make it to the file.
+ */
+export const otelLayerOrEmpty = (): Layer.Layer<never> => {
+  if (process.env.STL_OTEL_SPANS !== '1') return Layer.empty;
   const dir = process.env.STL_OTEL_DIR ?? join(process.env.HOME ?? '/tmp', '.sf', 'source-tracking-spans');
   mkdirSync(dir, { recursive: true });
   const filePath = join(dir, `spans-${new Date().toISOString().replaceAll(/[:.]/g, '-')}-${process.pid}.jsonl`);
@@ -87,11 +96,15 @@ const buildOtelLayer = (): Layer.Layer<never> => {
   const exporter = new JsonlFileExporter(filePath);
   return NodeSdk.layer(() => ({
     resource: { serviceName: 'source-tracking' },
-    spanProcessor: [new SimpleSpanProcessor(exporter)],
+    // Batch instead of Simple: Simple calls `export()` per span, so under
+    // a high-volume workload (e.g. 200k stageAdd spans) the per-span
+    // appendFileSync becomes the dominant cost. Batch buffers and flushes
+    // in chunks per the OTel JS guidance on span processors.
+    spanProcessor: [new BatchSpanProcessor(exporter)],
   })) as unknown as Layer.Layer<never>;
 };
 
-const runtime = ManagedRuntime.make(process.env.STL_OTEL_SPANS === '1' ? buildOtelLayer() : Layer.empty);
+const runtime = ManagedRuntime.make(otelLayerOrEmpty());
 
 /**
  * `runtime.runPromise` rejects with `FiberFailure` for both typed failures and

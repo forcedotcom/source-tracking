@@ -15,8 +15,11 @@
  */
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
+import * as Arr from 'effect/Array';
 import * as Effect from 'effect/Effect';
+import * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
+import * as Order from 'effect/Order';
 import * as Schema from 'effect/Schema';
 import { type WorkdirIoError } from './errors';
 import { hashLooseObject, writeLooseObject } from './objects';
@@ -24,6 +27,13 @@ import { Oid } from './schemas';
 import type { IndexEntry } from './indexV2';
 
 const TEXT = new TextEncoder();
+
+type TreeBodyEntry = {
+  readonly name: string;
+  readonly mode: number;
+  readonly oid: Oid;
+  readonly isTree: boolean;
+};
 
 const HEX = '0123456789abcdef';
 const oidToBytes = (oid: Oid): Uint8Array => {
@@ -38,6 +48,7 @@ const oidToBytes = (oid: Oid): Uint8Array => {
 };
 
 const sha1 = async (bytes: Uint8Array): Promise<Uint8Array> => {
+  // TS 5.7+ Uint8Array<ArrayBufferLike> vs BufferSource — see objects.ts.
   const buf = await crypto.subtle.digest('SHA-1', bytes as unknown as ArrayBuffer);
   return new Uint8Array(buf);
 };
@@ -81,28 +92,27 @@ export const buildTreeMap = (
 };
 
 /**
- * Real-git's tree-entry sort: each directory entry is suffixed with `/` for
- * comparison. This keeps `foo` and `foo.txt` and `foo/...` ordering correct.
+ * Real-git's tree-entry sort key: each directory entry is suffixed with `/`
+ * so `foo` / `foo.txt` / `foo/...` order correctly under bytewise compare.
  */
-const compareTreeName = (a: string, aIsTree: boolean, b: string, bIsTree: boolean): number => {
-  const ka = aIsTree ? `${a}/` : a;
-  const kb = bIsTree ? `${b}/` : b;
-  return ka < kb ? -1 : ka > kb ? 1 : 0;
-};
+const treeSortKey = (e: TreeBodyEntry): string => (e.isTree ? `${e.name}/` : e.name);
+const byTreeName: Order.Order<TreeBodyEntry> = Order.mapInput(Order.string, treeSortKey);
 
 /** Encode one tree-object body from a tree-map node's leaves + subtree-oids. */
 const buildTreeBody = (
   fileEntries: ReadonlyMap<string, { readonly mode: number; readonly oid: Oid }>,
   subtreeOids: ReadonlyMap<string, Oid>
-): Uint8Array => {
-  type Entry = { readonly name: string; readonly mode: number; readonly oid: Oid; readonly isTree: boolean };
-  const all: readonly Entry[] = [
-    ...Array.from(fileEntries, ([name, e]) => ({ name, mode: e.mode, oid: e.oid, isTree: false } satisfies Entry)),
-    ...Array.from(subtreeOids, ([name, oid]) => ({ name, mode: 0o04_0000, oid, isTree: true } satisfies Entry)),
-  ].sort((a, b) => compareTreeName(a.name, a.isTree, b.name, b.isTree));
-  const parts = all.flatMap((e) => [TEXT.encode(`${e.mode.toString(8)} ${e.name}\0`), oidToBytes(e.oid)]);
-  return concat(parts);
-};
+): Uint8Array =>
+  concat(
+    Arr.sortBy(byTreeName)([
+      ...Arr.fromIterable(fileEntries).map(
+        ([name, e]) => ({ name, mode: e.mode, oid: e.oid, isTree: false } satisfies TreeBodyEntry)
+      ),
+      ...Arr.fromIterable(subtreeOids).map(
+        ([name, oid]) => ({ name, mode: 0o04_0000, oid, isTree: true } satisfies TreeBodyEntry)
+      ),
+    ]).flatMap((e) => [TEXT.encode(`${e.mode.toString(8)} ${e.name}\0`), oidToBytes(e.oid)])
+  );
 
 /**
  * Bottom-up: write each subtree object first to obtain its oid, then write
@@ -163,36 +173,36 @@ const encodeIndexEntry = (e: IndexEntry): Uint8Array => {
   return out;
 };
 
+const byEntryPath: Order.Order<IndexEntry> = Order.mapInput(Order.string, (e: IndexEntry) => e.path);
+
 /**
- * Build index v2 bytes from a sorted entry list. Caller is responsible for
- * passing entries in real-git canonical order (path-byte-wise sort).
+ * Build index v2 bytes from an entry set. Owns its own canonical sort
+ * (path-byte-wise) — callers can pass any HashSet without pre-sorting.
  * Extensions are appended verbatim from the optional `extensions` arg
  * (TREE/UNTR/etc — phase 11 wires UNTR here).
  */
 export const writeIndexV2 = (
-  entries: readonly IndexEntry[],
+  entries: HashSet.HashSet<IndexEntry>,
   extensions: ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }> = []
 ) =>
   Effect.promise(async () => {
-    const sorted = [...entries].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    const entryBytes = Arr.sortBy(byEntryPath)(entries).map(encodeIndexEntry);
     const header = new Uint8Array(HEADER_BYTES);
     const headerView = new DataView(header.buffer);
     headerView.setUint32(0, 0x44_49_52_43, false); // DIRC
     headerView.setUint32(4, 2, false); // version 2
-    headerView.setUint32(8, sorted.length, false);
-    const entryBytes = sorted.map(encodeIndexEntry);
-    const extBytes: Uint8Array[] = extensions.map((ext) => {
-      const out = new Uint8Array(8 + ext.payload.byteLength);
-      const sig = TEXT.encode(ext.signature.padEnd(4, ' ').slice(0, 4));
-      out.set(sig, 0);
-      new DataView(out.buffer).setUint32(4, ext.payload.byteLength, false);
-      out.set(ext.payload, 8);
-      return out;
-    });
-    const body = concat([header, ...entryBytes, ...extBytes]);
-    const trailer = await sha1(body);
-    return concat([body, trailer]);
+    headerView.setUint32(8, entryBytes.length, false);
+    const body = concat([header, ...entryBytes, ...extensions.map(encodeExtension)]);
+    return concat([body, await sha1(body)]);
   });
+
+const encodeExtension = (ext: { readonly signature: string; readonly payload: Uint8Array }): Uint8Array => {
+  const out = new Uint8Array(8 + ext.payload.byteLength);
+  out.set(TEXT.encode(ext.signature.padEnd(4, ' ').slice(0, 4)), 0);
+  new DataView(out.buffer).setUint32(4, ext.payload.byteLength, false);
+  out.set(ext.payload, 8);
+  return out;
+};
 
 const concat = (parts: readonly Uint8Array[]): Uint8Array => {
   const total = parts.reduce((n, p) => n + p.byteLength, 0);
@@ -218,19 +228,16 @@ export type CommitArgs = {
 
 export const writeCommit = Effect.fn('writeCommit')(function* (gitdir: string, args: CommitArgs) {
   const ts = `${args.tsSeconds} +0000`;
-  const lines = [
+  const body = [
     `tree ${args.tree}`,
-    ...Option.match(args.parent, {
-      onNone: () => [] as readonly string[],
-      onSome: (oid) => [`parent ${oid}`] as readonly string[],
-    }),
+    ...Option.match(args.parent, { onNone: (): readonly string[] => [], onSome: (oid) => [`parent ${oid}`] }),
     `author ${args.author.name} <${args.author.email}> ${ts}`,
     `committer ${args.author.name} <${args.author.email}> ${ts}`,
     '',
     args.message,
-  ];
-  const body = TEXT.encode(`${lines.join('\n')}\n`);
-  return yield* writeLooseObject(gitdir, 'commit', body);
+    '',
+  ].join('\n');
+  return yield* writeLooseObject(gitdir, 'commit', TEXT.encode(body));
 });
 
 // Recursive helper: an explicit return type breaks TS's self-reference cycle.

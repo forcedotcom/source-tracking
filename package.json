@@ -10,6 +10,7 @@
   "repository": "forcedotcom/source-tracking",
   "scripts": {
     "build": "wireit",
+    "check:circular-deps": "wireit",
     "clean": "sf-clean",
     "clean-all": "sf-clean all",
     "compile": "wireit",
@@ -52,6 +53,7 @@
   "dependencies": {
     "@effect/opentelemetry": "^0.61.0",
     "@effect/platform": "^0.94.2",
+    "@effect/platform-node": "^0.106.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "^2.0.1",
     "@opentelemetry/resources": "^2.6.1",
@@ -73,11 +75,11 @@
   },
   "devDependencies": {
     "@effect/eslint-plugin": "^0.3.2",
-    "@effect/platform-node": "^0.106.0",
     "@salesforce/cli-plugins-testkit": "^5.3.39",
     "@salesforce/dev-scripts": "^11.0.4",
     "@salesforce/schemas": "^1.10.3",
     "@types/graceful-fs": "^4.1.9",
+    "dpdm": "^3.14.0",
     "esbuild": "^0.25.11",
     "eslint-plugin-functional": "^6.6.3",
     "eslint-plugin-local-rules": "^3.0.2",
@@ -94,7 +96,18 @@
     "build": {
       "dependencies": [
         "compile",
-        "lint"
+        "lint",
+        "check:circular-deps"
+      ]
+    },
+    "check:circular-deps": {
+      "command": "dpdm --no-warning --no-tree --exit-code circular:1 -o .circular-deps.json src",
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": [
+        ".circular-deps.json"
       ]
     },
     "compile": {
@@ -162,7 +175,11 @@
     "test:only": {
       "command": "nyc mocha \"test/**/*.test.ts\"",
       "env": {
-        "FORCE_COLOR": "2"
+        "FORCE_COLOR": "2",
+        "SF_SOURCE_TRACKING_USE_LITE_GIT": {
+          "external": true,
+          "default": "false"
+        }
       },
       "files": [
         "test/**/*.ts",

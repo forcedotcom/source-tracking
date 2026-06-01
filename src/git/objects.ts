@@ -22,7 +22,8 @@ import { Oid } from './schemas';
 
 export const LooseObjectType = Schema.Literal('blob', 'tree', 'commit');
 export type LooseObjectType = Schema.Schema.Type<typeof LooseObjectType>;
-const LOOSE_OBJECT_TYPES = new Set<LooseObjectType>(LooseObjectType.literals);
+const LOOSE_OBJECT_TYPES: ReadonlySet<string> = new Set(LooseObjectType.literals);
+const isLooseObjectType = (s: string): s is LooseObjectType => LOOSE_OBJECT_TYPES.has(s);
 
 /**
  * A decoded loose object: type discriminator + raw content bytes. Pairs
@@ -63,6 +64,9 @@ const concat = (parts: readonly Uint8Array[]): Uint8Array => {
 
 const sha1Hex = (bytes: Uint8Array) =>
   Effect.promise(() =>
+    // TS 5.7+: Uint8Array<ArrayBufferLike> isn't assignable to BufferSource
+    // (which requires ArrayBufferView<ArrayBuffer>). Threading the narrower
+    // type parameter through every caller is impractical for a slice/subarray.
     crypto.subtle.digest('SHA-1', bytes as unknown as ArrayBuffer).then((buf) => toHex(new Uint8Array(buf)))
   );
 
@@ -71,6 +75,9 @@ const sha1Hex = (bytes: Uint8Array) =>
  * Node 22+ and modern browsers both expose this. No `node:zlib` import.
  */
 const transform = async (bytes: Uint8Array, ts: GenericTransformStream): Promise<Uint8Array> => {
+  // TS 5.7+: same Uint8Array<ArrayBufferLike> vs BodyInit mismatch as sha1Hex.
+  // GenericTransformStream lacks the Uint8Array chunk-type Response() needs,
+  // so the pipeThrough arg also needs a cast to the typed pair.
   const stream = new Response(bytes as unknown as BodyInit).body!.pipeThrough(
     ts as unknown as ReadableWritablePair<unknown, Uint8Array>
   );
@@ -87,19 +94,17 @@ const inflate = (bytes: Uint8Array) => Effect.promise(() => transform(bytes, new
  * Public API; pure function over bytes, no fs.
  */
 export const hashBlob = Effect.fn('hashBlob')(function* (bytes: Uint8Array) {
-  const framed = frameLooseObject('blob', bytes);
-  const hex = yield* sha1Hex(framed);
-  return Schema.decodeUnknownSync(Oid)(hex);
+  return Schema.decodeUnknownSync(Oid)(yield* sha1Hex(frameLooseObject('blob', bytes)));
 });
 
 /**
  * Hash arbitrary loose-object framing (tree, commit). Internal helper used
  * by phases 5 and 9.
  */
-export const hashLooseObject = Effect.fn('hashLooseObject')(function* (type: LooseObjectType, content: Uint8Array) {
-  const framed = frameLooseObject(type, content);
-  const hex = yield* sha1Hex(framed);
-  return Schema.decodeUnknownSync(Oid)(hex);
+// fnUntraced: per-file in hot paths (every staged add, tree write).
+// Parent applyChanges/writeTreeFromMap spans carry the meaningful timing.
+export const hashLooseObject = Effect.fnUntraced(function* (type: LooseObjectType, content: Uint8Array) {
+  return Schema.decodeUnknownSync(Oid)(yield* sha1Hex(frameLooseObject(type, content)));
 });
 
 const frameLooseObject = (type: LooseObjectType, content: Uint8Array): Uint8Array => {
@@ -118,15 +123,15 @@ const looseObjectPath = (path: Path, gitdir: string, oid: Oid): { dir: string; f
  * `.git/objects/<oid[0:2]>/<oid[2:]>`. Idempotent — git is content-addressed,
  * so re-writing the same content over a pre-existing oid is harmless.
  */
-export const writeLooseObject = Effect.fn('writeLooseObject')(function* (
+// fnUntraced: per-file in hot paths. Parent applyChanges/writeTreeFromMap
+// spans carry the meaningful timing; per-file spans are noise at scale.
+export const writeLooseObject = Effect.fnUntraced(function* (
   gitdir: string,
   type: LooseObjectType,
   content: Uint8Array
 ) {
   const fs = yield* FileSystem;
   const path = yield* Path;
-
-  const framed = frameLooseObject(type, content);
   const oid = yield* hashLooseObject(type, content);
   const { dir, file } = looseObjectPath(path, gitdir, oid);
 
@@ -135,12 +140,11 @@ export const writeLooseObject = Effect.fn('writeLooseObject')(function* (
   const exists = yield* fs.exists(file).pipe(Effect.orElseSucceed(() => false));
   if (exists) return oid;
 
-  const compressed = yield* deflate(framed);
   yield* fs
     .makeDirectory(dir, { recursive: true })
     .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(dir, cause))));
   yield* fs
-    .writeFile(file, compressed)
+    .writeFile(file, yield* deflate(frameLooseObject(type, content)))
     .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
   return oid;
 });
@@ -180,64 +184,42 @@ export const readLooseObject = Effect.fn('readLooseObject')(function* (gitdir: s
   const inflated = yield* inflate(compressed);
   const parsed = parseLooseObject(oid, inflated);
   if (parsed.kind === 'corrupt') return yield* Effect.fail(parsed.error);
-
-  // verify the sha matches the framed content
   const verifiedHex = yield* sha1Hex(inflated);
-  if (verifiedHex !== oid) {
-    return yield* Effect.fail(
-      new ObjectCorruptError({
-        oid,
-        reason: 'sha1 mismatch',
-        message: `loose object ${oid} content hashes to ${verifiedHex}`,
-      })
-    );
-  }
-  return { type: parsed.type, content: parsed.content };
+  return verifiedHex === oid
+    ? { type: parsed.type, content: parsed.content }
+    : yield* Effect.fail(
+        new ObjectCorruptError({
+          oid,
+          reason: 'sha1 mismatch',
+          message: `loose object ${oid} content hashes to ${verifiedHex}`,
+        })
+      );
 });
 
 type ParseResult =
   | { readonly kind: 'ok'; readonly type: LooseObjectType; readonly content: Uint8Array }
   | { readonly kind: 'corrupt'; readonly error: ObjectCorruptError };
 
+const corrupt = (oid: Oid, reason: string, message: string): ParseResult => ({
+  kind: 'corrupt',
+  error: new ObjectCorruptError({ oid, reason, message }),
+});
+
 const parseLooseObject = (oid: Oid, framed: Uint8Array): ParseResult => {
   // header form: "<type> <size>\0" — find SP and NUL
   const spIx = framed.indexOf(SP);
-  if (spIx < 0) {
-    return {
-      kind: 'corrupt',
-      error: new ObjectCorruptError({ oid, reason: 'no header SP', message: `${oid}: malformed header` }),
-    };
-  }
-  const nulIx = framed.indexOf(NUL, spIx + 1);
-  if (nulIx < 0) {
-    return {
-      kind: 'corrupt',
-      error: new ObjectCorruptError({ oid, reason: 'no header NUL', message: `${oid}: malformed header` }),
-    };
-  }
-  const typeStr = ASCII_DECODER.decode(framed.subarray(0, spIx));
-  const sizeStr = ASCII_DECODER.decode(framed.subarray(spIx + 1, nulIx));
-  if (!LOOSE_OBJECT_TYPES.has(typeStr as LooseObjectType)) {
-    return {
-      kind: 'corrupt',
-      error: new ObjectCorruptError({
-        oid,
-        reason: `unknown type "${typeStr}"`,
-        message: `${oid}: unknown object type`,
-      }),
-    };
-  }
+  const nulIx = spIx < 0 ? -1 : framed.indexOf(NUL, spIx + 1);
+  const typeStr = spIx < 0 ? '' : ASCII_DECODER.decode(framed.subarray(0, spIx));
+  const sizeStr = spIx < 0 || nulIx < 0 ? '' : ASCII_DECODER.decode(framed.subarray(spIx + 1, nulIx));
   const declaredSize = Number(sizeStr);
-  const content = framed.subarray(nulIx + 1);
-  if (!Number.isInteger(declaredSize) || declaredSize !== content.byteLength) {
-    return {
-      kind: 'corrupt',
-      error: new ObjectCorruptError({
-        oid,
-        reason: 'size mismatch',
-        message: `${oid}: header declared size ${sizeStr}, content is ${content.byteLength}`,
-      }),
-    };
-  }
-  return { kind: 'ok', type: typeStr as LooseObjectType, content };
+  const content = nulIx < 0 ? new Uint8Array(0) : framed.subarray(nulIx + 1);
+  return spIx < 0
+    ? corrupt(oid, 'no header SP', `${oid}: malformed header`)
+    : nulIx < 0
+    ? corrupt(oid, 'no header NUL', `${oid}: malformed header`)
+    : !isLooseObjectType(typeStr)
+    ? corrupt(oid, `unknown type "${typeStr}"`, `${oid}: unknown object type`)
+    : !Number.isInteger(declaredSize) || declaredSize !== content.byteLength
+    ? corrupt(oid, 'size mismatch', `${oid}: header declared size ${sizeStr}, content is ${content.byteLength}`)
+    : { kind: 'ok', type: typeStr, content };
 };

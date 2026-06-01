@@ -23,11 +23,13 @@ import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
+import * as HashSet from 'effect/HashSet';
 import { applyChanges } from '../../../src/git/applyChanges';
 import { init } from '../../../src/git/init';
 import { resolveRef } from '../../../src/git/refs';
 import { readLooseObject } from '../../../src/git/objects';
-import { readIndex } from '../../../src/git/indexV2';
+import { readIndex, type IndexEntry } from '../../../src/git/indexV2';
+import { writeIndexV2 } from '../../../src/git/writers';
 import { NodeCapabilitiesLayer } from '../../../src/git/capabilities';
 import { Author, RefName, RepoPath, SwitchCfg } from '../../../src/git/schemas';
 
@@ -123,6 +125,118 @@ describe('git/applyChanges (phase 9)', () => {
       expect(decoded).to.match(/^tree [0-9a-f]{40}\n/);
       expect(decoded).to.include(`parent ${before}`);
       expect(decoded).to.include('add a/b.txt');
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('stageAdd records real (size, mtime) so stat-trust can hit on the next status', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-apply-stat-'));
+    try {
+      const dir = path.join(tmp, 'work');
+      const gitdir = path.join(dir, '.git');
+      await fs.mkdir(path.join(dir, 'a'), { recursive: true });
+      const filePath = path.join(dir, 'a', 'b.txt');
+      const contents = 'stat-trust round-trip\n';
+      await fs.writeFile(filePath, contents);
+      const workdirStat = await fs.stat(filePath);
+
+      await Effect.runPromise(Effect.provide(init({ cfg: cfg(dir, gitdir), timestampMs: FIXED_TS }), Layered));
+      await Effect.runPromise(
+        Effect.provide(
+          applyChanges({
+            cfg: { dir, gitdir },
+            adds: Stream.fromIterable([Schema.decodeUnknownSync(RepoPath)('a/b.txt')]),
+            removes: Stream.empty,
+            message: 'add',
+            author: ALICE,
+          }),
+          Layered
+        )
+      );
+
+      const idx = await Effect.runPromise(Effect.provide(readIndex(gitdir), Layered));
+      expect(idx.entries).to.have.lengthOf(1);
+      const entry = idx.entries[0];
+      // size matches bytes written
+      expect(entry?.stat.size).to.equal(Buffer.byteLength(contents));
+      // mtime matches the workdir mtime to ms precision — this is what
+      // statTrustOid compares against. A zero here regresses the fast path.
+      const recordedMs = (entry?.stat.mtimeSec ?? 0) * 1000 + Math.floor((entry?.stat.mtimeNsec ?? 0) / 1_000_000);
+      expect(recordedMs).to.equal(workdirStat.mtime.getTime());
+      expect(entry?.stat.mtimeSec).to.be.greaterThan(0);
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('extensions: drops TREE/REUC/UNTR cache extensions, carries stable extensions verbatim', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-apply-ext-'));
+    try {
+      const dir = path.join(tmp, 'work');
+      const gitdir = path.join(dir, '.git');
+      await fs.mkdir(path.join(dir, 'a'), { recursive: true });
+      await fs.writeFile(path.join(dir, 'a', 'first.txt'), 'one\n');
+      await fs.writeFile(path.join(dir, 'a', 'second.txt'), 'two\n');
+
+      await Effect.runPromise(Effect.provide(init({ cfg: cfg(dir, gitdir), timestampMs: FIXED_TS }), Layered));
+
+      // First commit: get a single entry into the index.
+      await Effect.runPromise(
+        Effect.provide(
+          applyChanges({
+            cfg: { dir, gitdir },
+            adds: Stream.fromIterable([Schema.decodeUnknownSync(RepoPath)('a/first.txt')]),
+            removes: Stream.empty,
+            message: 'first',
+            author: ALICE,
+          }),
+          Layered
+        )
+      );
+
+      // Hand-rewrite .git/index to embed two extensions: a cache-class
+      // 'TREE' (must drop) and a synthetic stable 'link' (must carry).
+      const beforeIdx = await Effect.runPromise(Effect.provide(readIndex(gitdir), Layered));
+      const entriesSet = HashSet.fromIterable<IndexEntry>(beforeIdx.entries);
+      const fakeTreePayload = new Uint8Array([0x00]); // any non-empty bytes; we never re-parse it
+      const fakeLinkPayload = new TextEncoder().encode('synthetic-stable-payload');
+      const reseededBytes = await Effect.runPromise(
+        Effect.provide(
+          writeIndexV2(entriesSet, [
+            { signature: 'TREE', payload: fakeTreePayload },
+            { signature: 'link', payload: fakeLinkPayload },
+          ]),
+          Layered
+        )
+      );
+      await fs.writeFile(path.join(gitdir, 'index'), reseededBytes);
+
+      // Sanity: confirm both extensions are present before applyChanges.
+      const seeded = await Effect.runPromise(Effect.provide(readIndex(gitdir), Layered));
+      expect(seeded.extensions.map((e) => e.signature)).to.include.members(['TREE', 'link']);
+
+      // Second commit: should drop TREE, preserve 'link' verbatim.
+      await Effect.runPromise(
+        Effect.provide(
+          applyChanges({
+            cfg: { dir, gitdir },
+            adds: Stream.fromIterable([Schema.decodeUnknownSync(RepoPath)('a/second.txt')]),
+            removes: Stream.empty,
+            message: 'second',
+            author: ALICE,
+          }),
+          Layered
+        )
+      );
+
+      const afterIdx = await Effect.runPromise(Effect.provide(readIndex(gitdir), Layered));
+      const sigs = afterIdx.extensions.map((e) => e.signature);
+      expect(sigs).to.not.include('TREE');
+      expect(sigs).to.include('link');
+      const linkExt = afterIdx.extensions.find((e) => e.signature === 'link');
+      expect(linkExt, 'link extension').to.not.equal(undefined);
+      expect(Array.from(linkExt?.payload ?? [])).to.deep.equal(Array.from(fakeLinkPayload));
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }

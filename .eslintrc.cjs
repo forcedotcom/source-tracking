@@ -2,6 +2,11 @@ module.exports = {
   extends: ['eslint-config-salesforce-typescript', 'eslint-config-salesforce-license', 'plugin:sf-plugin/library'],
   ignorePatterns: ['test/nuts/ebikes-lwc', 'test/nuts/repros/reactinternalapp'],
   plugins: ['local-rules', '@effect', 'functional'],
+  rules: {
+    // Catch import cycles project-wide. Pattern from salesforcedx-vscode
+    // (vscode-3/eslint.config.mjs:366).
+    'import/no-cycle': ['error', { maxDepth: 10, ignoreExternal: true }],
+  },
   overrides: [
     {
       // Effect-using tests: relax the no-unsafe-* rules that fire because
@@ -18,7 +23,13 @@ module.exports = {
     },
     {
       // Effect-using files. Mirrors the regime in salesforcedx-vscode/eslint.config.mjs (lines 583-645).
-      files: ['**/populateTypesAndNames.ts', '**/populateTypesAndNamesPerf.nut.ts', 'src/git/**/*.ts'],
+      files: [
+        '**/populateTypesAndNames.ts',
+        '**/populateTypesAndNamesPerf.nut.ts',
+        'src/git/**/*.ts',
+        'src/shared/local/localShadowRepoLite.ts',
+        'src/shared/local/moveDetectionLite.ts',
+      ],
       rules: {
         '@effect/no-import-from-barrel-package': ['error', { packageNames: ['effect'] }],
         'functional/no-loop-statements': 'error',

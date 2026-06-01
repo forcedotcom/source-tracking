@@ -13,17 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* eslint-disable functional/no-throw-statements --
- * Parser short-circuits via `throw corrupt(...)` from inside `Effect.try`'s
- * sync body. The throws never escape the Effect boundary; `Effect.try`
- * catches and routes to the IndexCorruptError failure channel.
- */
+import { SystemError } from '@effect/platform/Error';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
 import * as Effect from 'effect/Effect';
 import * as Schema from 'effect/Schema';
 import { IndexCorruptError } from './errors';
 import { Oid } from './schemas';
+
+const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'NotFound';
 
 /**
  * Git index v2 layout (from `Documentation/technical/index-format.txt`).
@@ -64,15 +62,6 @@ export type IndexEntry = {
   };
 };
 
-export type IndexV2 = {
-  readonly entries: readonly IndexEntry[];
-  /** Bytes used by entries (excluding header). Phase 9's writer needs this. */
-  readonly entriesByteLength: number;
-  /** Raw extension blocks captured for round-trip; phase 11 parses UNTR. */
-  readonly extensions: ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }>;
-  readonly trailer: Uint8Array;
-};
-
 const HEX_CHARS = '0123456789abcdef';
 const hexNibble = (n: number): string => HEX_CHARS[n] ?? '';
 
@@ -83,37 +72,44 @@ const oidFromBytes = (bytes: Uint8Array): Oid =>
 
 const ASCII = new TextDecoder('utf-8', { fatal: false });
 
+// 2-bit field, masked above; map exhaustively so no cast is needed.
+const stageFromBits = (n: number): 0 | 1 | 2 | 3 => (n === 0 ? 0 : n === 1 ? 1 : n === 2 ? 2 : 3);
+
 const corrupt = (reason: string, gitdir: string): IndexCorruptError =>
   new IndexCorruptError({ gitdir, reason, message: `index v2 parse: ${reason}` });
-
-type ParsedEntry = { readonly entry: IndexEntry; readonly nextOffset: number };
 
 const findNul = (raw: Uint8Array, from: number, end: number): number => {
   const ix = raw.subarray(from, end).indexOf(0);
   return ix < 0 ? -1 : from + ix;
 };
 
-const parseEntryAt = (raw: Uint8Array, view: DataView, offset: number, gitdir: string, i: number): ParsedEntry => {
-  const start = offset;
+const parseEntryAt = Effect.fn('parseEntryAt')(function* (
+  raw: Uint8Array,
+  view: DataView,
+  offset: number,
+  gitdir: string,
+  i: number
+) {
   const trailerStart = raw.byteLength - TRAILER_BYTES;
   if (offset + ENTRY_FIXED_BYTES > trailerStart) {
-    throw corrupt(`entry ${i} fixed-fields overflow at offset ${offset}`, gitdir);
+    return yield* Effect.fail(corrupt(`entry ${i} fixed-fields overflow at offset ${offset}`, gitdir));
   }
   const flags = view.getUint16(offset + 60, false);
-  const extended = (flags & 0x40_00) !== 0;
-  if (extended) throw corrupt(`entry ${i} sets extended flag (v3 only)`, gitdir);
+  if ((flags & 0x40_00) !== 0) {
+    return yield* Effect.fail(corrupt(`entry ${i} sets extended flag (v3 only)`, gitdir));
+  }
   const nameLen = flags & 0x0f_ff;
   const pathStart = offset + ENTRY_FIXED_BYTES;
   const pathEnd = nameLen === 0x0f_ff ? findNul(raw, pathStart, trailerStart) : pathStart + nameLen;
-  if (pathEnd < 0 || pathEnd > trailerStart) throw corrupt(`entry ${i} path overflow`, gitdir);
-  const total = pathEnd - start;
-  const pad = 8 - (total % 8);
+  if (pathEnd < 0 || pathEnd > trailerStart) {
+    return yield* Effect.fail(corrupt(`entry ${i} path overflow`, gitdir));
+  }
   return {
     entry: {
       path: ASCII.decode(raw.subarray(pathStart, pathEnd)),
       oid: oidFromBytes(raw.subarray(offset + 40, offset + 60)),
       mode: view.getUint32(offset + 24, false),
-      stage: ((flags >> 12) & 0x3) as 0 | 1 | 2 | 3,
+      stage: stageFromBits((flags >> 12) & 0x3),
       assumeValid: (flags & 0x80_00) !== 0,
       stat: {
         ctimeSec: view.getUint32(offset, false),
@@ -127,12 +123,13 @@ const parseEntryAt = (raw: Uint8Array, view: DataView, offset: number, gitdir: s
         size: view.getUint32(offset + 36, false),
       },
     },
-    nextOffset: pathEnd + pad,
+    nextOffset: pathEnd + 8 - ((pathEnd - offset) % 8),
   };
-};
+});
 
 type ParsedExtension = { readonly signature: string; readonly payload: Uint8Array };
 
+// Recursive helper: an explicit return type breaks TS's self-reference cycle.
 const parseExtensionsFrom = (
   raw: Uint8Array,
   view: DataView,
@@ -140,76 +137,95 @@ const parseExtensionsFrom = (
   end: number,
   gitdir: string,
   acc: readonly ParsedExtension[] = []
-): readonly ParsedExtension[] => {
-  if (start === end) return acc;
-  if (start + 8 > end) throw corrupt('truncated extension header', gitdir);
-  const signature = ASCII.decode(raw.subarray(start, start + 4));
-  const size = view.getUint32(start + 4, false);
-  const payloadStart = start + 8;
-  if (payloadStart + size > end) throw corrupt(`extension ${signature} payload overflow`, gitdir);
-  const payload = raw.subarray(payloadStart, payloadStart + size);
-  return parseExtensionsFrom(raw, view, payloadStart + size, end, gitdir, [...acc, { signature, payload }]);
-};
+  // eslint-disable-next-line local-rules/no-explicit-effect-return-type
+): Effect.Effect<readonly ParsedExtension[], IndexCorruptError> =>
+  Effect.gen(function* () {
+    if (start === end) return acc;
+    if (start + 8 > end) return yield* Effect.fail(corrupt('truncated extension header', gitdir));
+    const signature = ASCII.decode(raw.subarray(start, start + 4));
+    const size = view.getUint32(start + 4, false);
+    const payloadStart = start + 8;
+    if (payloadStart + size > end) {
+      return yield* Effect.fail(corrupt(`extension ${signature} payload overflow`, gitdir));
+    }
+    return yield* parseExtensionsFrom(raw, view, payloadStart + size, end, gitdir, [
+      ...acc,
+      { signature, payload: raw.subarray(payloadStart, payloadStart + size) },
+    ]);
+  });
 
 /**
  * Parse `.git/index` (version 2 only). Rejects v3/v4 with IndexCorruptError.
  * The trailing SHA is captured but not verified here — verification is the
  * writer's mirror; verifying on read costs 1 sha1 per parse and the index
  * is parsed in the hot status path.
- *
- * `Effect.try` captures the synchronous throws from the parse helpers
- * (which use `throw corrupt(...)` to short-circuit on malformed bytes) and
- * routes them into the failure channel as IndexCorruptError. The throws
- * never escape the Effect boundary.
  */
-export const parseIndexV2 = (gitdir: string, raw: Uint8Array) =>
-  Effect.try({
-    try: (): IndexV2 => {
-      if (raw.byteLength < HEADER_BYTES + TRAILER_BYTES) {
-        throw corrupt(`buffer too short (${raw.byteLength} bytes)`, gitdir);
-      }
-      const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-      const sig = view.getUint32(0, false);
-      if (sig !== SIGNATURE_DIRC) throw corrupt(`bad magic ${sig.toString(16)}`, gitdir);
-      const version = view.getUint32(4, false);
-      if (version !== VERSION_V2) throw corrupt(`unsupported version ${version}; only v2 is supported`, gitdir);
-      const entryCount = view.getUint32(8, false);
+export const parseIndexV2 = Effect.fn('parseIndexV2')(function* (gitdir: string, raw: Uint8Array) {
+  if (raw.byteLength < HEADER_BYTES + TRAILER_BYTES) {
+    return yield* Effect.fail(corrupt(`buffer too short (${raw.byteLength} bytes)`, gitdir));
+  }
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const sig = view.getUint32(0, false);
+  if (sig !== SIGNATURE_DIRC) return yield* Effect.fail(corrupt(`bad magic ${sig.toString(16)}`, gitdir));
+  const version = view.getUint32(4, false);
+  if (version !== VERSION_V2) {
+    return yield* Effect.fail(corrupt(`unsupported version ${version}; only v2 is supported`, gitdir));
+  }
+  const entryCount = view.getUint32(8, false);
 
-      const { entries, offset } = Array.from({ length: entryCount }, (_, i) => i).reduce<{
-        readonly entries: readonly IndexEntry[];
-        readonly offset: number;
-      }>(
-        (acc, i) => {
-          const { entry, nextOffset } = parseEntryAt(raw, view, acc.offset, gitdir, i);
-          return { entries: [...acc.entries, entry], offset: nextOffset };
-        },
-        { entries: [], offset: HEADER_BYTES }
-      );
+  // Fold over `entryCount` indices, threading the byte offset through
+  // each parse via Effect.reduce.
+  const { entries, offset } = yield* Effect.reduce(
+    Array.from({ length: entryCount }, (_, i) => i),
+    { entries: [] as readonly IndexEntry[], offset: HEADER_BYTES },
+    (acc, i) =>
+      parseEntryAt(raw, view, acc.offset, gitdir, i).pipe(
+        Effect.map(({ entry, nextOffset }) => ({
+          entries: [...acc.entries, entry],
+          offset: nextOffset,
+        }))
+      )
+  );
 
-      const entriesByteLength = offset - HEADER_BYTES;
-      const extEnd = raw.byteLength - TRAILER_BYTES;
-      const extensions = parseExtensionsFrom(raw, view, offset, extEnd, gitdir);
-      const trailer = raw.subarray(extEnd);
-      return { entries, entriesByteLength, extensions, trailer };
-    },
-    catch: (e) => (e instanceof IndexCorruptError ? e : corrupt(`unexpected: ${String(e)}`, gitdir)),
-  });
+  const extEnd = raw.byteLength - TRAILER_BYTES;
+  const extensions = yield* parseExtensionsFrom(raw, view, offset, extEnd, gitdir);
+  return {
+    entries,
+    entriesByteLength: offset - HEADER_BYTES,
+    extensions,
+    trailer: raw.subarray(extEnd),
+  };
+});
+
+/** Empty index used when `.git/index` is absent (fresh repo, pre-applyChanges). */
+const EMPTY_INDEX = {
+  entries: [] as readonly IndexEntry[],
+  entriesByteLength: 0,
+  extensions: [] as ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }>,
+  trailer: new Uint8Array(0),
+};
 
 /** Read + parse `<gitdir>/index`. Honors mtime cache (caller passes via cache). */
 export const readIndex = Effect.fn('readIndex')(function* (gitdir: string) {
   const fs = yield* FileSystem;
   const path = yield* Path;
   const file = path.join(gitdir, 'index');
-  const raw = yield* fs.readFile(file).pipe(
-    Effect.catchAll((cause) =>
-      Effect.fail(
-        new IndexCorruptError({
-          gitdir,
-          reason: 'read-failed',
-          message: `failed to read ${file}: ${cause.message}`,
-        })
+  // NotFound → empty index (pre-applyChanges). Other read errors surface as
+  // IndexCorruptError so the caller knows the bytes were unreadable.
+  const raw = yield* fs
+    .readFile(file)
+    .pipe(
+      Effect.catchAll((cause) =>
+        isNotFound(cause)
+          ? Effect.succeed(undefined)
+          : Effect.fail(
+              new IndexCorruptError({
+                gitdir,
+                reason: 'read-failed',
+                message: `failed to read ${file}: ${cause.message}`,
+              })
+            )
       )
-    )
-  );
-  return yield* parseIndexV2(gitdir, raw);
+    );
+  return raw === undefined ? EMPTY_INDEX : yield* parseIndexV2(gitdir, raw);
 });

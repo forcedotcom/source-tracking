@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 import { ForceIgnore, MetadataComponent, MetadataMember, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { SfError } from '@salesforce/core/sfError';
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
 import { ChangeResult } from './types';
-import { isChangeResultWithNameAndType } from './guards';
-import { ChangeResultWithNameAndType } from './types';
+import { ensureNameAndType } from './guards';
 import { forceIgnoreDenies, changeResultToMetadataComponent } from './functions';
 
 export const removeIgnored = (
@@ -37,10 +35,3 @@ const metadataComponentToMetadataMember = (mc: MetadataComponent): MetadataMembe
   type: mc.type.name,
   fullName: mc.fullName,
 });
-
-export const ensureNameAndType = (cr: ChangeResult): ChangeResultWithNameAndType => {
-  if (isChangeResultWithNameAndType(cr)) {
-    return cr;
-  }
-  throw new SfError(`Change Result is missing name or type: ${JSON.stringify(cr)}`);
-};

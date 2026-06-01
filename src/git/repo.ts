@@ -24,7 +24,7 @@ import * as Scope from 'effect/Scope';
 import * as Stream from 'effect/Stream';
 import { applyChanges as applyChangesImpl } from './applyChanges';
 import { CapabilitiesTag, type Capabilities } from './capabilities';
-import { ObjectCorruptError, RepoNotConfiguredError } from './errors';
+import { ObjectCorruptError, RepoNotConfiguredError, WorkdirIoError } from './errors';
 import { init as initImpl } from './init';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import { resolveRef as resolveRefImpl } from './refs';
@@ -43,6 +43,13 @@ type RepoHandle = {
   readonly capabilities: Capabilities;
   readonly internals: Readonly<Record<string, unknown>>;
   readonly scope: Scope.CloseableScope;
+};
+
+type ApplyChangesArgs = {
+  readonly adds: Stream.Stream<RepoPath>;
+  readonly removes: Stream.Stream<RepoPath>;
+  readonly message: string;
+  readonly author: Author;
 };
 
 const notConfigured = (op: string): RepoNotConfiguredError =>
@@ -87,18 +94,10 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
     const swapSemaphore = yield* Effect.makeSemaphore(1);
 
     const provideFsAndPath = <A, E, R>(eff: Effect.Effect<A, E, R | FileSystem | Path>) =>
-      eff.pipe(Effect.provideService(FileSystem, fs), Effect.provideService(Path, path)) as Effect.Effect<
-        A,
-        E,
-        Exclude<R, FileSystem | Path>
-      >;
+      eff.pipe(Effect.provideService(FileSystem, fs), Effect.provideService(Path, path));
 
     const provideFsAndPathStream = <A, E, R>(stream: Stream.Stream<A, E, R | FileSystem | Path>) =>
-      stream.pipe(Stream.provideService(FileSystem, fs), Stream.provideService(Path, path)) as Stream.Stream<
-        A,
-        E,
-        Exclude<R, FileSystem | Path>
-      >;
+      stream.pipe(Stream.provideService(FileSystem, fs), Stream.provideService(Path, path));
 
     /**
      * Atomic publish + prior-scope close. The semaphore serializes
@@ -142,20 +141,8 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
 
     const collectStatus = Effect.fn('Repo.collectStatus')(function* () {
       const h = yield* requireHandle(handleRef, 'collectStatus');
-      return yield* provideFsAndPath(
-        coldStatus(h.cfg).pipe(
-          Stream.runCollect,
-          Effect.map((c) => Array.from(c))
-        )
-      );
+      return Array.from(yield* provideFsAndPath(coldStatus(h.cfg).pipe(Stream.runCollect)));
     });
-
-    type ApplyChangesArgs = {
-      readonly adds: Stream.Stream<RepoPath>;
-      readonly removes: Stream.Stream<RepoPath>;
-      readonly message: string;
-      readonly author: Author;
-    };
 
     const applyChanges = Effect.fn('Repo.applyChanges')(function* (args: ApplyChangesArgs) {
       const h = yield* requireHandle(handleRef, 'applyChanges');
@@ -166,6 +153,7 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
           removes: args.removes,
           message: args.message,
           author: args.author,
+          addConcurrency: h.cfg.fdPermits,
         })
       );
     });
@@ -175,16 +163,15 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
     const readBlob = Effect.fn('Repo.readBlob')(function* (oid: Oid) {
       const h = yield* requireHandle(handleRef, 'readBlob');
       const obj = yield* provideFsAndPath(readLooseObject(h.cfg.gitdir, oid));
-      if (obj.type !== 'blob') {
-        return yield* Effect.fail(
-          new ObjectCorruptError({
-            oid,
-            reason: `expected blob, got ${obj.type}`,
-            message: `Repo.readBlob ${oid}: not a blob`,
-          })
-        );
-      }
-      return obj.content;
+      return obj.type === 'blob'
+        ? obj.content
+        : yield* Effect.fail(
+            new ObjectCorruptError({
+              oid,
+              reason: `expected blob, got ${obj.type}`,
+              message: `Repo.readBlob ${oid}: not a blob`,
+            })
+          );
     });
 
     const resolveRef = Effect.fn('Repo.resolveRef')(function* (ref: RefName) {
@@ -200,10 +187,16 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
       );
 
     const setInfoExclude = Effect.fn('Repo.setInfoExclude')(function* (content: string) {
-      yield* requireHandle(handleRef, 'setInfoExclude');
-      // Phase 12 follow-up wires this to fs.writeFile of <gitdir>/info/exclude.
+      const h = yield* requireHandle(handleRef, 'setInfoExclude');
       yield* Effect.annotateCurrentSpan('byteLength', content.length);
-      return yield* Effect.die(new Error('Repo.setInfoExclude: not implemented'));
+      const dir = path.join(h.cfg.gitdir, 'info');
+      const file = path.join(dir, 'exclude');
+      yield* fs
+        .makeDirectory(dir, { recursive: true })
+        .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(dir, cause))));
+      yield* fs
+        .writeFileString(file, content)
+        .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
     });
 
     return {

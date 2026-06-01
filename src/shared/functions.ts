@@ -30,7 +30,7 @@ import {
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
 import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types';
-import { ensureNameAndType } from './remoteChangeIgnoring';
+import { ensureNameAndType } from './guards';
 
 const keySplit = '###';
 const legacyKeySplit = '__';

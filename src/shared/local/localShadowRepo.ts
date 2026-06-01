@@ -14,422 +14,102 @@
  * limitations under the License.
  */
 
-import path from 'node:path';
-import * as os from 'node:os';
-import * as fs from 'graceful-fs';
-import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
-import { env } from '@salesforce/kit';
-import git from 'isomorphic-git';
-import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import * as Effect from 'effect/Effect';
+/*
+ * Public facade for the per-project shadow repo. Picks one of two
+ * implementations based on the SF_SOURCE_TRACKING_USE_LITE_GIT env var
+ * (read once via Effect Config in src/git/sfCompatibility.ts).
+ *
+ * Callers should keep importing `ShadowRepo` from this file; they do not
+ * need to know which backend served the request.
+ */
+
+import { useLiteGit } from '../../git/sfCompatibility';
 import { runPromise } from '../runtime';
-import { eventLoopDelayCapture } from '../eventLoopDelayCapture';
-import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
-import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
-import { StatusRow } from './types';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions';
+import { ShadowRepoIso } from './localShadowRepoIso';
+import { ShadowRepoLite } from './localShadowRepoLite';
+import type { CommitRequest, ShadowRepoLike, ShadowRepoOptions, StatusRow } from './types';
 
-/** returns the full path to where we store the shadow repo */
-const getGitDir = (orgId: string, projectPath: string): string =>
-  path.join(projectPath, '.sf', 'orgs', orgId, 'localSourceTracking');
-
-// catch isogit's `InternalError` to avoid people report CLI issues in isogit repo.
-// See: https://github.com/forcedotcom/cli/issues/2416
-const redirectToCliRepoError = (e: unknown): never => {
-  if (e instanceof git.Errors.InternalError) {
-    const error = new SfError(
-      `An internal error caused this command to fail. isomorphic-git error:${os.EOL}${e.data.message}`,
-      e.name
-    );
-    throw error;
-  }
-  throw e;
+/**
+ * Decide which backend to use. Memoized per-process so VSCode doesn't re-read
+ * env on every getInstance call.
+ */
+// eslint-disable-next-line functional/no-let
+let cachedLite: boolean | undefined;
+const resolveBackendChoice = async (): Promise<boolean> => {
+  if (cachedLite !== undefined) return cachedLite;
+  cachedLite = await runPromise(useLiteGit);
+  return cachedLite;
 };
 
-type ShadowRepoOptions = {
-  orgId: string;
-  projectPath: string;
-  packageDirs: NamedPackageDir[];
-  registry: RegistryAccess;
-};
-
-type CommitRequest = {
-  deployedFiles?: string[];
-  deletedFiles?: string[];
-  message?: string;
-  needsUpdatedStatus?: boolean;
-};
-
-/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files */
-const MAX_FILE_ADD = env.getNumber(
-  'SF_SOURCE_TRACKING_BATCH_SIZE',
-  env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
-);
-
-export class ShadowRepo {
-  private static instanceMap = new Map<string, ShadowRepo>();
-
+export class ShadowRepo implements ShadowRepoLike {
   public gitDir: string;
   public projectPath: string;
 
-  /**
-   * packageDirs converted to project-relative posix style paths
-   * iso-git uses relative, posix paths
-   * but packageDirs has already resolved / normalized them
-   * so we need to make them project-relative again and convert if windows
-   */
-  private packageDirs: string[];
-  private status!: StatusRow[];
-  private logger!: Logger;
-  private readonly registry: RegistryAccess;
+  // The chosen backend. Constructed at getInstance().
+  private readonly impl: ShadowRepoLike;
 
-  private constructor(options: ShadowRepoOptions) {
-    this.gitDir = getGitDir(options.orgId, options.projectPath);
-    this.projectPath = options.projectPath;
-    this.packageDirs = options.packageDirs.map(packageDirToRelativePosixPath(options.projectPath));
-    this.registry = options.registry;
+  private constructor(impl: ShadowRepoLike) {
+    this.impl = impl;
+    this.gitDir = impl.gitDir;
+    this.projectPath = impl.projectPath;
   }
 
-  // think of singleton behavior but unique to the projectPath
+  /** Test-only: reset the in-process backend choice cache. */
+  public static resetBackendChoiceForTests(): void {
+    cachedLite = undefined;
+  }
+
   public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
-    if (!ShadowRepo.instanceMap.has(options.projectPath)) {
-      const newInstance = new ShadowRepo(options);
-      await newInstance.init();
-      ShadowRepo.instanceMap.set(options.projectPath, newInstance);
-    }
-    return ShadowRepo.instanceMap.get(options.projectPath) as ShadowRepo;
+    const lite = await resolveBackendChoice();
+    const impl: ShadowRepoLike = lite
+      ? await ShadowRepoLite.getInstance(options)
+      : await ShadowRepoIso.getInstance(options);
+    return new ShadowRepo(impl);
   }
 
-  public async init(): Promise<void> {
-    this.logger = await Logger.child('ShadowRepo');
-
-    // initialize the shadow repo if it doesn't exist
-    if (!fs.existsSync(this.gitDir)) {
-      this.logger.debug('initializing git repo');
-      await this.gitInit();
-    }
+  public init(): Promise<void> {
+    return this.impl.init();
   }
-
-  /**
-   * Initialize a new source tracking shadow repo.  Think of git init
-   *
-   */
-  public async gitInit(): Promise<void> {
-    this.logger.trace(`initializing git repo at ${this.gitDir}`);
-    await fs.promises.mkdir(this.gitDir, { recursive: true });
-    try {
-      await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
-    } catch (e) {
-      redirectToCliRepoError(e);
-    }
+  public gitInit(): Promise<void> {
+    return this.impl.gitInit();
   }
-
-  /**
-   * Delete the local tracking files
-   *
-   * @returns the deleted directory
-   */
-  public async delete(): Promise<string> {
-    await fs.promises.rm(this.gitDir, { recursive: true, force: true });
-    return this.gitDir;
+  public delete(): Promise<string> {
+    return this.impl.delete();
   }
-  /**
-   * If the status already exists, return it.  Otherwise, set the status before returning.
-   * It's kinda like a cache
-   *
-   * @params noCache: if true, force a redo of the status using FS even if it exists
-   *
-   * @returns StatusRow[] (paths are os-specific)
-   */
-  public getStatus(noCache = false): Promise<StatusRow[]> {
-    return runPromise(
-      Effect.fn('ShadowRepo.getStatus')(
-        // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-        function* (this: ShadowRepo) {
-          const elCapture = eventLoopDelayCapture();
-          yield* Effect.annotateCurrentSpan({ noCache, packageDirCount: this.packageDirs.length });
-          this.logger.trace(`start: getStatus (noCache = ${noCache})`);
-
-          if (!this.status || noCache) {
-            yield* Effect.tryPromise({
-              try: async () => {
-                this.status = await git.statusMatrix({
-                  fs,
-                  dir: this.projectPath,
-                  gitdir: this.gitDir,
-                  filepaths: this.packageDirs,
-                  ignored: true,
-                  filter: fileFilter(this.packageDirs),
-                });
-
-                // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-                if (IS_WINDOWS) {
-                  this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
-                }
-
-                if (env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true) {
-                  await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
-                } else {
-                  await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
-                  await this.detectMovedFiles();
-                }
-              },
-              catch: (e) => e,
-            }).pipe(Effect.catchAll((e) => Effect.sync(() => redirectToCliRepoError(e))));
-          }
-
-          yield* Effect.annotateCurrentSpan({ rowCount: this.status.length });
-          yield* elCapture.finalize();
-          this.logger.trace(`done: getStatus (noCache = ${noCache})`);
-          return this.status;
-        }.bind(this)
-      )()
-    );
+  public getStatus(noCache?: boolean): Promise<StatusRow[]> {
+    return this.impl.getStatus(noCache);
   }
-
-  /**
-   * returns any change (add, modify, delete)
-   */
-  public async getChangedRows(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter((file) => file[HEAD] !== file[WORKDIR]);
+  public getChangedRows(): Promise<StatusRow[]> {
+    return this.impl.getChangedRows();
   }
-
-  /**
-   * returns any change (add, modify, delete)
-   */
-  public async getChangedFilenames(): Promise<string[]> {
-    return toFilenames(await this.getChangedRows());
+  public getChangedFilenames(): Promise<string[]> {
+    return this.impl.getChangedFilenames();
   }
-
-  public async getDeletes(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter(isDeleted);
+  public getDeletes(): Promise<StatusRow[]> {
+    return this.impl.getDeletes();
   }
-
-  public async getDeleteFilenames(): Promise<string[]> {
-    return toFilenames(await this.getDeletes());
+  public getDeleteFilenames(): Promise<string[]> {
+    return this.impl.getDeleteFilenames();
   }
-
-  /**
-   * returns adds and modifies but not deletes
-   */
-  public async getNonDeletes(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter((file) => file[WORKDIR] === 2);
+  public getNonDeletes(): Promise<StatusRow[]> {
+    return this.impl.getNonDeletes();
   }
-
-  /**
-   * returns adds and modifies but not deletes
-   */
-  public async getNonDeleteFilenames(): Promise<string[]> {
-    return toFilenames(await this.getNonDeletes());
+  public getNonDeleteFilenames(): Promise<string[]> {
+    return this.impl.getNonDeleteFilenames();
   }
-
-  public async getAdds(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter(isAdded);
+  public getAdds(): Promise<StatusRow[]> {
+    return this.impl.getAdds();
   }
-
-  public async getAddFilenames(): Promise<string[]> {
-    return toFilenames(await this.getAdds());
+  public getAddFilenames(): Promise<string[]> {
+    return this.impl.getAddFilenames();
   }
-
-  /**
-   * returns files that were not added or deleted, but changed locally
-   */
-  public async getModifies(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter((file) => file[HEAD] === 1 && file[WORKDIR] === 2);
+  public getModifies(): Promise<StatusRow[]> {
+    return this.impl.getModifies();
   }
-
-  public async getModifyFilenames(): Promise<string[]> {
-    return toFilenames(await this.getModifies());
+  public getModifyFilenames(): Promise<string[]> {
+    return this.impl.getModifyFilenames();
   }
-
-  /**
-   * Look through status and stage all changes, then commit
-   *
-   * @param fileList list of files to commit (full paths)
-   * @param message: commit message (include org username and id)
-   *
-   * @returns sha (string)
-   */
-  public commitChanges(request: CommitRequest = {}): Promise<string | undefined> {
-    return runPromise(
-      Effect.fn('ShadowRepo.commitChanges')(
-        // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-        function* (this: ShadowRepo) {
-          const elCapture = eventLoopDelayCapture();
-          const {
-            deployedFiles = [],
-            deletedFiles = [],
-            message = 'sfdx source tracking',
-            needsUpdatedStatus = true,
-          } = request;
-
-          yield* Effect.annotateCurrentSpan({
-            deployedCount: deployedFiles.length,
-            deletedCount: deletedFiles.length,
-          });
-
-          if (deployedFiles.length === 0 && deletedFiles.length === 0) {
-            yield* elCapture.finalize();
-            return 'no files to commit';
-          }
-
-          if (deployedFiles.length) {
-            const chunks = chunkArray(
-              [...new Set(IS_WINDOWS ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
-              MAX_FILE_ADD
-            );
-            yield* Effect.annotateCurrentSpan({ addChunkCount: chunks.length });
-            yield* Effect.tryPromise({
-              try: () => this.runGitAdd(chunks, deployedFiles.length),
-              catch: (e) => e,
-            }).pipe(Effect.catchAll((e) => Effect.sync(() => redirectToCliRepoError(e))));
-          }
-
-          if (deletedFiles.length) {
-            yield* Effect.tryPromise({
-              try: () =>
-                this.runGitRemove([
-                  ...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles),
-                ]),
-              catch: (e) => e,
-            }).pipe(Effect.catchAll((e) => Effect.sync(() => redirectToCliRepoError(e))));
-          }
-
-          const sha = yield* Effect.tryPromise({
-            try: async () => {
-              const result = await git.commit({
-                fs,
-                dir: this.projectPath,
-                gitdir: this.gitDir,
-                message,
-                author: { name: 'sfdx source tracking' },
-              });
-              if (needsUpdatedStatus) {
-                await this.getStatus(true);
-              }
-              return result;
-            },
-            catch: (e) => e,
-          }).pipe(
-            Effect.catchAll((e) =>
-              Effect.sync(() => {
-                redirectToCliRepoError(e);
-                return undefined;
-              })
-            )
-          );
-
-          yield* elCapture.finalize();
-          return sha;
-        }.bind(this)
-      )()
-    );
-  }
-
-  private async runGitAdd(chunks: string[][], totalDeployed: number): Promise<void> {
-    for (const chunk of chunks) {
-      try {
-        this.logger.debug(`adding ${chunk.length} files of ${totalDeployed} deployedFiles to git`);
-        // these need to be done sequentially (it's already batched) because isogit manages file locking
-        // eslint-disable-next-line no-await-in-loop
-        await git.add({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath: chunk, force: true });
-      } catch (e) {
-        if (e instanceof git.Errors.MultipleGitError) {
-          this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
-          throw SfError.create({
-            message: e.message,
-            name: e.name,
-            data: e.errors.map((err) => err.message),
-            cause: e,
-            actions: [
-              `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${MAX_FILE_ADD}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
-            ],
-          });
-        }
-        redirectToCliRepoError(e);
-      }
-    }
-  }
-
-  private async runGitRemove(filepaths: string[]): Promise<void> {
-    // Using a cache here speeds up the performance by ~24.4%
-    const cache = {};
-    for (const filepath of filepaths) {
-      try {
-        // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
-        // eslint-disable-next-line no-await-in-loop
-        await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
-      } catch (e) {
-        redirectToCliRepoError(e);
-      }
-    }
-  }
-
-  private detectMovedFiles(): Promise<void> {
-    return runPromise(
-      Effect.fn('ShadowRepo.detectMovedFiles')(
-        // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-        function* (this: ShadowRepo) {
-          const elCapture = eventLoopDelayCapture();
-          const matchingFiles = getMatches(this.status);
-          yield* Effect.annotateCurrentSpan({
-            addedCount: matchingFiles.added.size,
-            deletedCount: matchingFiles.deleted.size,
-          });
-          if (!matchingFiles.added.size || !matchingFiles.deleted.size) {
-            yield* elCapture.finalize();
-            return;
-          }
-
-          const matches = yield* Effect.promise(() =>
-            filenameMatchesToMap(this.registry)(this.projectPath)(this.gitDir)(matchingFiles)
-          );
-
-          yield* Effect.annotateCurrentSpan({
-            fullMatchCount: matches.fullMatches.size,
-            deleteOnlyCount: matches.deleteOnly.size,
-          });
-
-          if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) {
-            yield* elCapture.finalize();
-            return;
-          }
-
-          this.logger.debug(getLogMessage(matches));
-
-          yield* Effect.promise(() =>
-            this.commitChanges({
-              deletedFiles: [...matches.fullMatches.values(), ...matches.deleteOnly.values()],
-              deployedFiles: [...matches.fullMatches.keys()],
-              message: 'Committing moved files',
-            })
-          );
-          yield* elCapture.finalize();
-        }.bind(this)
-      )()
-    );
+  public commitChanges(request?: CommitRequest): Promise<string | undefined> {
+    return this.impl.commitChanges(request);
   }
 }
-
-const packageDirToRelativePosixPath =
-  (projectPath: string) =>
-  (packageDir: NamedPackageDir): string =>
-    IS_WINDOWS
-      ? ensurePosix(path.relative(projectPath, packageDir.fullPath))
-      : path.relative(projectPath, packageDir.fullPath);
-
-const normalize = (filepath: string): string => path.normalize(filepath);
-
-const fileFilter =
-  (packageDirs: string[]) =>
-  (f: string): boolean =>
-    // no hidden files
-    !f.includes(`${path.sep}.`) &&
-    // no node_modules (e.g. uiBundle packages inside force-app)
-    !f.split(path.sep).includes('node_modules') &&
-    // no lwc tests
-    excludeLwcLocalOnlyTest(f) &&
-    // no gitignore files
-    !f.endsWith('.gitignore') &&
-    // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-    packageDirs.some(folderContainsPath(f));

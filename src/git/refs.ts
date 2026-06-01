@@ -17,6 +17,7 @@ import * as Effect from 'effect/Effect';
 import * as Either from 'effect/Either';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
+import { BadArgument, SystemError } from '@effect/platform/Error';
 import { FileSystem } from '@effect/platform/FileSystem';
 import { Path } from '@effect/platform/Path';
 import { RefNotFoundError, WorkdirIoError } from './errors';
@@ -28,9 +29,7 @@ const ENCODER = new TextEncoder();
 
 const refFile = (path: Path, gitdir: string, ref: RefName): string => path.join(gitdir, ref);
 
-const isNotFound = (cause: { readonly _tag: string; readonly reason?: string }): boolean =>
-  // eslint-disable-next-line no-underscore-dangle
-  cause._tag === 'SystemError' && cause.reason === 'NotFound';
+const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'NotFound';
 
 const readUtf8 = (file: string) =>
   FileSystem.pipe(
@@ -38,7 +37,7 @@ const readUtf8 = (file: string) =>
       fs.readFile(file).pipe(
         Effect.map((bytes) => Option.some(TEXT.decode(bytes))),
         Effect.catchAll((cause) =>
-          isNotFound(cause as never)
+          isNotFound(cause)
             ? Effect.succeed(Option.none<string>())
             : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
         )
@@ -47,12 +46,7 @@ const readUtf8 = (file: string) =>
   );
 
 const badArgumentError = (path: string, method: string, message: string): WorkdirIoError =>
-  WorkdirIoError.fromPlatformError(path, {
-    _tag: 'BadArgument',
-    module: 'FileSystem',
-    method,
-    message,
-  } as never);
+  WorkdirIoError.fromPlatformError(path, new BadArgument({ module: 'FileSystem', method, description: message }));
 
 /**
  * Read `.git/HEAD`. Returns a discriminated union: `'symbolic'` for the
@@ -70,25 +64,31 @@ export const readHead = Effect.fn('readHead')(function* (gitdir: string) {
   const path = yield* Path;
   const file = refFile(path, gitdir, HEAD_REF);
   const raw = yield* readUtf8(file);
-  if (Option.isNone(raw)) {
-    return yield* Effect.fail(new RefNotFoundError({ ref: HEAD_REF, message: `HEAD missing at ${file}` }));
-  }
-  const trimmed = raw.value.replace(/\n$/, '');
-  if (trimmed.startsWith(SYMBOLIC_PREFIX)) {
-    const targetRaw = trimmed.slice(SYMBOLIC_PREFIX.length).trim();
-    return yield* Either.match(Schema.decodeUnknownEither(RefName)(targetRaw), {
-      onLeft: () => Effect.fail(badArgumentError(file, 'readHead', `HEAD points to invalid ref "${targetRaw}"`)),
-      onRight: (target) => Effect.succeed({ kind: 'symbolic', target } satisfies HeadValue),
-    });
-  }
-  return yield* Either.match(Schema.decodeUnknownEither(Oid)(trimmed), {
-    onLeft: () =>
-      Effect.fail(
-        badArgumentError(file, 'readHead', `HEAD content "${trimmed}" is neither a symbolic ref nor a 40-hex oid`)
-      ),
-    onRight: (oid) => Effect.succeed({ kind: 'direct', oid } satisfies HeadValue),
-  });
+  return yield* Option.isNone(raw)
+    ? Effect.fail(new RefNotFoundError({ ref: HEAD_REF, message: `HEAD missing at ${file}` }))
+    : decodeHeadContent(file, raw.value.replace(/\n$/, ''));
 });
+
+const decodeHeadContent = (file: string, trimmed: string) =>
+  trimmed.startsWith(SYMBOLIC_PREFIX)
+    ? Either.match(Schema.decodeUnknownEither(RefName)(trimmed.slice(SYMBOLIC_PREFIX.length).trim()), {
+        onLeft: () =>
+          Effect.fail(
+            badArgumentError(
+              file,
+              'readHead',
+              `HEAD points to invalid ref "${trimmed.slice(SYMBOLIC_PREFIX.length).trim()}"`
+            )
+          ),
+        onRight: (target) => Effect.succeed({ kind: 'symbolic', target } satisfies HeadValue),
+      })
+    : Either.match(Schema.decodeUnknownEither(Oid)(trimmed), {
+        onLeft: () =>
+          Effect.fail(
+            badArgumentError(file, 'readHead', `HEAD content "${trimmed}" is neither a symbolic ref nor a 40-hex oid`)
+          ),
+        onRight: (oid) => Effect.succeed({ kind: 'direct', oid } satisfies HeadValue),
+      });
 
 /**
  * Read a leaf ref like `refs/heads/main` (40-hex + LF).
@@ -103,10 +103,8 @@ export const readDirectRef = Effect.fn('readDirectRef')(function* (gitdir: strin
   const trimmed = raw.value.replace(/\n$/, '').trim();
   return yield* Either.match(Schema.decodeUnknownEither(Oid)(trimmed), {
     onLeft: () =>
-      Effect.fail(
-        badArgumentError(file, 'readDirectRef', `ref ${ref} contains "${trimmed}", expected 40-hex`)
-      ) as Effect.Effect<Oid, WorkdirIoError>,
-    onRight: (oid) => Effect.succeed(oid),
+      Effect.fail(badArgumentError(file, 'readDirectRef', `ref ${ref} contains "${trimmed}", expected 40-hex`)),
+    onRight: Effect.succeed,
   });
 });
 
@@ -124,6 +122,22 @@ export const resolveRef = (gitdir: string, ref: RefName) =>
       )
     : readDirectRef(gitdir, ref);
 
+/**
+ * Atomic-write-via-temp-rename. We write to `<file>.tmp.<rand>` (a
+ * separate inode) and then `rename(tmp, file)`, which is atomic on POSIX
+ * (within the same fs) and on Windows ≥ Vista. A crash or partial write
+ * leaves the prior `<file>` bytes intact; readers never observe a
+ * half-written ref.
+ *
+ * Real-git uses this pattern for ref writes; iso-git does not — its
+ * `GitRefManager.writeRef` does a direct `fs.write(file)` under an
+ * in-process lock, with a TODO comment about the crudeness. Lite picks
+ * up the more correct pattern here.
+ *
+ * The randomized suffix is so two concurrent `writeAtomically` calls
+ * across processes (the index.lock only serializes index writes, not
+ * arbitrary ref writes) don't collide on a shared `<file>.tmp` name.
+ */
 const writeAtomically = Effect.fn('writeAtomically')(function* (gitdir: string, ref: RefName, bytes: Uint8Array) {
   const fs = yield* FileSystem;
   const path = yield* Path;

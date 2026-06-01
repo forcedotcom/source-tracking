@@ -117,18 +117,17 @@ const readTree = (
 > =>
   Stream.unwrap(
     readLooseObject(gitdir, treeOid).pipe(
-      Effect.flatMap((obj) => {
-        if (obj.type !== 'tree') {
-          return Effect.fail(
-            new ObjectCorruptError({
-              oid: treeOid,
-              reason: `expected tree, got ${obj.type}`,
-              message: `readTree ${treeOid}: not a tree`,
-            })
-          );
-        }
-        return parseTreeObject(treeOid, obj.content);
-      }),
+      Effect.flatMap((obj) =>
+        obj.type === 'tree'
+          ? parseTreeObject(treeOid, obj.content)
+          : Effect.fail(
+              new ObjectCorruptError({
+                oid: treeOid,
+                reason: `expected tree, got ${obj.type}`,
+                message: `readTree ${treeOid}: not a tree`,
+              })
+            )
+      ),
       Effect.map((entries) => buildStream(gitdir, entries, ''))
     )
   );
@@ -144,20 +143,15 @@ const buildStream = (
 > =>
   Stream.flatMap(Stream.fromIterable(entries), (e) => {
     const fullPath = prefix.length === 0 ? e.name : `${prefix}/${e.name}`;
-    const isTree = (e.mode & 0o17_0000) === TREE_MODE;
-    if (e.mode === SUBMODULE_MODE) {
-      // Submodule: emit but don't recurse (per spec).
-      return Stream.succeed({ path: Schema.decodeUnknownSync(RepoPath)(fullPath), oid: e.oid });
-    }
-    if (isTree) {
-      return readTree(gitdir, e.oid).pipe(
-        Stream.map((child) => ({
-          path: Schema.decodeUnknownSync(RepoPath)(`${fullPath}/${child.path}`),
-          oid: child.oid,
-        }))
-      );
-    }
-    return Stream.succeed({ path: Schema.decodeUnknownSync(RepoPath)(fullPath), oid: e.oid });
+    // Submodules (mode 160000) are emitted but not recursed (per spec).
+    return e.mode !== SUBMODULE_MODE && (e.mode & 0o17_0000) === TREE_MODE
+      ? readTree(gitdir, e.oid).pipe(
+          Stream.map((child) => ({
+            path: Schema.decodeUnknownSync(RepoPath)(`${fullPath}/${child.path}`),
+            oid: child.oid,
+          }))
+        )
+      : Stream.succeed({ path: Schema.decodeUnknownSync(RepoPath)(fullPath), oid: e.oid });
   });
 
 /** Resolve HEAD to a commit oid, then to its tree, then walk it. */
@@ -172,29 +166,24 @@ export const streamHeadTree = (
     Effect.gen(function* () {
       const headOid = yield* resolveRef(gitdir, Schema.decodeUnknownSync(RefName)('HEAD'));
       const commit = yield* readLooseObject(gitdir, headOid);
-      if (commit.type !== 'commit') {
-        return yield* Effect.fail(
-          new ObjectCorruptError({
-            oid: headOid,
-            reason: `expected commit, got ${commit.type}`,
-            message: `streamHeadTree: HEAD oid ${headOid} is not a commit`,
-          })
-        );
-      }
-      // first line is `tree <oid>`
-      const decoded = ASCII.decode(commit.content);
-      const firstLine = decoded.split('\n', 1)[0] ?? '';
+      const firstLine = ASCII.decode(commit.content).split('\n', 1)[0] ?? '';
       const matched = Option.fromNullable(/^tree ([0-9a-f]{40})$/.exec(firstLine));
-      if (Option.isNone(matched)) {
-        return yield* Effect.fail(
-          new ObjectCorruptError({
-            oid: headOid,
-            reason: 'no tree line',
-            message: `streamHeadTree: commit ${headOid} has no tree header`,
-          })
-        );
-      }
-      const treeOid = Schema.decodeUnknownSync(Oid)(matched.value[1] ?? '');
-      return readTree(gitdir, treeOid);
+      return commit.type !== 'commit'
+        ? yield* Effect.fail(
+            new ObjectCorruptError({
+              oid: headOid,
+              reason: `expected commit, got ${commit.type}`,
+              message: `streamHeadTree: HEAD oid ${headOid} is not a commit`,
+            })
+          )
+        : Option.isNone(matched)
+        ? yield* Effect.fail(
+            new ObjectCorruptError({
+              oid: headOid,
+              reason: 'no tree line',
+              message: `streamHeadTree: commit ${headOid} has no tree header`,
+            })
+          )
+        : readTree(gitdir, Schema.decodeUnknownSync(Oid)(matched.value[1] ?? ''));
     })
   );

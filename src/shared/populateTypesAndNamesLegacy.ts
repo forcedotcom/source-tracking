@@ -21,8 +21,9 @@ import {
   ForceIgnore,
   RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
+import { isNotUndefined } from 'effect/Predicate';
 import { ChangeResult } from './types';
-import { isChangeResultWithNameAndType, isDefined } from './guards';
+import { isChangeResultWithNameAndType } from './guards';
 import {
   ensureRelative,
   excludeLwcLocalOnlyTest,
@@ -85,7 +86,7 @@ export const populateTypesAndNamesLegacy =
               return undefined;
             }
           })
-          .filter(isDefined)
+          .filter(isNotUndefined)
           .filter(sourceComponentHasFullNameAndType)
           .map((sc) => [`${sc.fullName}:${sc.type.name}`, sc] as const)
       ).values(),

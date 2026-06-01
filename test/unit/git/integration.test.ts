@@ -15,6 +15,10 @@
  */
 import { expect } from 'chai';
 import { SfError } from '@salesforce/core';
+import * as Config from 'effect/Config';
+import * as ConfigProvider from 'effect/ConfigProvider';
+import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 import {
   IndexCorruptError,
@@ -25,37 +29,33 @@ import {
   RepoNotConfiguredError,
   WorkdirIoError,
 } from '../../../src/git/errors';
-import { repoErrorToSfError, useLiteGit } from '../../../src/git/integration';
+import { repoErrorToSfError, useLiteGit } from '../../../src/git/sfCompatibility';
 import { Oid, RefName } from '../../../src/git/schemas';
 
 const oid = (s: string): Oid => Schema.decodeUnknownSync(Oid)(s);
 const ref = (s: string): RefName => Schema.decodeUnknownSync(RefName)(s);
 
+/** Run useLiteGit against an injected ConfigProvider populated from a Map. */
+const runWithConfig = (entries: ReadonlyArray<readonly [string, string]>): Promise<boolean> =>
+  Effect.runPromise(useLiteGit.pipe(Effect.provide(Layer.setConfigProvider(ConfigProvider.fromMap(new Map(entries))))));
+
 describe('git/integration (phase 12)', () => {
   describe('useLiteGit', () => {
-    it('defaults off', () => {
-      delete process.env.SF_SOURCE_TRACKING_USE_LITE_GIT;
-      expect(useLiteGit()).to.equal(false);
+    it('defaults off when the env var is absent', async () => {
+      expect(await runWithConfig([])).to.equal(false);
     });
 
-    it('on when SF_SOURCE_TRACKING_USE_LITE_GIT=true', () => {
-      process.env.SF_SOURCE_TRACKING_USE_LITE_GIT = 'true';
-      try {
-        expect(useLiteGit()).to.equal(true);
-      } finally {
-        delete process.env.SF_SOURCE_TRACKING_USE_LITE_GIT;
-      }
+    it('on when SF_SOURCE_TRACKING_USE_LITE_GIT=true', async () => {
+      expect(await runWithConfig([['SF_SOURCE_TRACKING_USE_LITE_GIT', 'true']])).to.equal(true);
     });
 
-    it('off for any other truthy value (strict "true" only)', () => {
-      process.env.SF_SOURCE_TRACKING_USE_LITE_GIT = '1';
-      try {
-        expect(useLiteGit()).to.equal(false);
-      } finally {
-        delete process.env.SF_SOURCE_TRACKING_USE_LITE_GIT;
-      }
+    it("off when SF_SOURCE_TRACKING_USE_LITE_GIT='false'", async () => {
+      expect(await runWithConfig([['SF_SOURCE_TRACKING_USE_LITE_GIT', 'false']])).to.equal(false);
     });
   });
+
+  // Keep `Config` import live for any future test that wants to reuse it.
+  void Config;
 
   describe('repoErrorToSfError', () => {
     it('maps every tag to an SfError with a stable name', () => {

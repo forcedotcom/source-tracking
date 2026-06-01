@@ -27,17 +27,18 @@ export type Oid = Schema.Schema.Type<typeof Oid>;
 // branded posix workdir-relative path; normalized + .. rejected
 const REJECTED_SEGMENTS = new Set(['', '.', '..']);
 
-const validateRepoPath = (raw: string): string | undefined => {
-  if (raw.length === 0) return 'path must not be empty';
-  if (raw.startsWith('/')) return 'path must be workdir-relative (no leading "/")';
-  if (raw.includes('\\')) return 'path must be posix-normalized (no backslashes)';
-  if (raw.includes('\0')) return 'path must not contain NUL';
-  const segments = raw.split('/');
-  return segments.some((s) => REJECTED_SEGMENTS.has(s)) ? 'path must not contain "", "." or ".." segments' : undefined;
-};
-
 export const RepoPath = Schema.String.pipe(
-  Schema.filter((raw) => validateRepoPath(raw) ?? true),
+  Schema.nonEmptyString(),
+  Schema.filter((s) => !s.startsWith('/'), {
+    message: () => 'path must be workdir-relative (no leading "/")',
+  }),
+  Schema.filter((s) => !s.includes('\\'), {
+    message: () => 'path must be posix-normalized (no backslashes)',
+  }),
+  Schema.filter((s) => !s.includes('\0'), { message: () => 'path must not contain NUL' }),
+  Schema.filter((s) => !s.split('/').some((seg) => REJECTED_SEGMENTS.has(seg)), {
+    message: () => 'path must not contain "", "." or ".." segments',
+  }),
   Schema.brand('@source-tracking/RepoPath')
 );
 export type RepoPath = Schema.Schema.Type<typeof RepoPath>;
