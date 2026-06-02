@@ -104,6 +104,7 @@ const UntrEntry = Schema.Struct({
     gitignoreMtimeMs: Schema.Number, // 0 if no .gitignore in this dir
   }),
   untracked: Schema.Array(Schema.Struct({ name: Schema.String, status: UntrEntryStatus })),
+  trackedNames: Schema.Array(Schema.String), // basenames of tracked files physically present in dir at cache-write time
 });
 
 export const UntrCache = Schema.Struct({
