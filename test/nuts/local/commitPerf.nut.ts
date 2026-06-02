@@ -18,11 +18,14 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { measure, appendIsoVsLiteRow, variantFromEnv } from '../../perf-utils/measure';
 
 describe('perf testing for big commits', () => {
   let session: TestSession;
   let repo: ShadowRepo;
   let filesToSync: string[];
+  const variant = variantFromEnv();
+  const workload = 'eda';
 
   before(async () => {
     session = await TestSession.create({
@@ -38,22 +41,42 @@ describe('perf testing for big commits', () => {
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
-      orgId: 'fakeOrgId',
-      projectPath: session.project.dir,
-      packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
-      registry: new RegistryAccess(),
-    });
+    const { result, stats } = await measure(() =>
+      ShadowRepo.getInstance({
+        orgId: 'fakeOrgId',
+        projectPath: session.project.dir,
+        packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+        registry: new RegistryAccess(),
+      })
+    );
+    repo = result;
+    await appendIsoVsLiteRow({ variant, workload, op: 'getInstance', ...stats });
   });
 
   it('should find a lot of files', async () => {
-    filesToSync = await repo.getChangedFilenames();
+    const { result, stats } = await measure(() => repo.getChangedFilenames());
+    filesToSync = result;
+    await appendIsoVsLiteRow({
+      variant,
+      workload,
+      op: 'getChangedFilenames.cold',
+      rowCount: filesToSync.length,
+      ...stats,
+    });
     expect(filesToSync).to.be.an('array').with.length.greaterThan(1000);
   });
 
   it('should sync them locally in a reasonable amount of time', async () => {
-    const start = Date.now();
-    await repo.commitChanges({ deployedFiles: filesToSync, needsUpdatedStatus: false });
-    expect(Date.now() - start).to.be.lessThan(process.platform === 'win32' ? 25_000 : 10_000);
+    const { stats } = await measure(() =>
+      repo.commitChanges({ deployedFiles: filesToSync, needsUpdatedStatus: false })
+    );
+    await appendIsoVsLiteRow({
+      variant,
+      workload,
+      op: 'commitChanges',
+      fileCount: filesToSync.length,
+      ...stats,
+    });
+    expect(stats.wallMs).to.be.lessThan(process.platform === 'win32' ? 25_000 : 10_000);
   });
 });

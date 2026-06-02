@@ -20,6 +20,7 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { measure, appendIsoVsLiteRow, variantFromEnv } from '../../perf-utils/measure';
 
 const dirCount = 200;
 const classesPerDir = 500;
@@ -32,6 +33,8 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
   let session: TestSession;
   let repo: ShadowRepo;
   let filesToSync: string[];
+  const variant = variantFromEnv();
+  const workload = `${dirCount}x${classesPerDir}`;
 
   before(async () => {
     session = await TestSession.create({
@@ -68,16 +71,28 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
-      orgId: 'fakeOrgId',
-      projectPath: session.project.dir,
-      packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
-      registry,
-    });
+    const { result, stats } = await measure(() =>
+      ShadowRepo.getInstance({
+        orgId: 'fakeOrgId',
+        projectPath: session.project.dir,
+        packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
+        registry,
+      })
+    );
+    repo = result;
+    await appendIsoVsLiteRow({ variant, workload, op: 'getInstance', ...stats });
   });
 
   it(`should see ${(classCount * 2).toLocaleString()} files (git status)`, async () => {
-    filesToSync = await repo.getChangedFilenames();
+    const { result, stats } = await measure(() => repo.getChangedFilenames());
+    filesToSync = result;
+    await appendIsoVsLiteRow({
+      variant,
+      workload,
+      op: 'getChangedFilenames.cold',
+      rowCount: filesToSync.length,
+      ...stats,
+    });
     expect(filesToSync)
       .to.be.an('array')
       // windows ends up with 2 extra files!?
@@ -85,6 +100,15 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
   });
 
   it('should sync (commit) them locally without error', async () => {
-    await repo.commitChanges({ deployedFiles: filesToSync, needsUpdatedStatus: false });
+    const { stats } = await measure(() =>
+      repo.commitChanges({ deployedFiles: filesToSync, needsUpdatedStatus: false })
+    );
+    await appendIsoVsLiteRow({
+      variant,
+      workload,
+      op: 'commitChanges',
+      fileCount: filesToSync.length,
+      ...stats,
+    });
   });
 });
