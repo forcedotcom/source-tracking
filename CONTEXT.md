@@ -63,6 +63,16 @@ workdir).
   which keeps long-lived consumers (e.g. the VS Code extension host)
   correct across cross-process mutations.
 
+Both paths share a per-directory walker
+([src/git/dirWalk.ts](src/git/dirWalk.ts)) that evaluates a chained
+ignore matcher
+([src/git/ignoreChain.ts](src/git/ignoreChain.ts)). The chain starts
+from `.git/info/exclude` and accumulates a matcher per `.gitignore`
+encountered as the walk descends — real-git parity. (The shadow's
+`.gitignore` is one the project author wrote at any depth of `force-app`
+or another package dir; `.forceignore` is unrelated and sits at the
+project root.)
+
 The lite path emits warm when the cache is valid and the probe passed,
 falls back to cold on any miss. Iso is cold-only.
 

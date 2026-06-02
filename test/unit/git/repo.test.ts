@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import * as fsP from 'node:fs/promises';
+import * as osP from 'node:os';
+import * as pathP from 'node:path';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -20,6 +23,7 @@ import * as Cause from 'effect/Cause';
 import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
+import * as Stream from 'effect/Stream';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { Repo } from '../../../src/git/repo';
@@ -115,5 +119,61 @@ describe('git/Repo lifecycle (phase 1)', () => {
       })
     );
     expect(Exit.isSuccess(exit)).to.equal(true);
+  });
+});
+
+describe('git/Repo UNTR cache integration', () => {
+  let tmp: string;
+  beforeEach(async () => {
+    tmp = await fsP.mkdtemp(pathP.join(osP.tmpdir(), 'lite-repo-untr-'));
+  });
+  afterEach(async () => {
+    await fsP.rm(tmp, { recursive: true, force: true });
+  });
+
+  it('applyChanges writes the UNTR sidecar; subsequent collectStatus is consistent with cold', async () => {
+    const dir = pathP.join(tmp, 'work');
+    await fsP.mkdir(pathP.join(dir, 'a'), { recursive: true });
+    await fsP.writeFile(pathP.join(dir, 'a', 'tracked.txt'), 'one\n');
+    await fsP.writeFile(pathP.join(dir, 'a', 'untracked.log'), 'log\n');
+    const gitdir = pathP.join(dir, '.git');
+    const c: SwitchCfg = {
+      dir,
+      gitdir,
+      roots: [Schema.decodeUnknownSync(RepoPath)('a')],
+      fdPermits: 8,
+    };
+    const exit = await Effect.runPromiseExit(
+      Effect.scoped(
+        Effect.provide(
+          Effect.gen(function* () {
+            const repo = yield* Repo;
+            yield* repo.init(c);
+            yield* repo.applyChanges({
+              adds: Stream.fromIterable([Schema.decodeUnknownSync(RepoPath)('a/tracked.txt')]),
+              removes: Stream.empty,
+              message: 'init',
+              author: { name: 'sf', email: 'sf@noreply.salesforce.com' },
+            });
+            const status = yield* repo.collectStatus();
+            return status;
+          }),
+          TestLayer
+        )
+      )
+    );
+    expect(Exit.isSuccess(exit)).to.equal(true);
+    if (!Exit.isSuccess(exit)) return;
+    // Sidecar should exist after applyChanges.
+    const sidecar = pathP.join(gitdir, 'sftracking', 'untr.json');
+    const exists = await fsP
+      .stat(sidecar)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).to.equal(true);
+    // Status should include the tracked + untracked entries.
+    const paths = exit.value.map((e) => e.path);
+    expect(paths).to.include('a/tracked.txt');
+    expect(paths).to.include('a/untracked.log');
   });
 });

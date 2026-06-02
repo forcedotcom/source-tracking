@@ -26,11 +26,15 @@ import { applyChanges as applyChangesImpl } from './applyChanges';
 import { CapabilitiesTag, type Capabilities } from './capabilities';
 import { ObjectCorruptError, RepoNotConfiguredError, WorkdirIoError } from './errors';
 import { init as initImpl } from './init';
+import { readIndex } from './indexV2';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects';
 import { resolveRef as resolveRefImpl } from './refs';
 import { type Author, type Oid, type RefName, type RepoPath, type SwitchCfg } from './schemas';
 import { cold as coldStatus } from './statusMatrix';
+import { warm as warmStatus, type WarmOutcome } from './statusMatrixWarm';
 import { streamHeadTree as streamHeadTreeImpl } from './trees';
+import { buildUntrCache, trackedByDir } from './untrBuild';
+import { type LoadedUntrCache, deleteUntrCache, readUntrCache, writeUntrCache } from './untrCache';
 import { probeUntr } from './untrProbe';
 
 /**
@@ -41,7 +45,17 @@ import { probeUntr } from './untrProbe';
 type RepoHandle = {
   readonly cfg: SwitchCfg;
   readonly capabilities: Capabilities;
-  readonly internals: Readonly<Record<string, unknown>>;
+  readonly internals: {
+    /** True iff the active fs supports UNTR (probe passed AND capability says so). */
+    readonly untrEnabled: boolean;
+    /**
+     * In-process loaded cache, gated on the on-disk sidecar's mtime. None
+     * until the first warm `getStatus`; populated lazily after the first
+     * load and thereafter refreshed when the disk sidecar's mtime advances
+     * past `mtimeMs`.
+     */
+    readonly cacheRef: Ref.Ref<Option.Option<LoadedUntrCache>>;
+  };
   readonly scope: Scope.CloseableScope;
 };
 
@@ -67,17 +81,17 @@ const requireHandle = (handleRef: Ref.Ref<Option.Option<RepoHandle>>, op: string
     )
   );
 
-const buildHandle = (cfg: SwitchCfg, capabilities: Capabilities, serviceScope: Scope.Scope) =>
-  Scope.fork(serviceScope, ExecutionStrategy.sequential).pipe(
-    Effect.map(
-      (scope): RepoHandle => ({
-        cfg,
-        capabilities,
-        internals: Object.freeze({}),
-        scope,
-      })
-    )
-  );
+const buildHandle = (cfg: SwitchCfg, capabilities: Capabilities, untrEnabled: boolean, serviceScope: Scope.Scope) =>
+  Effect.gen(function* () {
+    const scope = yield* Scope.fork(serviceScope, ExecutionStrategy.sequential);
+    const cacheRef = yield* Ref.make<Option.Option<LoadedUntrCache>>(Option.none());
+    return {
+      cfg,
+      capabilities,
+      internals: { untrEnabled, cacheRef },
+      scope,
+    } satisfies RepoHandle;
+  });
 
 /**
  * The Repo service. One swappable handle, no multi-org. Methods that need
@@ -108,18 +122,21 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
     const switchTo = Effect.fn('Repo.switchTo')(function* (cfg: SwitchCfg) {
       yield* swapSemaphore.withPermits(1)(
         Effect.gen(function* () {
-          const next = yield* buildHandle(cfg, capabilities, serviceScope);
-          // First-switch UNTR probe per phase 11. Result is logged at trace.
-          if (capabilities.supportsUntr) {
-            const probed = yield* provideFsAndPath(
-              probeUntr(cfg.gitdir).pipe(
-                Effect.catchAll(() => Effect.succeed({ kind: 'failed' as const, reason: 'unstable_ino' as const }))
+          // First-switch UNTR probe per phase 11. The probe result decides
+          // `untrEnabled` for the handle; failure means warm is skipped
+          // for this gitdir's lifetime.
+          const probed = capabilities.supportsUntr
+            ? yield* provideFsAndPath(
+                probeUntr(cfg.gitdir).pipe(
+                  Effect.catchAll(() => Effect.succeed({ kind: 'failed' as const, reason: 'unstable_ino' as const }))
+                )
               )
-            );
-            if (probed.kind === 'failed') {
-              yield* Effect.logTrace(`untr probe failed for ${cfg.gitdir}: ${probed.reason}`);
-            }
+            : ({ kind: 'failed', reason: 'unstable_ino' } as const);
+          if (probed.kind === 'failed') {
+            yield* Effect.logTrace(`untr probe failed for ${cfg.gitdir}: ${probed.reason}`);
           }
+          const untrEnabled = capabilities.supportsUntr && probed.kind === 'ok';
+          const next = yield* buildHandle(cfg, capabilities, untrEnabled, serviceScope);
           const prior = yield* Ref.getAndSet(handleRef, Option.some(next));
           yield* Option.match(prior, {
             onNone: () => Effect.void,
@@ -134,19 +151,66 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
       yield* switchTo(cfg);
     });
 
+    /**
+     * Refresh the in-process cacheRef if the on-disk sidecar's mtime has
+     * advanced since we last loaded. Returns the loaded cache, or None if
+     * the sidecar is missing / corrupt / decode-failed.
+     */
+    const ensureFreshCacheRef = Effect.fn('Repo.ensureFreshCacheRef')(function* (h: RepoHandle) {
+      const current = yield* Ref.get(h.internals.cacheRef);
+      const fresh = yield* readUntrCache(h.cfg.gitdir);
+      if (Option.isNone(fresh)) {
+        if (Option.isSome(current)) yield* Ref.set(h.internals.cacheRef, Option.none());
+        return Option.none<LoadedUntrCache>();
+      }
+      const sameMtime = Option.match(current, {
+        onNone: () => false,
+        onSome: (c) => c.mtimeMs === fresh.value.mtimeMs,
+      });
+      if (sameMtime) return current;
+      yield* Ref.set(h.internals.cacheRef, fresh);
+      return fresh;
+    });
+
+    /**
+     * Warm-or-fall-back-to-cold orchestration. Returns a list of
+     * StatusEntry; the caller decides how to surface it (Stream vs array).
+     *
+     * If warm returns 'invalidated', delete the corrupt sidecar and clear
+     * the in-process ref so the next applyChanges rebuilds from scratch.
+     */
+    const warmOrCold = Effect.fn('Repo.warmOrCold')(function* (h: RepoHandle) {
+      if (!h.internals.untrEnabled) {
+        return Array.from(yield* provideFsAndPath(coldStatus(h.cfg).pipe(Stream.runCollect)));
+      }
+      const loaded = yield* provideFsAndPath(ensureFreshCacheRef(h));
+      if (Option.isNone(loaded)) {
+        return Array.from(yield* provideFsAndPath(coldStatus(h.cfg).pipe(Stream.runCollect)));
+      }
+      const outcome: WarmOutcome = yield* provideFsAndPath(warmStatus(h.cfg, loaded.value.cache));
+      if (outcome.kind === 'invalidated') {
+        // Drop the corrupt slice — disk + in-process. Cold will rebuild
+        // on next applyChanges.
+        yield* Ref.set(h.internals.cacheRef, Option.none());
+        yield* provideFsAndPath(deleteUntrCache(h.cfg.gitdir));
+        return Array.from(yield* provideFsAndPath(coldStatus(h.cfg).pipe(Stream.runCollect)));
+      }
+      return [...outcome.entries];
+    });
+
     const statusMatrix = () =>
       Stream.unwrap(
-        requireHandle(handleRef, 'statusMatrix').pipe(Effect.map((h) => provideFsAndPathStream(coldStatus(h.cfg))))
+        requireHandle(handleRef, 'statusMatrix').pipe(Effect.map((h) => Stream.fromIterableEffect(warmOrCold(h))))
       );
 
     const collectStatus = Effect.fn('Repo.collectStatus')(function* () {
       const h = yield* requireHandle(handleRef, 'collectStatus');
-      return Array.from(yield* provideFsAndPath(coldStatus(h.cfg).pipe(Stream.runCollect)));
+      return yield* warmOrCold(h);
     });
 
     const applyChanges = Effect.fn('Repo.applyChanges')(function* (args: ApplyChangesArgs) {
       const h = yield* requireHandle(handleRef, 'applyChanges');
-      return yield* provideFsAndPath(
+      const commitOid = yield* provideFsAndPath(
         applyChangesImpl({
           cfg: { dir: h.cfg.dir, gitdir: h.cfg.gitdir },
           adds: args.adds,
@@ -156,6 +220,27 @@ export class Repo extends Effect.Service<Repo>()('@source-tracking/Repo', {
           addConcurrency: h.cfg.fdPermits,
         })
       );
+      // After commit lands, rebuild + persist the UNTR cache. The
+      // applyChanges critical section already serialized writers via
+      // withIndexLock, but rebuild after release is acceptable: another
+      // process between release and rebuild would either also rebuild
+      // (concurrency-safe — each fully rewrites) or invalidate via
+      // sidecar mtime check on its next getStatus.
+      if (h.internals.untrEnabled) {
+        yield* provideFsAndPath(rebuildAndStoreCache(h));
+      }
+      return commitOid;
+    });
+
+    const rebuildAndStoreCache = Effect.fn('Repo.rebuildUntr')(function* (h: RepoHandle) {
+      const idx = yield* readIndex(h.cfg.gitdir);
+      const cache = yield* buildUntrCache(h.cfg, trackedByDir(idx.entries));
+      yield* writeUntrCache(h.cfg.gitdir, cache);
+      // Re-read so we capture the on-disk sidecar's mtime; the in-process
+      // ref's mtime must match disk for cross-process invalidation to
+      // remain correct.
+      const loaded = yield* readUntrCache(h.cfg.gitdir);
+      yield* Ref.set(h.internals.cacheRef, loaded);
     });
 
     const hashBlob = (bytes: Uint8Array) => hashBlobImpl(bytes);

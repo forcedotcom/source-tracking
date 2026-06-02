@@ -302,4 +302,4 @@ const collectBareFileRoots = (dir: string, roots: readonly RepoPath[]) =>
 // Internals exposed to the warm path. Keep these as named exports rather
 // than re-publishing through index.ts; the warm module is the only
 // in-tree consumer.
-export { collectBareFileRoots, collectFromWalk, evaluateMatrix, type UntrackedClassification };
+export { collectBareFileRoots, evaluateMatrix, type UntrackedClassification };

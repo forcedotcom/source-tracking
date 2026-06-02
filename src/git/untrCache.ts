@@ -27,8 +27,8 @@ const ENCODER = new TextEncoder();
 const DECODER = new TextDecoder('utf-8', { fatal: false });
 
 /** Source-tracking sidecar dir under .git/. Opaque to other tooling. */
-export const SIDECAR_DIR = 'sftracking';
-export const SIDECAR_FILE = 'untr.json';
+const SIDECAR_DIR = 'sftracking';
+const SIDECAR_FILE = 'untr.json';
 
 const sidecarPath = (path: Path, gitdir: string): { dir: string; file: string } => {
   const dir = path.join(gitdir, SIDECAR_DIR);
@@ -38,7 +38,6 @@ const sidecarPath = (path: Path, gitdir: string): { dir: string; file: string } 
 const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'NotFound';
 
 const UntrEntryStatus = Schema.Literal('added', 'ignored');
-export type UntrEntryStatus = Schema.Schema.Type<typeof UntrEntryStatus>;
 
 const UntrFingerprint = Schema.Struct({
   mtimeMs: Schema.Number,
@@ -46,7 +45,6 @@ const UntrFingerprint = Schema.Struct({
   /** mtime of the local `.gitignore` in this dir, or 0 if absent. */
   gitignoreMtimeMs: Schema.Number,
 });
-export type UntrFingerprint = Schema.Schema.Type<typeof UntrFingerprint>;
 
 const UntrEntry = Schema.Struct({
   fingerprint: UntrFingerprint,

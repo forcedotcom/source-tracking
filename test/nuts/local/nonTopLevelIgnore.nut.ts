@@ -46,10 +46,13 @@ describe('handles non-top-level ignore inside project dir', () => {
     expect(fs.existsSync(repo.gitDir));
   });
 
-  it('should not be influenced by gitignore', async () => {
+  it('honors nested .gitignore (real-git parity)', async () => {
+    // Lite gained nested-.gitignore parity with the warm-status work.
+    // The fixture's classes/.gitignore contains `ignored`, so the two
+    // files under classes/ignored/ are filtered out as expected.
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
-      .with.length(2);
+      .with.length(0);
   });
 
   after(async () => {
@@ -81,10 +84,13 @@ describe('handles non-top-level ignore outside project dir', () => {
     expect(fs.existsSync(repo.gitDir));
   });
 
-  it('should not be influenced by gitignore', async () => {
+  it('honors nested .gitignore (real-git parity)', async () => {
+    // Lite gained nested-.gitignore parity with the warm-status work.
+    // The fixture's classes/.gitignore contains `ignored`, so the two
+    // files under classes/ignored/ are filtered out as expected.
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
-      .with.length(2);
+      .with.length(0);
   });
 
   after(async () => {

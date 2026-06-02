@@ -27,8 +27,7 @@ import { readIndex } from './indexV2';
 import { type Oid, type StatusEntry, type SwitchCfg } from './schemas';
 import { collectBareFileRoots, evaluateMatrix, type UntrackedClassification } from './statusMatrix';
 import { streamHeadTree } from './trees';
-import { type LoadedUntrCache, type UntrCache } from './untrCache';
-import { trackedByDir } from './untrBuild';
+import { type UntrCache } from './untrCache';
 
 const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'NotFound';
 
@@ -230,13 +229,3 @@ export const warm = Effect.fn('statusMatrixWarm')(function* (cfg: SwitchCfg, cac
   });
   return { kind: 'ok', entries: cells } satisfies WarmOutcome;
 });
-
-/**
- * Convenience: helper that the wiring-layer can call with a loaded
- * `LoadedUntrCache`. Identical to `warm` for now; placeholder for
- * cross-process invalidation logic the wiring layer will add.
- */
-export const warmFromLoaded = (cfg: SwitchCfg, loaded: LoadedUntrCache) => warm(cfg, loaded.cache);
-
-// Re-export for the wiring layer (Repo) to feed buildUntrCache.
-export { trackedByDir };
