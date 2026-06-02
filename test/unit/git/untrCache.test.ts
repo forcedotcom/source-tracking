@@ -34,15 +34,12 @@ import {
   readUntrCache,
   writeUntrCache,
 } from '../../../src/git/untrCache';
-import { RepoPath } from '../../../src/git/schemas';
 
 const TestLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
 const run = <A, E>(eff: Effect.Effect<A, E, FileSystem | Path>): Promise<A> =>
   Effect.runPromise(Effect.provide(eff, TestLayer));
-const repoPath = (s: string): RepoPath => Schema.decodeUnknownSync(RepoPath)(s);
 
-const sampleEntry = (dir: string): UntrEntry => ({
-  path: repoPath(dir),
+const sampleEntry = (): UntrEntry => ({
   fingerprint: { mtimeMs: 1_700_000_000_000, size: 4096, gitignoreMtimeMs: 0 },
   untracked: [
     { name: 'a.txt', status: 'added' },
@@ -55,8 +52,8 @@ const sampleCache = (): UntrCache => ({
   schemaVersion: 1,
   excludeMtimeMs: 1_700_000_000_000,
   entries: HashMap.fromIterable([
-    ['', sampleEntry('force-app')],
-    ['force-app/main/default', sampleEntry('force-app/main/default')],
+    ['', sampleEntry()],
+    ['force-app/main/default', sampleEntry()],
   ]),
 });
 

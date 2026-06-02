@@ -23,8 +23,7 @@ import * as Option from 'effect/Option';
 import * as Order from 'effect/Order';
 import * as Schema from 'effect/Schema';
 import * as Stream from 'effect/Stream';
-import ignore from 'ignore';
-import type { Ignore } from 'ignore';
+import { nodeIgnores, readInfoExclude, walkAllRoots, type WalkResult } from './dirWalk';
 import { WorkdirIoError } from './errors';
 import { readIndex, type IndexEntry } from './indexV2';
 import { hashBlob } from './objects';
@@ -32,78 +31,6 @@ import { type Oid, type RepoPath, RepoPath as RepoPathSchema, type StatusEntry }
 import { streamHeadTree } from './trees';
 
 const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && cause.reason === 'NotFound';
-
-/** Build the `ignore` matcher from `.git/info/exclude`. Empty if absent. */
-const loadIgnoreMatcher = Effect.fn('loadIgnoreMatcher')(function* (gitdir: string) {
-  const fs = yield* FileSystem;
-  const path = yield* Path;
-  const file = path.join(gitdir, 'info', 'exclude');
-  const content = yield* fs
-    .readFileString(file)
-    .pipe(
-      Effect.catchAll((cause) =>
-        isNotFound(cause) ? Effect.succeed('') : Effect.fail(WorkdirIoError.fromPlatformError(file, cause))
-      )
-    );
-  return ignore().add(content);
-});
-
-/** Walk one root: stat once, then either emit the file or recurse into the directory. */
-const walkOneRoot = Effect.fn('walkOneRoot')(function* (dir: string, rootRel: string) {
-  const fs = yield* FileSystem;
-  const path = yield* Path;
-  const absRoot = path.join(dir, rootRel);
-  const rootStat = yield* fs.stat(absRoot).pipe(
-    Effect.map((s) => ({ kind: 'present' as const, type: s.type })),
-    Effect.catchAll((cause) =>
-      isNotFound(cause)
-        ? Effect.succeed({ kind: 'absent' as const })
-        : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
-    )
-  );
-  if (rootStat.kind === 'absent') return [];
-  if (rootStat.type !== 'Directory') return [rootRel];
-
-  const entries: readonly string[] = yield* fs
-    .readDirectory(absRoot, { recursive: true })
-    .pipe(
-      Effect.catchAll((cause) =>
-        isNotFound(cause) ? Effect.succeed([]) : Effect.fail(WorkdirIoError.fromPlatformError(absRoot, cause))
-      )
-    );
-  const relPaths = entries.map((e) => `${rootRel}/${e.replaceAll('\\', '/')}`);
-  // ENOENT mid-walk: silently drop. Other errors surface. Concurrency
-  // capped (was 'unbounded') because 200k parallel fibers cost more in
-  // fiber overhead than the OS can usefully service against ~256 fd
-  // permits — and an unbounded forEach pegged the event loop hard
-  // (elP99 ~4.7s on the 200k-file scale test).
-  const stats = yield* Effect.forEach(
-    relPaths,
-    (rel) =>
-      fs.stat(path.join(dir, rel)).pipe(
-        Effect.map((info) => Option.some({ rel, type: info.type })),
-        Effect.catchAll((cause) =>
-          isNotFound(cause)
-            ? Effect.succeed(Option.none<{ rel: string; type: string }>())
-            : Effect.fail(WorkdirIoError.fromPlatformError(rel, cause))
-        )
-      ),
-    { concurrency: 256 }
-  );
-  return stats.flatMap((opt) =>
-    Option.match(opt, {
-      onNone: (): readonly string[] => [],
-      onSome: (s): readonly string[] => (s.type !== 'Directory' ? [s.rel] : []),
-    })
-  );
-});
-
-/**
- * Walk all files under `dir/<root>` for each root in cfg.roots. Posix paths
- * relative to `dir`. ENOENT mid-walk silently dropped.
- */
-const collectWorkdirFiles = (dir: string, roots: readonly RepoPath[]) =>
-  Effect.forEach(roots, (r) => walkOneRoot(dir, r), { concurrency: 'unbounded' }).pipe(Effect.map((p) => p.flat()));
 
 /** Predicate: does `p` live under any of `roots`? Exact match or prefix-with-slash. */
 const inRoots = (p: string, roots: readonly RepoPath[]): boolean => roots.some((r) => r === p || p.startsWith(`${r}/`));
@@ -151,6 +78,16 @@ const workdirOidFor = Effect.fn('workdirOidFor')(function* (dir: string, rel: st
 });
 
 /**
+ * Untracked-classification table built once at walk time.
+ *
+ * Per-dir `.gitignore` chains are evaluated as the walk descends, so by the
+ * time we collapse paths into `StatusEntry`s the question "is this path
+ * ignored?" is already a Map lookup. `'added'` and `'ignored'` are the only
+ * two valid resolutions for an untracked workdir file.
+ */
+type UntrackedClassification = ReadonlyMap<string, 'added' | 'ignored'>;
+
+/**
  * Collapse (head, index, workdir) → public StatusEntry per
  * STATUS-COLLAPSE.md. Returns Option.none when the path has no observable
  * state (head/index/workdir all empty).
@@ -160,7 +97,7 @@ const collapse = (
   head: Oid | undefined,
   index: Oid | undefined,
   workdir: Oid | undefined,
-  matcher: Ignore,
+  untracked: UntrackedClassification,
   hasWorkdir: boolean
 ): Option.Option<StatusEntry> => {
   const path = Schema.decodeUnknownSync(RepoPathSchema)(rawPath);
@@ -168,7 +105,11 @@ const collapse = (
   return Match.value({ tracked, hasWorkdir }).pipe(
     Match.when({ tracked: false, hasWorkdir: false }, () => Option.none<StatusEntry>()),
     Match.when({ tracked: false, hasWorkdir: true }, () =>
-      Option.some<StatusEntry>({ path, status: matcher.ignores(rawPath) ? 'ignored' : 'added' })
+      // Untracked files that the walk classified explicitly are 'added' or
+      // 'ignored'. Anything not in the map (shouldn't happen with a fresh
+      // walk; possible if a stale cache slice is in play) defaults to
+      // 'added' — the safe-to-show classification.
+      Option.some<StatusEntry>({ path, status: untracked.get(rawPath) ?? 'added' })
     ),
     Match.when({ tracked: true, hasWorkdir: false }, () => Option.some<StatusEntry>({ path, status: 'deleted' })),
     Match.when({ tracked: true, hasWorkdir: true }, () =>
@@ -193,8 +134,8 @@ const cellPure = (
   head: Oid | undefined,
   indexOid: Oid | undefined,
   inWorkdir: boolean,
-  matcher: Ignore
-): Option.Option<StatusEntry> => collapse(rel, head, indexOid, undefined, matcher, inWorkdir);
+  untracked: UntrackedClassification
+): Option.Option<StatusEntry> => collapse(rel, head, indexOid, undefined, untracked, inWorkdir);
 
 /**
  * Effectful cell evaluation for tracked-and-present-in-workdir paths.
@@ -206,22 +147,96 @@ const cellHashing = Effect.fn('cellHashing')(function* (
   rel: string,
   head: Oid | undefined,
   index: IndexEntry | undefined,
-  matcher: Ignore
+  untracked: UntrackedClassification
 ) {
   const workdirOid = yield* workdirOidFor(cfg.dir, rel, index);
-  return collapse(rel, head, index?.oid, Option.getOrUndefined(workdirOid), matcher, true);
+  return collapse(rel, head, index?.oid, Option.getOrUndefined(workdirOid), untracked, true);
 });
 
 /**
- * Cold statusMatrix: union of HEAD-tree paths, index entries, and workdir
- * files; emit a StatusEntry per path per the collapse table.
- *
- * Phase 8 has no UNTR; phase 11 layers a warm path on top.
+ * Shared evaluation core. Produces the sorted StatusEntry stream from
+ * pre-resolved (head, index, workdir) inputs. Cold and warm both flow into
+ * here; the only difference between them is HOW the `workdirSet` and
+ * `untrackedClassification` were assembled.
  */
-export const cold = (cfg: { readonly dir: string; readonly gitdir: string; readonly roots: readonly RepoPath[] }) =>
+const evaluateMatrix = (
+  cfg: { readonly dir: string; readonly roots: readonly RepoPath[] },
+  headByPath: ReadonlyMap<string, Oid>,
+  indexByPath: ReadonlyMap<string, IndexEntry>,
+  workdirSet: ReadonlySet<string>,
+  untracked: UntrackedClassification
+) =>
+  Effect.gen(function* () {
+    const allPaths = Arr.sort(Order.string)(
+      Arr.fromIterable(new Set([...headByPath.keys(), ...indexByPath.keys(), ...workdirSet])).filter((p) =>
+        inRoots(p, cfg.roots)
+      )
+    );
+
+    // Partition: paths that need a workdir hash vs paths that don't.
+    // Hashing cohort is small (modified-or-unmodified tracked files); pure
+    // cohort is the rest. Doing the pure majority synchronously avoids
+    // spawning N fibers for pure-CPU work.
+    const pure: Array<Option.Option<StatusEntry>> = [];
+    const needsHash: string[] = [];
+    // eslint-disable-next-line functional/no-loop-statements
+    for (const p of allPaths) {
+      const head = headByPath.get(p);
+      const indexEntry = indexByPath.get(p);
+      const tracked = head !== undefined || indexEntry !== undefined;
+      const inWd = workdirSet.has(p);
+      if (tracked && inWd) needsHash.push(p);
+      else pure.push(cellPure(p, head, indexEntry?.oid, inWd, untracked));
+    }
+    const hashed = yield* Effect.forEach(
+      needsHash,
+      (p) => cellHashing(cfg, p, headByPath.get(p), indexByPath.get(p), untracked),
+      { concurrency: 256 }
+    );
+    return [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []));
+  });
+
+/**
+ * Build the (workdirSet, untrackedClassification) tuple from a fresh walk.
+ * Used by cold and by the warm path's "stale slice" fallback.
+ *
+ * Tracked files are identified by membership in `indexByPath`. Walk-emitted
+ * basenames not in the index are untracked; their `'added' | 'ignored'`
+ * status comes from the per-dir chain `chainIgnores` evaluated at walk
+ * time.
+ */
+const collectFromWalk = (
+  walk: WalkResult,
+  indexByPath: ReadonlyMap<string, IndexEntry>
+): { readonly workdirSet: ReadonlySet<string>; readonly untracked: UntrackedClassification } => {
+  const workdirSet = new Set<string>();
+  const untracked = new Map<string, 'added' | 'ignored'>();
+  // eslint-disable-next-line functional/no-loop-statements
+  for (const node of walk.nodes) {
+    // eslint-disable-next-line functional/no-loop-statements
+    for (const name of node.snapshot.fileNames) {
+      const rel = node.snapshot.dir === '' ? name : `${node.snapshot.dir}/${name}`;
+      workdirSet.add(rel);
+      if (!indexByPath.has(rel)) untracked.set(rel, nodeIgnores(node, rel) ? 'ignored' : 'added');
+    }
+  }
+  return { workdirSet, untracked };
+};
+
+/**
+ * Cold statusMatrix: walk the workdir per-directory (with nested
+ * `.gitignore` evaluation), union with HEAD-tree paths and index entries,
+ * collapse to StatusEntry.
+ */
+export const cold = (cfg: {
+  readonly dir: string;
+  readonly gitdir: string;
+  readonly roots: readonly RepoPath[];
+  readonly fdPermits?: number;
+}) =>
   Stream.unwrap(
     Effect.gen(function* () {
-      const matcher = yield* loadIgnoreMatcher(cfg.gitdir);
+      const excludeContent = yield* readInfoExclude(cfg.gitdir);
       const idx = yield* readIndex(cfg.gitdir);
       const indexByPath = new Map(idx.entries.map((e) => [e.path, e] as const));
 
@@ -233,37 +248,58 @@ export const cold = (cfg: { readonly dir: string; readonly gitdir: string; reado
         )
       );
 
-      const workdirFiles = yield* collectWorkdirFiles(cfg.dir, cfg.roots);
-      const workdirSet = new Set(workdirFiles);
-
-      // Union all keys, filter to roots, sort once.
-      const allPaths = Arr.sort(Order.string)(
-        Arr.fromIterable(new Set([...headByPath.keys(), ...indexByPath.keys(), ...workdirFiles])).filter((p) =>
-          inRoots(p, cfg.roots)
-        )
+      const walk = yield* walkAllRoots(
+        { dir: cfg.dir, roots: cfg.roots, fdPermits: cfg.fdPermits ?? 256 },
+        excludeContent
       );
-
-      // Partition: paths that need a workdir hash vs paths that don't.
-      // The hashing cohort is usually tiny (only modified-or-unmodified
-      // tracked files); the pure cohort is the rest. Doing the pure
-      // majority synchronously avoids spawning N fibers for pure-CPU work.
-      const pure: Array<Option.Option<StatusEntry>> = [];
-      const needsHash: string[] = [];
+      const fileRootSet = yield* collectBareFileRoots(cfg.dir, cfg.roots);
+      const { workdirSet: walked, untracked } = collectFromWalk(walk, indexByPath);
+      // Bare file roots don't show up via dir-walk; merge them in.
+      const workdirSet = new Set([...walked, ...fileRootSet]);
+      const untrackedAll = new Map(untracked);
       // eslint-disable-next-line functional/no-loop-statements
-      for (const p of allPaths) {
-        const head = headByPath.get(p);
-        const indexEntry = indexByPath.get(p);
-        const tracked = head !== undefined || indexEntry !== undefined;
-        const inWd = workdirSet.has(p);
-        if (tracked && inWd) needsHash.push(p);
-        else pure.push(cellPure(p, head, indexEntry?.oid, inWd, matcher));
+      for (const rel of fileRootSet) {
+        if (!indexByPath.has(rel)) untrackedAll.set(rel, walk.isIgnoredAtRoot(rel) ? 'ignored' : 'added');
       }
-      const hashed = yield* Effect.forEach(
-        needsHash,
-        (p) => cellHashing(cfg, p, headByPath.get(p), indexByPath.get(p), matcher),
-        { concurrency: 256 }
-      );
-      const cells = [...pure, ...hashed];
-      return Stream.fromIterable(cells.flatMap((c) => (Option.isSome(c) ? [c.value] : [])));
+
+      const cells = yield* evaluateMatrix(cfg, headByPath, indexByPath, workdirSet, untrackedAll);
+      return Stream.fromIterable(cells);
     })
   );
+
+/**
+ * For roots that point at single files (not directories), stat them and
+ * return the relative paths that exist as non-directory files. Mirrors the
+ * old `walkOneRoot`'s "if the root is a file, emit it as one entry"
+ * behavior — necessary for tests that pass a file-list as `roots`.
+ */
+const collectBareFileRoots = (dir: string, roots: readonly RepoPath[]) =>
+  Effect.forEach(
+    roots,
+    (rel) => {
+      const eff = Effect.gen(function* () {
+        const fs = yield* FileSystem;
+        const path = yield* Path;
+        const abs = path.join(dir, rel);
+        const info = yield* fs.stat(abs).pipe(
+          Effect.map(Option.some),
+          Effect.catchAll((cause) =>
+            isNotFound(cause)
+              ? Effect.succeed(Option.none<PlatformFile.Info>())
+              : Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))
+          )
+        );
+        return Option.match(info, {
+          onNone: () => Option.none<string>(),
+          onSome: (i) => (i.type === 'Directory' ? Option.none<string>() : Option.some(rel as string)),
+        });
+      });
+      return eff;
+    },
+    { concurrency: 'unbounded' }
+  ).pipe(Effect.map((opts) => new Set(opts.flatMap((o) => (Option.isSome(o) ? [o.value] : [])))));
+
+// Internals exposed to the warm path. Keep these as named exports rather
+// than re-publishing through index.ts; the warm module is the only
+// in-tree consumer.
+export { collectBareFileRoots, collectFromWalk, evaluateMatrix, type UntrackedClassification };

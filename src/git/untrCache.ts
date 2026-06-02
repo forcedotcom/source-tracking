@@ -22,7 +22,6 @@ import * as HashMap from 'effect/HashMap';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import { WorkdirIoError } from './errors';
-import { RepoPath } from './schemas';
 
 const ENCODER = new TextEncoder();
 const DECODER = new TextDecoder('utf-8', { fatal: false });
@@ -50,8 +49,6 @@ const UntrFingerprint = Schema.Struct({
 export type UntrFingerprint = Schema.Schema.Type<typeof UntrFingerprint>;
 
 const UntrEntry = Schema.Struct({
-  /** Posix dir path, relative to workdir. The empty-string root encodes as "/" on the wire — RepoPath rejects empty. See `dirKeyEncode` / `dirKeyDecode`. */
-  path: RepoPath,
   fingerprint: UntrFingerprint,
   /** Untracked basenames + their resolved `'added' | 'ignored'` status. */
   untracked: Schema.Array(Schema.Struct({ name: Schema.String, status: UntrEntryStatus })),
@@ -61,13 +58,9 @@ const UntrEntry = Schema.Struct({
 export type UntrEntry = Schema.Schema.Type<typeof UntrEntry>;
 
 /**
- * The wire shape: a HashMap keyed by directory path.
- *
- * `entries` keys are encoded as the same posix paths used in
- * `UntrEntry.path`, EXCEPT the workdir root, which is the literal string
- * `""` (empty) on the in-memory side and `"/"` on the wire (`RepoPath`
- * rejects empty strings, so we transcode at the boundary). Use
- * [[dirKeyEncode]] / [[dirKeyDecode]] when reading or writing keys.
+ * The wire shape: a HashMap keyed by directory path. Posix, workdir-relative.
+ * The workdir root is the empty string `''`, both in memory and on the wire
+ * (Schema.HashMap encodes as `Array<[K, V]>` so empty-string keys round-trip).
  */
 export const UntrCache = Schema.Struct({
   /** Bumped only on incompatible semantic change. Additive fields go through `Schema.optional` defaults. */
@@ -87,22 +80,6 @@ export type UntrCache = Schema.Schema.Type<typeof UntrCache>;
  * struct.
  */
 export const UntrCacheJson = Schema.parseJson(UntrCache);
-
-const ROOT_KEY_DISK = '/';
-
-/** "" (in-memory root) ↔ "/" (on-disk root). Other dirs pass through. */
-export const dirKeyEncode = (key: string): string => (key === '' ? ROOT_KEY_DISK : key);
-export const dirKeyDecode = (key: string): string => (key === ROOT_KEY_DISK ? '' : key);
-
-/** Encode the in-memory entries map → wire form (root key transcoded). */
-export const encodeEntriesForWire = (entries: HashMap.HashMap<string, UntrEntry>): HashMap.HashMap<string, UntrEntry> =>
-  HashMap.fromIterable(HashMap.toEntries(entries).map(([k, v]) => [dirKeyEncode(k), v] as const));
-
-/** Decode wire entries → in-memory form (root key transcoded). */
-export const decodeEntriesFromWire = (
-  entries: HashMap.HashMap<string, UntrEntry>
-): HashMap.HashMap<string, UntrEntry> =>
-  HashMap.fromIterable(HashMap.toEntries(entries).map(([k, v]) => [dirKeyDecode(k), v] as const));
 
 /**
  * Read the sidecar cache. Returns `None` for any failure mode — file
@@ -133,10 +110,7 @@ export const readUntrCache = Effect.fn('readUntrCache')(function* (gitdir: strin
   );
   if (Option.isNone(decoded)) return Option.none<LoadedUntrCache>();
   const mtimeMs = Option.getOrElse(info.value.mtime, () => new Date(0)).getTime();
-  return Option.some<LoadedUntrCache>({
-    mtimeMs,
-    cache: { ...decoded.value, entries: decodeEntriesFromWire(decoded.value.entries) },
-  });
+  return Option.some<LoadedUntrCache>({ mtimeMs, cache: decoded.value });
 });
 
 /**
@@ -152,8 +126,7 @@ export const writeUntrCache = Effect.fn('writeUntrCache')(function* (gitdir: str
   yield* fs
     .makeDirectory(dir, { recursive: true })
     .pipe(Effect.catchAll((cause) => Effect.fail(WorkdirIoError.fromPlatformError(dir, cause))));
-  const wire: UntrCache = { ...cache, entries: encodeEntriesForWire(cache.entries) };
-  const json = Schema.encodeSync(UntrCacheJson)(wire);
+  const json = Schema.encodeSync(UntrCacheJson)(cache);
   const tmp = `${file}.tmp.${Math.random().toString(36).slice(2)}`;
   yield* fs
     .writeFile(tmp, ENCODER.encode(json))
