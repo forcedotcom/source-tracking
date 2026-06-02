@@ -1,9 +1,8 @@
 # Source Tracking — domain glossary
 
 Domain language for `@salesforce/source-tracking`. Updated lazily as terms are
-resolved during work; entries are meaningful to domain experts (Salesforce metadata
-
-- source tracking), not implementation details.
+resolved during work; entries are meaningful to domain experts (Salesforce
+metadata + source tracking), not implementation details.
 
 ## .forceignore
 
