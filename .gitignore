@@ -23,7 +23,8 @@ dist
 coverage
 test_session*
 
-# generated docs
+# generated docs (sf-docs / typedoc output; sf-docs wipes docs/ on every run
+# except docs/perf*, so authored ADRs / glossaries belong outside docs/).
 docs
 
 # ignore sfdx-trust files
