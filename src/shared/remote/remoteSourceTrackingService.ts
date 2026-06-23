@@ -179,7 +179,7 @@ export class RemoteSourceTrackingService {
     // so we de-dupe via a set
     Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(registry)(element)))).map(
       (metadataKey) => {
-        const revision = this.sourceMembers.get(metadataKey) ?? this.sourceMembers.get(decodeURI(metadataKey));
+        const revision = this.getSourceMember(metadataKey);
         if (!revision) {
           this.logger.warn(`found no matching revision for ${metadataKey}`);
         } else if (doesNotMatchServer(revision)) {
