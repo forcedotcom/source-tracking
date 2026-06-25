@@ -1,3 +1,12 @@
+## [7.8.19](https://github.com/forcedotcom/source-tracking/compare/7.8.18...7.8.19) (2026-06-25)
+
+
+### Bug Fixes
+
+* metadata with ampersand (%26) never syncs in source tracking @W-21360609@ ([#862](https://github.com/forcedotcom/source-tracking/issues/862)) ([6436a18](https://github.com/forcedotcom/source-tracking/commit/6436a1852c484122fc1aac76156d049543b2f5ca))
+
+
+
 ## [7.8.18](https://github.com/forcedotcom/source-tracking/compare/7.8.17...7.8.18) (2026-06-24)
 
 
