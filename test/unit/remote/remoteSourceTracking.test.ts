@@ -658,6 +658,45 @@ describe('remoteSourceTrackingService', () => {
         },
       });
     });
+    it('should sync elements with encoded ampersand (%26) in file path', async () => {
+      const contents = {
+        serverMaxRevisionCounter: 1,
+        fileVersion: 1,
+        sourceMembers: {
+          'Layout###Legal_Compliance__c-Legal & Compliance Layout': {
+            ...defaultSourceMemberValues,
+            MemberName: 'Legal_Compliance__c-Legal & Compliance Layout',
+            IsNewMember: false,
+            IsNameObsolete: false,
+            RevisionCounter: 1,
+            lastRetrievedFromServer: undefined,
+            MemberType: 'Layout',
+          },
+        },
+      } satisfies ContentsV1;
+      setContents(contents);
+      await remoteSourceTrackingService.syncSpecifiedElements(new RegistryAccess(), [
+        {
+          fullName: 'Legal_Compliance__c-Legal %26 Compliance Layout',
+          type: 'Layout',
+          filePath: 'force-app/main/default/layouts/Legal_Compliance__c-Legal %26 Compliance Layout.layout-meta.xml',
+          state: ComponentStatus.Changed,
+        },
+      ]);
+      expect(getContents()).to.deep.equal({
+        serverMaxRevisionCounter: 1,
+        sourceMembers: {
+          'Layout###Legal_Compliance__c-Legal & Compliance Layout': {
+            ...defaultSourceMemberValues,
+            MemberName: 'Legal_Compliance__c-Legal & Compliance Layout',
+            IsNameObsolete: false,
+            lastRetrievedFromServer: 1,
+            MemberType: 'Layout',
+            RevisionCounter: 1,
+          },
+        },
+      });
+    });
     it('should not poll when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
       envVars.setString('SFDX_DISABLE_SOURCE_MEMBER_POLLING', 'true');
 
