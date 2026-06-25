@@ -1,3 +1,16 @@
+## [7.8.18](https://github.com/forcedotcom/source-tracking/compare/7.8.17...7.8.18) (2026-06-24)
+
+
+### Bug Fixes
+
+* **deps:** bump form-data from 4.0.4 to 4.0.6 ([1eb28ca](https://github.com/forcedotcom/source-tracking/commit/1eb28caa1f41b68f10d1414f8dc37dc182259175))
+
+
+
+## [7.8.17](https://github.com/forcedotcom/source-tracking/compare/7.8.16...7.8.17) (2026-06-23)
+
+
+
 ## [7.8.16](https://github.com/forcedotcom/source-tracking/compare/7.8.15...7.8.16) (2026-05-12)
 
 
