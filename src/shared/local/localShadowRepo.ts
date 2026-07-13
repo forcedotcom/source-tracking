@@ -142,7 +142,7 @@ export class ShadowRepo {
     this.logger.trace(`start: getStatus (noCache = ${noCache})`);
 
     if (env.getBoolean('SF_SOURCE_TRACKING_ASSUME_SYNCED')) {
-      if (!this.status) {
+      if (this.status?.length !== 0) {
         this.logger.warn(
           'SF_SOURCE_TRACKING_ASSUME_SYNCED is set. Skipping local status check and assuming local files match the shadow repo.'
         );
