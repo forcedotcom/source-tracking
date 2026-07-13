@@ -31,6 +31,44 @@ afterEach(() => {
 
 describe('localShadowRepo', () => {
   const registry = new RegistryAccess();
+
+  describe('SF_SOURCE_TRACKING_ASSUME_SYNCED', () => {
+    afterEach(() => {
+      delete process.env.SF_SOURCE_TRACKING_ASSUME_SYNCED;
+    });
+
+    it('returns empty status without calling statusMatrix when set', async () => {
+      process.env.SF_SOURCE_TRACKING_ASSUME_SYNCED = 'true';
+      let projectDir!: string;
+      try {
+        projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
+        fs.mkdirSync(path.join(projectDir, 'force-app'));
+        fs.writeFileSync(path.join(projectDir, 'force-app', 'Foo.cls'), 'public class Foo {}');
+
+        const shadowRepo: ShadowRepo = await ShadowRepo.getInstance({
+          orgId: '00D000000000001',
+          registry,
+          projectPath: projectDir,
+          packageDirs: [
+            {
+              name: 'force-app',
+              fullPath: path.join(projectDir, 'force-app'),
+              path: 'force-app',
+            },
+          ],
+        });
+
+        const statusMatrixSpy = sinon.spy(git, 'statusMatrix');
+        const status = await shadowRepo.getStatus(true);
+
+        expect(status).to.deep.equal([]);
+        expect(statusMatrixSpy.called).to.be.false;
+      } finally {
+        if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
+      }
+    });
+  });
+
   it('does not add same file multiple times', async () => {
     let projectDir!: string;
     try {

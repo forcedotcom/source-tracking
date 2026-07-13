@@ -141,6 +141,17 @@ export class ShadowRepo {
   public async getStatus(noCache = false): Promise<StatusRow[]> {
     this.logger.trace(`start: getStatus (noCache = ${noCache})`);
 
+    if (env.getBoolean('SF_SOURCE_TRACKING_ASSUME_SYNCED')) {
+      if (!this.status) {
+        this.logger.warn(
+          'SF_SOURCE_TRACKING_ASSUME_SYNCED is set. Skipping local status check and assuming local files match the shadow repo.'
+        );
+        void Lifecycle.getInstance().emitTelemetry({ eventName: 'sourceTrackingAssumeSynced' });
+        this.status = [];
+      }
+      return this.status;
+    }
+
     if (!this.status || noCache) {
       try {
         // status hasn't been initialized yet
