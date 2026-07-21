@@ -318,7 +318,19 @@ export class RemoteSourceTrackingService {
         queriedMembers.map((member) => {
           // remove anything returned from the query list
           const metadataKey = getMetadataKey(member.MemberType, member.MemberName);
-          const deleted = outstandingSourceMembers.delete(metadataKey);
+          let deleted = outstandingSourceMembers.delete(metadataKey);
+          // SourceMember may store platform event (and other custom object) children without the entity suffix.
+          // e.g., "MyEvent.Field__c" instead of "MyEvent__e.Field__c"
+          if (!deleted && member.MemberName.includes('.')) {
+            const dotIndex = member.MemberName.indexOf('.');
+            const parent = member.MemberName.substring(0, dotIndex);
+            const child = member.MemberName.substring(dotIndex);
+            for (const suffix of ['__e', '__b', '__x', '__mdt']) {
+              const alternateKey = getMetadataKey(member.MemberType, `${parent}${suffix}${child}`);
+              deleted = outstandingSourceMembers.delete(alternateKey);
+              if (deleted) break;
+            }
+          }
           if (!deleted) {
             bonusTypes.add(metadataKey);
           }

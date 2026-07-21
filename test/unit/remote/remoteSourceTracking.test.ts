@@ -614,6 +614,72 @@ describe('remoteSourceTrackingService', () => {
       ).to.equal(true);
       expect(queryStub.called).to.equal(true);
     });
+
+    it('should match SourceMembers when server strips __e suffix from platform event parent', async () => {
+      const platformEventMembers: RemoteSyncInput[] = [
+        {
+          type: 'CustomField',
+          fullName: 'MyEvent__e.SomeField__c',
+          filePath: 'src/objects/MyEvent__e/fields/SomeField__c.field-meta.xml',
+          state: ComponentStatus.Changed,
+        },
+      ];
+
+      const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom');
+      // @ts-expect-error it's private
+      remoteSourceTrackingService.serverMaxRevisionCounter = 9;
+
+      // Server returns the member WITHOUT __e suffix (the bug scenario)
+      queryStub.onFirstCall().resolves([
+        {
+          ...defaultSourceMemberValues,
+          RevisionCounter: 10,
+          MemberType: 'CustomField',
+          MemberName: 'MyEvent.SomeField__c',
+          IsNameObsolete: false,
+        },
+      ]);
+
+      // @ts-expect-error stubbing private method for testing
+      const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
+
+      await remoteSourceTrackingService.pollForSourceTracking(new RegistryAccess(), platformEventMembers);
+      expect(trackSpy.calledOnce).to.equal(true);
+      expect(queryStub.calledOnce).to.equal(true);
+    });
+
+    it('should match SourceMembers when server strips __mdt suffix from custom metadata parent', async () => {
+      const mdtMembers: RemoteSyncInput[] = [
+        {
+          type: 'CustomField',
+          fullName: 'MyConfig__mdt.Value__c',
+          filePath: 'src/objects/MyConfig__mdt/fields/Value__c.field-meta.xml',
+          state: ComponentStatus.Changed,
+        },
+      ];
+
+      const queryStub = $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom');
+      // @ts-expect-error it's private
+      remoteSourceTrackingService.serverMaxRevisionCounter = 9;
+
+      queryStub.onFirstCall().resolves([
+        {
+          ...defaultSourceMemberValues,
+          RevisionCounter: 10,
+          MemberType: 'CustomField',
+          MemberName: 'MyConfig.Value__c',
+          IsNameObsolete: false,
+        },
+      ]);
+
+      // @ts-expect-error stubbing private method for testing
+      const trackSpy = $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
+
+      await remoteSourceTrackingService.pollForSourceTracking(new RegistryAccess(), mdtMembers);
+      expect(trackSpy.calledOnce).to.equal(true);
+      expect(queryStub.calledOnce).to.equal(true);
+    });
+
     it('should sync specific elements', async () => {
       expect(getContents()).to.deep.equal({
         serverMaxRevisionCounter: 0,
