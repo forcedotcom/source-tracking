@@ -325,7 +325,7 @@ export class RemoteSourceTrackingService {
             const dotIndex = member.MemberName.indexOf('.');
             const parent = member.MemberName.substring(0, dotIndex);
             const child = member.MemberName.substring(dotIndex);
-            for (const suffix of ['__e', '__b', '__x', '__mdt']) {
+            for (const suffix of ['__e', '__c', '__b', '__x', '__mdt']) {
               const alternateKey = getMetadataKey(member.MemberType, `${parent}${suffix}${child}`);
               deleted = outstandingSourceMembers.delete(alternateKey);
               if (deleted) break;
