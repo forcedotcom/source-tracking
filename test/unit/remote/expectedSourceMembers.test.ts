@@ -146,4 +146,17 @@ describe('expectedSourceMembers', () => {
     expect(result.size).to.equal(1);
     expect(result.has('ApexClass###MyClass')).to.equal(true);
   });
+
+  it('includes custom fields on platform events (__e)', () => {
+    const input = [
+      {
+        type: 'CustomField',
+        fullName: 'MyEvent__e.SomeField__c',
+        filePath: 'src/objects/MyEvent__e/fields/SomeField__c.field-meta.xml',
+        state: ComponentStatus.Created,
+      },
+    ];
+    const result = calculateExpectedSourceMembers(registry, input);
+    expect(result.has('CustomField###MyEvent__e.SomeField__c')).to.equal(true);
+  });
 });
