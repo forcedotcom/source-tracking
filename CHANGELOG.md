@@ -1,3 +1,12 @@
+## [7.8.20](https://github.com/forcedotcom/source-tracking/compare/7.8.19...7.8.20) (2026-07-28)
+
+
+### Bug Fixes
+
+* match SourceMembers when server strips entity suffix @W-21612413@ ([#868](https://github.com/forcedotcom/source-tracking/issues/868)) ([71daa66](https://github.com/forcedotcom/source-tracking/commit/71daa662add6f110d2d3c1d48135d4935bd7d603))
+
+
+
 ## [7.8.19](https://github.com/forcedotcom/source-tracking/compare/7.8.18...7.8.19) (2026-06-25)
 
 
