@@ -1,3 +1,21 @@
+# [8.0.0](https://github.com/forcedotcom/source-tracking/compare/7.8.20...8.0.0) (2026-07-29)
+
+
+* feat!: require Node >=22, drop EOL Node versions (#871) @W-23480655@ ([217e7ac](https://github.com/forcedotcom/source-tracking/commit/217e7ace7187873ee3773425228c34b47768035d)), closes [#871](https://github.com/forcedotcom/source-tracking/issues/871)
+
+
+### BREAKING CHANGES
+
+* engines.node raised to >=22.0.0, dropping support for Node 18 and 20
+
+- engines.node bumped to >=22.0.0
+- @salesforce/core bumped to ^9.0.0
+- @salesforce/kit bumped to ^4.0.0
+- @salesforce/ts-types bumped to ^3.0.0
+- @salesforce/source-deploy-retrieve bumped to ^13.0.0
+
+
+
 ## [7.8.20](https://github.com/forcedotcom/source-tracking/compare/7.8.19...7.8.20) (2026-07-28)
 
 
