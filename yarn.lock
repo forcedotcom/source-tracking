@@ -746,6 +746,31 @@
     ts-retry-promise "^0.8.1"
     zod "^4.1.12"
 
+"@salesforce/core@^9.1.1":
+  version "9.1.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-9.1.1.tgz#fc7c6598c74e15cad00945ef2ea8a145b5cffc8a"
+  integrity sha512-wFlJ2YCySJwKUpwolKCZ0YgiGHrUh43oV25j+mdikpAUM3nW+8n0WAyfVvb+Tl7pWIU3v1t0zNO3A0I5Nffi1A==
+  dependencies:
+    "@jsforce/jsforce-node" "^3.10.17"
+    "@salesforce/kit" "^4.0.0"
+    "@salesforce/ts-types" "^3.0.0"
+    ajv "^8.18.0"
+    change-case "^4.1.2"
+    fast-levenshtein "^3.0.0"
+    faye "^1.4.1"
+    form-data "^4.0.5"
+    js2xmlparser "^4.0.1"
+    jsonwebtoken "9.0.3"
+    jszip "3.10.1"
+    memfs "4.38.1"
+    pino "^9.7.0"
+    pino-abstract-transport "^1.2.0"
+    pino-pretty "^11.3.0"
+    proper-lockfile "^4.1.2"
+    semver "^7.8.0"
+    ts-retry-promise "^0.8.1"
+    zod "^4.1.12"
+
 "@salesforce/dev-config@^4.3.1":
   version "4.3.1"
   resolved "https://registry.npmjs.org/@salesforce/dev-config/-/dev-config-4.3.1.tgz"
@@ -807,10 +832,10 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.10.3.tgz#52c867fdd60679cf216110aa49542b7ad391f5d1"
   integrity sha512-FKfvtrYTcvTXE9advzS25/DEY9yJhEyLvStm++eQFtnAaX1pe4G3oGHgiQ0q55BM5+0AlCh0+0CVtQv1t4oJRA==
 
-"@salesforce/source-deploy-retrieve@^13.0.0":
-  version "13.0.0"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-13.0.0.tgz#dcdaf8461d6ad7af937f5b9daf38844e3933247f"
-  integrity sha512-MBqBM9Waewh+tCR89KlDHEGaUJ9cAjwS2FIyIn+Zq/NwW7aRucyCF25MWs4gSHeFsBiNUGyGtxlIt+2oWNUIlw==
+"@salesforce/source-deploy-retrieve@^13.0.1":
+  version "13.0.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-13.0.1.tgz#c80c2548dc6c00ecaa9b293c20a31a2e2ab62108"
+  integrity sha512-7A2l/4rI6YVif2xfb3L39QSC0T0D6enKblyTLzqo/E6bxSBatW9Ra/tLEoEWCLfzcLeT/Zupjcpsgbbwm90Daw==
   dependencies:
     "@salesforce/core" "^9.0.0"
     "@salesforce/kit" "^4.0.0"
