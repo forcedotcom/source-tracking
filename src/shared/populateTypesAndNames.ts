@@ -82,7 +82,7 @@ export const populateTypesAndNames =
           .flatMap((filename) => {
             try {
               return resolver.getComponentsFromPath(filename);
-            } catch (e) {
+            } catch {
               logger.warn(`unable to resolve ${filename}`);
               return undefined;
             }

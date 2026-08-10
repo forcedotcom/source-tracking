@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable camelcase */
 
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync, rmSync } from 'node:fs';

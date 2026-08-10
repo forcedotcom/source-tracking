@@ -807,10 +807,10 @@
   resolved "https://registry.yarnpkg.com/@salesforce/dev-config/-/dev-config-4.3.3.tgz#65650087baa542a905ad4e8b38a5c5302f7f009a"
   integrity sha512-dr2IuZNP759p9iSW72lFmOki9/sqHfMHgEzCt+okVuBsRG5/fPuBNhGVse6abCqCvaqBxzD73IwFyZ979MNd7w==
 
-"@salesforce/dev-scripts@^13.0.0":
-  version "13.0.0"
-  resolved "https://registry.yarnpkg.com/@salesforce/dev-scripts/-/dev-scripts-13.0.0.tgz#5a37b2ae409b6d60a37775e89a29401ec9a6a9c4"
-  integrity sha512-z+00Icg2frCfAZvHlHYl4uGP87DjnCAPTdhtnKV3K5c1exm06RDzz2Jr+oMpPEyOnIKVtJUiRTPI8TD8TgH+Mg==
+"@salesforce/dev-scripts@^13.0.1":
+  version "13.0.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/dev-scripts/-/dev-scripts-13.0.1.tgz#bca04100527c3b9de9522bc34a95d9eba494e736"
+  integrity sha512-rJcfdEQ7BHx1gAEO2NgkiSz0ZoLHHWqyBdLMRF91ERkKAX8umMRCp4yOG19N+WJdkkN+5UfO64gbt/7HBvg1gQ==
   dependencies:
     "@commitlint/cli" "^17.8.1"
     "@commitlint/config-conventional" "^17.8.1"
@@ -840,7 +840,7 @@
     ts-node "^10.9.2"
     typedoc "^0.26.11"
     typedoc-plugin-missing-exports "^3.1.0"
-    typescript "^5.5.4 || ^6"
+    typescript "^5.5.4"
     wireit "^0.14.13"
 
 "@salesforce/kit@^3.2.3", "@salesforce/kit@^3.2.4":
@@ -5892,15 +5892,10 @@ typescript-eslint@^8.66.0:
     "@typescript-eslint/typescript-estree" "8.67.0"
     "@typescript-eslint/utils" "8.67.0"
 
-"typescript@^4.6.4 || ^5.2.2", typescript@^5.9.3:
+"typescript@^4.6.4 || ^5.2.2", typescript@^5.5.4, typescript@^5.9.3:
   version "5.9.3"
   resolved "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz"
   integrity sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==
-
-"typescript@^5.5.4 || ^6":
-  version "6.0.3"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-6.0.3.tgz#90251dc007916e972786cb94d74d15b185577d21"
-  integrity sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==
 
 uc.micro@^2.0.0, uc.micro@^2.1.0:
   version "2.1.0"

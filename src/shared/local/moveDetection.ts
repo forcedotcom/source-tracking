@@ -179,8 +179,8 @@ const toFileInfo = async ({
 
   const headRef = await git.resolveRef({ fs, dir: projectPath, gitdir: gitDir, ref: 'HEAD' });
   const [addedInfo, deletedInfo] = await Promise.all([
-    await Promise.all(Array.from(added).map(getHashForAddedFile(projectPath))),
-    await Promise.all(Array.from(deleted).map(getHashFromActualFileContents(gitDir)(projectPath)(headRef))),
+    Promise.all(Array.from(added).map(getHashForAddedFile(projectPath))),
+    Promise.all(Array.from(deleted).map(getHashFromActualFileContents(gitDir)(projectPath)(headRef))),
   ]);
 
   return { addedInfo, deletedInfo };
@@ -225,7 +225,7 @@ const resolveType =
       .flatMap((filename) => {
         try {
           return resolver.getComponentsFromPath(filename);
-        } catch (e) {
+        } catch {
           const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
           logger.warn(`unable to resolve ${filename}`);
           return undefined;

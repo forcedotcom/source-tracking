@@ -159,10 +159,10 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async localChangesAsComponentSet(byPackageDir?: boolean): Promise<ComponentSet[]> {
     const [projectConfig] = await Promise.all([
-      this.project.resolveProjectConfig() as {
+      this.project.resolveProjectConfig() as Promise<{
         sourceApiVersion?: string;
         pushPackageDirectoriesSequentially?: boolean;
-      },
+      }>,
       this.ensureLocalTracking(),
     ]);
     const sourceApiVersion = projectConfig.sourceApiVersion;
@@ -206,9 +206,9 @@ export class SourceTracking extends AsyncCreatable {
         state: 'nondelete',
         format: 'SourceComponent',
       }),
-      this.project.resolveProjectConfig() as {
+      this.project.resolveProjectConfig() as Promise<{
         sourceApiVersion?: string;
-      },
+      }>,
     ]);
     const componentSet = new ComponentSet(
       applyIgnore ? sourceBackedComponents.filter(noFileIsIgnored(this.forceIgnore)) : sourceBackedComponents,
@@ -321,7 +321,7 @@ export class SourceTracking extends AsyncCreatable {
           .flatMap((filename) => {
             try {
               return resolver.getComponentsFromPath(filename);
-            } catch (e) {
+            } catch {
               this.logger.warn(`unable to resolve ${filename}`);
               return undefined;
             }
@@ -705,8 +705,8 @@ export class SourceTracking extends AsyncCreatable {
       // Events are attached to a singleton (sfdx-core's Lifecycle), so when
       // instantiating `SourceTracking` multiple times in the same process we need
       // each instance starts clean.
-      lifecycle.removeAllListeners('scopedPreDeploy')
-      lifecycle.removeAllListeners('scopedPreRetrieve')
+      lifecycle.removeAllListeners('scopedPreDeploy');
+      lifecycle.removeAllListeners('scopedPreRetrieve');
 
       // the only thing STL uses pre events for is to check conflicts.  So if you don't care about conflicts, don't listen!
       if (!this.ignoreConflicts) {

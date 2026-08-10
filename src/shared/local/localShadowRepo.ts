@@ -285,8 +285,7 @@ export class ShadowRepo {
     }
 
     if (deletedFiles.length) {
-      // Using a cache here speeds up the performance by ~24.4%
-      let cache = {};
+      const cache = {};
 
       for (const filepath of [...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
         try {
@@ -297,8 +296,6 @@ export class ShadowRepo {
           redirectToCliRepoError(e);
         }
       }
-      // clear cache
-      cache = {};
     }
 
     try {

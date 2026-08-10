@@ -123,7 +123,7 @@ describe('end-to-end-test for local tracking', () => {
   it('changes remain after bad commit (simulate a failed deploy)', async () => {
     try {
       await shouldThrow(repo.commitChanges({ deployedFiles: ['badFilename'] }));
-    } catch (err) {
+    } catch {
       await repo.getStatus(true);
       expect(await repo.getChangedRows()).to.have.lengthOf(3);
       expect(await repo.getChangedFilenames()).to.have.lengthOf(3);

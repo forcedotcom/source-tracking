@@ -114,7 +114,7 @@ export const registrySupportsType =
       // this must use getTypeByName because findType doesn't support addressable child types (ex: customField!)
       registry.getTypeByName(type);
       return true;
-    } catch (e) {
+    } catch {
       void Lifecycle.getInstance().emitWarning(`Unable to find type ${type} in registry`);
       return false;
     }

@@ -21,8 +21,6 @@ import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
-/* eslint-disable no-unused-expressions */
-
 describe('ignores moved files that are children of a decomposed metadata type', () => {
   const FIELD = path.join('fields', 'Account__c.field-meta.xml');
   let session: TestSession;

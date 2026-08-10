@@ -365,6 +365,7 @@ export class RemoteSourceTrackingService {
       }
 
       if (someResultsReturned && consecutiveEmptyResults >= CONSECUTIVE_EMPTY_POLLING_RESULT_LIMIT) {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- NotRetryableError from ts-retry-promise doesn't extend Error
         throw new NotRetryableError(`Polling found no results for ${consecutiveEmptyResults} consecutive attempts`);
       }
 

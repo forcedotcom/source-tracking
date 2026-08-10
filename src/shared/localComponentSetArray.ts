@@ -134,7 +134,7 @@ export const getComponentSets = ({
                 .getComponentsFromPath(resolve(projectPath, component.content))
                 .filter(isDefined)
                 .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
-            } catch (e) {
+            } catch {
               logger.warn(
                 `unable to find component at ${component.content}.  That's ok if it was supposed to be deleted`
               );
@@ -148,7 +148,7 @@ export const getComponentSets = ({
         .flatMap((filename) => {
           try {
             return resolverForNonDeletes.getComponentsFromPath(resolve(projectPath, filename));
-          } catch (e) {
+          } catch {
             logger.warn(`unable to resolve ${filename}`);
             return undefined;
           }
