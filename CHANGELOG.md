@@ -1,3 +1,12 @@
+## [8.1.1](https://github.com/forcedotcom/source-tracking/compare/8.1.0...8.1.1) (2026-08-21)
+
+
+### Bug Fixes
+
+* rejiggered eslint.config.mjs (W-23928423) ([cbaa635](https://github.com/forcedotcom/source-tracking/commit/cbaa635c4c96188164ba2cf6260d9130646bf93f))
+
+
+
 # [8.1.0](https://github.com/forcedotcom/source-tracking/compare/8.0.0...8.1.0) (2026-08-13)
 
 
