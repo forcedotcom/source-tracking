@@ -50,9 +50,9 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "@salesforce/core": "^9.1.4",
+    "@salesforce/core": "^9.1.7",
     "@salesforce/kit": "^4.0.0",
-    "@salesforce/source-deploy-retrieve": "^13.2.0",
+    "@salesforce/source-deploy-retrieve": "^13.3.0",
     "@salesforce/ts-types": "^3.0.1",
     "fast-xml-parser": "^5.5.7",
     "graceful-fs": "^4.2.11",
