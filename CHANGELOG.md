@@ -1,3 +1,7 @@
+## [8.1.2](https://github.com/forcedotcom/source-tracking/compare/8.1.1...8.1.2) (2026-08-26)
+
+
+
 ## [8.1.1](https://github.com/forcedotcom/source-tracking/compare/8.1.0...8.1.1) (2026-08-21)
 
 
