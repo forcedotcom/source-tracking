@@ -78,6 +78,171 @@ describe('writing file version based on env', () => {
   });
 });
 
+describe('cross-process merge on write', () => {
+  const fakeOrgId = '00DFakeFakeFakeMrg';
+  const filePath = getFilePath(fakeOrgId);
+
+  afterEach(async () => {
+    delete process.env.SF_SOURCE_TRACKING_FILE_VERSION;
+    try {
+      await fs.promises.unlink(filePath);
+    } catch {
+      // may not exist
+    }
+  });
+
+  it('preserves higher lastRetrievedFromServer from disk when in-memory is stale', async () => {
+    const diskMembers = new Map<string, MemberRevision>([
+      [
+        'ApexClass###MyClass',
+        {
+          MemberIdOrName: '01p000000000001',
+          ChangedBy: 'user1',
+          lastRetrievedFromServer: 50,
+          MemberType: 'ApexClass',
+          IsNameObsolete: false,
+          RevisionCounter: 50,
+          MemberName: 'MyClass',
+          IsNewMember: false,
+          LastModifiedDate: '2026-01-01',
+        },
+      ],
+    ]);
+    await writeTrackingFile({ filePath, maxCounter: 50, members: diskMembers });
+
+    const staleMembers = new Map<string, MemberRevision>([
+      [
+        'ApexClass###MyClass',
+        {
+          MemberIdOrName: '01p000000000001',
+          ChangedBy: 'user1',
+          lastRetrievedFromServer: 30,
+          MemberType: 'ApexClass',
+          IsNameObsolete: false,
+          RevisionCounter: 50,
+          MemberName: 'MyClass',
+          IsNewMember: false,
+          LastModifiedDate: '2026-01-01',
+        },
+      ],
+    ]);
+    await writeTrackingFile({ filePath, maxCounter: 50, members: staleMembers });
+
+    const contents = await fs.promises.readFile(filePath, 'utf8');
+    const parsed = parseJsonMap<ContentsV0>(contents, filePath);
+    expect(parsed.sourceMembers['ApexClass__MyClass'].lastRetrievedFromServer).to.equal(50);
+  });
+
+  it('preserves higher lastRetrievedFromServer from memory when disk is stale', async () => {
+    const diskMembers = new Map<string, MemberRevision>([
+      [
+        'ApexClass###MyClass',
+        {
+          MemberIdOrName: '01p000000000001',
+          ChangedBy: 'user1',
+          lastRetrievedFromServer: 30,
+          MemberType: 'ApexClass',
+          IsNameObsolete: false,
+          RevisionCounter: 50,
+          MemberName: 'MyClass',
+          IsNewMember: false,
+          LastModifiedDate: '2026-01-01',
+        },
+      ],
+    ]);
+    await writeTrackingFile({ filePath, maxCounter: 30, members: diskMembers });
+
+    const freshMembers = new Map<string, MemberRevision>([
+      [
+        'ApexClass###MyClass',
+        {
+          MemberIdOrName: '01p000000000001',
+          ChangedBy: 'user1',
+          lastRetrievedFromServer: 50,
+          MemberType: 'ApexClass',
+          IsNameObsolete: false,
+          RevisionCounter: 50,
+          MemberName: 'MyClass',
+          IsNewMember: false,
+          LastModifiedDate: '2026-01-01',
+        },
+      ],
+    ]);
+    await writeTrackingFile({ filePath, maxCounter: 50, members: freshMembers });
+
+    const contents = await fs.promises.readFile(filePath, 'utf8');
+    const parsed = parseJsonMap<ContentsV0>(contents, filePath);
+    expect(parsed.sourceMembers['ApexClass__MyClass'].lastRetrievedFromServer).to.equal(50);
+  });
+
+  it('does not regress null over a valid lastRetrievedFromServer on disk', async () => {
+    const diskMembers = new Map<string, MemberRevision>([
+      [
+        'ApexClass###MyClass',
+        {
+          MemberIdOrName: '01p000000000001',
+          ChangedBy: 'user1',
+          lastRetrievedFromServer: 26,
+          MemberType: 'ApexClass',
+          IsNameObsolete: false,
+          RevisionCounter: 26,
+          MemberName: 'MyClass',
+          IsNewMember: false,
+          LastModifiedDate: '2026-01-01',
+        },
+      ],
+    ]);
+    await writeTrackingFile({ filePath, maxCounter: 26, members: diskMembers });
+
+    const staleMembers = new Map<string, MemberRevision>([
+      [
+        'ApexClass###MyClass',
+        {
+          MemberIdOrName: '01p000000000001',
+          ChangedBy: 'user1',
+          lastRetrievedFromServer: undefined,
+          MemberType: 'ApexClass',
+          IsNameObsolete: false,
+          RevisionCounter: 26,
+          MemberName: 'MyClass',
+          IsNewMember: false,
+          LastModifiedDate: '2026-01-01',
+        },
+      ],
+    ]);
+    await writeTrackingFile({ filePath, maxCounter: 26, members: staleMembers });
+
+    const contents = await fs.promises.readFile(filePath, 'utf8');
+    const parsed = parseJsonMap<ContentsV0>(contents, filePath);
+    expect(parsed.sourceMembers['ApexClass__MyClass'].lastRetrievedFromServer).to.equal(26);
+  });
+
+  it('takes the max serverMaxRevisionCounter between memory and disk', async () => {
+    const members = new Map<string, MemberRevision>([
+      [
+        'ApexClass###MyClass',
+        {
+          MemberIdOrName: '01p000000000001',
+          ChangedBy: 'user1',
+          lastRetrievedFromServer: 10,
+          MemberType: 'ApexClass',
+          IsNameObsolete: false,
+          RevisionCounter: 10,
+          MemberName: 'MyClass',
+          IsNewMember: false,
+          LastModifiedDate: '2026-01-01',
+        },
+      ],
+    ]);
+    await writeTrackingFile({ filePath, maxCounter: 100, members });
+    await writeTrackingFile({ filePath, maxCounter: 80, members });
+
+    const contents = await fs.promises.readFile(filePath, 'utf8');
+    const parsed = parseJsonMap<ContentsV0>(contents, filePath);
+    expect(parsed.serverMaxRevisionCounter).to.equal(100);
+  });
+});
+
 describe('upgrading undefined file version to v1 file', () => {
   it('returns new file version even if file is not versioned', () => {
     const oldFile = {

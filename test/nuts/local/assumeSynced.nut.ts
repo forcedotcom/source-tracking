@@ -20,8 +20,6 @@ import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
 
-/* eslint-disable no-unused-expressions */
-
 describe('SF_SOURCE_TRACKING_ASSUME_SYNCED (NUT)', () => {
   let session: TestSession;
   let repo: ShadowRepo;
