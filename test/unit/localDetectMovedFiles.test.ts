@@ -22,7 +22,6 @@ import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../src/shared/local/localShadowRepo';
 
-/* eslint-disable no-unused-expressions */
 config.truncateThreshold = 0;
 afterEach(() => {
   // Restore the default sandbox here
