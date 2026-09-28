@@ -1,3 +1,12 @@
+## [8.1.4](https://github.com/forcedotcom/source-tracking/compare/8.1.3...8.1.4) (2026-09-28)
+
+
+### Bug Fixes
+
+* **deps:** bump @babel/core from 7.27.4 to 7.29.7 ([395f531](https://github.com/forcedotcom/source-tracking/commit/395f531bee5de54152c939a1df38aa11d66600b9))
+
+
+
 ## [8.1.3](https://github.com/forcedotcom/source-tracking/compare/8.1.3-dev.0...8.1.3) (2026-08-27)
 
 
