@@ -39,12 +39,7 @@ here to track which workdir files changed since the last sync. The user
 never interacts with it directly; it is hidden under `.sf/` and managed
 through `ShadowRepo.getInstance()` ([src/shared/local/localShadowRepo.ts](src/shared/local/localShadowRepo.ts)).
 
-Two implementations exist behind one façade:
-
-- **iso** — backed by `isomorphic-git`. Default until the lite path is
-  proven in production.
-- **lite** — backed by `src/git/`, an Effect-native rewrite. Selected when
-  `SF_SOURCE_TRACKING_USE_LITE_GIT=true`.
+The implementation is in `src/git/`, an Effect-native rewrite.
 
 _Avoid_: "tracking repo", "metadata repo", "source repo".
 

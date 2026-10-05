@@ -47,7 +47,7 @@ const isNotFound = (cause: unknown): boolean => cause instanceof SystemError && 
 /**
  * Acquire `<gitdir>/index.lock` exclusively (`open({flag:'wx'})`), run the
  * piped effect while holding it, then release per strategy. Real-git
- * compatible — see [isogit-migration.md §Cross-process locking](../../isogit-migration.md#L133).
+ * compatible.
  *
  * `'rename-to-index'` (default): on success, atomically renames the lockfile
  * to `<gitdir>/index`. The piped effect should have written the new index

@@ -14,32 +14,8 @@
  * limitations under the License.
  */
 
-/*
- * Public facade for the per-project shadow repo. Picks one of two
- * implementations based on the SF_SOURCE_TRACKING_USE_LITE_GIT env var
- * (read once via Effect Config in src/git/sfCompatibility.ts).
- *
- * Callers should keep importing `ShadowRepo` from this file; they do not
- * need to know which backend served the request.
- */
-
-import { useLiteGit } from '../../git/sfCompatibility';
-import { runPromise } from '../runtime';
-import { ShadowRepoIso } from './localShadowRepoIso';
 import { ShadowRepoLite } from './localShadowRepoLite';
 import type { CommitRequest, ShadowRepoLike, ShadowRepoOptions, StatusRow } from './types';
-
-/**
- * Decide which backend to use. Memoized per-process so VSCode doesn't re-read
- * env on every getInstance call.
- */
-// eslint-disable-next-line functional/no-let
-let cachedLite: boolean | undefined;
-const resolveBackendChoice = async (): Promise<boolean> => {
-  if (cachedLite !== undefined) return cachedLite;
-  cachedLite = await runPromise(useLiteGit);
-  return cachedLite;
-};
 
 export class ShadowRepo implements ShadowRepoLike {
   public gitDir: string;
@@ -54,16 +30,8 @@ export class ShadowRepo implements ShadowRepoLike {
     this.projectPath = impl.projectPath;
   }
 
-  /** Test-only: reset the in-process backend choice cache. */
-  public static resetBackendChoiceForTests(): void {
-    cachedLite = undefined;
-  }
-
   public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
-    const lite = await resolveBackendChoice();
-    const impl: ShadowRepoLike = lite
-      ? await ShadowRepoLite.getInstance(options)
-      : await ShadowRepoIso.getInstance(options);
+    const impl = await ShadowRepoLite.getInstance(options);
     return new ShadowRepo(impl);
   }
 

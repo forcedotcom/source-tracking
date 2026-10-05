@@ -458,7 +458,7 @@ export class SourceTracking extends AsyncCreatable {
     await this.ensureLocalTracking();
 
     this.logger.trace('files', options.files);
-    // relative paths make smaller trees AND isogit wants them relative
+    // relative paths make smaller trees
     const relativeOptions = {
       files: (options.files ?? []).map(ensureRelative(this.projectPath)),
       deletedFiles: (options.deletedFiles ?? []).map(ensureRelative(this.projectPath)),

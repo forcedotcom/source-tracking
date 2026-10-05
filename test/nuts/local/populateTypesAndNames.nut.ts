@@ -32,7 +32,7 @@ const run = <A>(eff: Effect.Effect<A>): Promise<A> => Effect.runPromise(eff);
 
 const registry = new RegistryAccess();
 
-// Relative paths matching what isogit/localShadowRepo returns
+// Relative paths matching what the shadow repo returns
 const apexMeta = path.join('force-app', 'main', 'default', 'classes', 'OrderController.cls-meta.xml');
 const lwcDir = path.join('force-app', 'main', 'default', 'lwc');
 

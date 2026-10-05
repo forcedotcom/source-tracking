@@ -40,8 +40,8 @@ import {
   SwitchCfg as SwitchCfgSchema,
 } from '../../git/schemas';
 import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
+import { getMatches } from './functions';
 import { eventLoopDelayCapture } from '../eventLoopDelayCapture';
-import { getMatches } from './moveDetection';
 import { filenameMatchesToMapLite } from './moveDetectionLite';
 import { CommitRequest, ShadowRepoLike, ShadowRepoOptions, StatusRow } from './types';
 import { ensurePosix, IS_WINDOWS, isAdded, isDeleted, toFilenames } from './functions';

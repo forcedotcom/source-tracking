@@ -19,7 +19,7 @@ export type DetectionFileInfoWithType = Readonly<
   DetectionFileInfo & { type: string; parentFullName: string; parentType: string }
 >;
 export type StringMap = Map<string, string>;
-export type AddAndDeleteMaps = { addedMap: StringMap; deletedMap: StringMap }; // https://isomorphic-git.org/docs/en/statusMatrix#docsNav
+export type AddAndDeleteMaps = { addedMap: StringMap; deletedMap: StringMap };
 
 export type StatusRow = [file: string, head: number, workdir: number, stage: number];
 
@@ -42,9 +42,7 @@ export type CommitRequest = {
 };
 
 /**
- * Public surface of a shadow repo. Iso (isomorphic-git) and lite (src/git)
- * implementations both satisfy this; the ShadowRepo factory picks one at
- * getInstance() time based on the SF_SOURCE_TRACKING_USE_LITE_GIT flag.
+ * Public surface of a shadow repo. The implementation is in src/git/.
  */
 export type ShadowRepoLike = {
   readonly gitDir: string;

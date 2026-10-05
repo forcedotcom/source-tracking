@@ -14,22 +14,8 @@
  * limitations under the License.
  */
 import { SfError } from '@salesforce/core';
-import * as Config from 'effect/Config';
-import * as Effect from 'effect/Effect';
 import * as Match from 'effect/Match';
 import { type RepoError } from './errors';
-
-/**
- * Whether the SF_SOURCE_TRACKING_USE_LITE_GIT env var opts in to lite.
- * Resolved through Effect's `Config` so tests can inject via ConfigProvider
- * instead of mutating process.env. Source-tracking yields this once at the
- * ShadowRepo constructor — CLI invocations are short-lived, and VSCode
- * reads it on activation (reload-window to flip).
- */
-export const useLiteGit = Config.boolean('SF_SOURCE_TRACKING_USE_LITE_GIT').pipe(
-  Config.withDefault(false),
-  Effect.orDie
-);
 
 /**
  * Map a RepoError to an SfError with a stable name. Each arm builds an

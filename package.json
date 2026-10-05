@@ -30,12 +30,7 @@
     "test:nuts:local:moved:image": "mocha \"**/nuts/local/localTrackingFileMovesImage.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved:scale": "mocha \"**/nuts/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:only": "wireit",
-    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel",
-    "perf:iso-vs-lite:reset": "rm -f \"$HOME/.sf/source-tracking-perf/iso-vs-lite.jsonl\"",
-    "perf:iso-vs-lite:iso": "SF_SOURCE_TRACKING_USE_LITE_GIT=false mocha \"test/nuts/local/commitPerf.nut.ts\" \"test/nuts/local/localTrackingScale.nut.ts\" --slow 4500 --timeout 600000",
-    "perf:iso-vs-lite:lite": "SF_SOURCE_TRACKING_USE_LITE_GIT=true mocha \"test/nuts/local/commitPerf.nut.ts\" \"test/nuts/local/localTrackingScale.nut.ts\" --slow 4500 --timeout 600000",
-    "perf:iso-vs-lite:render": "ts-node test/perf-utils/renderIsoVsLite.ts",
-    "perf:iso-vs-lite": "yarn perf:iso-vs-lite:reset && yarn perf:iso-vs-lite:iso && yarn perf:iso-vs-lite:lite && yarn perf:iso-vs-lite:render"
+    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel"
   },
   "keywords": [
     "force",
@@ -75,7 +70,6 @@
     "fast-xml-parser": "^5.5.7",
     "graceful-fs": "^4.2.11",
     "ignore": "^7.0.5",
-    "isomorphic-git": "1.38.3",
     "ts-retry-promise": "^0.8.1"
   },
   "devDependencies": {
@@ -101,8 +95,7 @@
     "build": {
       "dependencies": [
         "compile",
-        "lint",
-        "check:circular-deps"
+        "lint"
       ]
     },
     "check:circular-deps": {
@@ -180,11 +173,7 @@
     "test:only": {
       "command": "nyc mocha \"test/**/*.test.ts\"",
       "env": {
-        "FORCE_COLOR": "2",
-        "SF_SOURCE_TRACKING_USE_LITE_GIT": {
-          "external": true,
-          "default": "false"
-        }
+        "FORCE_COLOR": "2"
       },
       "files": [
         "test/**/*.ts",
