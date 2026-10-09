@@ -526,9 +526,7 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
         candidates.push({ key, member });
       }
     }
-    if (candidates.length === 0) return undefined;
-    const substringMatch = candidates.find((c) => mdApiName.includes(c.member.MemberName));
-    const match = substringMatch ?? (candidates.length === 1 ? candidates[0] : undefined);
+    const match = candidates.find((c) => mdApiName.includes(c.member.MemberName));
     if (match) {
       this.logger.debug(`SourceMember name fallback: matched ${metadataKey} to ${match.key}`);
     }
