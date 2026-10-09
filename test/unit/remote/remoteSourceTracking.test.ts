@@ -1002,4 +1002,15 @@ describe('correctSourceMemberNames', () => {
     expect(result[0].name).to.equal('Default_Navigation');
     expect(result[1].name).to.equal('MyClass');
   });
+
+  it('should correct non-NavigationMenu types with the same mismatch pattern', () => {
+    const audDir = join(tempDir, 'main', 'default', 'audience');
+    mkdirSync(audDir, { recursive: true });
+    writeFileSync(join(audDir, 'Default_Testing.audience-meta.xml'), '<xml/>');
+
+    const changes = [makeChange('Default', 'Audience')];
+    const result = correctSourceMemberNames(changes, [tempDir], registry);
+
+    expect(result[0].name).to.equal('Default_Testing');
+  });
 });
