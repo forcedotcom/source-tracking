@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import * as fs from 'node:fs';
-import { sep, normalize } from 'node:path';
+import { join, sep, normalize } from 'node:path';
 import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from '@salesforce/ts-types';
@@ -334,10 +334,14 @@ export class SourceTracking extends AsyncCreatable {
       await this.ensureRemoteTracking();
       const remoteChanges = await this.remoteSourceTrackingService.retrieveUpdates();
       this.logger.debug('remoteChanges', remoteChanges);
-      const filteredChanges = remoteChanges
-        .filter(remoteFilterByState[options.state])
-        // skip any remote types not in the registry.  Will emit warnings
-        .filter((rce) => registrySupportsType(this.registry)(rce.type));
+      const filteredChanges = correctSourceMemberNames(
+        remoteChanges
+          .filter(remoteFilterByState[options.state])
+          // skip any remote types not in the registry.  Will emit warnings
+          .filter((rce) => registrySupportsType(this.registry)(rce.type)),
+        this.project.getPackageDirectories().map((pkgDir) => pkgDir.fullPath),
+        this.registry
+      );
       if (options.format === 'ChangeResult') {
         return filteredChanges.map(remoteChangeElementToChangeResult(this.registry));
       }
@@ -705,8 +709,8 @@ export class SourceTracking extends AsyncCreatable {
       // Events are attached to a singleton (sfdx-core's Lifecycle), so when
       // instantiating `SourceTracking` multiple times in the same process we need
       // each instance starts clean.
-      lifecycle.removeAllListeners('scopedPreDeploy')
-      lifecycle.removeAllListeners('scopedPreRetrieve')
+      lifecycle.removeAllListeners('scopedPreDeploy');
+      lifecycle.removeAllListeners('scopedPreRetrieve');
 
       // the only thing STL uses pre events for is to check conflicts.  So if you don't care about conflicts, don't listen!
       if (!this.ignoreConflicts) {
@@ -875,3 +879,80 @@ const localChangesToOutputRow =
     }
     throw new Error('no filenames found for local ChangeResult');
   };
+
+/** Correct SourceMember names that don't match the Metadata API fullName by matching against local files. */
+export const correctSourceMemberNames = (
+  changes: RemoteChangeElement[],
+  packageDirPaths: string[],
+  registry: RegistryAccess
+): RemoteChangeElement[] => {
+  const typeCache = new Map<string, { localNames: Set<string>; localList: string[] }>();
+
+  const empty = { localNames: new Set<string>(), localList: [] as string[] };
+
+  const getLocalNames = (typeName: string): { localNames: Set<string>; localList: string[] } => {
+    const cached = typeCache.get(typeName);
+    if (cached) return cached;
+    try {
+      const mdType = registry.getTypeByName(typeName);
+      const suffix = `.${mdType.suffix ?? typeName}-meta.xml`;
+      const localList = findLocalFullNames(packageDirPaths, mdType.directoryName, suffix);
+      const result = { localNames: new Set(localList), localList };
+      typeCache.set(typeName, result);
+      return result;
+    } catch {
+      typeCache.set(typeName, empty);
+      return empty;
+    }
+  };
+
+  return changes.map((change) => {
+    const { localNames, localList } = getLocalNames(change.type);
+    if (localList.length === 0 || localNames.has(change.name)) return change;
+
+    const matches = localList.filter((localName) => localName.includes(change.name));
+    if (matches.length === 1) {
+      return { ...change, name: matches[0] };
+    }
+    return change;
+  });
+};
+
+/** @deprecated use correctSourceMemberNames */
+export const correctNavigationMenuNames = correctSourceMemberNames;
+
+/** Walk package dirs to find file names (without suffix) for a given type directory */
+const findLocalFullNames = (packageDirPaths: string[], directoryName: string, suffix: string): string[] => {
+  const results: string[] = [];
+
+  const walk = (dir: string, depth: number): void => {
+    if (depth > 4) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === directoryName) {
+        try {
+          for (const file of fs.readdirSync(join(dir, entry.name))) {
+            if (file.endsWith(suffix)) {
+              results.push(file.slice(0, -suffix.length));
+            }
+          }
+        } catch {
+          // skip unreadable directories
+        }
+      } else if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
+        walk(join(dir, entry.name), depth + 1);
+      }
+    }
+  };
+
+  for (const pkgDir of packageDirPaths) {
+    walk(pkgDir, 0);
+  }
+  return results;
+};

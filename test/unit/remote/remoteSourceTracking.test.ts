@@ -16,8 +16,9 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
-import { existsSync, rmSync } from 'node:fs';
-import { sep, dirname, resolve } from 'node:path';
+import { existsSync, rmSync, mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { sep, dirname, resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { EnvVars, envVars, Messages, Org } from '@salesforce/core';
 import { expect, config } from 'chai';
@@ -32,6 +33,7 @@ import * as orgQueryMocks from '../../../src/shared/remote/orgQueries';
 
 import { getMetadataNameFromKey, getMetadataTypeFromKey } from '../../../src/shared/functions';
 import { ContentsV0, ContentsV1, MemberRevision, SourceMember } from '../../../src/shared/remote/types';
+import { correctSourceMemberNames } from '../../../src/sourceTracking';
 
 config.truncateThreshold = 0;
 
@@ -762,6 +764,46 @@ describe('remoteSourceTrackingService', () => {
         },
       });
     });
+    it('should sync NavigationMenu when MDAPI fullName differs from SourceMember name', async () => {
+      const contents = {
+        serverMaxRevisionCounter: 1,
+        fileVersion: 1,
+        sourceMembers: {
+          'NavigationMenu###Default_Navigation': {
+            ...defaultSourceMemberValues,
+            MemberName: 'Default_Navigation',
+            MemberType: 'NavigationMenu',
+            IsNewMember: false,
+            IsNameObsolete: false,
+            RevisionCounter: 1,
+            lastRetrievedFromServer: undefined,
+          },
+        },
+      } satisfies ContentsV1;
+      setContents(contents);
+      await remoteSourceTrackingService.syncSpecifiedElements(new RegistryAccess(), [
+        {
+          fullName: 'SFDC_Default_Navigation_Complaint_Public',
+          type: 'NavigationMenu',
+          filePath:
+            'community/main/default/navigationMenus/SFDC_Default_Navigation_Complaint_Public.navigationMenu-meta.xml',
+          state: ComponentStatus.Changed,
+        },
+      ]);
+      expect(getContents()).to.deep.equal({
+        serverMaxRevisionCounter: 1,
+        sourceMembers: {
+          'NavigationMenu###Default_Navigation': {
+            ...defaultSourceMemberValues,
+            MemberName: 'Default_Navigation',
+            IsNameObsolete: false,
+            lastRetrievedFromServer: 1,
+            MemberType: 'NavigationMenu',
+            RevisionCounter: 1,
+          },
+        },
+      });
+    });
     it('should not poll when SFDX_DISABLE_SOURCE_MEMBER_POLLING=true', async () => {
       envVars.setString('SFDX_DISABLE_SOURCE_MEMBER_POLLING', 'true');
 
@@ -900,5 +942,75 @@ describe('remoteSourceTrackingService', () => {
     it('should return the correct file location (base case)', () => {
       expect(remoteSourceTrackingService.filePath).to.include(`.sf${sep}`);
     });
+  });
+});
+
+describe('correctSourceMemberNames', () => {
+  const registry = new RegistryAccess();
+  let tempDir: string;
+
+  const makeChange = (name: string, type = 'NavigationMenu'): RemoteChangeElement => ({
+    name,
+    type,
+    deleted: false,
+    modified: true,
+    changedBy: 'test',
+    revisionCounter: 1,
+    lastModifiedDate: new Date().toJSON(),
+    memberIdOrName: '00eO4000003cP5JIAU',
+  });
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'stl-navmenu-'));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('should correct SourceMember name when local file has different MDAPI name', () => {
+    const navDir = join(tempDir, 'main', 'default', 'navigationMenus');
+    mkdirSync(navDir, { recursive: true });
+    writeFileSync(join(navDir, 'SFDC_Default_Navigation_Complaint_Public.navigationMenu-meta.xml'), '<xml/>');
+
+    const changes = [makeChange('Default_Navigation')];
+    const result = correctSourceMemberNames(changes, [tempDir], registry);
+
+    expect(result[0].name).to.equal('SFDC_Default_Navigation_Complaint_Public');
+  });
+
+  it('should not correct when multiple local files match (ambiguous)', () => {
+    const navDir = join(tempDir, 'main', 'default', 'navigationMenus');
+    mkdirSync(navDir, { recursive: true });
+    writeFileSync(join(navDir, 'SFDC_Default_Navigation_Site_A.navigationMenu-meta.xml'), '<xml/>');
+    writeFileSync(join(navDir, 'SFDC_Default_Navigation_Site_B.navigationMenu-meta.xml'), '<xml/>');
+
+    const changes = [makeChange('Default_Navigation')];
+    const result = correctSourceMemberNames(changes, [tempDir], registry);
+
+    expect(result[0].name).to.equal('Default_Navigation');
+  });
+
+  it('should pass through when name already matches local file', () => {
+    const navDir = join(tempDir, 'main', 'default', 'navigationMenus');
+    mkdirSync(navDir, { recursive: true });
+    writeFileSync(join(navDir, 'Default_Navigation.navigationMenu-meta.xml'), '<xml/>');
+
+    const changes = [makeChange('Default_Navigation'), makeChange('MyClass', 'ApexClass')];
+    const result = correctSourceMemberNames(changes, [tempDir], registry);
+
+    expect(result[0].name).to.equal('Default_Navigation');
+    expect(result[1].name).to.equal('MyClass');
+  });
+
+  it('should correct non-NavigationMenu types with the same mismatch pattern', () => {
+    const audDir = join(tempDir, 'main', 'default', 'audience');
+    mkdirSync(audDir, { recursive: true });
+    writeFileSync(join(audDir, 'Default_Testing.audience-meta.xml'), '<xml/>');
+
+    const changes = [makeChange('Default', 'Audience')];
+    const result = correctSourceMemberNames(changes, [tempDir], registry);
+
+    expect(result[0].name).to.equal('Default_Testing');
   });
 });
