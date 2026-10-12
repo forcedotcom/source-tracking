@@ -57,14 +57,14 @@ describe('local detect moved files', () => {
         registry,
       });
 
-      const gitAdd = sinon.spy(git, 'add');
+      const gitCommit = sinon.spy(git, 'commit');
 
       // Manually commit this first file
       const labelsFile = path.join('force-app', 'labels', 'CustomLabels.labels-meta.xml');
       const labelsFileTwo = path.join('force-app', 'labels', 'CustomLabelsTwo.labels-meta.xml');
       const sha = await shadowRepo.commitChanges({ deployedFiles: [labelsFile, labelsFileTwo] });
       expect(sha).to.not.be.empty;
-      expect(gitAdd.calledOnce).to.be.true;
+      expect(gitCommit.calledOnce).to.be.true;
 
       // Move the file and refresh the status
       fs.renameSync(
@@ -79,7 +79,7 @@ describe('local detect moved files', () => {
       await shadowRepo.getStatus(true);
 
       // Moved file should have been detected and committed
-      expect(gitAdd.calledTwice).to.be.true;
+      expect(gitCommit.calledTwice).to.be.true;
       expect(await shadowRepo.getChangedRows()).to.be.empty;
     } finally {
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
@@ -110,13 +110,13 @@ describe('local detect moved files', () => {
         registry,
       });
 
-      const gitAdd = sinon.spy(git, 'add');
+      const gitCommit = sinon.spy(git, 'commit');
 
       // Manually commit this first file
       const labelsFile = path.join('force-app', 'labels', 'CustomLabels.labels-meta.xml');
       const sha = await shadowRepo.commitChanges({ deployedFiles: [labelsFile] });
       expect(sha).to.not.be.empty;
-      expect(gitAdd.calledOnce).to.be.true;
+      expect(gitCommit.calledOnce).to.be.true;
 
       // Move the file and refresh the status
       fs.renameSync(
@@ -127,7 +127,7 @@ describe('local detect moved files', () => {
       await shadowRepo.getStatus(true);
 
       // Moved file should NOT have been detected and committed
-      expect(gitAdd.calledTwice).to.be.false;
+      expect(gitCommit.calledTwice).to.be.false;
       expect(await shadowRepo.getChangedRows()).to.have.lengthOf(2);
     } finally {
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
@@ -175,14 +175,14 @@ describe('local detect moved files', () => {
         registry,
       });
 
-      const gitAdd = sinon.spy(git, 'add');
+      const gitCommit = sinon.spy(git, 'commit');
 
       // Manually commit the two files first
       const singleMatchFile = path.join('force-app', 'labels', 'CustomLabelsSingleMatch.labels-meta.xml');
       const multiMatchFile = path.join('force-app', 'labels', 'CustomLabelsMultiMatch.labels-meta.xml');
       const sha = await shadowRepo.commitChanges({ deployedFiles: [singleMatchFile, multiMatchFile] });
       expect(sha).to.not.be.empty;
-      expect(gitAdd.calledOnce).to.be.true;
+      expect(gitCommit.calledOnce).to.be.true;
 
       // For the multi-match file, copy it to two different directories and then rename it
       // The reason we create 3 new copies is to ensure the added/deletedIgnoredSet is working correctly
@@ -209,7 +209,7 @@ describe('local detect moved files', () => {
       await shadowRepo.getStatus(true);
 
       // The single moved file should have been detected and committed
-      expect(gitAdd.calledTwice).to.be.true;
+      expect(gitCommit.calledTwice).to.be.true;
       // However, the ones with multiple matches should have been ignored
       // - Expect getChangedRows to return 4 rows. 1 deleted and 3 added
       expect(await shadowRepo.getChangedRows()).to.have.lengthOf(4);
@@ -244,13 +244,13 @@ describe('local detect moved files', () => {
         registry,
       });
 
-      const gitAdd = sinon.spy(git, 'add');
+      const gitCommit = sinon.spy(git, 'commit');
 
       // Manually commit this first file
       const labelsFile = path.join('force-app', 'labels', 'CustomLabels.labels-meta.xml');
       const sha = await shadowRepo.commitChanges({ deployedFiles: [labelsFile] });
       expect(sha).to.not.be.empty;
-      expect(gitAdd.calledOnce).to.be.true;
+      expect(gitCommit.calledOnce).to.be.true;
 
       // Move the file
       fs.renameSync(
@@ -262,8 +262,8 @@ describe('local detect moved files', () => {
       // Refresh the status
       await shadowRepo.getStatus(true);
 
-      // delete is detected and committed, but the add is still considered a change
-      expect(gitAdd.calledOnce).to.be.true;
+      // delete is detected and committed (second commit), but the add is still considered a change
+      expect(gitCommit.calledTwice).to.be.true;
       expect(await shadowRepo.getDeletes()).to.have.lengthOf(0);
       expect(await shadowRepo.getAdds()).to.have.lengthOf(1);
     } finally {
@@ -300,12 +300,12 @@ describe('local detect moved files', () => {
         registry,
       });
 
-      const gitAdd = sinon.spy(git, 'add');
+      const gitCommit = sinon.spy(git, 'commit');
 
       // Manually commit the files first
       const sha = await shadowRepo.commitChanges({ deployedFiles: [moveFile, modifyFile, deleteFile] });
       expect(sha).to.not.be.empty;
-      expect(gitAdd.calledOnce).to.be.true;
+      expect(gitCommit.calledOnce).to.be.true;
 
       // Move the file this file
       fs.renameSync(
@@ -323,7 +323,7 @@ describe('local detect moved files', () => {
       await shadowRepo.getStatus(true);
 
       // Moved file should have been detected and committed, leaving the remaining changes
-      expect(gitAdd.calledTwice).to.be.true;
+      expect(gitCommit.calledTwice).to.be.true;
       expect(await shadowRepo.getAddFilenames()).to.have.lengthOf(1);
       expect(await shadowRepo.getAddFilenames()).to.have.members([addFile]);
       expect(await shadowRepo.getDeleteFilenames()).to.have.lengthOf(1);
