@@ -526,11 +526,12 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
         candidates.push({ key, member });
       }
     }
-    const match = candidates.find((c) => mdApiName.includes(c.member.MemberName));
-    if (match) {
-      this.logger.debug(`SourceMember name fallback: matched ${metadataKey} to ${match.key}`);
+    const matches = candidates.filter((c) => c.member.MemberName && mdApiName.includes(c.member.MemberName));
+    if (matches.length === 1) {
+      this.logger.debug(`SourceMember name fallback: matched ${metadataKey} to ${matches[0].key}`);
+      return matches[0];
     }
-    return match;
+    return undefined;
   }
 
   /** O(1) decoded-key lookup via lazily-built reverse index */
