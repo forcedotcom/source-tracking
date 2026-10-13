@@ -1013,4 +1013,16 @@ describe('correctSourceMemberNames', () => {
 
     expect(result[0].name).to.equal('Default_Testing');
   });
+
+  it('should not rename when substring match lacks underscore boundary', () => {
+    const clsDir = join(tempDir, 'main', 'default', 'classes');
+    mkdirSync(clsDir, { recursive: true });
+    writeFileSync(join(clsDir, 'FooTest.cls'), 'public class FooTest {}');
+    writeFileSync(join(clsDir, 'FooTest.cls-meta.xml'), '<xml/>');
+
+    const changes = [makeChange('Foo', 'ApexClass')];
+    const result = correctSourceMemberNames(changes, [tempDir], registry);
+
+    expect(result[0].name).to.equal('Foo');
+  });
 });

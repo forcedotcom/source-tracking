@@ -197,6 +197,15 @@ export const changeResultToMetadataComponent =
     type: registry.getTypeByName(cr.type),
   });
 
+/** True when `haystack` contains `needle` bounded by underscores or string edges (not mid-word). */
+export const containsWithBoundary = (haystack: string, needle: string): boolean => {
+  const idx = haystack.indexOf(needle);
+  if (idx === -1) return false;
+  const before = idx === 0 || haystack[idx - 1] === '_';
+  const after = idx + needle.length === haystack.length || haystack[idx + needle.length] === '_';
+  return before && after;
+};
+
 // TODO: use set.union when node 22 is everywhere
 export const uniqueArrayConcat = <T>(arr1: T[] | Set<T>, arr2: T[] | Set<T>): T[] =>
   Array.from(new Set([...arr1, ...arr2]));

@@ -179,21 +179,20 @@ export class RemoteSourceTrackingService {
     // so we de-dupe via a set
     Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(registry)(element)))).map(
       (metadataKey) => {
-        const directMatch = this.getSourceMember(metadataKey);
-        const fallback = directMatch ? undefined : this.findSourceMemberFallback(metadataKey);
-        const revision = directMatch ?? fallback?.member;
-        const revisionKey = fallback?.key ?? metadataKey;
-        if (!revision) {
+        const match = this.getSourceMember(metadataKey)
+          ? { key: metadataKey, member: this.getSourceMember(metadataKey)! }
+          : this.findSourceMemberFallback(metadataKey);
+        if (!match) {
           this.logger.warn(`found no matching revision for ${metadataKey}`);
-        } else if (doesNotMatchServer(revision)) {
+        } else if (doesNotMatchServer(match.member)) {
           quietLogger(
-            `Syncing ${revisionKey} revision from ${revision.lastRetrievedFromServer ?? 'null'} to ${
-              revision.RevisionCounter
+            `Syncing ${match.key} revision from ${match.member.lastRetrievedFromServer ?? 'null'} to ${
+              match.member.RevisionCounter
             }`
           );
-          this.setMemberRevision(revisionKey, {
-            ...revision,
-            lastRetrievedFromServer: revision.RevisionCounter,
+          this.setMemberRevision(match.key, {
+            ...match.member,
+            lastRetrievedFromServer: match.member.RevisionCounter,
           });
         }
       }
