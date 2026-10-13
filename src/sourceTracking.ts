@@ -79,7 +79,7 @@ import { registrySupportsType } from './shared/metadataKeys';
 import { populateFilePaths } from './shared/populateFilePaths';
 import { populateTypesAndNames } from './shared/populateTypesAndNames';
 import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray';
-import { sourceComponentIsCustomLabel } from './shared/functions';
+import { TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH, sourceComponentIsCustomLabel } from './shared/functions';
 export type SourceTrackingOptions = {
   org: Org;
   project: SfProject;
@@ -334,10 +334,14 @@ export class SourceTracking extends AsyncCreatable {
       await this.ensureRemoteTracking();
       const remoteChanges = await this.remoteSourceTrackingService.retrieveUpdates();
       this.logger.debug('remoteChanges', remoteChanges);
-      const filteredChanges = remoteChanges
-        .filter(remoteFilterByState[options.state])
-        // skip any remote types not in the registry.  Will emit warnings
-        .filter((rce) => registrySupportsType(this.registry)(rce.type));
+      const filteredChanges = correctSourceMemberNames(
+        remoteChanges
+          .filter(remoteFilterByState[options.state])
+          // skip any remote types not in the registry.  Will emit warnings
+          .filter((rce) => registrySupportsType(this.registry)(rce.type)),
+        this.project.getPackageDirectories().map((pkgDir) => pkgDir.fullPath),
+        this.registry
+      );
       if (options.format === 'ChangeResult') {
         return filteredChanges.map(remoteChangeElementToChangeResult(this.registry));
       }
@@ -705,8 +709,8 @@ export class SourceTracking extends AsyncCreatable {
       // Events are attached to a singleton (sfdx-core's Lifecycle), so when
       // instantiating `SourceTracking` multiple times in the same process we need
       // each instance starts clean.
-      lifecycle.removeAllListeners('scopedPreDeploy')
-      lifecycle.removeAllListeners('scopedPreRetrieve')
+      lifecycle.removeAllListeners('scopedPreDeploy');
+      lifecycle.removeAllListeners('scopedPreRetrieve');
 
       // the only thing STL uses pre events for is to check conflicts.  So if you don't care about conflicts, don't listen!
       if (!this.ignoreConflicts) {
@@ -875,3 +879,33 @@ const localChangesToOutputRow =
     }
     throw new Error('no filenames found for local ChangeResult');
   };
+
+/** Correct SourceMember names that don't match the Metadata API fullName by matching against local files. */
+export const correctSourceMemberNames = (
+  changes: RemoteChangeElement[],
+  packageDirPaths: string[],
+  registry: RegistryAccess
+): RemoteChangeElement[] => {
+  const localNamesByType = new Map<string, string[]>();
+  for (const component of ComponentSet.fromSource({ fsPaths: packageDirPaths, registry }).getSourceComponents()) {
+    const typeName = component.type.name;
+    const existing = localNamesByType.get(typeName);
+    if (existing) {
+      existing.push(component.fullName);
+    } else {
+      localNamesByType.set(typeName, [component.fullName]);
+    }
+  }
+
+  return changes.map((change) => {
+    if (!TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(change.type)) return change;
+    const localNames = localNamesByType.get(change.type);
+    if (!localNames || localNames.includes(change.name)) return change;
+
+    const matches = localNames.filter((localName) => localName.includes(change.name));
+    if (matches.length === 1) {
+      return { ...change, name: matches[0] };
+    }
+    return change;
+  });
+};
