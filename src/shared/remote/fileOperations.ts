@@ -86,6 +86,31 @@ export const upgradeFileContents = (contents: ContentsV0): ContentsV1 => ({
   ),
 });
 
+/**
+ * Prevents cross-process stale writes by merging in-memory state with on-disk state.
+ * For each member present in both, takes the higher lastRetrievedFromServer (never regresses).
+ */
+const mergeWithDiskState = async (
+  filePath: string,
+  members: Map<string, MemberRevision>,
+  maxCounter: number
+): Promise<number> => {
+  const diskContents = await readFileContents(filePath);
+  if (!('serverMaxRevisionCounter' in diskContents) || !diskContents.sourceMembers) {
+    return maxCounter;
+  }
+
+  for (const [key, diskMember] of Object.entries(diskContents.sourceMembers)) {
+    const memMember = members.get(key);
+    if (memMember && (diskMember.lastRetrievedFromServer ?? -1) > (memMember.lastRetrievedFromServer ?? -1)) {
+      members.set(key, { ...memMember, lastRetrievedFromServer: diskMember.lastRetrievedFromServer });
+    }
+  }
+
+  const diskMax = diskContents.serverMaxRevisionCounter;
+  return Number.isFinite(diskMax) ? Math.max(maxCounter, diskMax) : maxCounter;
+};
+
 export const writeTrackingFile = async ({
   filePath,
   maxCounter,
@@ -96,6 +121,11 @@ export const writeTrackingFile = async ({
   members: Map<string, MemberRevision>;
 }): Promise<void> => {
   const lockResult = await lockInit(filePath);
+
+  // Merge with on-disk state to prevent cross-process stale overwrites.
+  // readFileContents returns {} for missing/unreadable files, which mergeWithDiskState handles.
+  maxCounter = await mergeWithDiskState(filePath, members, maxCounter);
+
   const CURRENT_FILE_VERSION_ENV = env.getNumber('SF_SOURCE_TRACKING_FILE_VERSION') ?? 0;
   const contents =
     CURRENT_FILE_VERSION_ENV === 1

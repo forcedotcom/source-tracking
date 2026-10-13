@@ -24,7 +24,12 @@ import { isString } from '@salesforce/ts-types';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types';
 import { getMetadataKeyFromFileResponse, getMappingsForSourceMemberTypesToMetadataType } from '../metadataKeys';
-import { getMetadataKey } from '../functions';
+import {
+  TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH,
+  getMetadataKey,
+  getMetadataNameFromKey,
+  getMetadataTypeFromKey,
+} from '../functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 import { SourceMember } from './types';
 import { MemberRevision } from './types';
@@ -179,18 +184,20 @@ export class RemoteSourceTrackingService {
     // so we de-dupe via a set
     Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(registry)(element)))).map(
       (metadataKey) => {
-        const revision = this.sourceMembers.get(metadataKey) ?? this.sourceMembers.get(decodeURI(metadataKey));
-        if (!revision) {
+        const match = this.getSourceMember(metadataKey)
+          ? { key: metadataKey, member: this.getSourceMember(metadataKey)! }
+          : this.findSourceMemberFallback(metadataKey);
+        if (!match) {
           this.logger.warn(`found no matching revision for ${metadataKey}`);
-        } else if (doesNotMatchServer(revision)) {
+        } else if (doesNotMatchServer(match.member)) {
           quietLogger(
-            `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer ?? 'null'} to ${
-              revision.RevisionCounter
+            `Syncing ${match.key} revision from ${match.member.lastRetrievedFromServer ?? 'null'} to ${
+              match.member.RevisionCounter
             }`
           );
-          this.setMemberRevision(metadataKey, {
-            ...revision,
-            lastRetrievedFromServer: revision.RevisionCounter,
+          this.setMemberRevision(match.key, {
+            ...match.member,
+            lastRetrievedFromServer: match.member.RevisionCounter,
           });
         }
       }
@@ -318,7 +325,19 @@ export class RemoteSourceTrackingService {
         queriedMembers.map((member) => {
           // remove anything returned from the query list
           const metadataKey = getMetadataKey(member.MemberType, member.MemberName);
-          const deleted = outstandingSourceMembers.delete(metadataKey);
+          let deleted = outstandingSourceMembers.delete(metadataKey);
+          // SourceMember may store platform event (and other custom object) children without the entity suffix.
+          // e.g., "MyEvent.Field__c" instead of "MyEvent__e.Field__c"
+          if (!deleted && member.MemberName.includes('.')) {
+            const dotIndex = member.MemberName.indexOf('.');
+            const parent = member.MemberName.substring(0, dotIndex);
+            const child = member.MemberName.substring(dotIndex);
+            for (const suffix of ['__e', '__c', '__b', '__x', '__mdt']) {
+              const alternateKey = getMetadataKey(member.MemberType, `${parent}${suffix}${child}`);
+              deleted = outstandingSourceMembers.delete(alternateKey);
+              if (deleted) break;
+            }
+          }
           if (!deleted) {
             bonusTypes.add(metadataKey);
           }
@@ -495,6 +514,33 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
     if (this.decodedKeyIndex) {
       this.decodedKeyIndex.set(decodeURIComponent(matchingKey), matchingKey);
     }
+  }
+
+  /**
+   * SourceMember can use a different name than Metadata API for some types
+   * (e.g. NavigationMenu, Audience). When the MDAPI fullName doesn't match
+   * any tracked SourceMember, search for a pending member of the same type.
+   */
+  private findSourceMemberFallback(metadataKey: string): { key: string; member: MemberRevision } | undefined {
+    const metadataType = getMetadataTypeFromKey(metadataKey);
+    if (!TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(metadataType)) return undefined;
+    const mdApiName = getMetadataNameFromKey(metadataKey);
+    const matches: Array<{ key: string; member: MemberRevision }> = [];
+    for (const [key, member] of this.sourceMembers) {
+      if (
+        member.MemberType === metadataType &&
+        doesNotMatchServer(member) &&
+        member.MemberName &&
+        mdApiName.includes(member.MemberName)
+      ) {
+        matches.push({ key, member });
+      }
+    }
+    if (matches.length === 1) {
+      this.logger.debug(`SourceMember name fallback: matched ${metadataKey} to ${matches[0].key}`);
+      return matches[0];
+    }
+    return undefined;
   }
 
   /** O(1) decoded-key lookup via lazily-built reverse index */

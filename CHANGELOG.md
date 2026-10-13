@@ -1,3 +1,111 @@
+## [8.1.5](https://github.com/forcedotcom/source-tracking/compare/8.1.4...8.1.5) (2026-10-13)
+
+
+### Bug Fixes
+
+* add test non-navigationMenu ([839ab0d](https://github.com/forcedotcom/source-tracking/commit/839ab0d16249d73c60218af772c1701d26db6458))
+* bump core ([fc0dd79](https://github.com/forcedotcom/source-tracking/commit/fc0dd7910a3846af02f0525d3651cdb7106ad8d8))
+* correct SourceMember name mismatch ([b522199](https://github.com/forcedotcom/source-tracking/commit/b522199733f9efb1546a4b89d6403b2536584423))
+* remove single-candidate ([63cc5f6](https://github.com/forcedotcom/source-tracking/commit/63cc5f6134f4007f0766d510c8ce4f8e55478456))
+* update changes to allowlist ([5cf4366](https://github.com/forcedotcom/source-tracking/commit/5cf43662535f0053c9a9ec19bb643549a6e4cd23))
+* update suggestions ([5bc293d](https://github.com/forcedotcom/source-tracking/commit/5bc293d9804ed85ce1b3ccfec279cd8632300c4b))
+* use filter() to reverse sync fallback ([5f26561](https://github.com/forcedotcom/source-tracking/commit/5f265619f009fbac0d67fa60906b7bb370d06c68))
+
+
+
+## [8.1.4](https://github.com/forcedotcom/source-tracking/compare/8.1.3...8.1.4) (2026-09-28)
+
+
+### Bug Fixes
+
+* **deps:** bump @babel/core from 7.27.4 to 7.29.7 ([395f531](https://github.com/forcedotcom/source-tracking/commit/395f531bee5de54152c939a1df38aa11d66600b9))
+
+
+
+## [8.1.3](https://github.com/forcedotcom/source-tracking/compare/8.1.3-dev.0...8.1.3) (2026-08-27)
+
+
+
+## [8.1.3-dev.0](https://github.com/forcedotcom/source-tracking/compare/8.1.2...8.1.3-dev.0) (2026-08-27)
+
+
+### Bug Fixes
+
+* prevent cross-process stale writes to maxRevision.json ([037921d](https://github.com/forcedotcom/source-tracking/commit/037921d411197856e1e58020cb20d361e67fb85e)), closes [forcedotcom/cli#3612](https://github.com/forcedotcom/cli/issues/3612)
+
+
+
+## [8.1.2](https://github.com/forcedotcom/source-tracking/compare/8.1.1...8.1.2) (2026-08-26)
+
+
+
+## [8.1.1](https://github.com/forcedotcom/source-tracking/compare/8.1.0...8.1.1) (2026-08-21)
+
+
+### Bug Fixes
+
+* rejiggered eslint.config.mjs (W-23928423) ([cbaa635](https://github.com/forcedotcom/source-tracking/commit/cbaa635c4c96188164ba2cf6260d9130646bf93f))
+
+
+
+# [8.1.0](https://github.com/forcedotcom/source-tracking/compare/8.0.0...8.1.0) (2026-08-13)
+
+
+### Features
+
+* add SF_SOURCE_TRACKING_ASSUME_SYNCED env var to skip local status scan ([#865](https://github.com/forcedotcom/source-tracking/issues/865)) ([b412120](https://github.com/forcedotcom/source-tracking/commit/b412120805e3f87800814f395dccae4abc9bd10b))
+
+
+
+# [8.0.0](https://github.com/forcedotcom/source-tracking/compare/7.8.20...8.0.0) (2026-07-29)
+
+
+* feat!: require Node >=22, drop EOL Node versions (#871) @W-23480655@ ([217e7ac](https://github.com/forcedotcom/source-tracking/commit/217e7ace7187873ee3773425228c34b47768035d)), closes [#871](https://github.com/forcedotcom/source-tracking/issues/871)
+
+
+### BREAKING CHANGES
+
+* engines.node raised to >=22.0.0, dropping support for Node 18 and 20
+
+- engines.node bumped to >=22.0.0
+- @salesforce/core bumped to ^9.0.0
+- @salesforce/kit bumped to ^4.0.0
+- @salesforce/ts-types bumped to ^3.0.0
+- @salesforce/source-deploy-retrieve bumped to ^13.0.0
+
+
+
+## [7.8.20](https://github.com/forcedotcom/source-tracking/compare/7.8.19...7.8.20) (2026-07-28)
+
+
+### Bug Fixes
+
+* match SourceMembers when server strips entity suffix @W-21612413@ ([#868](https://github.com/forcedotcom/source-tracking/issues/868)) ([71daa66](https://github.com/forcedotcom/source-tracking/commit/71daa662add6f110d2d3c1d48135d4935bd7d603))
+
+
+
+## [7.8.19](https://github.com/forcedotcom/source-tracking/compare/7.8.18...7.8.19) (2026-06-25)
+
+
+### Bug Fixes
+
+* metadata with ampersand (%26) never syncs in source tracking @W-21360609@ ([#862](https://github.com/forcedotcom/source-tracking/issues/862)) ([6436a18](https://github.com/forcedotcom/source-tracking/commit/6436a1852c484122fc1aac76156d049543b2f5ca))
+
+
+
+## [7.8.18](https://github.com/forcedotcom/source-tracking/compare/7.8.17...7.8.18) (2026-06-24)
+
+
+### Bug Fixes
+
+* **deps:** bump form-data from 4.0.4 to 4.0.6 ([1eb28ca](https://github.com/forcedotcom/source-tracking/commit/1eb28caa1f41b68f10d1414f8dc37dc182259175))
+
+
+
+## [7.8.17](https://github.com/forcedotcom/source-tracking/compare/7.8.16...7.8.17) (2026-06-23)
+
+
+
 ## [7.8.16](https://github.com/forcedotcom/source-tracking/compare/7.8.15...7.8.16) (2026-05-12)
 
 

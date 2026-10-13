@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "7.8.16",
+  "version": "8.1.5",
   "author": "Salesforce",
   "license": "Apache-2.0",
   "main": "lib/index.js",
@@ -47,28 +47,34 @@
     "/oclif.manifest.json"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
-    "@salesforce/core": "^8.30.0",
-    "@salesforce/kit": "^3.2.6",
-    "@salesforce/source-deploy-retrieve": "^12.35.9",
-    "@salesforce/ts-types": "^2.0.12",
-    "fast-xml-parser": "^5.5.7",
+    "@salesforce/core": "^9.3.6",
+    "@salesforce/kit": "^4.0.0",
+    "@salesforce/source-deploy-retrieve": "^13.4.6",
+    "@salesforce/ts-types": "^3.2.0",
+    "fast-xml-parser": "^5.11.2",
     "graceful-fs": "^4.2.11",
-    "isomorphic-git": "^1.34.2",
+    "isomorphic-git": "^1.44.2",
     "ts-retry-promise": "^0.8.1"
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^5.3.39",
-    "@salesforce/dev-scripts": "^11.0.4",
+    "@salesforce/dev-scripts": "^14.0.0",
     "@salesforce/schemas": "^1.10.3",
+    "@types/chai": "^4.3.17",
     "@types/graceful-fs": "^4.1.9",
-    "esbuild": "^0.25.11",
-    "eslint-plugin-sf-plugin": "^1.20.33",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^18",
+    "@types/sinon": "^10.0.20",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.4.0",
+    "eslint-config-salesforce-typescript": "^7.0.0",
+    "eslint-plugin-sf-plugin": "^3.0.0",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.3.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "config": {},
   "publishConfig": {
@@ -111,6 +117,7 @@
         "src/**/*.ts",
         "test/**/*.ts",
         "messages/**",
+        "**/eslint.config.*",
         "**/.eslint*",
         "**/tsconfig.json"
       ],
