@@ -79,7 +79,7 @@ import { registrySupportsType } from './shared/metadataKeys';
 import { populateFilePaths } from './shared/populateFilePaths';
 import { populateTypesAndNames } from './shared/populateTypesAndNames';
 import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray';
-import { containsWithBoundary, sourceComponentIsCustomLabel } from './shared/functions';
+import { TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH, sourceComponentIsCustomLabel } from './shared/functions';
 export type SourceTrackingOptions = {
   org: Org;
   project: SfProject;
@@ -898,10 +898,11 @@ export const correctSourceMemberNames = (
   }
 
   return changes.map((change) => {
+    if (!TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(change.type)) return change;
     const localNames = localNamesByType.get(change.type);
     if (!localNames || localNames.includes(change.name)) return change;
 
-    const matches = localNames.filter((localName) => containsWithBoundary(localName, change.name));
+    const matches = localNames.filter((localName) => localName.includes(change.name));
     if (matches.length === 1) {
       return { ...change, name: matches[0] };
     }

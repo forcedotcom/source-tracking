@@ -24,7 +24,12 @@ import { isString } from '@salesforce/ts-types';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types';
 import { getMetadataKeyFromFileResponse, getMappingsForSourceMemberTypesToMetadataType } from '../metadataKeys';
-import { getMetadataKey, getMetadataNameFromKey, getMetadataTypeFromKey } from '../functions';
+import {
+  TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH,
+  getMetadataKey,
+  getMetadataNameFromKey,
+  getMetadataTypeFromKey,
+} from '../functions';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 import { SourceMember } from './types';
 import { MemberRevision } from './types';
@@ -518,13 +523,8 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
    */
   private findSourceMemberFallback(metadataKey: string): { key: string; member: MemberRevision } | undefined {
     const metadataType = getMetadataTypeFromKey(metadataKey);
+    if (!TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(metadataType)) return undefined;
     const mdApiName = getMetadataNameFromKey(metadataKey);
-    const candidates: Array<{ key: string; member: MemberRevision }> = [];
-    for (const [key, member] of this.sourceMembers) {
-      if (member.MemberType === metadataType && doesNotMatchServer(member)) {
-        candidates.push({ key, member });
-      }
-    }
     const matches: Array<{ key: string; member: MemberRevision }> = [];
     for (const [key, member] of this.sourceMembers) {
       if (
