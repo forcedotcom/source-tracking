@@ -526,7 +526,17 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
         candidates.push({ key, member });
       }
     }
-    const matches = candidates.filter((c) => c.member.MemberName && mdApiName.includes(c.member.MemberName));
+    const matches: Array<{ key: string; member: MemberRevision }> = [];
+    for (const [key, member] of this.sourceMembers) {
+      if (
+        member.MemberType === metadataType &&
+        doesNotMatchServer(member) &&
+        member.MemberName &&
+        mdApiName.includes(member.MemberName)
+      ) {
+        matches.push({ key, member });
+      }
+    }
     if (matches.length === 1) {
       this.logger.debug(`SourceMember name fallback: matched ${metadataKey} to ${matches[0].key}`);
       return matches[0];
