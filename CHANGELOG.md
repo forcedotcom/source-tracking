@@ -1,3 +1,12 @@
+## [8.1.7](https://github.com/forcedotcom/source-tracking/compare/8.1.6...8.1.7) (2026-10-14)
+
+
+### Bug Fixes
+
+* **deps:** bump markdown-it from 14.1.0 to 14.2.0 ([c4950c2](https://github.com/forcedotcom/source-tracking/commit/c4950c2c8b61f26bed26d45f1fa452355198a0c1))
+
+
+
 ## [8.1.6](https://github.com/forcedotcom/source-tracking/compare/8.1.5...8.1.6) (2026-10-14)
 
 
