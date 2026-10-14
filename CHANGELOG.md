@@ -1,3 +1,12 @@
+## [8.1.6](https://github.com/forcedotcom/source-tracking/compare/8.1.5...8.1.6) (2026-10-14)
+
+
+### Bug Fixes
+
+* **deps:** bump source-map-js from 1.2.1 to 1.2.2 ([1cfea98](https://github.com/forcedotcom/source-tracking/commit/1cfea98c416e76af1cf47cf5c2413bfa447e16d6))
+
+
+
 ## [8.1.5](https://github.com/forcedotcom/source-tracking/compare/8.1.4...8.1.5) (2026-10-13)
 
 
