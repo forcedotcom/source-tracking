@@ -1,0 +1,8 @@
+# written by source-tracking fixture
+**/.*
+**/node_modules/**
+**/__tests__/**
+**/.gitignore
+.DS_Store
+# negation: keep .keep files even though dotfiles are excluded
+!**/.keep

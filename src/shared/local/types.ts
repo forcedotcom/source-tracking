@@ -19,6 +19,28 @@ export type DetectionFileInfoWithType = Readonly<
   DetectionFileInfo & { type: string; parentFullName: string; parentType: string }
 >;
 export type StringMap = Map<string, string>;
-export type AddAndDeleteMaps = { addedMap: StringMap; deletedMap: StringMap }; // https://isomorphic-git.org/docs/en/statusMatrix#docsNav
+export type AddAndDeleteMaps = { addedMap: StringMap; deletedMap: StringMap };
 
-export type StatusRow = [file: string, head: number, workdir: number, stage: number];
+export type LocalChanges = Readonly<{
+  added: readonly string[];
+  modified: readonly string[];
+  deleted: readonly string[];
+}>;
+
+import type { NamedPackageDir } from '@salesforce/core';
+import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
+
+export type ShadowRepoOptions = {
+  orgId: string;
+  projectPath: string;
+  packageDirs: NamedPackageDir[];
+  registry: RegistryAccess;
+};
+
+/** Files to record in the local tracking baseline. */
+export type SyncRequest = {
+  deployedFiles?: string[];
+  deletedFiles?: string[];
+  message?: string;
+  needsUpdatedStatus?: boolean;
+};

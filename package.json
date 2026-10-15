@@ -2,6 +2,7 @@
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
   "version": "8.1.7",
+  "type": "module",
   "author": "Salesforce",
   "license": "Apache-2.0",
   "main": "lib/index.js",
@@ -10,6 +11,8 @@
   "repository": "forcedotcom/source-tracking",
   "scripts": {
     "build": "wireit",
+    "check:circular-deps": "wireit",
+    "check:effect": "wireit",
     "clean": "sf-clean",
     "clean-all": "sf-clean all",
     "compile": "wireit",
@@ -22,7 +25,7 @@
     "prepack": "sf-prepack",
     "prepare": "sf-install",
     "test": "wireit",
-    "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts": "c8 mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local": "mocha \"**/local/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved": "mocha \"**/nuts/local/localTrackingFileMoves*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved:child": "mocha \"**/nuts/local/localTrackingFileMovesDecomposedChild.nut.ts\" --slow 4500 --timeout 600000 --parallel",
@@ -50,16 +53,31 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
+    "@effect/opentelemetry": "^4.0.1",
+    "@effect/platform-node": "^4.0.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.222.0",
+    "@opentelemetry/core": "^2.11.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "@opentelemetry/sdk-logs": "^0.222.0",
+    "@opentelemetry/sdk-metrics": "^2.11.0",
+    "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "@opentelemetry/sdk-trace-node": "^2.11.0",
+    "@opentelemetry/sdk-trace-web": "^2.11.0",
     "@salesforce/core": "^9.3.6",
     "@salesforce/kit": "^4.0.0",
     "@salesforce/source-deploy-retrieve": "^13.4.6",
     "@salesforce/ts-types": "^3.2.0",
+    "effect": "^4.0.1",
     "fast-xml-parser": "^5.11.2",
     "graceful-fs": "^4.2.11",
-    "isomorphic-git": "^1.44.2",
+    "ignore": "^7.0.5",
     "ts-retry-promise": "^0.8.1"
   },
   "devDependencies": {
+    "@effect/eslint-plugin": "^0.3.2",
+    "@effect/language-service": "^0.87.3",
     "@salesforce/cli-plugins-testkit": "^5.3.39",
     "@salesforce/dev-scripts": "^14.0.0",
     "@salesforce/schemas": "^1.10.3",
@@ -68,9 +86,13 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^18",
     "@types/sinon": "^10.0.20",
+    "c8": "^10.1.3",
+    "dpdm": "^3.14.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.4.0",
     "eslint-config-salesforce-typescript": "^7.0.0",
+    "eslint-plugin-functional": "^10.0.1",
+    "eslint-plugin-local-rules": "^3.0.2",
     "eslint-plugin-sf-plugin": "^3.0.0",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.3.0",
@@ -85,6 +107,33 @@
       "dependencies": [
         "compile",
         "lint"
+      ]
+    },
+    "check:effect": {
+      "command": "node scripts/effect-diagnostics.mjs",
+      "dependencies": [
+        "compile"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "scripts/**/*.ts",
+        "tsconfig.json",
+        "test/tsconfig.json",
+        "package.json",
+        "config/effect-diagnostics.json",
+        "scripts/effect-diagnostics.mjs"
+      ],
+      "output": []
+    },
+    "check:circular-deps": {
+      "command": "dpdm --no-warning --no-tree --exit-code circular:1 -o .circular-deps.json src",
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": [
+        ".circular-deps.json"
       ]
     },
     "compile": {
@@ -132,7 +181,7 @@
         "lib/**/*"
       ],
       "output": [
-        "dist/index.js"
+        "dist/index.cjs"
       ]
     },
     "test:compile": {

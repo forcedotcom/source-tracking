@@ -5,6 +5,7 @@ await build({
   format: 'cjs',
   platform: 'node',
   external: [], // The whitelist of dependencies that are not bundle-able
+  outExtension: { '.js': '.cjs' },
   keepNames: true,
   plugins: [],
   supported: {

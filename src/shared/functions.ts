@@ -16,7 +16,7 @@
 
 import { sep, normalize, isAbsolute, relative } from 'node:path';
 import fs from 'node:fs';
-import { isString } from '@salesforce/ts-types';
+import { isString } from 'effect/Predicate';
 import {
   FileResponseSuccess,
   ForceIgnore,
@@ -29,8 +29,8 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
-import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types';
-import { ensureNameAndType } from './remoteChangeIgnoring';
+import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types.js';
+import { ensureNameAndType } from './guards.js';
 
 const keySplit = '###';
 const legacyKeySplit = '__';
@@ -173,6 +173,8 @@ export const forceIgnoreDenies =
 
 export const sourceComponentIsCustomLabel = (input: SourceComponent): boolean => input.type.name === 'CustomLabel';
 
+export const TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH = new Set(['NavigationMenu', 'Audience']);
+
 export const sourceComponentHasFullNameAndType = (input: SourceComponent): boolean =>
   typeof input.fullName === 'string' && typeof input.type.name === 'string';
 
@@ -196,8 +198,6 @@ export const changeResultToMetadataComponent =
     fullName: cr.name,
     type: registry.getTypeByName(cr.type),
   });
-
-export const TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH = new Set(['NavigationMenu', 'Audience']);
 
 // TODO: use set.union when node 22 is everywhere
 export const uniqueArrayConcat = <T>(arr1: T[] | Set<T>, arr2: T[] | Set<T>): T[] =>

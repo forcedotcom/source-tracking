@@ -19,7 +19,7 @@ import * as fs from 'graceful-fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 const dirCount = 200;
 const classesPerDir = 500;
@@ -68,7 +68,7 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
+    repo = await createShadowRepo({
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
@@ -85,6 +85,6 @@ describe(`verify tracking handles an add of ${classCount.toLocaleString()} class
   });
 
   it('should sync (commit) them locally without error', async () => {
-    await repo.commitChanges({ deployedFiles: filesToSync, needsUpdatedStatus: false });
+    await repo.recordSync({ deployedFiles: filesToSync, needsUpdatedStatus: false });
   });
 });

@@ -3,11 +3,48 @@
   "compilerOptions": {
     "outDir": "./lib",
     "rootDir": "./src",
+    "types": ["mocha", "node"],
     "skipLibCheck": true,
-    "plugins": [{ "transform": "@salesforce/core/messageTransformer", "import": "messageTransformer" }],
+    "plugins": [
+      { "transform": "@salesforce/core/messageTransformer", "import": "messageTransformer" },
+      {
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "floatingEffect": "error",
+          "globalRandom": "error",
+          "globalRandomInEffect": "error",
+          "globalFetchInEffect": "error",
+          "globalTimersInEffect": "error",
+          "missedPipeableOpportunity": "error",
+          "cryptoRandomUUID": "error",
+          "cryptoRandomUUIDInEffect": "error",
+          "serviceNotAsClass": "error",
+          "outdatedApi": "error",
+          "anyUnknownInErrorContext": "error",
+          "deterministicKeys": "error",
+          "effectDoNotation": "error",
+          "extendsNativeError": "error",
+          "globalConsole": "error",
+          "globalConsoleInEffect": "error",
+          "globalDate": "error",
+          "globalDateInEffect": "error",
+          "globalFetch": "error",
+          "globalTimers": "error",
+          "importFromBarrel": "error",
+          "instanceOfSchema": "error",
+          "nestedEffectGenYield": "error",
+          "newPromise": "error",
+          "preferSchemaOverJson": "error",
+          "processEnvInEffect": "error",
+          "strictEffectProvide": "error",
+          "unnecessaryArrowBlock": "error",
+          "unsafeEffectTypeAssertion": "error"
+        }
+      }
+    ],
     "moduleResolution": "Node16",
     "module": "Node16",
-    "types": ["mocha"]
+    "lib": ["ES2023", "DOM"]
   },
   "include": ["src/**/*.ts"]
 }
