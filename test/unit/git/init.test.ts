@@ -105,6 +105,21 @@ describe('git/init (phase 5)', () => {
     }
   });
 
+  it('serializes concurrent initialization of the same gitdir', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-init-concurrent-'));
+    try {
+      const gitdir = path.join(tmp, '.git');
+      const exits = await Promise.all(
+        Array.from({ length: 8 }, (_, i) => run(init({ cfg: cfg(gitdir), timestampMs: FIXED_TS + i * 1000 })))
+      );
+      expect(exits.every(Exit.isSuccess)).to.equal(true);
+      const commitOids = exits.flatMap((exit) => (Exit.isSuccess(exit) ? [exit.value] : []));
+      expect(new Set(commitOids).size).to.equal(1);
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
   it('partial shadow (HEAD without refs/heads/main) → IndexCorruptError', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-init-partial-'));
     try {

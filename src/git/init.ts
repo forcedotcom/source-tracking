@@ -15,6 +15,7 @@
  */
 import * as Effect from 'effect/Effect';
 import * as Clock from 'effect/Clock';
+import * as Semaphore from 'effect/Semaphore';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
@@ -24,6 +25,7 @@ import { readDirectRef, readHead, writeDirectRef, writeSymbolicHead } from './re
 import { type Author, Oid, RefName, type SwitchCfg } from './schemas.js';
 
 const ENCODER = new TextEncoder();
+const initSemaphore = Semaphore.makeUnsafe(1);
 const EMPTY_TREE_OID: Oid = Schema.decodeUnknownSync(Oid)('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 
@@ -97,8 +99,7 @@ export type InitArgs = {
  * .git/info/exclude (empty; caller sets via setInfoExclude), .git/config
  * (minimal `[core] repositoryformatversion = 0`).
  */
-/** @internal */
-export const init = Effect.fn('init')(function* (args: InitArgs) {
+const initialize = Effect.fnUntraced(function* (args: InitArgs) {
   const path = yield* Path;
   const { cfg } = args;
   const author = args.author ?? SHADOW_AUTHOR_DEFAULT;
@@ -185,4 +186,9 @@ const freshInit = Effect.fn('freshInit')(function* (a: {
   return yield* verified.kind === 'symbolic' && verified.target === MAIN_REF
     ? Effect.succeed(commitOid)
     : fail('head-readback-mismatch', 'init: HEAD did not round-trip to symbolic ref refs/heads/main');
+});
+
+/** @internal */
+export const init = Effect.fn('init')(function* (args: InitArgs) {
+  return yield* Semaphore.withPermits(initSemaphore, 1)(initialize(args));
 });
