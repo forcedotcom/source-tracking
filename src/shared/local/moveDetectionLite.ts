@@ -255,7 +255,7 @@ const resolveOne = (resolver: MetadataResolver, filename: string): SourceCompone
  */
 const enrichStream =
   (resolver: MetadataResolver) =>
-  <E, R>(s: Stream.Stream<DetectionFileInfo, E, R>): Stream.Stream<DetectionFileInfoWithType, E, R> =>
+  <E, R>(s: Stream.Stream<DetectionFileInfo, E, R>) =>
     Stream.flattenIterable(
       Stream.map(s, (info) =>
         resolveOne(resolver, info.filename).map((c) => ({

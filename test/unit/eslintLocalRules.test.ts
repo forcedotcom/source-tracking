@@ -54,6 +54,41 @@ describe('no-explicit-effect-return-type', () => {
     expect(lint('const read = (id: string): Effect.Effect<string> => Effect.succeed(id);')).to.have.length(1);
   });
 
+  it('flags Stream.Stream return annotations and removes them in the autofix', () => {
+    const code = 'const make = (): Stream.Stream<number, Error, never> => Stream.make(1);';
+
+    expect(lint(code)).to.have.length(1);
+    expect(linter.verifyAndFix(code, config, 'effect-return-type.ts').output).to.equal(
+      'const make = () => Stream.make(1);'
+    );
+  });
+
+  it('flags Stream.Stream returns in declarations, methods, and function expressions', () => {
+    const code = [
+      'function declaration(): Stream.Stream<number> { return Stream.make(1); }',
+      'class Test { method(): Stream.Stream<number> { return Stream.make(1); } }',
+      'const expression = function (): Stream.Stream<number> { return Stream.make(1); };',
+    ].join('\n');
+    const expected = [
+      'function declaration() { return Stream.make(1); }',
+      'class Test { method() { return Stream.make(1); } }',
+      'const expression = function () { return Stream.make(1); };',
+    ].join('\n');
+
+    expect(lint(code)).to.have.length(3);
+    expect(linter.verifyAndFix(code, config, 'effect-return-type.ts').output).to.equal(expected);
+  });
+
+  it('does not flag Stream parameters or Sink and Channel return annotations', () => {
+    const code = [
+      'const consume = (stream: Stream.Stream<number>) => stream;',
+      'const drain = (): Sink.Sink<void, unknown> => Sink.drain;',
+      'const succeed = (): Channel.Channel<number> => Channel.succeed(1);',
+    ].join('\n');
+
+    expect(lint(code)).to.have.length(0);
+  });
+
   it('does not flag unrelated return types', () => {
     expect(lint('const read = (id: string): Promise<string> => Promise.resolve(id);')).to.have.length(0);
   });

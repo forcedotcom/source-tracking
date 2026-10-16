@@ -23,7 +23,7 @@ import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
-import { ObjectCorruptError, ObjectNotFoundError, type RefNotFoundError, type WorkdirIoError } from './errors.js';
+import { ObjectCorruptError, ObjectNotFoundError } from './errors.js';
 import { readLooseObject } from './objects.js';
 import { resolveRef } from './refs.js';
 import { Oid, RefName, RepoPath } from './schemas.js';
@@ -108,6 +108,9 @@ const SUBMODULE_MODE = 0o16_0000;
 const TREE_MODE = 0o04_0000;
 export type HeadTreeEntry = { readonly path: RepoPath; readonly oid: Oid; readonly mode: number };
 
+// These two helpers recurse through each other; annotations break TypeScript's
+// return-type inference cycle for that recursive pair.
+/* eslint-disable local-rules/no-explicit-effect-return-type */
 const readTree = (
   gitdir: string,
   treeOid: Oid
@@ -147,15 +150,10 @@ const buildStream = (
         )
       : Stream.succeed({ path: Schema.decodeUnknownSync(RepoPath)(fullPath), oid: e.oid, mode: e.mode });
   });
+/* eslint-enable local-rules/no-explicit-effect-return-type */
 
 /** Resolve HEAD to a commit oid, then to its tree, preserving file modes. */
-export const streamHeadTreeWithMode = (
-  gitdir: string
-): Stream.Stream<
-  HeadTreeEntry,
-  ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | WorkdirIoError,
-  FileSystem | Path
-> =>
+export const streamHeadTreeWithMode = (gitdir: string) =>
   Stream.unwrap(
     Effect.gen(function* () {
       const headOid = yield* resolveRef(gitdir, Schema.decodeUnknownSync(RefName)('HEAD'));
@@ -179,10 +177,5 @@ export const streamHeadTreeWithMode = (
   );
 
 /** Resolve HEAD to a commit oid, then to its tree, projecting paths and oids. */
-export const streamHeadTree = (
-  gitdir: string
-): Stream.Stream<
-  { readonly path: RepoPath; readonly oid: Oid },
-  ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | WorkdirIoError,
-  FileSystem | Path
-> => streamHeadTreeWithMode(gitdir).pipe(Stream.map(({ path, oid }) => ({ path, oid })));
+export const streamHeadTree = (gitdir: string) =>
+  streamHeadTreeWithMode(gitdir).pipe(Stream.map(({ path, oid }) => ({ path, oid })));

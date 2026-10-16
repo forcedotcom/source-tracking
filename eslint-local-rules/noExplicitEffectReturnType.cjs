@@ -7,7 +7,7 @@
  * Vendored from salesforcedx-vscode/packages/eslint-local-rules/src/noExplicitEffectReturnType.ts
  * (originally Copyright (c) 2025, salesforce.com, inc., BSD-3-Clause).
  *
- * Bans explicit `: Effect.Effect<...>` and `: Effect.fn.Return<...>` return type annotations.
+ * Bans explicit `Effect.Effect`, `Effect.fn.Return`, and `Stream.Stream` return type annotations.
  * Let TypeScript infer the return type so generic inference (especially the error channel) works correctly.
  */
 'use strict';
@@ -23,7 +23,7 @@ const isExplicitEffectReturnType = (typeAnnotation) => {
   const type = typeAnnotation.typeAnnotation;
   if (!type || type.type !== 'TSTypeReference') return false;
 
-  return ['Effect', 'Effect.Effect', 'Effect.fn.Return'].includes(getTypeName(type.typeName));
+  return ['Effect', 'Effect.Effect', 'Effect.fn.Return', 'Stream.Stream'].includes(getTypeName(type.typeName));
 };
 
 const createFix = (sourceCode, returnTypeNode) => (fixer) => {
@@ -37,12 +37,13 @@ module.exports = {
   meta: {
     type: 'problem',
     docs: {
-      description: 'Prevent explicit return type annotations for Effect functions',
+      description: 'Prevent explicit return type annotations for Effect and Stream functions',
     },
     fixable: 'code',
     schema: [],
     messages: {
-      noExplicitEffectReturnType: 'Do not declare explicit Effect return types. Let TypeScript infer the return type.',
+      noExplicitEffectReturnType:
+        'Do not declare explicit Effect or Stream return types. Let TypeScript infer the return type.',
     },
   },
   create(context) {
