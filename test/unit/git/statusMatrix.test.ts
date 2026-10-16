@@ -49,6 +49,16 @@ const linkFixture = async (name: string, tmpDir: string): Promise<{ dir: string;
       throw cause;
     });
   if (hasWork) await fs.cp(work, dst, { recursive: true, verbatimSymlinks: true });
+  if (name === 'nested-dirs') {
+    // Git for Windows checks out symlink entries as small regular files when
+    // core.symlinks is disabled. Re-create the fixture's link for this test.
+    const linkPath = path.join(dst, 'a', 'link-to-plain');
+    if (!(await fs.lstat(linkPath)).isSymbolicLink()) {
+      const target = await fs.readFile(linkPath, 'utf8');
+      await fs.rm(linkPath);
+      await fs.symlink(target, linkPath, 'file');
+    }
+  }
   await fs.cp(path.join(src, 'dot-git'), path.join(dst, '.git'), { recursive: true });
   return { dir: dst, gitdir: path.join(dst, '.git') };
 };

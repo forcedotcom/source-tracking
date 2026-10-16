@@ -1,0 +1,2 @@
+# Git object fixtures assert exact bytes; prevent autocrlf from rewriting them.
+test/git/fixtures/** -text
