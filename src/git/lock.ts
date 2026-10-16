@@ -168,10 +168,10 @@ const releaseLock = (lockPath: string, indexPath: string, succeeded: boolean, st
  * the piped effect. Release per strategy.
  *
  * @example
- *   yield* writeIndexBytes(lockPath).pipe(withIndexLock(gitdir, 'rename-to-index'))
+ * yield* writeIndexBytes(lockPath).pipe(withIndexLock(gitdir, 'rename-to-index'))
  *
- *   // or, for non-index critical sections:
- *   yield* applyChanges.pipe(withIndexLock(gitdir))
+ * // or, for non-index critical sections:
+ * yield* applyChanges.pipe(withIndexLock(gitdir))
  */
 export const withIndexLock =
   (gitdir: string, strategy: ReleaseStrategy = 'remove') =>

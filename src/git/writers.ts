@@ -138,6 +138,7 @@ const writeTreeRecursive = (
     return yield* writeLooseObject(gitdir, 'tree', buildTreeBody(node.entries, subtreeOids));
   });
 
+/** @internal */
 export const writeTreeFromMap = Effect.fn('writeTreeFromMap')(function* (gitdir: string, node: TreeMapNode) {
   return yield* writeTreeRecursive(gitdir, node);
 });
@@ -226,6 +227,7 @@ export type CommitArgs = {
   readonly message: string;
 };
 
+/** @internal */
 export const writeCommit = Effect.fn('writeCommit')(function* (gitdir: string, args: CommitArgs) {
   const ts = `${args.tsSeconds} +0000`;
   const body = [
@@ -256,6 +258,7 @@ const hashTreeRecursive = (
   });
 
 /** Hash a tree map without writing — for callers that want the oid first. */
+/** @internal */
 export const hashTreeFromMap = Effect.fn('hashTreeFromMap')(function* (node: TreeMapNode) {
   return yield* hashTreeRecursive(node);
 });

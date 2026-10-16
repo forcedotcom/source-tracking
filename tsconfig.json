@@ -3,6 +3,7 @@
   "compilerOptions": {
     "outDir": "./lib",
     "rootDir": "./src",
+    "stripInternal": true,
     "types": ["mocha", "node"],
     "skipLibCheck": true,
     "plugins": [

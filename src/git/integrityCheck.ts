@@ -37,6 +37,7 @@ export const isEnabled = (): boolean => process.env[ENV_FLAG] === 'true';
 
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 
+/** @internal */
 export const runIntegrityCheck = Effect.fn('runIntegrityCheck')(function* (gitdir: string) {
   const head = yield* readHead(gitdir).pipe(
     Effect.catchTag('RefNotFoundError', (cause) =>

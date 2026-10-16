@@ -85,7 +85,7 @@ type ShadowRepoEffects = {
   readonly gitDir: string;
   readonly projectPath: string;
   readonly getStatus: (refresh?: boolean) => Effect.Effect<LocalChanges, RepoError, Repo | FileSystemService | Path>;
-  readonly recordSync: (request?: SyncRequest) => Effect.Effect<void, RepoError, Repo | FileSystemService | Path>;
+  readonly recordSync: (request?: SyncRequest) => Effect.Effect<string, RepoError, Repo | FileSystemService | Path>;
   readonly delete: () => Effect.Effect<string, RepoError, Repo | FileSystemService | Path>;
 };
 
@@ -234,11 +234,12 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
   const recordSync = Effect.fn('ShadowRepo.recordSync')(function* (request: SyncRequest = {}) {
     const elCapture = eventLoopDelayCapture();
     return yield* Effect.gen(function* () {
-      if ((request.deployedFiles?.length ?? 0) === 0 && (request.deletedFiles?.length ?? 0) === 0) return;
-      yield* applyChanges(request);
-      if (request.needsUpdatedStatus !== false) {
+      const hasFiles = (request.deployedFiles?.length ?? 0) > 0 || (request.deletedFiles?.length ?? 0) > 0;
+      const result = yield* applyChanges(request);
+      if (hasFiles && request.needsUpdatedStatus !== false) {
         yield* refreshStatus();
       }
+      return result;
     }).pipe(Effect.ensuring(elCapture.finalize()));
   });
 
@@ -279,7 +280,7 @@ export type ShadowRepo = {
   getNonDeleteFilenames: () => Promise<string[]>;
   getAddFilenames: () => Promise<string[]>;
   getModifyFilenames: () => Promise<string[]>;
-  recordSync: (request?: SyncRequest) => Promise<void>;
+  recordSync: (request?: SyncRequest) => Promise<string>;
   delete: () => Promise<string>;
 };
 

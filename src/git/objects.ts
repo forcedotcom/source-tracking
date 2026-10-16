@@ -89,7 +89,9 @@ const inflate = (bytes: Uint8Array) => Effect.promise(() => transform(bytes, new
 
 /**
  * Hash a blob with git's loose-object framing: `blob <size>\0<content>`.
- * Public API; pure function over bytes, no fs.
+ * Pure function over bytes; no filesystem dependency. Internal to the Git service.
+ *
+ * @internal
  */
 export const hashBlob = Effect.fn('hashBlob')(function* (bytes: Uint8Array) {
   return Schema.decodeUnknownSync(Oid)(yield* sha1Hex(frameLooseObject('blob', bytes)));
@@ -101,6 +103,7 @@ export const hashBlob = Effect.fn('hashBlob')(function* (bytes: Uint8Array) {
  */
 // fnUntraced: per-file in hot paths (every staged add, tree write).
 // Parent applyChanges/writeTreeFromMap spans carry the meaningful timing.
+/** @internal */
 export const hashLooseObject = Effect.fnUntraced(function* (type: LooseObjectType, content: Uint8Array) {
   return Schema.decodeUnknownSync(Oid)(yield* sha1Hex(frameLooseObject(type, content)));
 });
@@ -123,6 +126,7 @@ const looseObjectPath = (path: Path, gitdir: string, oid: Oid): { dir: string; f
  */
 // fnUntraced: per-file in hot paths. Parent applyChanges/writeTreeFromMap
 // spans carry the meaningful timing; per-file spans are noise at scale.
+/** @internal */
 export const writeLooseObject = Effect.fnUntraced(function* (
   gitdir: string,
   type: LooseObjectType,
@@ -151,6 +155,7 @@ export const writeLooseObject = Effect.fnUntraced(function* (
  * Read a loose object by oid. Verifies the sha after inflating. Missing path
  * → ObjectNotFoundError; truncated/malformed → ObjectCorruptError.
  */
+/** @internal */
 export const readLooseObject = Effect.fn('readLooseObject')(function* (gitdir: string, oid: Oid) {
   const fs = yield* FileSystem;
   const path = yield* Path;

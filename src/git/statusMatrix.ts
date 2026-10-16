@@ -218,6 +218,7 @@ const collectFromWalk = (
  * `.gitignore` evaluation), union with HEAD-tree paths and index entries,
  * collapse to StatusEntry.
  */
+/** @internal */
 export const cold = (cfg: {
   readonly dir: string;
   readonly gitdir: string;

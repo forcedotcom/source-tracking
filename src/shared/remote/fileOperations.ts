@@ -104,6 +104,7 @@ export const upgradeFileContents = (contents: ContentsV0): ContentsV1 => ({
   ),
 });
 
+/** @internal */
 export const writeTrackingFile = Effect.fnUntraced(function* ({
   filePath,
   maxCounter,

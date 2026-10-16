@@ -214,6 +214,7 @@ const buildAndCommit = Effect.fn('buildAndCommit')(function* (
  * Empty-streams short-circuit per the spec: returns the current HEAD oid
  * without creating a new commit.
  */
+/** @internal */
 export const applyChanges = Effect.fn('applyChanges')(function* (args: ApplyArgs) {
   // Dedup adds/removes via HashSet<RepoPath> per the spec. Drain both streams
   // before taking the index lock so the critical section only covers Git state.

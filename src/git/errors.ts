@@ -18,22 +18,26 @@ import { PlatformError } from 'effect/PlatformError';
 import { Oid, RefName } from './schemas.js';
 
 // every operation called before any switchTo
+/** @internal */
 export class RepoNotConfiguredError extends Schema.TaggedError<RepoNotConfiguredError>()('RepoNotConfiguredError', {
   message: Schema.String,
 }) {}
 
 // partial/torn .git/ state, malformed index v2, or init over a partial shadow
+/** @internal */
 export class IndexCorruptError extends Schema.TaggedError<IndexCorruptError>()('IndexCorruptError', {
   gitdir: Schema.String,
   reason: Schema.String,
   message: Schema.String,
 }) {}
 
+/** @internal */
 export class ObjectNotFoundError extends Schema.TaggedError<ObjectNotFoundError>()('ObjectNotFoundError', {
   oid: Oid,
   message: Schema.String,
 }) {}
 
+/** @internal */
 export class ObjectCorruptError extends Schema.TaggedError<ObjectCorruptError>()('ObjectCorruptError', {
   oid: Oid,
   reason: Schema.String,
@@ -42,6 +46,7 @@ export class ObjectCorruptError extends Schema.TaggedError<ObjectCorruptError>()
 
 // catches every PlatformError at the lite boundary. Emitted as a warning by
 // statusMatrix and as a failure elsewhere.
+/** @internal */
 export class WorkdirIoError extends Schema.TaggedError<WorkdirIoError>()('WorkdirIoError', {
   path: Schema.String,
   // The raw Effect PlatformError. Source-tracking never sees
@@ -54,6 +59,7 @@ export class WorkdirIoError extends Schema.TaggedError<WorkdirIoError>()('Workdi
   }
 }
 
+/** @internal */
 export class RepoLockedError extends Schema.TaggedError<RepoLockedError>()('RepoLockedError', {
   lockPath: Schema.String,
   ageMs: Schema.Number,
@@ -61,6 +67,7 @@ export class RepoLockedError extends Schema.TaggedError<RepoLockedError>()('Repo
   message: Schema.String,
 }) {}
 
+/** @internal */
 export class RefNotFoundError extends Schema.TaggedError<RefNotFoundError>()('RefNotFoundError', {
   ref: RefName,
   message: Schema.String,
@@ -68,6 +75,7 @@ export class RefNotFoundError extends Schema.TaggedError<RefNotFoundError>()('Re
 
 // closed-set error type used in catchTags by source-tracking's
 // redirectToCliRepoError replacement.
+/** @internal */
 export type RepoError =
   | RepoNotConfiguredError
   | IndexCorruptError

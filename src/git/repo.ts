@@ -196,6 +196,7 @@ const makeRepo = Effect.gen(function* () {
   };
 });
 
+/** @internal */
 export class Repo extends Context.Service<Repo, Effect.Success<typeof makeRepo>>()(
   '@salesforce/source-tracking/git/repo'
 ) {

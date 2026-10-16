@@ -97,6 +97,7 @@ export type InitArgs = {
  * .git/info/exclude (empty; caller sets via setInfoExclude), .git/config
  * (minimal `[core] repositoryformatversion = 0`).
  */
+/** @internal */
 export const init = Effect.fn('init')(function* (args: InitArgs) {
   const path = yield* Path;
   const { cfg } = args;

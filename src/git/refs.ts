@@ -56,6 +56,7 @@ type HeadValue =
 
 const HEAD_REF: RefName = Schema.decodeUnknownSync(RefName)('HEAD');
 
+/** @internal */
 export const readHead = Effect.fn('readHead')(function* (gitdir: string) {
   const path = yield* Path;
   const file = refFile(path, gitdir, HEAD_REF);
@@ -84,6 +85,7 @@ const decodeHeadContent = (file: string, trimmed: string) => {
 /**
  * Read a leaf ref like `refs/heads/main` (40-hex + LF).
  */
+/** @internal */
 export const readDirectRef = Effect.fn('readDirectRef')(function* (gitdir: string, ref: RefName) {
   const path = yield* Path;
   const file = refFile(path, gitdir, ref);
@@ -103,6 +105,7 @@ export const readDirectRef = Effect.fn('readDirectRef')(function* (gitdir: strin
  * (symbolic→leaf) to oid; a leaf ref returns its oid directly. Lite has
  * no other ref types, so multi-hop deref is unnecessary.
  */
+/** @internal */
 export const resolveRef = (gitdir: string, ref: RefName) =>
   ref === HEAD_REF
     ? readHead(gitdir).pipe(

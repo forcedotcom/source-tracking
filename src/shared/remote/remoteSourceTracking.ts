@@ -76,6 +76,7 @@ type PollState = {
 };
 
 /** Validate the org and create an empty tracking file when this project has none. */
+/** @internal */
 export const initializeRemoteTracking = Effect.fn('initializeRemoteTracking')(function* ({
   org,
   identity,
@@ -109,6 +110,7 @@ export const readRemoteTracking = Effect.fn('readRemoteTracking')(function* (ide
 });
 
 /** Build per-SourceTracking caches for revision results and stable user names for this org. */
+/** @internal */
 export const makeRemoteTrackingCaches = Effect.fn('makeRemoteTrackingCaches')(function* ({
   org,
 }: RemoteTrackingOptions) {
@@ -130,6 +132,7 @@ export const makeRemoteTrackingCaches = Effect.fn('makeRemoteTrackingCaches')(fu
   return { sourceMembers, userNames };
 });
 
+/** @internal */
 export const retrieveRemoteChanges = Effect.fn('retrieveRemoteChanges')(function* ({
   org,
   identity,
@@ -166,6 +169,7 @@ export const retrieveRemoteChanges = Effect.fn('retrieveRemoteChanges')(function
 });
 
 /** Poll, merge and sync in one operation so the snapshot is written once. */
+/** @internal */
 export const updateRemoteTracking = Effect.fn('updateRemoteTracking')(function* ({
   org,
   identity,
@@ -187,6 +191,7 @@ export const updateRemoteTracking = Effect.fn('updateRemoteTracking')(function* 
   yield* writeRemoteTracking(identity, state, { baseMaxCounter });
 });
 
+/** @internal */
 export const resetRemoteTracking = Effect.fn('resetRemoteTracking')(function* ({
   org,
   identity,
@@ -211,6 +216,7 @@ export const resetRemoteTracking = Effect.fn('resetRemoteTracking')(function* ({
   return members.map((member) => getMetadataKey(member.MemberType, member.MemberName));
 });
 
+/** @internal */
 export const deleteRemoteTracking = Effect.fn('deleteRemoteTracking')(function* (identity: RemoteTrackingIdentity) {
   const filePath = getFilePath(identity);
   if (trackingFileExists(filePath)) {

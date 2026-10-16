@@ -51,6 +51,7 @@ export const calculateTimeout =
     return Duration.seconds(pollingTimeout);
   };
 
+/** @internal */
 export const querySourceMembersTo = Effect.fn('querySourceMembersTo')(function* (conn: Connection, toRevision: number) {
   const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
   return yield* queryFn(conn, query);
@@ -64,6 +65,7 @@ export type QuerySourceMembersFromOptions = {
   logger?: PinoLogger;
 };
 
+/** @internal */
 export const querySourceMembersFrom = Effect.fn('querySourceMembersFrom')(function* ({
   conn,
   fromRevision,
@@ -83,6 +85,7 @@ export const querySourceMembersFrom = Effect.fn('querySourceMembersFrom')(functi
 });
 
 /** Build a batched, per-user cache. Successful names live for the cache's lifetime. */
+/** @internal */
 export const makeUserNameCache = Effect.fn('makeUserNameCache')(function* (conn: Connection) {
   const resolver = RequestResolver.make<UserNameRequest>(
     Effect.fnUntraced(function* (entries) {
@@ -123,6 +126,7 @@ const getResolvedUserName = (userId: string, userNames: Map<string, Option.Optio
 };
 
 /** Mutable only as a test seam for replacing the external Salesforce query operations. */
+/** @internal */
 export const sourceMemberQueries = { querySourceMembersTo, querySourceMembersFrom };
 
 const queryFn = Effect.fnUntraced(function* (conn: Connection, query: string) {
