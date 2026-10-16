@@ -50,6 +50,15 @@ const cfg = (gitdir: string): SwitchCfg => ({
 });
 
 const FIXED_TS = Date.parse('2026-01-01T00:00:00Z'); // matches generate.sh
+const legacyEmptyIsomorphicConfig =
+  '[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = false\n\tlogallrefupdates = true\n\tsymlinks = false\n\tignorecase = true\n';
+
+const createLegacyEmptyIsomorphicRepo = async (gitdir: string): Promise<void> => {
+  const directories = ['hooks', 'info', 'objects/info', 'objects/pack', 'refs/heads', 'refs/tags'];
+  await Promise.all(directories.map((directory) => fs.mkdir(path.join(gitdir, directory), { recursive: true })));
+  await fs.writeFile(path.join(gitdir, 'config'), legacyEmptyIsomorphicConfig);
+  await fs.writeFile(path.join(gitdir, 'HEAD'), 'ref: refs/heads/main\n');
+};
 
 describe('git/init (phase 5)', () => {
   it('produces byte-identical objects + refs to the empty/ fixture', async () => {
@@ -124,21 +133,41 @@ describe('git/init (phase 5)', () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-init-isomorphic-'));
     try {
       const gitdir = path.join(tmp, '.git');
-      const legacyDirectories = ['hooks', 'info', 'objects/info', 'objects/pack', 'refs/heads', 'refs/tags'];
-      await Promise.all(
-        legacyDirectories.map((directory) => fs.mkdir(path.join(gitdir, directory), { recursive: true }))
-      );
-      await fs.writeFile(
-        path.join(gitdir, 'config'),
-        '[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = false\n\tlogallrefupdates = true\n\tsymlinks = false\n\tignorecase = true\n'
-      );
-      await fs.writeFile(path.join(gitdir, 'HEAD'), 'ref: refs/heads/main\n');
+      await createLegacyEmptyIsomorphicRepo(gitdir);
 
       const exit = await run(init({ cfg: cfg(gitdir), timestampMs: FIXED_TS }));
       expect(Exit.isSuccess(exit)).to.equal(true);
       if (Exit.isSuccess(exit)) {
         expect(exit.value).to.equal('a69e437d3322f2f453a67bfa0ddb2ae0885533b4');
         expect(await fs.readFile(path.join(gitdir, 'refs', 'heads', 'main'), 'utf8')).to.equal(`${exit.value}\n`);
+      }
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a legacy-looking repo with missing or extra entries', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-init-isomorphic-partial-'));
+    try {
+      const missingDirectoryGitdir = path.join(tmp, 'missing-directory', '.git');
+      await createLegacyEmptyIsomorphicRepo(missingDirectoryGitdir);
+      await fs.rm(path.join(missingDirectoryGitdir, 'refs', 'tags'), { recursive: true, force: true });
+      const missingDirectoryExit = await run(init({ cfg: cfg(missingDirectoryGitdir), timestampMs: FIXED_TS }));
+      expect(Exit.isFailure(missingDirectoryExit)).to.equal(true);
+      if (Exit.isFailure(missingDirectoryExit)) {
+        const error = Cause.findErrorOption(missingDirectoryExit.cause);
+        expect(Option.isSome(error) && Schema.is(IndexCorruptError)(error.value)).to.equal(true);
+      }
+
+      const extraEntryGitdir = path.join(tmp, 'extra-entry', '.git');
+      await createLegacyEmptyIsomorphicRepo(extraEntryGitdir);
+      await fs.mkdir(path.join(extraEntryGitdir, 'objects', 'ab'), { recursive: true });
+      await fs.writeFile(path.join(extraEntryGitdir, 'objects', 'ab', 'cd'), 'unexpected');
+      const extraEntryExit = await run(init({ cfg: cfg(extraEntryGitdir), timestampMs: FIXED_TS }));
+      expect(Exit.isFailure(extraEntryExit)).to.equal(true);
+      if (Exit.isFailure(extraEntryExit)) {
+        const error = Cause.findErrorOption(extraEntryExit.cause);
+        expect(Option.isSome(error) && Schema.is(IndexCorruptError)(error.value)).to.equal(true);
       }
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
@@ -156,7 +185,7 @@ describe('git/init (phase 5)', () => {
       if (Exit.isFailure(exit)) {
         const fail = Cause.findErrorOption(exit.cause);
         if (Option.isSome(fail)) {
-          expect(fail.value).to.be.instanceOf(IndexCorruptError);
+          expect(Schema.is(IndexCorruptError)(fail.value)).to.equal(true);
         }
       }
     } finally {

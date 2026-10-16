@@ -23,6 +23,7 @@ import { IndexCorruptError, WorkdirIoError } from './errors.js';
 import { hashLooseObject, writeLooseObject } from './objects.js';
 import { readDirectRef, readHead, writeDirectRef, writeSymbolicHead } from './refs.js';
 import { type Author, Oid, RefName, type SwitchCfg } from './schemas.js';
+import { lstat } from './workdir.js';
 
 const ENCODER = new TextEncoder();
 const initSemaphore = Semaphore.makeUnsafe(1);
@@ -55,47 +56,176 @@ const readDirectoryOrEmpty = Effect.fnUntraced(function* (directory: string) {
   );
 });
 
+const isRegularFile = (file: string) =>
+  lstat(file).pipe(
+    Effect.map((info) => info.isFile()),
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)),
+    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause)))
+  );
+
+const isDirectory = (directory: string) =>
+  lstat(directory).pipe(
+    Effect.map((info) => info.isDirectory()),
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)),
+    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(directory, cause)))
+  );
+
 const hasExactly = (actual: readonly string[], expected: readonly string[]): boolean =>
   actual.length === expected.length && expected.every((name) => actual.includes(name));
 
-/** Recognize the empty gitdir created by isomorphic-git before its first commit. */
+const ISOMORPHIC_EMPTY_CONFIG = [
+  '[core]',
+  '\trepositoryformatversion = 0',
+  '\tfilemode = false',
+  '\tbare = false',
+  '\tlogallrefupdates = true',
+  '\tsymlinks = false',
+  '\tignorecase = true',
+  '',
+].join('\n');
+
+type LegacyEmptyRepoLayout = Readonly<{
+  head: string;
+  config: string;
+  gitdirEntries: readonly string[];
+  hooksEntries: readonly string[];
+  infoEntries: readonly string[];
+  objectDirs: readonly string[];
+  objectInfoEntries: readonly string[];
+  objectPackEntries: readonly string[];
+  refsEntries: readonly string[];
+  headsEntries: readonly string[];
+  tagsEntries: readonly string[];
+  headFile: boolean;
+  configFile: boolean;
+  hooksDirectory: boolean;
+  infoDirectory: boolean;
+  objectsDirectory: boolean;
+  objectInfoDirectory: boolean;
+  objectPackDirectory: boolean;
+  refsDirectory: boolean;
+  headsDirectory: boolean;
+  tagsDirectory: boolean;
+  infoExcludeFile: boolean;
+}>;
+
+const hasLegacyDirectoryEntries = (layout: LegacyEmptyRepoLayout): boolean =>
+  hasExactly(layout.gitdirEntries, ['HEAD', 'config', 'hooks', 'info', 'objects', 'refs']) &&
+  hasExactly(layout.hooksEntries, []) &&
+  hasExactly(layout.refsEntries, ['heads', 'tags']);
+
+const hasLegacyInfoEntries = (layout: LegacyEmptyRepoLayout): boolean =>
+  hasExactly(layout.infoEntries, []) || (hasExactly(layout.infoEntries, ['exclude']) && layout.infoExcludeFile);
+
+const hasEmptyLegacyObjects = (layout: LegacyEmptyRepoLayout): boolean =>
+  hasExactly(layout.objectDirs, ['info', 'pack']) &&
+  hasExactly(layout.objectInfoEntries, []) &&
+  hasExactly(layout.objectPackEntries, []);
+
+const hasEmptyLegacyRefs = (layout: LegacyEmptyRepoLayout): boolean =>
+  hasExactly(layout.headsEntries, []) && hasExactly(layout.tagsEntries, []);
+
+const hasLegacyFilesystemTypes = (layout: LegacyEmptyRepoLayout): boolean =>
+  layout.headFile &&
+  layout.configFile &&
+  layout.hooksDirectory &&
+  layout.infoDirectory &&
+  layout.objectsDirectory &&
+  layout.objectInfoDirectory &&
+  layout.objectPackDirectory &&
+  layout.refsDirectory &&
+  layout.headsDirectory &&
+  layout.tagsDirectory;
+
+const isLegacyEmptyRepoLayout = (layout: LegacyEmptyRepoLayout): boolean =>
+  layout.head === `ref: ${MAIN_REF}\n` &&
+  layout.config === ISOMORPHIC_EMPTY_CONFIG &&
+  hasLegacyDirectoryEntries(layout) &&
+  hasLegacyInfoEntries(layout) &&
+  hasEmptyLegacyObjects(layout) &&
+  hasEmptyLegacyRefs(layout) &&
+  hasLegacyFilesystemTypes(layout);
+
+/** Recognize only the exact empty gitdir created by isomorphic-git 1.44.2. */
 const isLegacyEmptyIsomorphicRepo = Effect.fnUntraced(function* (gitdir: string) {
   const path = yield* Path;
   const objects = path.join(gitdir, 'objects');
-  const [head, config, objectDirs, objectInfo, objectPack, heads, tags, hooksExists, infoExists] = yield* Effect.all(
+  const info = path.join(gitdir, 'info');
+  const refs = path.join(gitdir, 'refs');
+  const [
+    head,
+    config,
+    gitdirEntries,
+    hooksEntries,
+    infoEntries,
+    objectDirs,
+    objectInfoEntries,
+    objectPackEntries,
+    refsEntries,
+    headsEntries,
+    tagsEntries,
+    headFile,
+    configFile,
+    hooksDirectory,
+    infoDirectory,
+    objectsDirectory,
+    objectInfoDirectory,
+    objectPackDirectory,
+    refsDirectory,
+    headsDirectory,
+    tagsDirectory,
+    infoExcludeFile,
+  ] = yield* Effect.all(
     [
       readStringOrEmpty(path.join(gitdir, 'HEAD')),
       readStringOrEmpty(path.join(gitdir, 'config')),
+      readDirectoryOrEmpty(gitdir),
+      readDirectoryOrEmpty(path.join(gitdir, 'hooks')),
+      readDirectoryOrEmpty(info),
       readDirectoryOrEmpty(objects),
       readDirectoryOrEmpty(path.join(objects, 'info')),
       readDirectoryOrEmpty(path.join(objects, 'pack')),
-      readDirectoryOrEmpty(path.join(gitdir, 'refs', 'heads')),
-      readDirectoryOrEmpty(path.join(gitdir, 'refs', 'tags')),
-      exists(path.join(gitdir, 'hooks')),
-      exists(path.join(gitdir, 'info')),
+      readDirectoryOrEmpty(refs),
+      readDirectoryOrEmpty(path.join(refs, 'heads')),
+      readDirectoryOrEmpty(path.join(refs, 'tags')),
+      isRegularFile(path.join(gitdir, 'HEAD')),
+      isRegularFile(path.join(gitdir, 'config')),
+      isDirectory(path.join(gitdir, 'hooks')),
+      isDirectory(info),
+      isDirectory(objects),
+      isDirectory(path.join(objects, 'info')),
+      isDirectory(path.join(objects, 'pack')),
+      isDirectory(refs),
+      isDirectory(path.join(refs, 'heads')),
+      isDirectory(path.join(refs, 'tags')),
+      isRegularFile(path.join(info, 'exclude')),
     ],
     { concurrency: 'unbounded' }
   );
-  const configLines = config.replace(/\r\n/g, '\n').split('\n');
-  const hasLegacyConfig = [
-    'repositoryformatversion = 0',
-    'filemode = false',
-    'bare = false',
-    'logallrefupdates = true',
-    'symlinks = false',
-    'ignorecase = true',
-  ].every((setting) => configLines.includes(`\t${setting}`));
-  return (
-    head.trim() === `ref: ${MAIN_REF}` &&
-    hasLegacyConfig &&
-    hooksExists &&
-    infoExists &&
-    hasExactly(objectDirs, ['info', 'pack']) &&
-    objectInfo.length === 0 &&
-    objectPack.length === 0 &&
-    heads.length === 0 &&
-    tags.length === 0
-  );
+  return isLegacyEmptyRepoLayout({
+    head,
+    config,
+    gitdirEntries,
+    hooksEntries,
+    infoEntries,
+    objectDirs,
+    objectInfoEntries,
+    objectPackEntries,
+    refsEntries,
+    headsEntries,
+    tagsEntries,
+    headFile,
+    configFile,
+    hooksDirectory,
+    infoDirectory,
+    objectsDirectory,
+    objectInfoDirectory,
+    objectPackDirectory,
+    refsDirectory,
+    headsDirectory,
+    tagsDirectory,
+    infoExcludeFile,
+  });
 });
 
 const writeFile = Effect.fn('writeFile')(function* (file: string, bytes: Uint8Array) {
