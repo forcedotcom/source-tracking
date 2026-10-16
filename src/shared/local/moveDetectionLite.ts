@@ -47,7 +47,7 @@ import * as Stream from 'effect/Stream';
 import { Repo } from '../../git/repo.js';
 import { WorkdirIoError } from '../../git/errors.js';
 import { hashBlob } from '../../git/objects.js';
-import { lstat } from '../../git/workdir.js';
+import { lstat, normalizeGitSymlinkTarget } from '../../git/workdir.js';
 import { uniqueArrayConcat } from '../functions.js';
 import { ensurePosix, IS_WINDOWS } from './functions.js';
 import type { DetectionFileInfo, DetectionFileInfoWithType } from './types.js';
@@ -188,7 +188,7 @@ const addedInfoStream = (projectPath: string, fdPermits: number, added: Readonly
           const fs = yield* FileSystem;
           const bytes = yield* (
             info.isSymbolicLink()
-              ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(target)))
+              ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
               : fs.readFile(abs)
           ).pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))));
           const hash = yield* hashBlob(bytes);

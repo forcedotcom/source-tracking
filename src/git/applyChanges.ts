@@ -29,7 +29,7 @@ import { writeLooseObject } from './objects.js';
 import { readDirectRef, writeDirectRef } from './refs.js';
 import { type Author, type CommitOid, RefName, type RepoPath } from './schemas.js';
 import { buildTreeMap, hashTreeFromMap, writeCommit, writeIndexV2, writeTreeFromMap } from './writers.js';
-import { gitModeFromStat, lstat } from './workdir.js';
+import { gitModeFromStat, lstat, normalizeGitSymlinkTarget } from './workdir.js';
 
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 const TEXT = new TextEncoder();
@@ -75,7 +75,7 @@ const stageAdd = Effect.fnUntraced(function* (cfg: ApplyArgs['cfg'], p: RepoPath
   );
   const bytes = info.isSymbolicLink()
     ? yield* fs.readLink(abs).pipe(
-        Effect.map((target) => TEXT.encode(target)),
+        Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))),
         Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause)))
       )
     : yield* readWorkdirBytes(cfg.dir, p);

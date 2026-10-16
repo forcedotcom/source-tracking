@@ -29,7 +29,7 @@ import { readIndex, type IndexEntry } from './indexV2.js';
 import { hashBlob } from './objects.js';
 import { type Oid, type RepoPath, RepoPath as RepoPathSchema, type StatusEntry } from './schemas.js';
 import { streamHeadTreeWithMode } from './trees.js';
-import { GIT_FILE_MODE, gitModeFromStat, isSymlinkMode, lstat } from './workdir.js';
+import { GIT_FILE_MODE, gitModeFromStat, isSymlinkMode, lstat, normalizeGitSymlinkTarget } from './workdir.js';
 
 const TEXT = new TextEncoder();
 type HeadFile = { readonly oid: Oid; readonly mode: number };
@@ -41,7 +41,7 @@ const inRoots = (p: string, roots: readonly RepoPath[]): boolean => roots.some((
 const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string, mode: number) {
   const fs = yield* FileSystem;
   const content = isSymlinkMode(mode)
-    ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(target)))
+    ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
     : fs.readFile(abs);
   const bytes = yield* content.pipe(
     Effect.map((b) => Option.some(b)),

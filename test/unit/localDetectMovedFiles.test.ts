@@ -44,6 +44,32 @@ describe('local detect moved files (lite)', () => {
     delete process.env.SF_SOURCE_TRACKING_ASSUME_SYNCED;
   });
 
+  it('initializes an existing empty local tracking directory', async () => {
+    let projectDir!: string;
+    try {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
+      const orgId = '00D456789012345';
+      const filename = 'force-app/classes/Recovery.cls';
+      fs.mkdirSync(path.dirname(path.join(projectDir, filename)), { recursive: true });
+      fs.writeFileSync(path.join(projectDir, filename), 'public class Recovery {}');
+      fs.mkdirSync(path.join(projectDir, '.sf', 'orgs', orgId, 'localSourceTracking'), { recursive: true });
+
+      const shadowRepo = await createShadowRepo({
+        orgId,
+        projectPath: projectDir,
+        packageDirs: [
+          { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
+        ],
+        registry,
+      });
+
+      expect(await shadowRepo.recordSync({ deployedFiles: [filename] })).to.match(/^[a-f0-9]{40}$/);
+      expect(await shadowRepo.getChangedFilenames()).to.be.empty;
+    } finally {
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it('automatically commits moved files', async () => {
     let projectDir!: string;
     try {

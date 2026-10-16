@@ -251,15 +251,9 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
     return gitDir;
   });
 
-  const gitDirExists = yield* fs.exists(gitDir).pipe(Effect.orElseSucceed(() => false));
-  if (gitDirExists) {
-    yield* repo.switchTo(cfg);
-  } else {
-    yield* fs
-      .makeDirectory(gitDir, { recursive: true })
-      .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(gitDir, cause))));
-    yield* repo.init(cfg);
-  }
+  // init is idempotent for a valid repo and initializes an existing empty
+  // directory. Merely switching on fs.exists could select a partial gitdir.
+  yield* repo.init(cfg);
   yield* repo.setInfoExclude(buildExclude(packageDirs));
 
   return {

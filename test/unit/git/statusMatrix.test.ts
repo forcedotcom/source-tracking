@@ -29,6 +29,7 @@ import { Path } from 'effect/Path';
 import { cold } from '../../../src/git/statusMatrix.js';
 import type { RepoError } from '../../../src/git/errors.js';
 import { RepoPath, type StatusEntry } from '../../../src/git/schemas.js';
+import { normalizeGitSymlinkTarget } from '../../../src/git/workdir.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const FixtureRoot = path.join(currentDir, '..', '..', 'git', 'fixtures');
@@ -75,6 +76,10 @@ const collectStatus = (cfg: { dir: string; gitdir: string; roots: readonly RepoP
   );
 
 describe('git/statusMatrix (phase 8)', () => {
+  it('normalizes native Windows symlink separators to Git separators', () => {
+    expect(normalizeGitSymlinkTarget('..\\b\\plain.txt', '\\')).to.equal('../b/plain.txt');
+  });
+
   it('with-untracked/: emits the full union of statuses', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-status-'));
     try {

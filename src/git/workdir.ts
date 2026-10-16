@@ -16,6 +16,7 @@
 
 import * as nodeFs from 'node:fs/promises';
 import type { Stats } from 'node:fs';
+import * as nodePath from 'node:path';
 import * as Effect from 'effect/Effect';
 import { systemError, type SystemErrorTag } from 'effect/PlatformError';
 
@@ -66,5 +67,13 @@ export const GIT_SYMLINK_MODE = 0o12_0000;
 
 export const gitModeFromStat = (info: Stats): number =>
   info.isSymbolicLink() ? GIT_SYMLINK_MODE : info.mode & 0o111 ? GIT_EXECUTABLE_MODE : GIT_FILE_MODE;
+
+/**
+ * Convert a native symlink target to Git's slash-separated blob bytes.
+ *
+ * @internal
+ */
+export const normalizeGitSymlinkTarget = (target: string, separator = nodePath.sep): string =>
+  separator === '/' ? target : target.split(separator).join('/');
 
 export const isSymlinkMode = (mode: number): boolean => (mode & 0o17_0000) === GIT_SYMLINK_MODE;
