@@ -177,5 +177,6 @@ export const streamHeadTreeWithMode = (gitdir: string) =>
   );
 
 /** Resolve HEAD to a commit oid, then to its tree, projecting paths and oids. */
+/** @internal */
 export const streamHeadTree = (gitdir: string) =>
   streamHeadTreeWithMode(gitdir).pipe(Stream.map(({ path, oid }) => ({ path, oid })));
