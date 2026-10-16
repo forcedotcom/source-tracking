@@ -39,6 +39,65 @@ const exists = (file: string) =>
     )
   );
 
+const readStringOrEmpty = Effect.fnUntraced(function* (file: string) {
+  const fs = yield* FileSystem;
+  return yield* fs.readFileString(file).pipe(
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed('')),
+    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause)))
+  );
+});
+
+const readDirectoryOrEmpty = Effect.fnUntraced(function* (directory: string) {
+  const fs = yield* FileSystem;
+  return yield* fs.readDirectory(directory).pipe(
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([] as string[])),
+    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(directory, cause)))
+  );
+});
+
+const hasExactly = (actual: readonly string[], expected: readonly string[]): boolean =>
+  actual.length === expected.length && expected.every((name) => actual.includes(name));
+
+/** Recognize the empty gitdir created by isomorphic-git before its first commit. */
+const isLegacyEmptyIsomorphicRepo = Effect.fnUntraced(function* (gitdir: string) {
+  const path = yield* Path;
+  const objects = path.join(gitdir, 'objects');
+  const [head, config, objectDirs, objectInfo, objectPack, heads, tags, hooksExists, infoExists] = yield* Effect.all(
+    [
+      readStringOrEmpty(path.join(gitdir, 'HEAD')),
+      readStringOrEmpty(path.join(gitdir, 'config')),
+      readDirectoryOrEmpty(objects),
+      readDirectoryOrEmpty(path.join(objects, 'info')),
+      readDirectoryOrEmpty(path.join(objects, 'pack')),
+      readDirectoryOrEmpty(path.join(gitdir, 'refs', 'heads')),
+      readDirectoryOrEmpty(path.join(gitdir, 'refs', 'tags')),
+      exists(path.join(gitdir, 'hooks')),
+      exists(path.join(gitdir, 'info')),
+    ],
+    { concurrency: 'unbounded' }
+  );
+  const configLines = config.replace(/\r\n/g, '\n').split('\n');
+  const hasLegacyConfig = [
+    'repositoryformatversion = 0',
+    'filemode = false',
+    'bare = false',
+    'logallrefupdates = true',
+    'symlinks = false',
+    'ignorecase = true',
+  ].every((setting) => configLines.includes(`\t${setting}`));
+  return (
+    head.trim() === `ref: ${MAIN_REF}` &&
+    hasLegacyConfig &&
+    hooksExists &&
+    infoExists &&
+    hasExactly(objectDirs, ['info', 'pack']) &&
+    objectInfo.length === 0 &&
+    objectPack.length === 0 &&
+    heads.length === 0 &&
+    tags.length === 0
+  );
+});
+
 const writeFile = Effect.fn('writeFile')(function* (file: string, bytes: Uint8Array) {
   const fs = yield* FileSystem;
   const path = yield* Path;
@@ -88,9 +147,9 @@ export type InitArgs = {
 /**
  * `init` for a shadow repo. Idempotent over a valid existing shadow:
  * a missing .git/ triggers a full write per the manifest below; HEAD plus
- * refs/heads/main plus objects/ all present is a no-op; partial state
- * (e.g. HEAD present but refs/heads/main missing) raises IndexCorruptError
- * and never overwrites.
+ * refs/heads/main plus objects/ all present is a no-op. An empty isomorphic-git
+ * initialization is upgraded with an initial commit. Other partial state
+ * raises IndexCorruptError and is never overwritten.
  *
  * Writes:
  * .git/HEAD ("ref: refs/heads/main\n"), .git/objects/4b/825dc6... (the
@@ -117,9 +176,21 @@ const initialize = Effect.fnUntraced(function* (args: InitArgs) {
 
   const fail = (reason: string, msg: string) =>
     Effect.fail(new IndexCorruptError({ gitdir: cfg.gitdir, reason, message: msg }));
+  const legacyEmpty =
+    headExists && !mainExists && objectsExists ? yield* isLegacyEmptyIsomorphicRepo(cfg.gitdir) : false;
+  const freshArgs = {
+    cfg,
+    author,
+    message,
+    timestampMs,
+    infoExcludePath: path.join(cfg.gitdir, 'info', 'exclude'),
+    configPath: path.join(cfg.gitdir, 'config'),
+  };
 
   // Idempotency: valid shadow → no-op (return existing HEAD oid).
-  return yield* headExists && mainExists && objectsExists
+  return yield* legacyEmpty
+    ? freshInit(freshArgs)
+    : headExists && mainExists && objectsExists
     ? readDirectRef(cfg.gitdir, MAIN_REF).pipe(
         Effect.catchTag('RefNotFoundError', (cause) =>
           fail(
@@ -133,14 +204,7 @@ const initialize = Effect.fnUntraced(function* (args: InitArgs) {
         'partial-shadow',
         `init refuses to overwrite partial shadow at ${cfg.gitdir} (HEAD=${headExists}, refs/heads/main=${mainExists}, objects/=${objectsExists})`
       )
-    : freshInit({
-        cfg,
-        author,
-        message,
-        timestampMs,
-        infoExcludePath: path.join(cfg.gitdir, 'info', 'exclude'),
-        configPath: path.join(cfg.gitdir, 'config'),
-      });
+    : freshInit(freshArgs);
 });
 
 const freshInit = Effect.fn('freshInit')(function* (a: {

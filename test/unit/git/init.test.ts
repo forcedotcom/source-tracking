@@ -120,6 +120,31 @@ describe('git/init (phase 5)', () => {
     }
   });
 
+  it('upgrades an empty isomorphic-git initialization', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-init-isomorphic-'));
+    try {
+      const gitdir = path.join(tmp, '.git');
+      const legacyDirectories = ['hooks', 'info', 'objects/info', 'objects/pack', 'refs/heads', 'refs/tags'];
+      await Promise.all(
+        legacyDirectories.map((directory) => fs.mkdir(path.join(gitdir, directory), { recursive: true }))
+      );
+      await fs.writeFile(
+        path.join(gitdir, 'config'),
+        '[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = false\n\tlogallrefupdates = true\n\tsymlinks = false\n\tignorecase = true\n'
+      );
+      await fs.writeFile(path.join(gitdir, 'HEAD'), 'ref: refs/heads/main\n');
+
+      const exit = await run(init({ cfg: cfg(gitdir), timestampMs: FIXED_TS }));
+      expect(Exit.isSuccess(exit)).to.equal(true);
+      if (Exit.isSuccess(exit)) {
+        expect(exit.value).to.equal('a69e437d3322f2f453a67bfa0ddb2ae0885533b4');
+        expect(await fs.readFile(path.join(gitdir, 'refs', 'heads', 'main'), 'utf8')).to.equal(`${exit.value}\n`);
+      }
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
   it('partial shadow (HEAD without refs/heads/main) → IndexCorruptError', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-init-partial-'));
     try {
