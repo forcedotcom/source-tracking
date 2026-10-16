@@ -178,7 +178,9 @@ const evaluateMatrix = (
         cellHashing(cfg, p, headByPath.get(p), indexByPath.get(p), workdirModes.get(p) ?? GIT_FILE_MODE, untracked),
       { concurrency: 256 }
     );
-    return [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []));
+    return Arr.sort(Order.mapInput(Order.String, (entry: StatusEntry) => entry.path))(
+      [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []))
+    );
   });
 
 /**

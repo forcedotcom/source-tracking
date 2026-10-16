@@ -97,6 +97,13 @@ describe('git/statusMatrix (phase 8)', () => {
       );
       const status = await collectStatus({ dir, gitdir, roots: fileRoots });
       const byPath = new Map(status.map((s) => [s.path, s.status]));
+      expect(status.map((entry) => entry.path)).to.deep.equal([
+        'staged-add.txt',
+        'tracked-deleted.txt',
+        'tracked-modified.txt',
+        'tracked-unmodified.txt',
+        'untracked.txt',
+      ]);
       void roots;
 
       // Expected set per the with-untracked/ generate.sh setup:
@@ -135,6 +142,31 @@ describe('git/statusMatrix (phase 8)', () => {
       // .keep is negated and so should be added (untracked). Our matcher
       // honors the negation since `ignore` lib supports the full spec.
       expect(byPath.get('.keep' as RepoPath)).to.equal('added');
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('applies nested .gitignore negations to files found by the directory walk', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-status-nested-ignore-'));
+    try {
+      const { dir, gitdir } = await linkFixture('empty', tmp);
+      const packageDir = path.join(dir, 'pkg');
+      const nestedDir = path.join(packageDir, 'nested');
+      await fs.mkdir(nestedDir, { recursive: true });
+      await fs.writeFile(path.join(packageDir, '.gitignore'), '*.log\n');
+      await fs.writeFile(path.join(nestedDir, '.gitignore'), '!keep.log\n');
+      await fs.writeFile(path.join(nestedDir, 'drop.log'), 'ignored');
+      await fs.writeFile(path.join(nestedDir, 'keep.log'), 'unignored');
+
+      const status = await collectStatus({
+        dir,
+        gitdir,
+        roots: [Schema.decodeUnknownSync(RepoPath)('pkg')],
+      });
+      const byPath = new Map(status.map((entry) => [entry.path, entry.status]));
+      expect(byPath.get('pkg/nested/drop.log' as RepoPath)).to.equal('ignored');
+      expect(byPath.get('pkg/nested/keep.log' as RepoPath)).to.equal('added');
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }

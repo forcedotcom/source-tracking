@@ -93,6 +93,30 @@ describe('git/indexV2 (phase 6)', () => {
     expect(Exit.isFailure(exit)).to.equal(true);
   });
 
+  it('rejects an index with a corrupted trailing checksum', async () => {
+    const raw = await fs.readFile(path.join(FixtureRoot, 'single-file', 'dot-git', 'index'));
+    const corrupted = Uint8Array.from(raw);
+    corrupted[corrupted.length - 1] = (corrupted[corrupted.length - 1] ?? 0) ^ 0xff;
+
+    const exit = await run(parseIndexV2('test-gitdir', corrupted));
+    expect(Exit.isFailure(exit)).to.equal(true);
+    if (Exit.isFailure(exit)) {
+      const fail = Cause.findErrorOption(exit.cause);
+      expect(Option.isSome(fail)).to.equal(true);
+      if (Option.isSome(fail)) expect(fail.value.reason).to.equal('checksum-mismatch');
+    }
+  });
+
+  it('verifies the checksum for a view with a non-zero byte offset', async () => {
+    const raw = await fs.readFile(path.join(FixtureRoot, 'single-file', 'dot-git', 'index'));
+    const wrapped = new Uint8Array(raw.byteLength + 2);
+    wrapped.set(raw, 1);
+    const view = wrapped.subarray(1, raw.byteLength + 1);
+
+    const exit = await run(parseIndexV2('test-gitdir', view));
+    expect(Exit.isSuccess(exit)).to.equal(true);
+  });
+
   it('readIndex on a missing file → empty IndexV2', async () => {
     const tmp = await fs.mkdtemp(path.join(currentDir, 'tmp-'));
     try {

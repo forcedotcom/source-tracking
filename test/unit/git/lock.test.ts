@@ -16,6 +16,8 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -34,6 +36,10 @@ class TestFailure extends Schema.TaggedError<TestFailure>()('TestFailure', {
   message: Schema.String,
 }) {}
 
+class LockWorkerError extends Schema.TaggedError<LockWorkerError>()('LockWorkerError', {
+  message: Schema.String,
+}) {}
+
 const TestLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
 const run = <A, E>(eff: Effect.Effect<A, E, FileSystem | Path>): Promise<Exit.Exit<A, E>> =>
   Effect.runPromiseExit(Effect.provide(eff, TestLayer));
@@ -43,6 +49,97 @@ const mkGitdir = async (): Promise<{ tmp: string; gitdir: string }> => {
   const gitdir = path.join(tmp, '.git');
   await fs.mkdir(gitdir, { recursive: true });
   return { tmp, gitdir };
+};
+
+const startLockWorker = (
+  role: string,
+  gitdir: string,
+  logPath: string,
+  autoclearSeconds = '3600',
+  holdMs = '0',
+  releaseSignal = ''
+): {
+  child: ChildProcess;
+  closed: Effect.Effect<void, LockWorkerError>;
+  waitForOutput: (marker: string) => Effect.Effect<void, LockWorkerError>;
+} => {
+  const workerPath = fileURLToPath(new URL('./lockWorker.ts', import.meta.url));
+  const child = spawn(process.execPath, ['--loader', 'ts-node/esm', workerPath], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      TS_NODE_LOG_ERROR: 'true',
+      TS_NODE_TRANSPILE_ONLY: 'true',
+      TS_NODE_PROJECT: path.resolve('test/tsconfig.json'),
+      LOCK_TEST_ROLE: role,
+      LOCK_TEST_GITDIR: gitdir,
+      LOCK_TEST_LOG: logPath,
+      LOCK_TEST_HOLD_MS: holdMs,
+      LOCK_TEST_RELEASE_SIGNAL: releaseSignal,
+      SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS: autoclearSeconds,
+      SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS: '5',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout?.on('data', (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+  child.stderr?.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  const closed = Effect.callback<void, LockWorkerError>((resume) => {
+    const onError = (error: Error) => resume(Effect.fail(new LockWorkerError({ message: error.message })));
+    const onClose = (code: number | null) =>
+      resume(
+        code === 0
+          ? Effect.void
+          : Effect.fail(new LockWorkerError({ message: `lock worker ${role} exited ${code}: ${stderr} ${stdout}` }))
+      );
+    child.once('error', onError);
+    child.once('close', onClose);
+    return Effect.sync(() => {
+      child.off('error', onError);
+      child.off('close', onClose);
+    });
+  });
+  const waitForOutput = (marker: string) =>
+    Effect.callback<void, LockWorkerError>((resume) => {
+      const onError = (error: Error) => {
+        const failure = Effect.fail(new LockWorkerError({ message: error.message }));
+        finish(failure);
+      };
+      const onClose = (code: number | null) => {
+        if (!stdout.includes(marker)) {
+          const failure = Effect.fail(
+            new LockWorkerError({ message: `lock worker ${role} exited ${code} before ${marker}: ${stderr} ${stdout}` })
+          );
+          finish(failure);
+        }
+      };
+      const finish = (effect: Effect.Effect<void, LockWorkerError>) => {
+        cleanup();
+        resume(effect);
+      };
+      const check = () => {
+        if (stdout.includes(marker)) finish(Effect.void);
+      };
+      const cleanup = () => {
+        child.stdout?.off('data', check);
+        child.off('error', onError);
+        child.off('close', onClose);
+      };
+      if (stdout.includes(marker)) {
+        resume(Effect.void);
+        return;
+      }
+      child.stdout?.on('data', check);
+      child.once('error', onError);
+      child.once('close', onClose);
+      return Effect.sync(cleanup);
+    });
+  return { child, closed, waitForOutput };
 };
 
 describe('git/lock (phase 4)', () => {
@@ -119,6 +216,53 @@ describe('git/lock (phase 4)', () => {
       await fs.rm(tmp, { recursive: true, force: true });
     }
   });
+
+  it('serializes lock acquisition across separate processes', async () => {
+    const { tmp, gitdir } = await mkGitdir();
+    const logPath = path.join(tmp, 'lock-events.log');
+    const releaseSignal = path.join(tmp, 'release-first');
+    const children: ChildProcess[] = [];
+    try {
+      const first = startLockWorker('first', gitdir, logPath, '3600', '0', releaseSignal);
+      children.push(first.child);
+      const firstClosed = Effect.runPromise(first.closed);
+      await Effect.runPromise(first.waitForOutput('first-acquired'));
+
+      const second = startLockWorker('second', gitdir, logPath);
+      children.push(second.child);
+      await Effect.runPromise(second.waitForOutput('second-attempting'));
+      await Effect.runPromise(Effect.sleep('100 millis'));
+      await fs.writeFile(releaseSignal, 'release');
+      await Promise.all([firstClosed, Effect.runPromise(second.closed)]);
+      expect(await fs.readFile(logPath, 'utf8')).to.equal('first:start\nfirst:end\nsecond:start\nsecond:end\n');
+    } finally {
+      children.forEach((child) => {
+        if (child.exitCode === null) child.kill();
+      });
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  }).timeout(15000);
+
+  it('clears a stale lock from a separate process', async () => {
+    const { tmp, gitdir } = await mkGitdir();
+    const logPath = path.join(tmp, 'lock-events.log');
+    const staleLock = path.join(gitdir, 'index.lock');
+    await fs.writeFile(staleLock, 'stale');
+    await fs.utimes(staleLock, 0, 0);
+    const worker = startLockWorker('stale', gitdir, logPath, '1');
+    try {
+      await Effect.runPromise(worker.closed);
+      expect(await fs.readFile(logPath, 'utf8')).to.equal('stale:start\nstale:end\n');
+      const lockExists = await fs
+        .access(staleLock)
+        .then(() => true)
+        .catch(() => false);
+      expect(lockExists).to.equal(false);
+    } finally {
+      if (worker.child.exitCode === null) worker.child.kill();
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  }).timeout(15000);
 
   it('stale lock older than autoclear threshold is auto-cleared', async () => {
     const { tmp, gitdir } = await mkGitdir();

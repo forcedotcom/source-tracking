@@ -26,8 +26,7 @@ const ENV_FLAG = 'SF_SOURCE_TRACKING_INTEGRITY_CHECK';
  * Optional startup integrity check, gated by SF_SOURCE_TRACKING_INTEGRITY_CHECK
  * during the dogfood window per phase 13. Verifies that .git/HEAD parses
  * and points at refs/heads/main, that refs/heads/main resolves to a 40-hex
- * oid, and that .git/index parses as v2 (parseIndexV2 reaching the end
- * without throwing is the proxy for trailing-sha1 verification).
+ * oid, and that .git/index parses as v2 with a valid trailing SHA-1.
  *
  * Run by source-tracking on first ShadowRepo construction when the flag
  * is set. Fails closed with IndexCorruptError so the caller can prompt the

@@ -153,9 +153,7 @@ const parseExtensionsFrom = (
 
 /**
  * Parse `.git/index` (version 2 only). Rejects v3/v4 with IndexCorruptError.
- * The trailing SHA is captured but not verified here — verification is the
- * writer's mirror; verifying on read costs 1 sha1 per parse and the index
- * is parsed in the hot status path.
+ * The trailing SHA-1 covers every preceding byte and is verified on read.
  */
 export const parseIndexV2 = Effect.fn('parseIndexV2')(function* (gitdir: string, raw: Uint8Array) {
   if (raw.byteLength < HEADER_BYTES + TRAILER_BYTES) {
@@ -186,6 +184,14 @@ export const parseIndexV2 = Effect.fn('parseIndexV2')(function* (gitdir: string,
 
   const extEnd = raw.byteLength - TRAILER_BYTES;
   const extensions = yield* parseExtensionsFrom(raw, view, offset, extEnd, gitdir);
+  const checksumInput = raw.subarray(0, extEnd);
+  const checksum = yield* Effect.promise(() => crypto.subtle.digest('SHA-1', checksumInput as unknown as BufferSource));
+  const expectedChecksum = raw.subarray(extEnd);
+  const actualChecksum = new Uint8Array(checksum);
+  if (!actualChecksum.every((byte, index) => byte === expectedChecksum[index])) {
+    return yield* corrupt('checksum-mismatch', gitdir);
+  }
+
   return {
     entries,
     entriesByteLength: offset - HEADER_BYTES,
