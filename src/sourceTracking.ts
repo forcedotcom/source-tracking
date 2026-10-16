@@ -135,6 +135,7 @@ export class SourceTracking extends AsyncCreatable {
   private logger: Logger;
   // remote and local tracking may not exist if not initialized
   private localRepo!: ShadowRepo;
+  private localTrackingInitialization?: Promise<void>;
   private remoteTrackingInitialization?: Promise<void>;
   private remoteTrackingCaches?: RemoteTrackingCaches;
   private forceIgnore!: ForceIgnore;
@@ -565,14 +566,22 @@ export class SourceTracking extends AsyncCreatable {
       }
       return;
     }
-    this.localRepo = await createShadowRepo({
-      orgId: this.orgId,
-      projectPath: normalize(this.projectPath),
-      packageDirs: this.packagesDirs,
-      registry: this.registry,
-    });
-    // loads the status from file so that it's cached
-    await this.localRepo.getStatus();
+    const initialization = (this.localTrackingInitialization ??= (async (): Promise<void> => {
+      const localRepo = await createShadowRepo({
+        orgId: this.orgId,
+        projectPath: normalize(this.projectPath),
+        packageDirs: this.packagesDirs,
+        registry: this.registry,
+      });
+      // Load status before publishing the repo so concurrent callers await
+      // the same initialized handle and cache.
+      await localRepo.getStatus();
+      this.localRepo = localRepo;
+    })().catch((error: unknown) => {
+      this.localTrackingInitialization = undefined;
+      throw error;
+    }));
+    await initialization;
   }
 
   /**
