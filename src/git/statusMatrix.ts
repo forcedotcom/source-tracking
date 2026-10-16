@@ -139,8 +139,7 @@ const cellHashing = Effect.fn('cellHashing')(function* (
 });
 
 /**
- * Produce sorted status entries from pre-resolved HEAD, index, and workdir
- * paths.
+ * Produce status entries from pre-resolved HEAD, index, and workdir paths.
  */
 const evaluateMatrix = (
   cfg: { readonly dir: string; readonly roots: readonly RepoPath[] },
@@ -178,9 +177,7 @@ const evaluateMatrix = (
         cellHashing(cfg, p, headByPath.get(p), indexByPath.get(p), workdirModes.get(p) ?? GIT_FILE_MODE, untracked),
       { concurrency: 256 }
     );
-    return Arr.sort(Order.mapInput(Order.String, (entry: StatusEntry) => entry.path))(
-      [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []))
-    );
+    return [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []));
   });
 
 /**

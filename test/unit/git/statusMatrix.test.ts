@@ -97,13 +97,6 @@ describe('git/statusMatrix (phase 8)', () => {
       );
       const status = await collectStatus({ dir, gitdir, roots: fileRoots });
       const byPath = new Map(status.map((s) => [s.path, s.status]));
-      expect(status.map((entry) => entry.path)).to.deep.equal([
-        'staged-add.txt',
-        'tracked-deleted.txt',
-        'tracked-modified.txt',
-        'tracked-unmodified.txt',
-        'untracked.txt',
-      ]);
       void roots;
 
       // Expected set per the with-untracked/ generate.sh setup:
