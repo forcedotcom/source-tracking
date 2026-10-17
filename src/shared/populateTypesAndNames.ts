@@ -25,7 +25,6 @@ import {
 } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult } from './types.js';
 import { isChangeResultWithNameAndType } from './guards.js';
-import { eventLoopDelayCapture } from './eventLoopDelayCapture.js';
 import {
   ensureRelative,
   excludeLwcLocalOnlyTest,
@@ -60,8 +59,8 @@ type Deps = {
  * Result: K resolves + K walkContent calls. For 35k files / ~350 components
  * that's a ~100x reduction in SDR work.
  *
- * Spans emitted: `populateTypesAndNames` (outer). No-op unless the consumer
- * provides a NodeSdk Layer.
+ * Spans emitted: `populateTypesAndNames` (outer). The performance NUT provides
+ * a NodeSdk layer explicitly when it captures these spans.
  */
 
 type ResolvedEntry = { readonly sc: SourceComponent; readonly files: readonly string[] };
@@ -105,11 +104,7 @@ const buildEnrichments = (
 
 export const populateTypesAndNames = (deps: Deps) =>
   Effect.fn('populateTypesAndNames')(function* (elements: readonly ChangeResult[]) {
-    const elCapture = eventLoopDelayCapture();
-    if (elements.length === 0) {
-      yield* elCapture.finalize();
-      return [] as ChangeResult[];
-    }
+    if (elements.length === 0) return [] as ChangeResult[];
 
     const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
     logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
@@ -158,6 +153,5 @@ export const populateTypesAndNames = (deps: Deps) =>
       return [merged];
     });
 
-    yield* elCapture.finalize();
     return result;
   });

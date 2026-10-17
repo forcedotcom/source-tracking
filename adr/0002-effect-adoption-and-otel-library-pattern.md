@@ -31,10 +31,9 @@ We considered:
 - `worker_threads` to push the work off-thread. Significant complexity for a
   CPU-bound but already-fast (in aggregate) workload; serialization cost
   dominates for ~milliseconds of work per item.
-- Effect v4 (`effect` core + `@effect/opentelemetry`). Built-in fiber scheduler
-  with explicit yield primitives, `Stream`/`Effect.reduce` for functional
-  state-threading, persistent `HashMap`/`HashSet` with structural values,
-  automatic OpenTelemetry span integration.
+- Effect v4 (`effect` core). Built-in fiber scheduler with explicit yield
+  primitives, `Stream`/`Effect.reduce` for functional state-threading, persistent
+  `HashMap`/`HashSet` with structural values, and named spans through `Effect.fn`.
 
 ## Decision
 
@@ -46,11 +45,10 @@ Adopt Effect for performance-critical internals, starting with
 - `Effect.fn(name)` for span instrumentation on the outer function. Per-component
   `getAllFiles` spans were removed after measurement showed their overhead.
 
-The library does not construct an OTel SDK by default. `Effect.fn` emits spans
-through whatever SDK Layer the consumer provides; if no SDK is provided, spans
-are no-ops. For opt-in internal performance capture, `STL_OTEL_SPANS=1` enables
-the library's file-backed `NodeSdk.layer`; normal consumers still provide their
-own SDK Layer when they need different export behavior.
+The library does not construct or accept an OTel SDK layer. Its private
+ManagedRuntimes use Effect's empty layer, so library spans are not exported.
+Performance tests that need span output provide their own `NodeSdk.layer` from
+`test/perf-utils`. Consumer-provided tracing is deferred to a separate design.
 
 ### Follow-up: synchronous `populateTypesAndNames` fold
 
@@ -69,17 +67,15 @@ ESLint rules for Effect-using files (mirroring
 vendored `local-rules/no-explicit-effect-return-type` (originally from the same
 vscode repo's `eslint-local-rules`). The flat-config override applies to the
 Effect operation modules listed in `eslint.config.mjs`; Promise/runtime adapters
-and event-loop capture helpers remain outside that scope because they contain
-boundary-specific exception handling and instrumentation setup.
+remain outside that scope because they contain boundary-specific exception
+handling.
 
 ## Consequences
 
-- New runtime dependency: `effect`, `@effect/opentelemetry`,
-  `@opentelemetry/api`, `@opentelemetry/core`, `@opentelemetry/sdk-trace-base`.
-  These are dependencies of internal modules only; no public API change.
-- Consumers that want custom span export must provide a `NodeSdk.layer`.
-  Otherwise spans are no-ops unless `STL_OTEL_SPANS=1` enables the internal
-  JSONL exporter.
+- New runtime dependency: `effect`. `@effect/opentelemetry` and OpenTelemetry SDK
+  packages are dev dependencies used by the performance NUTs only.
+- The package has no internal SDK, exporter, or `STL_OTEL_SPANS` capture path.
+  Effect span calls remain available for a future consumer-integration design.
 - Future contributors writing inside the `overrides` glob must follow the
   Effect conventions; the lint rules enforce this.
 - Performance numbers (before/after baseline, plus throttle-lever sweep) will

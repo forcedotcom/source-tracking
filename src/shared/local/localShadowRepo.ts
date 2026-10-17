@@ -32,7 +32,6 @@ import * as Stream from 'effect/Stream';
 import { type RepoError, WorkdirIoError } from '../../git/errors.js';
 import { Repo } from '../../git/repo.js';
 import { repoErrorToSfError } from '../../git/sfCompatibility.js';
-import { otelLayerOrEmpty } from '../runtime.js';
 import {
   Author as AuthorSchema,
   RepoPath as RepoPathSchema,
@@ -40,7 +39,6 @@ import {
   SwitchCfg as SwitchCfgSchema,
 } from '../../git/schemas.js';
 import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
-import { eventLoopDelayCapture } from '../eventLoopDelayCapture.js';
 import { getMatches, ensurePosix, IS_WINDOWS } from './functions.js';
 import { filenameMatchesToMapLite } from './moveDetectionLite.js';
 import type { LocalChanges, ShadowRepoOptions, SyncRequest } from './types.js';
@@ -176,30 +174,27 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
   });
 
   const refreshStatus = Effect.fn('ShadowRepo.refreshStatus')(function* () {
-    const elCapture = eventLoopDelayCapture();
-    return yield* Effect.gen(function* () {
-      const changes = yield* scanStatus();
-      // Keep the first scan cached if move detection fails, matching the old
-      // behavior: a later non-forced read does not repeat a failed detection.
-      yield* Ref.set(statusCache, Option.some(changes));
+    const changes = yield* scanStatus();
+    // Keep the first scan cached if move detection fails, matching the old
+    // behavior: a later non-forced read does not repeat a failed detection.
+    yield* Ref.set(statusCache, Option.some(changes));
 
-      const movesDisabled = env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true;
-      yield* Effect.promise(() =>
-        Lifecycle.getInstance().emitTelemetry({
-          eventName: movesDisabled ? 'moveFileDetectionDisabled' : 'moveFileDetectionEnabled',
-        })
-      );
+    const movesDisabled = env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true;
+    yield* Effect.promise(() =>
+      Lifecycle.getInstance().emitTelemetry({
+        eventName: movesDisabled ? 'moveFileDetectionDisabled' : 'moveFileDetectionEnabled',
+      })
+    );
 
-      const moved = yield* movesDisabled ? Effect.succeed(false) : detectMovedFiles(changes);
-      const finalChanges = moved ? yield* scanStatus() : changes;
-      yield* Ref.set(statusCache, Option.some(finalChanges));
-      yield* Effect.annotateCurrentSpan({
-        addedCount: finalChanges.added.length,
-        modifiedCount: finalChanges.modified.length,
-        deletedCount: finalChanges.deleted.length,
-      });
-      return finalChanges;
-    }).pipe(Effect.ensuring(elCapture.finalize()));
+    const moved = yield* movesDisabled ? Effect.succeed(false) : detectMovedFiles(changes);
+    const finalChanges = moved ? yield* scanStatus() : changes;
+    yield* Ref.set(statusCache, Option.some(finalChanges));
+    yield* Effect.annotateCurrentSpan({
+      addedCount: finalChanges.added.length,
+      modifiedCount: finalChanges.modified.length,
+      deletedCount: finalChanges.deleted.length,
+    });
+    return finalChanges;
   });
 
   const getStatus = Effect.fn('ShadowRepo.getStatus')(function* (refresh = false) {
@@ -232,15 +227,12 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
   });
 
   const recordSync = Effect.fn('ShadowRepo.recordSync')(function* (request: SyncRequest = {}) {
-    const elCapture = eventLoopDelayCapture();
-    return yield* Effect.gen(function* () {
-      const hasFiles = (request.deployedFiles?.length ?? 0) > 0 || (request.deletedFiles?.length ?? 0) > 0;
-      const result = yield* applyChanges(request);
-      if (hasFiles && request.needsUpdatedStatus !== false) {
-        yield* refreshStatus();
-      }
-      return result;
-    }).pipe(Effect.ensuring(elCapture.finalize()));
+    const hasFiles = (request.deployedFiles?.length ?? 0) > 0 || (request.deletedFiles?.length ?? 0) > 0;
+    const result = yield* applyChanges(request);
+    if (hasFiles && request.needsUpdatedStatus !== false) {
+      yield* refreshStatus();
+    }
+    return result;
   });
 
   const deleteShadowRepo = Effect.fn('ShadowRepo.delete')(function* () {
@@ -298,7 +290,7 @@ export const createShadowRepo = async (options: ShadowRepoOptions): Promise<Shad
   const logger = await Logger.child('ShadowRepo');
   const baseLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
   const repoLayer = Layer.provide(Repo.layer, baseLayer);
-  const runtime = ManagedRuntime.make(Layer.mergeAll(repoLayer, baseLayer, otelLayerOrEmpty()));
+  const runtime = ManagedRuntime.make(Layer.mergeAll(repoLayer, baseLayer));
   const effects = await runEffect(runtime, logger, 'init', makeShadowRepo(options, logger));
   const getStatus = (refresh = false): Promise<LocalChanges> =>
     runEffect(runtime, logger, 'getStatus', effects.getStatus(refresh));
