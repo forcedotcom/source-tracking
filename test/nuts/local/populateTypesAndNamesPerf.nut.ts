@@ -30,7 +30,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
-import { monitorEventLoopDelay, performance, IntervalHistogram } from 'node:perf_hooks';
+import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
@@ -50,7 +50,7 @@ type RunStats = {
   readonly elMaxMs: number;
 };
 
-const ns = (h: IntervalHistogram, p: number) => h.percentile(p) / 1_000_000;
+const ns = (h: ReturnType<typeof monitorEventLoopDelay>, p: number) => h.percentile(p) / 1_000_000;
 
 const yieldToEventLoop = Effect.callback<void>((resume) => {
   setImmediate(() => resume(Effect.void));
