@@ -25,6 +25,7 @@
     "prepack": "sf-prepack",
     "prepare": "sf-install",
     "test": "wireit",
+    "test:bundle": "wireit",
     "test:nuts": "c8 mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local": "mocha \"**/local/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved": "mocha \"**/nuts/local/localTrackingFileMoves*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
@@ -177,10 +178,12 @@
         "compile"
       ],
       "files": [
-        "lib/**/*"
+        "lib/**/*",
+        "scripts/esbuild.config.mjs"
       ],
       "output": [
-        "dist/index.cjs"
+        "dist/index.cjs",
+        "dist/node-metafile.json"
       ]
     },
     "test:compile": {

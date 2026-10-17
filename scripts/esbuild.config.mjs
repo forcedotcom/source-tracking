@@ -1,6 +1,7 @@
+import { writeFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 
-await build({
+const bundle = await build({
   bundle: true,
   format: 'cjs',
   platform: 'node',
@@ -16,4 +17,7 @@ await build({
   },
   entryPoints: ['./lib/index.js'],
   outdir: 'dist',
+  metafile: true,
 });
+
+await writeFile('dist/node-metafile.json', JSON.stringify(bundle.metafile, null, 2));
