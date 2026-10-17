@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import sinon from 'sinon';
 import { expect } from 'chai';
 import { ForceIgnore, ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts';
-import { ChangeResult } from '../../src/shared/types';
+import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts.js';
+import { ChangeResult } from '../../src/shared/types.js';
 
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const clsFullName = 'MyClass';
 const clsType = 'ApexClass';
 const file1cls = 'foo/classes/MyClass.cls';
@@ -44,13 +46,13 @@ describe('conflicts functions', () => {
       const cs = new ComponentSet([{ fullName: clsFullName, type: clsType }]);
       expect(findConflictsInComponentSet(cs, [class1Local])).to.deep.equal([
         {
-          filePath: path.join(__dirname, '..', '..', file1cls),
+          filePath: path.join(currentDir, '..', '..', file1cls),
           fullName: class1Local.name,
           state: 'Conflict',
           type: class1Local.type,
         },
         {
-          filePath: path.join(__dirname, '..', '..', file1meta),
+          filePath: path.join(currentDir, '..', '..', file1meta),
           fullName: class1Local.name,
           state: 'Conflict',
           type: class1Local.type,
@@ -69,27 +71,27 @@ describe('conflicts functions', () => {
       forceIgnore: forceIgnoreStub,
       projectPath: 'foo',
     };
-    it('works on empty changes', () => {
+    it('works on empty changes', async () => {
       expect(
-        getDedupedConflictsFromChanges({
+        await getDedupedConflictsFromChanges({
           localChanges: [],
           remoteChanges: [],
           ...base,
         })
       ).to.deep.equal([]);
     });
-    it('returns nothing when only 1 side is changed', () => {
+    it('returns nothing when only 1 side is changed', async () => {
       expect(
-        getDedupedConflictsFromChanges({
+        await getDedupedConflictsFromChanges({
           localChanges: [class1Local],
           remoteChanges: [],
           ...base,
         })
       ).to.deep.equal([]);
     });
-    it('does not return non-matching changes', () => {
+    it('does not return non-matching changes', async () => {
       expect(
-        getDedupedConflictsFromChanges({
+        await getDedupedConflictsFromChanges({
           localChanges: [class1Local],
           remoteChanges: [
             {
@@ -104,11 +106,11 @@ describe('conflicts functions', () => {
       ).to.deep.equal([]);
     });
 
-    it('de-dupes local and remote change where names match', () => {
+    it('de-dupes local and remote change where names match', async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { filenames, ...simplifiedResult } = class1Local;
       expect(
-        getDedupedConflictsFromChanges({
+        await getDedupedConflictsFromChanges({
           localChanges: [class1Local],
           remoteChanges: [{ origin: 'remote', name: 'MyClass', type: 'ApexClass' }],
           ...base,

@@ -13,303 +13,193 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* eslint-disable camelcase */
-import fs from 'node:fs';
+
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { expect } from 'chai';
-import { parseJsonMap } from '@salesforce/kit';
-import { getFilePath, upgradeFileContents, writeTrackingFile } from '../../../src/shared/remote/fileOperations';
-import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from '../../../src/shared/remote/types';
+import * as Effect from 'effect/Effect';
+import * as Schema from 'effect/Schema';
+import { readFileContents, writeTrackingFile } from '../../../src/shared/remote/fileOperations.js';
+import { ContentsJsonSchema, MemberRevision } from '../../../src/shared/remote/types.js';
 
-describe('writing file version based on env', () => {
-  const fakeOrgId = '00DFakeFakeFakeFak';
-  const filePath = getFilePath(fakeOrgId);
-  const fakeSourceMembers = new Map<string, MemberRevision>([
-    [
-      'ApexClass###MyClass',
-      {
-        MemberIdOrName: 'unknown',
-        ChangedBy: 'unknown',
-        lastRetrievedFromServer: 1,
-        MemberType: 'ApexClass',
-        IsNameObsolete: false,
-        RevisionCounter: 1,
-        MemberName: 'MyClass',
-        IsNewMember: false,
-        LastModifiedDate: new Date().toJSON(),
-      } satisfies MemberRevision,
-    ],
-  ]);
+const FILE_VERSION_ENV = 'SF_SOURCE_TRACKING_FILE_VERSION';
+
+const member: MemberRevision = {
+  MemberType: 'ApexClass',
+  MemberName: 'MyClass',
+  IsNameObsolete: false,
+  IsNewMember: false,
+  RevisionCounter: 3,
+  MemberIdOrName: 'MyClass',
+  ChangedBy: '00e000000000001',
+  LastModifiedDate: '2026-01-01T00:00:00.000Z',
+  lastRetrievedFromServer: 2,
+};
+
+describe('remote tracking file operations', () => {
+  let directory: string;
+
+  beforeEach(async () => {
+    directory = await mkdtemp(path.join(tmpdir(), 'source-tracking-remote-'));
+  });
 
   afterEach(async () => {
-    delete process.env.SF_SOURCE_TRACKING_FILE_VERSION;
-    await fs.promises.unlink(filePath);
-  });
-  it('writes v1 fileVersion when env is set to 1', async () => {
-    process.env.SF_SOURCE_TRACKING_FILE_VERSION = '1';
-    await writeTrackingFile({ filePath, maxCounter: 1, members: fakeSourceMembers });
-    const contents = await fs.promises.readFile(filePath, 'utf8');
-    const parsedContents = parseJsonMap<ContentsV1>(contents, filePath);
-    expect(parsedContents.fileVersion).to.equal(1);
-    expect(parsedContents.serverMaxRevisionCounter).to.equal(1);
+    await rm(directory, { recursive: true, force: true });
+    delete process.env[FILE_VERSION_ENV];
   });
 
-  describe('v0', () => {
-    const expectedKeys = ['memberType', 'serverRevisionCounter', 'lastRetrievedFromServer', 'isNameObsolete'];
-    it('writes v0 fileVersion when env is set to 0', async () => {
-      process.env.SF_SOURCE_TRACKING_FILE_VERSION = '0';
-      await writeTrackingFile({ filePath, maxCounter: 1, members: fakeSourceMembers });
-      const contents = await fs.promises.readFile(filePath, 'utf8');
-      const parsedContents = parseJsonMap<ContentsV0>(contents, filePath);
-      expect(parsedContents.fileVersion).to.equal(0);
-      expect(parsedContents.serverMaxRevisionCounter).to.equal(1);
-      expect(parsedContents.sourceMembers).to.have.key('ApexClass__MyClass');
-      expect(parsedContents.sourceMembers['ApexClass__MyClass']).to.have.all.keys(expectedKeys);
+  it('writes and reads the current Schema format', async () => {
+    process.env[FILE_VERSION_ENV] = '1';
+    const filePath = path.join(directory, 'maxRevision.json');
+
+    await Effect.runPromise(
+      writeTrackingFile({ filePath, maxCounter: 3, members: new Map([['ApexClass###MyClass', member]]) })
+    );
+
+    const fileContents = Schema.decodeUnknownSync(ContentsJsonSchema)(await readFile(filePath, 'utf8'));
+    expect(fileContents).to.deep.equal({
+      fileVersion: 1,
+      serverMaxRevisionCounter: 3,
+      sourceMembers: { 'ApexClass###MyClass': member },
     });
+    expect(await Effect.runPromise(readFileContents(filePath))).to.deep.equal(fileContents);
+  });
 
-    it('writes v0 fileVersion when env is unset', async () => {
-      await writeTrackingFile({ filePath, maxCounter: 1, members: fakeSourceMembers });
-      const contents = await fs.promises.readFile(filePath, 'utf8');
-      const parsedContents = parseJsonMap<ContentsV0>(contents, filePath);
-      expect(parsedContents.fileVersion).to.equal(0);
-      expect(parsedContents.serverMaxRevisionCounter).to.equal(1);
-      expect(parsedContents.sourceMembers).to.have.key('ApexClass__MyClass');
-      expect(parsedContents.sourceMembers['ApexClass__MyClass']).to.have.all.keys(expectedKeys);
+  it('reads and upgrades the legacy Schema format to the current in-memory format', async () => {
+    delete process.env[FILE_VERSION_ENV];
+    const filePath = path.join(directory, 'maxRevision.json');
+
+    await Effect.runPromise(
+      writeTrackingFile({ filePath, maxCounter: 3, members: new Map([['ApexClass###MyClass', member]]) })
+    );
+
+    const fileContents = Schema.decodeUnknownSync(ContentsJsonSchema)(await readFile(filePath, 'utf8'));
+    expect(fileContents).to.deep.equal({
+      fileVersion: 0,
+      serverMaxRevisionCounter: 3,
+      sourceMembers: {
+        ['ApexClass__MyClass']: {
+          memberType: 'ApexClass',
+          serverRevisionCounter: 3,
+          lastRetrievedFromServer: 2,
+          isNameObsolete: false,
+        },
+      },
     });
-  });
-});
-
-describe('cross-process merge on write', () => {
-  const fakeOrgId = '00DFakeFakeFakeMrg';
-  const filePath = getFilePath(fakeOrgId);
-
-  afterEach(async () => {
-    delete process.env.SF_SOURCE_TRACKING_FILE_VERSION;
-    try {
-      await fs.promises.unlink(filePath);
-    } catch {
-      // may not exist
-    }
-  });
-
-  it('preserves higher lastRetrievedFromServer from disk when in-memory is stale', async () => {
-    const diskMembers = new Map<string, MemberRevision>([
-      [
-        'ApexClass###MyClass',
-        {
-          MemberIdOrName: '01p000000000001',
-          ChangedBy: 'user1',
-          lastRetrievedFromServer: 50,
-          MemberType: 'ApexClass',
-          IsNameObsolete: false,
-          RevisionCounter: 50,
-          MemberName: 'MyClass',
-          IsNewMember: false,
-          LastModifiedDate: '2026-01-01',
-        },
-      ],
-    ]);
-    await writeTrackingFile({ filePath, maxCounter: 50, members: diskMembers });
-
-    const staleMembers = new Map<string, MemberRevision>([
-      [
-        'ApexClass###MyClass',
-        {
-          MemberIdOrName: '01p000000000001',
-          ChangedBy: 'user1',
-          lastRetrievedFromServer: 30,
-          MemberType: 'ApexClass',
-          IsNameObsolete: false,
-          RevisionCounter: 50,
-          MemberName: 'MyClass',
-          IsNewMember: false,
-          LastModifiedDate: '2026-01-01',
-        },
-      ],
-    ]);
-    await writeTrackingFile({ filePath, maxCounter: 50, members: staleMembers });
-
-    const contents = await fs.promises.readFile(filePath, 'utf8');
-    const parsed = parseJsonMap<ContentsV0>(contents, filePath);
-    expect(parsed.sourceMembers['ApexClass__MyClass'].lastRetrievedFromServer).to.equal(50);
-  });
-
-  it('preserves higher lastRetrievedFromServer from memory when disk is stale', async () => {
-    const diskMembers = new Map<string, MemberRevision>([
-      [
-        'ApexClass###MyClass',
-        {
-          MemberIdOrName: '01p000000000001',
-          ChangedBy: 'user1',
-          lastRetrievedFromServer: 30,
-          MemberType: 'ApexClass',
-          IsNameObsolete: false,
-          RevisionCounter: 50,
-          MemberName: 'MyClass',
-          IsNewMember: false,
-          LastModifiedDate: '2026-01-01',
-        },
-      ],
-    ]);
-    await writeTrackingFile({ filePath, maxCounter: 30, members: diskMembers });
-
-    const freshMembers = new Map<string, MemberRevision>([
-      [
-        'ApexClass###MyClass',
-        {
-          MemberIdOrName: '01p000000000001',
-          ChangedBy: 'user1',
-          lastRetrievedFromServer: 50,
-          MemberType: 'ApexClass',
-          IsNameObsolete: false,
-          RevisionCounter: 50,
-          MemberName: 'MyClass',
-          IsNewMember: false,
-          LastModifiedDate: '2026-01-01',
-        },
-      ],
-    ]);
-    await writeTrackingFile({ filePath, maxCounter: 50, members: freshMembers });
-
-    const contents = await fs.promises.readFile(filePath, 'utf8');
-    const parsed = parseJsonMap<ContentsV0>(contents, filePath);
-    expect(parsed.sourceMembers['ApexClass__MyClass'].lastRetrievedFromServer).to.equal(50);
-  });
-
-  it('does not regress null over a valid lastRetrievedFromServer on disk', async () => {
-    const diskMembers = new Map<string, MemberRevision>([
-      [
-        'ApexClass###MyClass',
-        {
-          MemberIdOrName: '01p000000000001',
-          ChangedBy: 'user1',
-          lastRetrievedFromServer: 26,
-          MemberType: 'ApexClass',
-          IsNameObsolete: false,
-          RevisionCounter: 26,
-          MemberName: 'MyClass',
-          IsNewMember: false,
-          LastModifiedDate: '2026-01-01',
-        },
-      ],
-    ]);
-    await writeTrackingFile({ filePath, maxCounter: 26, members: diskMembers });
-
-    const staleMembers = new Map<string, MemberRevision>([
-      [
-        'ApexClass###MyClass',
-        {
-          MemberIdOrName: '01p000000000001',
-          ChangedBy: 'user1',
-          lastRetrievedFromServer: undefined,
-          MemberType: 'ApexClass',
-          IsNameObsolete: false,
-          RevisionCounter: 26,
-          MemberName: 'MyClass',
-          IsNewMember: false,
-          LastModifiedDate: '2026-01-01',
-        },
-      ],
-    ]);
-    await writeTrackingFile({ filePath, maxCounter: 26, members: staleMembers });
-
-    const contents = await fs.promises.readFile(filePath, 'utf8');
-    const parsed = parseJsonMap<ContentsV0>(contents, filePath);
-    expect(parsed.sourceMembers['ApexClass__MyClass'].lastRetrievedFromServer).to.equal(26);
-  });
-
-  it('takes the max serverMaxRevisionCounter between memory and disk', async () => {
-    const members = new Map<string, MemberRevision>([
-      [
-        'ApexClass###MyClass',
-        {
-          MemberIdOrName: '01p000000000001',
-          ChangedBy: 'user1',
-          lastRetrievedFromServer: 10,
-          MemberType: 'ApexClass',
-          IsNameObsolete: false,
-          RevisionCounter: 10,
-          MemberName: 'MyClass',
-          IsNewMember: false,
-          LastModifiedDate: '2026-01-01',
-        },
-      ],
-    ]);
-    await writeTrackingFile({ filePath, maxCounter: 100, members });
-    await writeTrackingFile({ filePath, maxCounter: 80, members });
-
-    const contents = await fs.promises.readFile(filePath, 'utf8');
-    const parsed = parseJsonMap<ContentsV0>(contents, filePath);
-    expect(parsed.serverMaxRevisionCounter).to.equal(100);
-  });
-});
-
-describe('upgrading undefined file version to v1 file', () => {
-  it('returns new file version even if file is not versioned', () => {
-    const oldFile = {
-      serverMaxRevisionCounter: 0,
-      sourceMembers: {},
-    };
-    expect(upgradeFileContents(oldFile).fileVersion).to.equal(1);
-  });
-
-  it('handles missing string-type fields', () => {
-    const oldFile = {
-      serverMaxRevisionCounter: 1,
+    const upgradedContents = await Effect.runPromise(readFileContents(filePath));
+    expect(upgradedContents).to.deep.equal({
+      fileVersion: 1,
+      serverMaxRevisionCounter: 3,
       sourceMembers: {
-        ApexClass__MyClass: {
-          serverRevisionCounter: 1,
-          lastRetrievedFromServer: 1,
-          memberType: 'ApexClass',
-          isNameObsolete: false,
-        } satisfies MemberRevisionLegacy,
+        'ApexClass###MyClass': {
+          MemberType: 'ApexClass',
+          MemberName: 'MyClass',
+          IsNameObsolete: false,
+          RevisionCounter: 3,
+          lastRetrievedFromServer: 2,
+          ChangedBy: 'unknown',
+          MemberIdOrName: 'unknown',
+          LastModifiedDate: 'unknown',
+        },
       },
-    };
-    expect(upgradeFileContents(oldFile).sourceMembers['ApexClass###MyClass']).to.deep.equal({
-      MemberIdOrName: 'unknown',
-      ChangedBy: 'unknown',
-      lastRetrievedFromServer: 1,
-      MemberType: 'ApexClass',
-      IsNameObsolete: false,
-      RevisionCounter: 1,
-      MemberName: 'MyClass',
-      LastModifiedDate: 'unknown',
-    } satisfies Omit<MemberRevision, 'IsNewMember'>);
-  });
-
-  it('handles null lastRetrievedFromServer', () => {
-    const oldFile = {
-      serverMaxRevisionCounter: 1,
-      sourceMembers: {
-        ApexClass__MyClass: {
-          serverRevisionCounter: 1,
-          lastRetrievedFromServer: null,
-          memberType: 'ApexClass',
-          isNameObsolete: false,
-        } satisfies MemberRevisionLegacy,
-      },
-    };
-    expect(upgradeFileContents(oldFile).sourceMembers['ApexClass###MyClass']).to.have.property(
-      'lastRetrievedFromServer',
-      undefined
+    });
+    expect(Schema.decodeUnknownSync(ContentsJsonSchema)(JSON.stringify(upgradedContents))).to.deep.equal(
+      upgradedContents
     );
   });
-  it('memberType and key are always decoded', () => {
-    const encodedKey = 'Layout__Broker__c-v1%2E1 Broker Layout';
 
-    const oldFile = {
-      serverMaxRevisionCounter: 1,
-      sourceMembers: {
-        [encodedKey]: {
-          serverRevisionCounter: 1,
-          lastRetrievedFromServer: null,
-          memberType: 'Layout',
-          isNameObsolete: false,
-        } satisfies MemberRevisionLegacy,
-      },
-    };
-    expect(upgradeFileContents(oldFile).sourceMembers['Layout###Broker__c-v1.1 Broker Layout']).to.have.property(
-      'MemberName',
-      'Broker__c-v1.1 Broker Layout'
+  it('merges concurrent snapshots under the file lock instead of losing either update', async () => {
+    const filePath = path.join(directory, 'maxRevision.json');
+    await Effect.runPromise(writeTrackingFile({ filePath, maxCounter: 0, members: new Map() }));
+
+    await Effect.runPromise(
+      Effect.all(
+        [
+          writeTrackingFile({
+            filePath,
+            maxCounter: 1,
+            baseMaxCounter: 0,
+            members: new Map([['ApexClass###First', { ...member, MemberName: 'First', RevisionCounter: 1 }]]),
+          }),
+          writeTrackingFile({
+            filePath,
+            maxCounter: 2,
+            baseMaxCounter: 0,
+            members: new Map([['ApexClass###Second', { ...member, MemberName: 'Second', RevisionCounter: 2 }]]),
+          }),
+        ],
+        { concurrency: 'unbounded' }
+      )
     );
+
+    const contents = await Effect.runPromise(readFileContents(filePath));
+    expect(contents).to.have.property('serverMaxRevisionCounter', 2);
+    expect(contents).to.have.nested.property('sourceMembers.ApexClass###First');
+    expect(contents).to.have.nested.property('sourceMembers.ApexClass###Second');
+  });
+
+  it('preserves a completed sync when an older snapshot commits concurrently', async () => {
+    const filePath = path.join(directory, 'maxRevision.json');
+    const unsynced = { ...member, lastRetrievedFromServer: undefined };
+    const synced = { ...member, lastRetrievedFromServer: member.RevisionCounter };
+    await Effect.runPromise(
+      writeTrackingFile({ filePath, maxCounter: 3, members: new Map([['ApexClass###MyClass', unsynced]]) })
+    );
+
+    await Effect.runPromise(
+      Effect.all(
+        [
+          writeTrackingFile({
+            filePath,
+            maxCounter: 3,
+            baseMaxCounter: 3,
+            members: new Map([['ApexClass###MyClass', synced]]),
+          }),
+          writeTrackingFile({
+            filePath,
+            maxCounter: 3,
+            baseMaxCounter: 3,
+            members: new Map([['ApexClass###MyClass', unsynced]]),
+          }),
+        ],
+        { concurrency: 'unbounded' }
+      )
+    );
+
+    const contents = await Effect.runPromise(readFileContents(filePath));
+    expect(contents).to.have.nested.property('sourceMembers.ApexClass###MyClass.lastRetrievedFromServer', 3);
+  });
+
+  it('ignores a stale operation that finishes after a tracking reset', async () => {
+    const filePath = path.join(directory, 'maxRevision.json');
+    await Effect.runPromise(
+      writeTrackingFile({
+        filePath,
+        maxCounter: 5,
+        members: new Map([['ApexClass###BeforeReset', { ...member, MemberName: 'BeforeReset', RevisionCounter: 5 }]]),
+      })
+    );
+    await Effect.runPromise(
+      writeTrackingFile({
+        filePath,
+        maxCounter: 3,
+        replace: true,
+        members: new Map([['ApexClass###AtReset', { ...member, MemberName: 'AtReset', RevisionCounter: 3 }]]),
+      })
+    );
+    await Effect.runPromise(
+      writeTrackingFile({
+        filePath,
+        maxCounter: 6,
+        baseMaxCounter: 5,
+        members: new Map([['ApexClass###StaleQuery', { ...member, MemberName: 'StaleQuery', RevisionCounter: 6 }]]),
+      })
+    );
+
+    const contents = await Effect.runPromise(readFileContents(filePath));
+    expect(contents).to.have.property('serverMaxRevisionCounter', 3);
+    expect(contents).to.have.nested.property('sourceMembers.ApexClass###AtReset');
+    expect(contents).not.to.have.nested.property('sourceMembers.ApexClass###StaleQuery');
   });
 });

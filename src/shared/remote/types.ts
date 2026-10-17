@@ -14,50 +14,67 @@
  * limitations under the License.
  */
 
-/** represents the contents of the config file stored in 'maxRevision.json' */
+import { Logger } from '@salesforce/core';
+import * as Schema from 'effect/Schema';
 
-export type ContentsV1 = {
-  fileVersion: 1;
-  serverMaxRevisionCounter: number;
-  sourceMembers: Record<string, MemberRevision>;
-};
+export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 
-export type ContentsV0 = {
-  fileVersion?: 0;
-  serverMaxRevisionCounter: number;
-  sourceMembers: Record<string, MemberRevisionLegacy>;
-};
-
-export type SourceMember = {
-  MemberType: string;
-  MemberName: string;
+/** Source member fields persisted in V1 tracking files. */
+export const SourceMemberSchema = Schema.Struct({
+  MemberType: Schema.String,
+  MemberName: Schema.String,
   /** The change is a delete */
-  IsNameObsolete: boolean;
+  IsNameObsolete: Schema.Boolean,
   /** The change is an add (newly created metadata) */
-  IsNewMember: boolean;
-  RevisionCounter: number;
+  IsNewMember: Schema.Boolean,
+  RevisionCounter: Schema.Number,
   /** The recordId of the metadata */
-  MemberIdOrName: string;
+  MemberIdOrName: Schema.String,
   /** userID of the person who made change */
-  ChangedBy: string;
-  LastModifiedDate: string;
-};
+  ChangedBy: Schema.String,
+  LastModifiedDate: Schema.String,
+});
+export type SourceMember = Schema.Schema.Type<typeof SourceMemberSchema>;
 
-export type MemberRevision = SourceMember & {
+export const MemberRevisionSchema = Schema.Struct({
+  ...SourceMemberSchema.fields,
+  /** Not present in legacy tracking files; its absence preserves unknown add/modify status. */
+  IsNewMember: Schema.optional(Schema.Boolean),
   /** the last revision retrieved.  Used for detecting changes*/
-  lastRetrievedFromServer?: number;
-};
+  lastRetrievedFromServer: Schema.optional(Schema.Number),
+});
+export type MemberRevision = Schema.Schema.Type<typeof MemberRevisionSchema>;
 
 /**
  * @deprecated replaced by the new MemberRevision
  * used for reading and writing the legacy tracking file format
  */
-export type MemberRevisionLegacy = {
-  memberType: string;
-  serverRevisionCounter: number;
-  lastRetrievedFromServer: number | null;
-  isNameObsolete: boolean;
-};
+export const MemberRevisionLegacySchema = Schema.Struct({
+  memberType: Schema.String,
+  serverRevisionCounter: Schema.Number,
+  lastRetrievedFromServer: Schema.optional(Schema.Number.pipe(Schema.NullOr)),
+  isNameObsolete: Schema.Boolean,
+});
+export type MemberRevisionLegacy = Schema.Schema.Type<typeof MemberRevisionLegacySchema>;
+
+export const ContentsV1Schema = Schema.Struct({
+  fileVersion: Schema.Literal(1),
+  serverMaxRevisionCounter: Schema.Number,
+  sourceMembers: Schema.Record(Schema.String, MemberRevisionSchema),
+});
+export type ContentsV1 = Schema.Schema.Type<typeof ContentsV1Schema>;
+
+export const ContentsV0Schema = Schema.Struct({
+  fileVersion: Schema.optional(Schema.Literal(0)),
+  serverMaxRevisionCounter: Schema.Number,
+  sourceMembers: Schema.Record(Schema.String, MemberRevisionLegacySchema),
+});
+export type ContentsV0 = Schema.Schema.Type<typeof ContentsV0Schema>;
+
+/** JSON codec shared by reads and writes of both tracking-file formats. */
+export const ContentsJsonSchema = Schema.fromJsonString(Schema.Union([ContentsV1Schema, ContentsV0Schema]), {
+  space: 4,
+});
 
 export const SOURCE_MEMBER_FIELDS = [
   'MemberIdOrName',

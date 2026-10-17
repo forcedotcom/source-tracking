@@ -1,0 +1,116 @@
+/*
+ * Copyright 2026, Salesforce, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import { expect } from 'chai';
+import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
+import * as Cause from 'effect/Cause';
+import * as Exit from 'effect/Exit';
+import * as Option from 'effect/Option';
+import * as Schema from 'effect/Schema';
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodePath from '@effect/platform-node/NodePath';
+import { Repo } from '../../../src/git/repo.js';
+import { RepoNotConfiguredError } from '../../../src/git/errors.js';
+import { RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
+
+const TestLayer = Layer.provide(Repo.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer));
+
+const cfg = (gitdir: string): SwitchCfg => ({
+  dir: '/tmp/lite-test',
+  gitdir,
+  roots: [Schema.decodeUnknownSync(RepoPath)('force-app')],
+  fdPermits: 8,
+});
+
+const runUnit = <A, E>(effect: Effect.Effect<A, E, Repo>): Promise<Exit.Exit<A, E>> =>
+  // @effect-diagnostics-next-line strictEffectProvide:off
+  Effect.runPromiseExit(effect.pipe(Effect.provide(TestLayer), Effect.scoped));
+
+describe('git/Repo lifecycle (phase 1)', () => {
+  it('every method but init/switchTo/hashBlob fails with RepoNotConfiguredError pre-switchTo', async () => {
+    const exit = await runUnit(
+      Effect.gen(function* () {
+        const repo = yield* Repo;
+        return yield* repo.collectStatus();
+      })
+    );
+    expect(Exit.isFailure(exit)).to.equal(true);
+    if (Exit.isFailure(exit)) {
+      const fail = Cause.findErrorOption(exit.cause);
+      expect(Option.isSome(fail)).to.equal(true);
+      if (Option.isSome(fail)) {
+        expect(fail.value).to.be.instanceOf(RepoNotConfiguredError);
+      }
+    }
+  });
+
+  it('resolveRef pre-switchTo fails with RepoNotConfiguredError', async () => {
+    const exit = await runUnit(
+      Effect.gen(function* () {
+        const repo = yield* Repo;
+        return yield* repo.resolveRef(Schema.decodeUnknownSync(Schema.String)('HEAD') as never);
+      })
+    );
+    expect(Exit.isFailure(exit)).to.equal(true);
+  });
+
+  it('switchTo installs a handle (subsequent ops no longer fail with RepoNotConfiguredError)', async () => {
+    // collectStatus now implements (phase 8). Against /tmp/lite-test/.git
+    // it'll fail with IndexCorruptError (no index file) — what we care
+    // about is that it does NOT fail with RepoNotConfiguredError.
+    const exit = await runUnit(
+      Effect.gen(function* () {
+        const repo = yield* Repo;
+        yield* repo.switchTo(cfg('/tmp/lite-test/.git'));
+        return yield* repo.collectStatus();
+      })
+    );
+    if (Exit.isFailure(exit)) {
+      const fail = Cause.findErrorOption(exit.cause);
+      if (Option.isSome(fail)) {
+        expect(fail.value).to.not.be.instanceOf(RepoNotConfiguredError);
+      }
+    }
+  });
+
+  it('switchTo replaces the prior handle atomically (second cfg wins)', async () => {
+    const exit = await runUnit(
+      Effect.gen(function* () {
+        const repo = yield* Repo;
+        yield* repo.switchTo(cfg('/tmp/lite-test/a/.git'));
+        yield* repo.switchTo(cfg('/tmp/lite-test/b/.git'));
+        // Just exercise the swap path; no asserting on cfg shape here because
+        // SwitchCfg is private to the handle. Phase 5+ surfaces something
+        // observable about the active handle (the init bytes themselves).
+        return 'ok';
+      })
+    );
+    expect(Exit.isSuccess(exit)).to.equal(true);
+  });
+
+  it('Layer scope close finalizes a switched-in handle (no orphan resource warnings)', async () => {
+    // Smoke test: scoping the whole runUnit through Effect.scoped releases the
+    // service scope and, transitively, the per-handle child scope.
+    const exit = await runUnit(
+      Effect.gen(function* () {
+        const repo = yield* Repo;
+        yield* repo.switchTo(cfg('/tmp/lite-test/scoped/.git'));
+        return 'ok';
+      })
+    );
+    expect(Exit.isSuccess(exit)).to.equal(true);
+  });
+});

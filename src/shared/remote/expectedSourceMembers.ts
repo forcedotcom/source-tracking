@@ -15,8 +15,8 @@
  */
 
 import { ComponentStatus, type RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { getMetadataKeyFromFileResponse } from '../metadataKeys';
-import { type RemoteSyncInput } from '../types';
+import { getMetadataKeyFromFileResponse } from '../metadataKeys.js';
+import { type RemoteSyncInput } from '../types.js';
 
 const typesToNoPollFor = [
   'CustomObject',

@@ -15,14 +15,14 @@
  */
 
 import path from 'node:path';
-import * as fs from 'graceful-fs';
+import fs from 'graceful-fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ProjectJson } from '@salesforce/schemas';
 import { NamedPackageDir } from '@salesforce/core';
 import { PackageDir } from '@salesforce/schemas';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 describe('handles local files moves that also change the file', () => {
   let session: TestSession;
@@ -58,7 +58,7 @@ describe('handles local files moves that also change the file', () => {
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
+    repo = await createShadowRepo({
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: modifiedPackageDirs.map(
@@ -69,7 +69,7 @@ describe('handles local files moves that also change the file', () => {
 
     // Commit the existing status
     const filesToSync = await repo.getChangedFilenames();
-    await repo.commitChanges({ deployedFiles: filesToSync });
+    await repo.recordSync({ deployedFiles: filesToSync });
 
     expect(await repo.getChangedFilenames()).to.have.lengthOf(0);
   });

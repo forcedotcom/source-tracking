@@ -13,104 +13,131 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import { Connection, envVars as env, SfError, trimTo15 } from '@salesforce/core';
-import { Duration } from '@salesforce/kit';
-import { PinoLogger } from './remoteSourceTrackingService';
-import { SOURCE_MEMBER_FIELDS, SourceMember } from './types';
+import * as Cache from 'effect/Cache';
+import * as Duration from 'effect/Duration';
+import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
+import * as Option from 'effect/Option';
+import * as Request from 'effect/Request';
+import * as RequestResolver from 'effect/RequestResolver';
+import { PinoLogger, SOURCE_MEMBER_FIELDS, SourceMember } from './types.js';
+
+const MAX_FETCH = 50_000;
+
+export type UserNameRequest = Request.Request<Option.Option<string>, SfError> & {
+  readonly _tag: 'UserNameRequest';
+  readonly userId: string;
+};
+
+const UserNameRequest = Request.tagged<UserNameRequest>('UserNameRequest');
+
+/** Per-org user-name cache with no TTL for successful names. */
+export type UserNameCache = Cache.Cache<UserNameRequest, Option.Option<string>, SfError>;
 
 export const calculateTimeout =
   (logger: PinoLogger) =>
-  (memberCount: number): Duration => {
+  (memberCount: number): Duration.Duration => {
     const overriddenTimeout = env.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
     if (overriddenTimeout > 0) {
       logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
       return Duration.seconds(overriddenTimeout);
     }
 
-    // Calculate a polling timeout for SourceMembers based on the number of
-    // member names being polled plus a buffer of 5 seconds.  This will
-    // wait 50s for each 1000 components, plus 5s.
+    // Calculate 50s per 1000 members, plus a 5s buffer.
     const pollingTimeout = Math.ceil(memberCount * 0.05) + 5;
     logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
     return Duration.seconds(pollingTimeout);
   };
-/** exported only for spy/mock  */
 
-export const querySourceMembersTo = async (conn: Connection, toRevision: number): Promise<SourceMember[]> => {
+/** @internal */
+export const querySourceMembersTo = Effect.fn('querySourceMembersTo')(function* (conn: Connection, toRevision: number) {
   const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;
-  return queryFn(conn, query);
-};
+  return yield* queryFn(conn, query);
+});
 
-export const querySourceMembersFrom = async ({
-  conn,
-  fromRevision,
-  queryCache,
-  userQueryCache,
-  logger,
-}: {
+export type QuerySourceMembersFromOptions = {
   conn: Connection;
   fromRevision: number;
-  /** optional cache, used if present.  Side effect: cache will be mutated */
-  queryCache?: Map<number, SourceMember[]>;
-  /** optional cache, used if present.  Side effect: cache will be mutated */
-  userQueryCache?: Map<string, string>;
-  /** if you don't pass in a logger, you get no log output */
+  /** Optional per-org cache shared by remote tracking queries. */
+  userNameCache?: UserNameCache;
   logger?: PinoLogger;
-}): Promise<SourceMember[]> => {
-  if (queryCache) {
-    // Check cache first and return if found.
-    const cachedQueryResult = queryCache.get(fromRevision);
-    if (cachedQueryResult) {
-      logger?.debug(`Using cache for SourceMember query for revision ${fromRevision}`);
-      return cachedQueryResult;
-    }
-  }
+};
 
-  // because `serverMaxRevisionCounter` is always updated, we need to select > to catch the most recent change
+/** @internal */
+export const querySourceMembersFrom = Effect.fn('querySourceMembersFrom')(function* ({
+  conn,
+  fromRevision,
+  userNameCache,
+  logger,
+}: QuerySourceMembersFromOptions) {
   const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter > ${fromRevision}`;
   logger?.debug(`Query: ${query}`);
+  const queryResult = yield* queryFn(conn, query);
+  const userNames = userNameCache ? yield* resolveUserNames(queryResult, userNameCache) : new Map();
 
-  const queryResult = await queryFn(conn, query);
-  if (userQueryCache) {
-    await updateCacheWithUnknownUsers(conn, queryResult, userQueryCache);
-  }
-  const queryResultWithResolvedUsers = queryResult.map((member) => ({
+  const resolved = queryResult.map((member) => ({
     ...member,
-    ChangedBy: userQueryCache?.get(member.ChangedBy) ?? member.ChangedBy,
+    ChangedBy: getResolvedUserName(member.ChangedBy, userNames),
   }));
-  queryCache?.set(fromRevision, queryResultWithResolvedUsers);
+  return resolved;
+});
 
-  return queryResultWithResolvedUsers;
+/** Build a batched, per-user cache. Successful names live for the cache's lifetime. */
+/** @internal */
+export const makeUserNameCache = Effect.fn('makeUserNameCache')(function* (conn: Connection) {
+  const resolver = RequestResolver.make<UserNameRequest>(
+    Effect.fnUntraced(function* (entries) {
+      const userIds = Array.from(new Set(entries.map(({ request }) => request.userId)));
+      const userQuery = `SELECT Id, Name FROM User WHERE Id IN ('${userIds.join("','")}')`;
+      const result = yield* Effect.tryPromise({
+        try: () => conn.query<{ Id: string; Name: string }>(userQuery, { autoFetch: true, maxFetch: MAX_FETCH }),
+        catch: (cause) => SfError.wrap(cause),
+      });
+      const namesById = new Map(result.records.map((user) => [trimTo15(user.Id), user.Name] as const));
+      entries.forEach((entry) => {
+        const name = namesById.get(entry.request.userId);
+        entry.completeUnsafe(Exit.succeed(name === undefined ? Option.none() : Option.some(name)));
+      });
+    })
+  );
+  return yield* RequestResolver.asCache(resolver, {
+    // One Tooling query can return at most this many SourceMembers / distinct ChangedBy IDs.
+    capacity: MAX_FETCH,
+    timeToLive: (exit) => (Exit.isSuccess(exit) && Option.isSome(exit.value) ? Duration.infinity : Duration.zero),
+  });
+});
+
+const resolveUserNames = Effect.fnUntraced(function* (
+  queryResult: readonly SourceMember[],
+  userNameCache: UserNameCache
+) {
+  const userIds = Array.from(new Set(queryResult.map((member) => trimTo15(member.ChangedBy))));
+  const names = yield* Effect.forEach(userIds, (userId) => Cache.get(userNameCache, UserNameRequest({ userId })), {
+    concurrency: 'unbounded',
+  });
+  return new Map(userIds.map((userId, index) => [userId, names[index]] as const));
+});
+
+const getResolvedUserName = (userId: string, userNames: Map<string, Option.Option<string>>): string => {
+  const name = userNames.get(trimTo15(userId));
+  return name && Option.isSome(name) ? name.value : userId;
 };
 
-const queryFn = async (conn: Connection, query: string): Promise<SourceMember[]> => {
-  try {
-    return (await conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: 50_000 })).records.map(
-      sourceMemberCorrections
-    );
-  } catch (error) {
-    throw SfError.wrap(error);
-  }
-};
+/** Mutable only as a test seam for replacing the external Salesforce query operations. */
+/** @internal */
+export const sourceMemberQueries = { querySourceMembersTo, querySourceMembersFrom };
 
-/** A series of workarounds for server-side bugs.  Each bug should be filed against a team, with a WI, so we know when these are fixed and can be removed */
-const sourceMemberCorrections = (sourceMember: SourceMember): SourceMember => {
-  if (sourceMember.MemberType === 'QuickActionDefinition') {
-    return { ...sourceMember, MemberType: 'QuickAction' }; // W-15837125
-  }
-  return sourceMember;
-};
+const queryFn = Effect.fnUntraced(function* (conn: Connection, query: string) {
+  const result = yield* Effect.tryPromise({
+    try: () => conn.tooling.query<SourceMember>(query, { autoFetch: true, maxFetch: MAX_FETCH }),
+    catch: (cause) => SfError.wrap(cause),
+  });
+  return result.records.map(sourceMemberCorrections);
+});
 
-const updateCacheWithUnknownUsers = async (
-  conn: Connection,
-  queryResult: SourceMember[],
-  userCache: Map<string, string>
-): Promise<void> => {
-  const unknownUsers = new Set<string>(queryResult.map((member) => member.ChangedBy).filter((u) => !userCache.has(u)));
-  if (unknownUsers.size > 0) {
-    const userQuery = `SELECT Id, Name FROM User WHERE Id IN ('${Array.from(unknownUsers).join("','")}')`;
-    (await conn.query<{ Id: string; Name: string }>(userQuery, { autoFetch: true, maxFetch: 50_000 })).records.map(
-      (u) => userCache.set(trimTo15(u.Id), u.Name)
-    );
-  }
-};
+const sourceMemberCorrections = (sourceMember: SourceMember): SourceMember =>
+  sourceMember.MemberType === 'QuickActionDefinition'
+    ? { ...sourceMember, MemberType: 'QuickAction' } // W-15837125
+    : sourceMember;

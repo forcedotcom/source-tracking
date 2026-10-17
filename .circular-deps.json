@@ -1,0 +1,2110 @@
+{
+  "entries": ["src/index.ts"],
+  "tree": {
+    "src/index.ts": [
+      {
+        "issuer": "src/index.ts",
+        "request": "./sourceTracking.js",
+        "kind": "StaticExport",
+        "id": "src/sourceTracking.ts"
+      },
+      {
+        "issuer": "src/index.ts",
+        "request": "./shared/types.js",
+        "kind": "StaticExport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/index.ts",
+        "request": "./shared/functions.js",
+        "kind": "StaticExport",
+        "id": "src/shared/functions.ts"
+      }
+    ],
+    "src/sourceTracking.ts": [
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "node:fs",
+        "kind": "StaticImport",
+        "id": "node:fs"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "@salesforce/kit",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/kit/lib/index.js"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "effect/Predicate",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Predicate.js"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "effect/Cache",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Cache.js"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "effect/Predicate",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Predicate.js"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/runtime.js",
+        "kind": "StaticImport",
+        "id": "src/shared/runtime.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/remote/remoteSourceTracking.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/remoteSourceTracking.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/remote/remoteSourceTracking.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/remoteSourceTracking.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/remote/fileOperations.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/fileOperations.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/local/localShadowRepo.js",
+        "kind": "StaticImport",
+        "id": "src/shared/local/localShadowRepo.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/conflicts.js",
+        "kind": "StaticImport",
+        "id": "src/shared/conflicts.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/guards.js",
+        "kind": "StaticImport",
+        "id": "src/shared/guards.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/remoteChangeIgnoring.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remoteChangeIgnoring.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/metadataKeys.js",
+        "kind": "StaticImport",
+        "id": "src/shared/metadataKeys.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/populateFilePaths.js",
+        "kind": "StaticImport",
+        "id": "src/shared/populateFilePaths.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/populateTypesAndNames.js",
+        "kind": "StaticImport",
+        "id": "src/shared/populateTypesAndNames.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/localComponentSetArray.js",
+        "kind": "StaticImport",
+        "id": "src/shared/localComponentSetArray.ts"
+      },
+      {
+        "issuer": "src/sourceTracking.ts",
+        "request": "./shared/functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      }
+    ],
+    "src/shared/types.ts": [
+      {
+        "issuer": "src/shared/types.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/shared/types.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/types.ts",
+        "request": "@salesforce/core/sfError",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/sfError.js"
+      }
+    ],
+    "src/shared/functions.ts": [
+      {
+        "issuer": "src/shared/functions.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/functions.ts",
+        "request": "node:fs",
+        "kind": "StaticImport",
+        "id": "node:fs"
+      },
+      {
+        "issuer": "src/shared/functions.ts",
+        "request": "effect/Predicate",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Predicate.js"
+      },
+      {
+        "issuer": "src/shared/functions.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/functions.ts",
+        "request": "fast-xml-parser",
+        "kind": "StaticImport",
+        "id": "node_modules/fast-xml-parser/lib/fxp.d.cts"
+      },
+      {
+        "issuer": "src/shared/functions.ts",
+        "request": "@salesforce/kit",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/kit/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/functions.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/functions.ts",
+        "request": "./guards.js",
+        "kind": "StaticImport",
+        "id": "src/shared/guards.ts"
+      }
+    ],
+    "node_modules/effect/dist/Schema.js": null,
+    "node_modules/@salesforce/core/lib/sfError.js": null,
+    "src/shared/runtime.ts": [
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "node:fs",
+        "kind": "StaticImport",
+        "id": "node:fs"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "effect/Cause",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Cause.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "effect/Exit",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Exit.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "effect/Layer",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Layer.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "effect/Result",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Result.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "effect/ManagedRuntime",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/ManagedRuntime.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "@effect/opentelemetry",
+        "kind": "StaticImport",
+        "id": "node_modules/@effect/opentelemetry/dist/index.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "@opentelemetry/sdk-trace-base",
+        "kind": "StaticImport",
+        "id": "node_modules/@opentelemetry/sdk-trace-base/build/esm/index-shim.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "@opentelemetry/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@opentelemetry/core/build/esm/index.js"
+      },
+      {
+        "issuer": "src/shared/runtime.ts",
+        "request": "@opentelemetry/api",
+        "kind": "StaticImport",
+        "id": "node_modules/@opentelemetry/api/build/src/index.js"
+      }
+    ],
+    "src/shared/remote/remoteSourceTracking.ts": [
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "node:os",
+        "kind": "StaticImport",
+        "id": "node:os"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "graceful-fs",
+        "kind": "StaticImport",
+        "id": "node_modules/graceful-fs/graceful-fs.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/Cache",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Cache.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/Duration",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Duration.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/Exit",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Exit.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/HashMap",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/HashMap.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/HashSet",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/HashSet.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/Ref",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Ref.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/Schedule",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schedule.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "effect/Stream",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Stream.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "../types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "../metadataKeys.js",
+        "kind": "StaticImport",
+        "id": "src/shared/metadataKeys.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "../functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "./expectedSourceMembers.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/expectedSourceMembers.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/types.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "./fileOperations.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/fileOperations.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "./orgQueries.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/orgQueries.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "./orgQueries.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/orgQueries.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteSourceTracking.ts",
+        "request": "./remoteTrackingState.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/remoteTrackingState.ts"
+      }
+    ],
+    "src/shared/remote/fileOperations.ts": [
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "graceful-fs",
+        "kind": "StaticImport",
+        "id": "node_modules/graceful-fs/graceful-fs.js"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "effect/Config",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Config.js"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "effect/ConfigProvider",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/ConfigProvider.js"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "../functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "../types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/types.ts"
+      },
+      {
+        "issuer": "src/shared/remote/fileOperations.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/types.ts"
+      }
+    ],
+    "src/shared/local/localShadowRepo.ts": [
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "@salesforce/kit",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/kit/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "@effect/platform-node/NodeFileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/@effect/platform-node/dist/NodeFileSystem.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "@effect/platform-node/NodePath",
+        "kind": "StaticImport",
+        "id": "node_modules/@effect/platform-node/dist/NodePath.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/Chunk",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Chunk.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/Layer",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Layer.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/ManagedRuntime",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/ManagedRuntime.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/Ref",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Ref.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "effect/Stream",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Stream.js"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "../../git/errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "../../git/repo.js",
+        "kind": "StaticImport",
+        "id": "src/git/repo.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "../../git/sfCompatibility.js",
+        "kind": "StaticImport",
+        "id": "src/git/sfCompatibility.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "../runtime.js",
+        "kind": "StaticImport",
+        "id": "src/shared/runtime.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "../../git/schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "../functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "../eventLoopDelayCapture.js",
+        "kind": "StaticImport",
+        "id": "src/shared/eventLoopDelayCapture.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "./functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/local/functions.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "./moveDetectionLite.js",
+        "kind": "StaticImport",
+        "id": "src/shared/local/moveDetectionLite.ts"
+      },
+      {
+        "issuer": "src/shared/local/localShadowRepo.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/local/types.ts"
+      }
+    ],
+    "src/shared/conflicts.ts": [
+      {
+        "issuer": "src/shared/conflicts.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/conflicts.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/conflicts.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/conflicts.ts",
+        "request": "./functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      },
+      {
+        "issuer": "src/shared/conflicts.ts",
+        "request": "./populateTypesAndNames.js",
+        "kind": "StaticImport",
+        "id": "src/shared/populateTypesAndNames.ts"
+      },
+      {
+        "issuer": "src/shared/conflicts.ts",
+        "request": "./guards.js",
+        "kind": "StaticImport",
+        "id": "src/shared/guards.ts"
+      },
+      {
+        "issuer": "src/shared/conflicts.ts",
+        "request": "./runtime.js",
+        "kind": "StaticImport",
+        "id": "src/shared/runtime.ts"
+      }
+    ],
+    "src/shared/guards.ts": [
+      {
+        "issuer": "src/shared/guards.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/guards.ts",
+        "request": "@salesforce/core/sfError",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/sfError.js"
+      },
+      {
+        "issuer": "src/shared/guards.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/guards.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      }
+    ],
+    "src/shared/remoteChangeIgnoring.ts": [
+      {
+        "issuer": "src/shared/remoteChangeIgnoring.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/remoteChangeIgnoring.ts",
+        "request": "@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js"
+      },
+      {
+        "issuer": "src/shared/remoteChangeIgnoring.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/remoteChangeIgnoring.ts",
+        "request": "./guards.js",
+        "kind": "StaticImport",
+        "id": "src/shared/guards.ts"
+      },
+      {
+        "issuer": "src/shared/remoteChangeIgnoring.ts",
+        "request": "./functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      }
+    ],
+    "src/shared/metadataKeys.ts": [
+      {
+        "issuer": "src/shared/metadataKeys.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/metadataKeys.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/metadataKeys.ts",
+        "request": "@salesforce/core/lifecycle",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/lifecycleEvents.js"
+      },
+      {
+        "issuer": "src/shared/metadataKeys.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/metadataKeys.ts",
+        "request": "./functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      }
+    ],
+    "src/shared/populateFilePaths.ts": [
+      {
+        "issuer": "src/shared/populateFilePaths.ts",
+        "request": "node:os",
+        "kind": "StaticImport",
+        "id": "node:os"
+      },
+      {
+        "issuer": "src/shared/populateFilePaths.ts",
+        "request": "@salesforce/core/logger",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/logger/logger.js"
+      },
+      {
+        "issuer": "src/shared/populateFilePaths.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/populateFilePaths.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/populateFilePaths.ts",
+        "request": "./guards.js",
+        "kind": "StaticImport",
+        "id": "src/shared/guards.ts"
+      },
+      {
+        "issuer": "src/shared/populateFilePaths.ts",
+        "request": "./functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      }
+    ],
+    "src/shared/populateTypesAndNames.ts": [
+      {
+        "issuer": "src/shared/populateTypesAndNames.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/shared/populateTypesAndNames.ts",
+        "request": "@salesforce/core/logger",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/logger/logger.js"
+      },
+      {
+        "issuer": "src/shared/populateTypesAndNames.ts",
+        "request": "effect/Predicate",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Predicate.js"
+      },
+      {
+        "issuer": "src/shared/populateTypesAndNames.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/populateTypesAndNames.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      },
+      {
+        "issuer": "src/shared/populateTypesAndNames.ts",
+        "request": "./guards.js",
+        "kind": "StaticImport",
+        "id": "src/shared/guards.ts"
+      },
+      {
+        "issuer": "src/shared/populateTypesAndNames.ts",
+        "request": "./eventLoopDelayCapture.js",
+        "kind": "StaticImport",
+        "id": "src/shared/eventLoopDelayCapture.ts"
+      },
+      {
+        "issuer": "src/shared/populateTypesAndNames.ts",
+        "request": "./functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      }
+    ],
+    "src/shared/localComponentSetArray.ts": [
+      {
+        "issuer": "src/shared/localComponentSetArray.ts",
+        "request": "node:fs",
+        "kind": "StaticImport",
+        "id": "node:fs"
+      },
+      {
+        "issuer": "src/shared/localComponentSetArray.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/localComponentSetArray.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/localComponentSetArray.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/localComponentSetArray.ts",
+        "request": "effect/Predicate",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Predicate.js"
+      },
+      {
+        "issuer": "src/shared/localComponentSetArray.ts",
+        "request": "./functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      }
+    ],
+    "node:fs": [],
+    "node:path": [],
+    "node_modules/@salesforce/core/lib/index.js": null,
+    "node_modules/effect/dist/Predicate.js": null,
+    "node_modules/effect/dist/Cache.js": null,
+    "node_modules/@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js": null,
+    "node_modules/effect/dist/Effect.js": null,
+    "node_modules/fast-xml-parser/lib/fxp.d.cts": null,
+    "node_modules/effect/dist/Cause.js": null,
+    "node_modules/effect/dist/Exit.js": null,
+    "node_modules/effect/dist/Layer.js": null,
+    "node_modules/effect/dist/Option.js": null,
+    "node_modules/effect/dist/Result.js": null,
+    "node_modules/effect/dist/ManagedRuntime.js": null,
+    "node_modules/@opentelemetry/api/build/src/index.js": null,
+    "src/shared/remote/expectedSourceMembers.ts": [
+      {
+        "issuer": "src/shared/remote/expectedSourceMembers.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/remote/expectedSourceMembers.ts",
+        "request": "../metadataKeys.js",
+        "kind": "StaticImport",
+        "id": "src/shared/metadataKeys.ts"
+      },
+      {
+        "issuer": "src/shared/remote/expectedSourceMembers.ts",
+        "request": "../types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/types.ts"
+      }
+    ],
+    "src/shared/remote/types.ts": [
+      {
+        "issuer": "src/shared/remote/types.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/remote/types.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      }
+    ],
+    "src/shared/remote/orgQueries.ts": [
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "effect/Cache",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Cache.js"
+      },
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "effect/Duration",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Duration.js"
+      },
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "effect/Exit",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Exit.js"
+      },
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "effect/Request",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Request.js"
+      },
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "effect/RequestResolver",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/RequestResolver.js"
+      },
+      {
+        "issuer": "src/shared/remote/orgQueries.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/types.ts"
+      }
+    ],
+    "src/shared/remote/remoteTrackingState.ts": [
+      {
+        "issuer": "src/shared/remote/remoteTrackingState.ts",
+        "request": "../functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      },
+      {
+        "issuer": "src/shared/remote/remoteTrackingState.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/remote/types.ts"
+      }
+    ],
+    "node:os": [],
+    "node_modules/effect/dist/Duration.js": null,
+    "node_modules/effect/dist/HashMap.js": null,
+    "node_modules/effect/dist/HashSet.js": null,
+    "node_modules/effect/dist/Ref.js": null,
+    "node_modules/effect/dist/Schedule.js": null,
+    "node_modules/effect/dist/Stream.js": null,
+    "node_modules/effect/dist/Config.js": null,
+    "node_modules/effect/dist/ConfigProvider.js": null,
+    "src/git/errors.ts": [
+      {
+        "issuer": "src/git/errors.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/errors.ts",
+        "request": "effect/PlatformError",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/PlatformError.js"
+      },
+      {
+        "issuer": "src/git/errors.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      }
+    ],
+    "src/git/repo.ts": [
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Context",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Context.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Exit",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Exit.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Layer",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Layer.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Ref",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Ref.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Semaphore",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Semaphore.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Scope",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Scope.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "effect/Stream",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Stream.js"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "./applyChanges.js",
+        "kind": "StaticImport",
+        "id": "src/git/applyChanges.ts"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "./init.js",
+        "kind": "StaticImport",
+        "id": "src/git/init.ts"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "./objects.js",
+        "kind": "StaticImport",
+        "id": "src/git/objects.ts"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "./refs.js",
+        "kind": "StaticImport",
+        "id": "src/git/refs.ts"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "./statusMatrix.js",
+        "kind": "StaticImport",
+        "id": "src/git/statusMatrix.ts"
+      },
+      {
+        "issuer": "src/git/repo.ts",
+        "request": "./trees.js",
+        "kind": "StaticImport",
+        "id": "src/git/trees.ts"
+      }
+    ],
+    "src/git/sfCompatibility.ts": [
+      {
+        "issuer": "src/git/sfCompatibility.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/git/sfCompatibility.ts",
+        "request": "effect/Match",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Match.js"
+      },
+      {
+        "issuer": "src/git/sfCompatibility.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      }
+    ],
+    "src/git/schemas.ts": [
+      {
+        "issuer": "src/git/schemas.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      }
+    ],
+    "src/shared/eventLoopDelayCapture.ts": [
+      {
+        "issuer": "src/shared/eventLoopDelayCapture.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      }
+    ],
+    "src/shared/local/functions.ts": [
+      {
+        "issuer": "src/shared/local/functions.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/local/functions.ts",
+        "request": "node:os",
+        "kind": "StaticImport",
+        "id": "node:os"
+      },
+      {
+        "issuer": "src/shared/local/functions.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/local/types.ts"
+      }
+    ],
+    "src/shared/local/moveDetectionLite.ts": [
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "node:path",
+        "kind": "StaticImport",
+        "id": "node:path"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "effect/HashMap",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/HashMap.js"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "effect/HashSet",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/HashSet.js"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "effect/Stream",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Stream.js"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "../../git/repo.js",
+        "kind": "StaticImport",
+        "id": "src/git/repo.ts"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "../../git/errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "../../git/objects.js",
+        "kind": "StaticImport",
+        "id": "src/git/objects.ts"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "../../git/workdir.js",
+        "kind": "StaticImport",
+        "id": "src/git/workdir.ts"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "../functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/functions.ts"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "./functions.js",
+        "kind": "StaticImport",
+        "id": "src/shared/local/functions.ts"
+      },
+      {
+        "issuer": "src/shared/local/moveDetectionLite.ts",
+        "request": "./types.js",
+        "kind": "StaticImport",
+        "id": "src/shared/local/types.ts"
+      }
+    ],
+    "src/shared/local/types.ts": [
+      {
+        "issuer": "src/shared/local/types.ts",
+        "request": "@salesforce/core",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/core/lib/index.js"
+      },
+      {
+        "issuer": "src/shared/local/types.ts",
+        "request": "@salesforce/source-deploy-retrieve",
+        "kind": "StaticImport",
+        "id": "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js"
+      }
+    ],
+    "node_modules/effect/dist/FileSystem.js": null,
+    "node_modules/effect/dist/Path.js": null,
+    "node_modules/@effect/platform-node/dist/NodeFileSystem.js": null,
+    "node_modules/@effect/platform-node/dist/NodePath.js": null,
+    "node_modules/effect/dist/Chunk.js": null,
+    "node_modules/@salesforce/core/lib/logger/logger.js": null,
+    "node_modules/@salesforce/source-deploy-retrieve/lib/src/index.js": null,
+    "node_modules/@salesforce/core/lib/lifecycleEvents.js": null,
+    "node_modules/@salesforce/kit/lib/index.js": null,
+    "node_modules/@effect/opentelemetry/dist/index.js": null,
+    "node_modules/effect/dist/Request.js": null,
+    "node_modules/effect/dist/RequestResolver.js": null,
+    "src/git/applyChanges.ts": [
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/Clock",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Clock.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/HashMap",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/HashMap.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/HashSet",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/HashSet.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "effect/Stream",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Stream.js"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "./indexV2.js",
+        "kind": "StaticImport",
+        "id": "src/git/indexV2.ts"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "./lock.js",
+        "kind": "StaticImport",
+        "id": "src/git/lock.ts"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "./objects.js",
+        "kind": "StaticImport",
+        "id": "src/git/objects.ts"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "./refs.js",
+        "kind": "StaticImport",
+        "id": "src/git/refs.ts"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "./writers.js",
+        "kind": "StaticImport",
+        "id": "src/git/writers.ts"
+      },
+      {
+        "issuer": "src/git/applyChanges.ts",
+        "request": "./workdir.js",
+        "kind": "StaticImport",
+        "id": "src/git/workdir.ts"
+      }
+    ],
+    "src/git/init.ts": [
+      {
+        "issuer": "src/git/init.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/init.ts",
+        "request": "effect/Clock",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Clock.js"
+      },
+      {
+        "issuer": "src/git/init.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/init.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/init.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/init.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/init.ts",
+        "request": "./objects.js",
+        "kind": "StaticImport",
+        "id": "src/git/objects.ts"
+      },
+      {
+        "issuer": "src/git/init.ts",
+        "request": "./refs.js",
+        "kind": "StaticImport",
+        "id": "src/git/refs.ts"
+      },
+      {
+        "issuer": "src/git/init.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      }
+    ],
+    "src/git/objects.ts": [
+      {
+        "issuer": "src/git/objects.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/objects.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/objects.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/objects.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/objects.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/objects.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      }
+    ],
+    "src/git/refs.ts": [
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "effect/Exit",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Exit.js"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "effect/Random",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Random.js"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "effect/PlatformError",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/PlatformError.js"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/refs.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      }
+    ],
+    "src/git/statusMatrix.ts": [
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "node:fs",
+        "kind": "StaticImport",
+        "id": "node:fs"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/Array",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Array.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/Match",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Match.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/Order",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Order.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "effect/Stream",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Stream.js"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "./dirWalk.js",
+        "kind": "StaticImport",
+        "id": "src/git/dirWalk.ts"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "./indexV2.js",
+        "kind": "StaticImport",
+        "id": "src/git/indexV2.ts"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "./objects.js",
+        "kind": "StaticImport",
+        "id": "src/git/objects.ts"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "./trees.js",
+        "kind": "StaticImport",
+        "id": "src/git/trees.ts"
+      },
+      {
+        "issuer": "src/git/statusMatrix.ts",
+        "request": "./workdir.js",
+        "kind": "StaticImport",
+        "id": "src/git/workdir.ts"
+      }
+    ],
+    "src/git/trees.ts": [
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "effect/Stream",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Stream.js"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "./objects.js",
+        "kind": "StaticImport",
+        "id": "src/git/objects.ts"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "./refs.js",
+        "kind": "StaticImport",
+        "id": "src/git/refs.ts"
+      },
+      {
+        "issuer": "src/git/trees.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      }
+    ],
+    "node_modules/effect/dist/Context.js": null,
+    "node_modules/effect/dist/Semaphore.js": null,
+    "node_modules/effect/dist/Scope.js": null,
+    "node_modules/effect/dist/Match.js": null,
+    "src/git/workdir.ts": [
+      {
+        "issuer": "src/git/workdir.ts",
+        "request": "node:fs/promises",
+        "kind": "StaticImport",
+        "id": "node:fs/promises"
+      },
+      {
+        "issuer": "src/git/workdir.ts",
+        "request": "node:fs",
+        "kind": "StaticImport",
+        "id": "node:fs"
+      },
+      {
+        "issuer": "src/git/workdir.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/workdir.ts",
+        "request": "effect/PlatformError",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/PlatformError.js"
+      }
+    ],
+    "node_modules/effect/dist/PlatformError.js": null,
+    "node_modules/@opentelemetry/core/build/esm/index.js": null,
+    "node_modules/graceful-fs/graceful-fs.js": null,
+    "node_modules/@opentelemetry/sdk-trace-base/build/esm/index-shim.js": null,
+    "src/git/indexV2.ts": [
+      {
+        "issuer": "src/git/indexV2.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/indexV2.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/indexV2.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/indexV2.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/indexV2.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/indexV2.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      }
+    ],
+    "src/git/lock.ts": [
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/Clock",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Clock.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/Duration",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Duration.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/Exit",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Exit.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/Schedule",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schedule.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/lock.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      }
+    ],
+    "src/git/writers.ts": [
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "effect/Array",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Array.js"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "effect/HashSet",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/HashSet.js"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "effect/Order",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Order.js"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "effect/Schema",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Schema.js"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "./objects.js",
+        "kind": "StaticImport",
+        "id": "src/git/objects.ts"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      },
+      {
+        "issuer": "src/git/writers.ts",
+        "request": "./indexV2.js",
+        "kind": "StaticImport",
+        "id": "src/git/indexV2.ts"
+      }
+    ],
+    "node_modules/effect/dist/Clock.js": null,
+    "src/git/dirWalk.ts": [
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "node:fs",
+        "kind": "StaticImport",
+        "id": "node:fs"
+      },
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "effect/FileSystem",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/FileSystem.js"
+      },
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "effect/Path",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Path.js"
+      },
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "effect/Effect",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Effect.js"
+      },
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "effect/Option",
+        "kind": "StaticImport",
+        "id": "node_modules/effect/dist/Option.js"
+      },
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "./errors.js",
+        "kind": "StaticImport",
+        "id": "src/git/errors.ts"
+      },
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "./ignoreChain.js",
+        "kind": "StaticImport",
+        "id": "src/git/ignoreChain.ts"
+      },
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "./schemas.js",
+        "kind": "StaticImport",
+        "id": "src/git/schemas.ts"
+      },
+      {
+        "issuer": "src/git/dirWalk.ts",
+        "request": "./workdir.js",
+        "kind": "StaticImport",
+        "id": "src/git/workdir.ts"
+      }
+    ],
+    "node_modules/effect/dist/Array.js": null,
+    "node_modules/effect/dist/Order.js": null,
+    "node_modules/effect/dist/Random.js": null,
+    "node:fs/promises": [],
+    "src/git/ignoreChain.ts": [
+      {
+        "issuer": "src/git/ignoreChain.ts",
+        "request": "ignore",
+        "kind": "StaticImport",
+        "id": "node_modules/ignore/index.js"
+      },
+      {
+        "issuer": "src/git/ignoreChain.ts",
+        "request": "ignore",
+        "kind": "StaticImport",
+        "id": "node_modules/ignore/index.js"
+      }
+    ],
+    "node_modules/ignore/index.js": null
+  },
+  "circulars": []
+}

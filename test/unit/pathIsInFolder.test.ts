@@ -15,7 +15,7 @@
  */
 import { normalize, sep } from 'node:path';
 import { expect } from 'chai';
-import { pathIsInFolder } from '../../src/shared/functions';
+import { pathIsInFolder } from '../../src/shared/functions.js';
 
 describe('pathIsInFolder', () => {
   it('does not misidentify partial strings', () => {

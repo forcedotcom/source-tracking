@@ -13,45 +13,65 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import path from 'node:path';
-import * as fs from 'graceful-fs';
-import { parseJsonMap } from '@salesforce/kit';
-import { lockInit, envVars as env, Logger } from '@salesforce/core';
+import fs from 'graceful-fs';
+import { lockInit, Logger, SfError } from '@salesforce/core';
+import * as Config from 'effect/Config';
+import * as ConfigProvider from 'effect/ConfigProvider';
+import * as Effect from 'effect/Effect';
+import * as Schema from 'effect/Schema';
 import {
   getLegacyMetadataKey,
   getMetadataKey,
   getMetadataNameFromLegacyKey,
   getMetadataTypeFromLegacyKey,
-} from '../functions';
-import { RemoteChangeElement } from '../types';
-import { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types';
+} from '../functions.js';
+import { RemoteChangeElement } from '../types.js';
+import { ContentsJsonSchema } from './types.js';
+import type { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types.js';
 
 export const FILENAME = 'maxRevision.json';
+const FILE_VERSION_ENV = 'SF_SOURCE_TRACKING_FILE_VERSION';
 
-export const getFilePath = (orgId: string): string => path.join('.sf', 'orgs', orgId, FILENAME);
-
-export const readFileContents = async (filePath: string): Promise<ContentsV1 | Record<string, never>> => {
-  try {
-    const contents = await fs.promises.readFile(filePath, 'utf8');
-    const parsedContents = parseJsonMap<ContentsV1 | ContentsV0>(contents, filePath);
-    if (parsedContents.fileVersion === 1) {
-      return parsedContents;
-    }
-    Logger.childFromRoot('remoteSourceTrackingService:readFileContents').debug(
-      `older tracking file version, found ${
-        parsedContents.fileVersion ?? 'undefined'
-      }. Upgrading file contents.  Some expected data may be missing`
-    );
-    return upgradeFileContents(parsedContents);
-  } catch (e) {
-    Logger.childFromRoot('remoteSourceTrackingService:readFileContents').debug(
-      `Error reading or parsing file file at ${filePath}.  Will treat as an empty file.`,
-      e
-    );
-
-    return {};
-  }
+export type RemoteTrackingIdentity = {
+  projectPath: string;
+  orgId: string;
 };
+
+class TrackingFileReadError extends Schema.TaggedError<TrackingFileReadError>()('TrackingFileReadError', {
+  filePath: Schema.String,
+  cause: Schema.Defect(),
+  message: Schema.String,
+}) {}
+
+export const getFilePath = ({ projectPath, orgId }: RemoteTrackingIdentity): string =>
+  path.join(projectPath, '.sf', 'orgs', orgId, FILENAME);
+
+export const trackingFileExists = (filePath: string): boolean => fs.existsSync(filePath);
+
+/** Read and normalize either persisted file version. Read/parse failures mean an empty snapshot. */
+export const readFileContents = Effect.fnUntraced(function* (filePath: string) {
+  const contents = yield* Effect.tryPromise({
+    try: async () => {
+      const raw = await fs.promises.readFile(filePath, 'utf8');
+      const parsed = Schema.decodeUnknownSync(ContentsJsonSchema)(raw);
+      return parsed.fileVersion === 1 ? parsed : upgradeFileContents(parsed);
+    },
+    catch: (cause) => new TrackingFileReadError({ filePath, cause, message: String(cause) }),
+  }).pipe(
+    Effect.tapError((cause) =>
+      Effect.sync(() =>
+        Logger.childFromRoot('remoteSourceTracking:readFileContents').debug(
+          `Error reading or parsing file at ${filePath}. Will treat as an empty file: ${cause.message}`,
+          cause.cause
+        )
+      )
+    ),
+    Effect.catchTag('TrackingFileReadError', () => Effect.succeed({}))
+  );
+  return contents;
+});
 
 export const revisionToRemoteChangeElement = (memberRevision: MemberRevision): RemoteChangeElement => ({
   type: memberRevision.MemberType,
@@ -67,9 +87,7 @@ export const revisionToRemoteChangeElement = (memberRevision: MemberRevision): R
 export const upgradeFileContents = (contents: ContentsV0): ContentsV1 => ({
   fileVersion: 1,
   serverMaxRevisionCounter: contents.serverMaxRevisionCounter,
-  // @ts-expect-error the old file didn't store the IsNewMember field or any indication of whether the member was add/modified
   sourceMembers: Object.fromEntries(
-    // it's the old version
     Object.entries(contents.sourceMembers).map(([key, value]) => [
       getMetadataKey(getMetadataTypeFromLegacyKey(key), getMetadataNameFromLegacyKey(key)),
       {
@@ -86,63 +104,110 @@ export const upgradeFileContents = (contents: ContentsV0): ContentsV1 => ({
   ),
 });
 
-/**
- * Prevents cross-process stale writes by merging in-memory state with on-disk state.
- * For each member present in both, takes the higher lastRetrievedFromServer (never regresses).
- */
-const mergeWithDiskState = async (
-  filePath: string,
-  members: Map<string, MemberRevision>,
-  maxCounter: number
-): Promise<number> => {
-  const diskContents = await readFileContents(filePath);
-  if (!('serverMaxRevisionCounter' in diskContents) || !diskContents.sourceMembers) {
-    return maxCounter;
-  }
-
-  for (const [key, diskMember] of Object.entries(diskContents.sourceMembers)) {
-    const memMember = members.get(key);
-    if (memMember && (diskMember.lastRetrievedFromServer ?? -1) > (memMember.lastRetrievedFromServer ?? -1)) {
-      members.set(key, { ...memMember, lastRetrievedFromServer: diskMember.lastRetrievedFromServer });
-    }
-  }
-
-  const diskMax = diskContents.serverMaxRevisionCounter;
-  return Number.isFinite(diskMax) ? Math.max(maxCounter, diskMax) : maxCounter;
-};
-
-export const writeTrackingFile = async ({
+/** @internal */
+export const writeTrackingFile = Effect.fnUntraced(function* ({
   filePath,
   maxCounter,
   members,
+  baseMaxCounter,
+  replace = false,
 }: {
   filePath: string;
   maxCounter: number;
   members: Map<string, MemberRevision>;
-}): Promise<void> => {
-  const lockResult = await lockInit(filePath);
+  /** Counter in the file when this operation started; prevents stale writes after a reset. */
+  baseMaxCounter?: number;
+  /** Reset replaces the snapshot instead of merging it with the previous contents. */
+  replace?: boolean;
+}) {
+  const provider = ConfigProvider.fromEnv();
+  const currentFileVersion = yield* Config.Number(FILE_VERSION_ENV)
+    .pipe(Config.withDefault(0))
+    .parse(provider)
+    .pipe(Effect.orDie);
 
-  // Merge with on-disk state to prevent cross-process stale overwrites.
-  // readFileContents returns {} for missing/unreadable files, which mergeWithDiskState handles.
-  maxCounter = await mergeWithDiskState(filePath, members, maxCounter);
+  const incoming: ContentsV1 = {
+    fileVersion: 1,
+    serverMaxRevisionCounter: maxCounter,
+    sourceMembers: Object.fromEntries(members),
+  };
 
-  const CURRENT_FILE_VERSION_ENV = env.getNumber('SF_SOURCE_TRACKING_FILE_VERSION') ?? 0;
-  const contents =
-    CURRENT_FILE_VERSION_ENV === 1
-      ? ({
-          fileVersion: 1,
-          serverMaxRevisionCounter: maxCounter,
-          sourceMembers: Object.fromEntries(members),
-        } satisfies ContentsV1)
-      : ({
-          fileVersion: 0,
-          serverMaxRevisionCounter: maxCounter,
-          sourceMembers: Object.fromEntries(Array.from(members.entries()).map(toLegacyMemberRevision)),
-        } satisfies ContentsV0);
-  await lockResult.writeAndUnlock(JSON.stringify(contents, null, 4));
+  return yield* Effect.scoped(
+    Effect.gen(function* () {
+      yield* Effect.acquireRelease(
+        Effect.tryPromise({
+          try: () => lockInit(filePath),
+          catch: (cause) => SfError.wrap(cause),
+        }),
+        (lockResult) =>
+          Effect.tryPromise({
+            try: () => lockResult.unlock(),
+            catch: (cause) => SfError.wrap(cause),
+          }).pipe(Effect.catch(() => Effect.void))
+      );
+
+      const latestContents = yield* readFileContents(filePath);
+      const latest: ContentsV1 =
+        'sourceMembers' in latestContents
+          ? latestContents
+          : { fileVersion: 1, serverMaxRevisionCounter: 0, sourceMembers: {} };
+      const committed = replace
+        ? incoming
+        : baseMaxCounter !== undefined && latest.serverMaxRevisionCounter < baseMaxCounter
+        ? latest
+        : mergeTrackingContents(latest, incoming);
+      const persisted =
+        currentFileVersion === 1
+          ? committed
+          : ({
+              fileVersion: 0,
+              serverMaxRevisionCounter: committed.serverMaxRevisionCounter,
+              sourceMembers: Object.fromEntries(
+                Object.entries(committed.sourceMembers).map(([key, member]) => toLegacyMemberRevision([key, member]))
+              ),
+            } satisfies ContentsV0);
+      const encoded = yield* Effect.try({
+        try: () => Schema.encodeSync(ContentsJsonSchema)(persisted),
+        catch: (cause) => SfError.wrap(cause),
+      });
+      yield* Effect.tryPromise({
+        try: () => fs.promises.writeFile(filePath, encoded),
+        catch: (cause) => SfError.wrap(cause),
+      });
+      return committed;
+    })
+  );
+});
+
+const mergeTrackingContents = (latest: ContentsV1, incoming: ContentsV1): ContentsV1 => {
+  const sourceMembers = { ...latest.sourceMembers };
+  Object.entries(incoming.sourceMembers).forEach(([key, incomingMember]) => {
+    const latestMember = sourceMembers[key];
+    if (!latestMember || incomingMember.RevisionCounter > latestMember.RevisionCounter) {
+      sourceMembers[key] = incomingMember;
+    } else if (incomingMember.RevisionCounter === latestMember.RevisionCounter) {
+      const lastRetrievedFromServer = Math.max(
+        latestMember.lastRetrievedFromServer ?? -1,
+        incomingMember.lastRetrievedFromServer ?? -1
+      );
+      sourceMembers[key] = {
+        ...latestMember,
+        ...incomingMember,
+        lastRetrievedFromServer: lastRetrievedFromServer < 0 ? undefined : lastRetrievedFromServer,
+      };
+    }
+  });
+  return {
+    fileVersion: 1,
+    serverMaxRevisionCounter: Math.max(latest.serverMaxRevisionCounter, incoming.serverMaxRevisionCounter),
+    sourceMembers,
+  };
 };
 
-const toLegacyMemberRevision = ([, member]: [string, MemberRevision]): [key: string, MemberRevisionLegacy] => [
+const toLegacyMemberRevision = ([, member]: [key: string, member: MemberRevision]): [
+  key: string,
+  MemberRevisionLegacy
+] => [
   getLegacyMetadataKey(member.MemberType, member.MemberName),
   {
     memberType: member.MemberType,
