@@ -55,6 +55,7 @@
   },
   "dependencies": {
     "@effect/platform-node": "^4.0.1",
+    "@salesforce/core": "^9.3.6",
     "@salesforce/kit": "^4.0.0",
     "@salesforce/source-deploy-retrieve": "^13.5.0",
     "@salesforce/ts-types": "^3.2.0",
@@ -78,7 +79,6 @@
     "@opentelemetry/sdk-trace-node": "^2.11.0",
     "@opentelemetry/sdk-trace-web": "^2.11.0",
     "@salesforce/cli-plugins-testkit": "^5.3.39",
-    "@salesforce/core": "^9.3.6",
     "@salesforce/dev-scripts": "^14.0.0",
     "@salesforce/schemas": "^1.10.3",
     "@types/chai": "^4.3.17",
@@ -97,9 +97,6 @@
     "ts-node": "^10.9.2",
     "ts-patch": "^3.3.0",
     "typescript": "^6.0.3"
-  },
-  "peerDependencies": {
-    "@salesforce/core": "^9.3.6"
   },
   "config": {},
   "publishConfig": {
