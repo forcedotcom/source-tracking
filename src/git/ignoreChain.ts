@@ -39,20 +39,29 @@ export type IgnoreChain = readonly IgnoreChainLink[];
 /** Empty matcher used as the placeholder for `''` anchor when info/exclude is absent. */
 const EMPTY: Ignore = ignore();
 
+const relativePathAtAnchor = (anchor: string, path: string): string | undefined => {
+  if (anchor === '') return path;
+  const prefix = `${anchor}/`;
+  return path.startsWith(prefix) ? path.slice(prefix.length) : undefined;
+};
+
 /**
  * Given a chain and a posix workdir-relative path, return whether any link
  * in the chain considers it ignored. Invariant: links are ordered by
- * increasing anchor depth, but `chainIgnores` does not rely on order — it
- * tests every applicable link.
+ * increasing anchor depth, so the last applicable matching rule wins.
  */
-const ignoredByChain = (chain: IgnoreChain, path: string): boolean =>
-  chain.reduce((ignored, { anchor, matcher }) => {
-    const relativePath =
-      anchor === '' ? path : path.startsWith(`${anchor}/`) ? path.slice(anchor.length + 1) : undefined;
-    if (relativePath === undefined || relativePath.length === 0) return ignored;
+const ignoredByChain = (chain: IgnoreChain, path: string): boolean => {
+  const lastMatchingLink = chain.findLast(({ anchor, matcher }) => {
+    const relativePath = relativePathAtAnchor(anchor, path);
+    if (relativePath === undefined || relativePath.length === 0) return false;
     const result = matcher.test(relativePath);
-    return result.ignored ? true : result.unignored ? false : ignored;
-  }, false);
+    return result.ignored || result.unignored;
+  });
+  if (lastMatchingLink === undefined) return false;
+  const relativePath = relativePathAtAnchor(lastMatchingLink.anchor, path);
+  if (relativePath === undefined || relativePath.length === 0) return false;
+  return lastMatchingLink.matcher.test(relativePath).ignored;
+};
 
 export const chainIgnores = (chain: IgnoreChain, path: string): boolean => {
   const parts = path.split('/');

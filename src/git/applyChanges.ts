@@ -40,9 +40,7 @@ const readWorkdirBytes = Effect.fnUntraced(function* (dir: string, rel: RepoPath
   const fs = yield* FileSystem;
   const path = yield* Path;
   const abs = path.join(dir, rel);
-  return yield* fs
-    .readFile(abs)
-    .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))));
+  return yield* fs.readFile(abs).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)));
 });
 
 export type ApplyArgs = {
@@ -70,13 +68,11 @@ const stageAdd = Effect.fnUntraced(function* (cfg: ApplyArgs['cfg'], p: RepoPath
   const fs = yield* FileSystem;
   const path = yield* Path;
   const abs = path.join(cfg.dir, p);
-  const info = yield* lstat(abs).pipe(
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause)))
-  );
+  const info = yield* lstat(abs).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)));
   const bytes = info.isSymbolicLink()
     ? yield* fs.readLink(abs).pipe(
         Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))),
-        Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause)))
+        Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause))
       )
     : yield* readWorkdirBytes(cfg.dir, p);
   const oid = yield* writeLooseObject(cfg.gitdir, 'blob', bytes);
@@ -104,7 +100,7 @@ const stageAdd = Effect.fnUntraced(function* (cfg: ApplyArgs['cfg'], p: RepoPath
         size: bytes.byteLength,
       },
     } satisfies IndexEntry,
-  ] as const;
+  ] satisfies readonly [RepoPath, IndexEntry];
 });
 
 /**
@@ -143,7 +139,7 @@ const writeIndex = Effect.fn('writeIndex')(function* (
   const bytes = yield* writeIndexV2(entries, extensions);
   yield* fs
     .writeFile(indexPath, bytes)
-    .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(indexPath, cause))));
+    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(indexPath, cause)));
 });
 
 const writeTreeForEntries = (gitdir: string, entries: HashSet.HashSet<IndexEntry>) => {
@@ -188,7 +184,9 @@ const buildAndCommit = Effect.fn('buildAndCommit')(function* (
     ],
     { concurrency: 'unbounded' }
   );
-  const currentMap = HashMap.fromIterable(parsed.entries.map((e) => [e.path, e] as const));
+  const currentMap = HashMap.fromIterable(
+    parsed.entries.map((e) => [e.path, e] satisfies readonly [string, IndexEntry])
+  );
   // Drop cache-class extensions — they summarize state this commit changed.
   // Stable extensions pass through.
   const carriedExtensions = parsed.extensions.filter(isStableExtension);

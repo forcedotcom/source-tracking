@@ -17,13 +17,16 @@
 import path from 'node:path';
 import { EOL } from 'node:os';
 import fs from 'graceful-fs';
-import { envVars as env, Logger, Lifecycle, Messages, Org, SfError } from '@salesforce/core';
+import { Logger, Lifecycle, Messages, Org, SfError } from '@salesforce/core';
 import * as Cache from 'effect/Cache';
+import * as Config from 'effect/Config';
+import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as HashMap from 'effect/HashMap';
 import * as HashSet from 'effect/HashSet';
+import * as Option from 'effect/Option';
 import * as Ref from 'effect/Ref';
 import * as Schedule from 'effect/Schedule';
 import * as Stream from 'effect/Stream';
@@ -52,8 +55,9 @@ import {
 } from './remoteTrackingState.js';
 
 const POLLING_DELAY_MS = 1000;
-const consecutiveEmptyPollingResultLimit = (): number =>
-  (env.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT') ?? 120) / Duration.toSeconds(Duration.millis(POLLING_DELAY_MS));
+const SOURCE_MEMBER_POLLING_TIMEOUT = 'SF_SOURCE_MEMBER_POLLING_TIMEOUT';
+const DISABLE_SOURCE_MEMBER_POLLING = 'SF_DISABLE_SOURCE_MEMBER_POLLING';
+const DEFAULT_EMPTY_POLLING_RESULT_LIMIT = 120;
 
 export type RemoteTrackingOptions = {
   org: Org;
@@ -256,7 +260,8 @@ const syncSpecifiedElements = ({
   const quietLogger: (message: string) => void =
     elements.length > 100 ? logger.silent?.bind(logger) ?? ((): void => {}) : logger.debug.bind(logger);
   quietLogger(`Syncing ${elements.length} Revisions by key`);
-  const metadataKeys = new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(registry)(element)));
+  const metadataKeysFromFileResponse = getMetadataKeyFromFileResponse(registry);
+  const metadataKeys = new Set(elements.flatMap(metadataKeysFromFileResponse));
   metadataKeys.forEach((metadataKey) => {
     const revision = getSourceMember(state, metadataKey);
     if (!revision) {
@@ -284,7 +289,14 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
   state: RemoteTrackingState;
   logger: PinoLogger;
 }) {
-  if (env.getBoolean('SF_DISABLE_SOURCE_MEMBER_POLLING')) {
+  const pollingDisabled = yield* Config.String(DISABLE_SOURCE_MEMBER_POLLING)
+    .pipe(
+      Config.withDefault('false'),
+      Config.map((value) => value.toLowerCase() === 'true' || value === '1')
+    )
+    .parse(ConfigProvider.fromEnv())
+    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(false)));
+  if (pollingDisabled) {
     logger.warn('Not polling for SourceMembers since SF_DISABLE_SOURCE_MEMBER_POLLING = true.');
     return;
   }
@@ -292,7 +304,15 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
 
   const expectedSourceMembers = calculateExpectedSourceMembers(registry, elements);
   const originalOutstandingSize = expectedSourceMembers.size;
-  const pollingTimeout = calculateTimeout(logger)(expectedSourceMembers.size);
+  const timeoutOverride = yield* Config.option(Config.Number(SOURCE_MEMBER_POLLING_TIMEOUT))
+    .parse(ConfigProvider.fromEnv())
+    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(Option.none<number>())));
+  const overriddenTimeout = Option.getOrElse(timeoutOverride, () => 0);
+  const consecutiveEmptyPollLimit = Option.getOrElse(
+    Option.map(timeoutOverride, (seconds) => seconds / Duration.toSeconds(Duration.millis(POLLING_DELAY_MS))),
+    () => DEFAULT_EMPTY_POLLING_RESULT_LIMIT
+  );
+  const pollingTimeout = calculateTimeout(logger)(expectedSourceMembers.size, overriddenTimeout);
   const pollState = yield* Ref.make<PollState>({
     highestRevisionSoFar: state.serverMaxRevisionCounter,
     pollAttempts: 0,
@@ -323,7 +343,7 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
         Effect.catch((cause) =>
           Effect.as(
             Effect.sync(() => logger.debug(`SourceMember poll ${pollAttempt} failed: ${String(cause)}`)),
-            { members: [] as SourceMember[], queryFailed: true }
+            { members: [] satisfies SourceMember[], queryFailed: true }
           )
         )
       );
@@ -378,8 +398,7 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
       } of ${originalOutstandingSize} expected SourceMembers`
     );
     const complete = HashMap.size(current.outstandingSourceMembers) === 0;
-    const stopped =
-      current.someResultsReturned && current.consecutiveEmptyResults >= consecutiveEmptyPollingResultLimit();
+    const stopped = current.someResultsReturned && current.consecutiveEmptyResults >= consecutiveEmptyPollLimit;
 
     if (!complete && !stopped) {
       logger.debug(

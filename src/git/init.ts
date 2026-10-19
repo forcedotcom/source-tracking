@@ -35,7 +35,7 @@ const exists = (file: string) =>
     Effect.flatMap((fs) =>
       fs.exists(file).pipe(
         Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)),
-        Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause)))
+        Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause))
       )
     )
   );
@@ -44,15 +44,15 @@ const readStringOrEmpty = Effect.fnUntraced(function* (file: string) {
   const fs = yield* FileSystem;
   return yield* fs.readFileString(file).pipe(
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed('')),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause)))
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause))
   );
 });
 
 const readDirectoryOrEmpty = Effect.fnUntraced(function* (directory: string) {
   const fs = yield* FileSystem;
   return yield* fs.readDirectory(directory).pipe(
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([] as string[])),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(directory, cause)))
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([] satisfies string[])),
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(directory, cause))
   );
 });
 
@@ -60,14 +60,14 @@ const isRegularFile = (file: string) =>
   lstat(file).pipe(
     Effect.map((info) => info.isFile()),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause)))
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause))
   );
 
 const isDirectory = (directory: string) =>
   lstat(directory).pipe(
     Effect.map((info) => info.isDirectory()),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(directory, cause)))
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(directory, cause))
   );
 
 const hasExactly = (actual: readonly string[], expected: readonly string[]): boolean =>
@@ -233,10 +233,8 @@ const writeFile = Effect.fn('writeFile')(function* (file: string, bytes: Uint8Ar
   const path = yield* Path;
   yield* fs
     .makeDirectory(path.dirname(file), { recursive: true })
-    .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(path.dirname(file), cause))));
-  yield* fs
-    .writeFile(file, bytes)
-    .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
+    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(path.dirname(file), cause)));
+  yield* fs.writeFile(file, bytes).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)));
 });
 
 /** Format a timestamp as `<seconds> +0000` (lite always uses UTC). */
@@ -367,8 +365,9 @@ const freshInit = Effect.fn('freshInit')(function* (a: {
   yield* writeSymbolicHead(a.cfg.gitdir, MAIN_REF);
 
   // 5. info/exclude (empty) — only if absent. Caller mutates via setInfoExclude.
-  const excludeExists = yield* exists(a.infoExcludePath);
-  yield* excludeExists ? Effect.void : writeFile(a.infoExcludePath, new Uint8Array(0));
+  yield* exists(a.infoExcludePath).pipe(
+    Effect.flatMap((excludeExists) => (excludeExists ? Effect.void : writeFile(a.infoExcludePath, new Uint8Array(0))))
+  );
 
   // 6. config.
   yield* writeFile(a.configPath, buildConfig());

@@ -24,7 +24,7 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { Repo } from '../../../src/git/repo.js';
 import { RepoNotConfiguredError } from '../../../src/git/errors.js';
-import { RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
+import { RefName, RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
 
 const TestLayer = Layer.provide(Repo.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer));
 
@@ -61,7 +61,7 @@ describe('git/Repo lifecycle (phase 1)', () => {
     const exit = await runUnit(
       Effect.gen(function* () {
         const repo = yield* Repo;
-        return yield* repo.resolveRef(Schema.decodeUnknownSync(Schema.String)('HEAD') as never);
+        return yield* repo.resolveRef(Schema.decodeUnknownSync(RefName)('HEAD'));
       })
     );
     expect(Exit.isFailure(exit)).to.equal(true);

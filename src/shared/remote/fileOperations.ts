@@ -166,14 +166,17 @@ export const writeTrackingFile = Effect.fnUntraced(function* ({
                 Object.entries(committed.sourceMembers).map(([key, member]) => toLegacyMemberRevision([key, member]))
               ),
             } satisfies ContentsV0);
-      const encoded = yield* Effect.try({
+      yield* Effect.try({
         try: () => Schema.encodeSync(ContentsJsonSchema)(persisted),
         catch: (cause) => SfError.wrap(cause),
-      });
-      yield* Effect.tryPromise({
-        try: () => fs.promises.writeFile(filePath, encoded),
-        catch: (cause) => SfError.wrap(cause),
-      });
+      }).pipe(
+        Effect.flatMap((encoded) =>
+          Effect.tryPromise({
+            try: () => fs.promises.writeFile(filePath, encoded),
+            catch: (cause) => SfError.wrap(cause),
+          })
+        )
+      );
       return committed;
     })
   );

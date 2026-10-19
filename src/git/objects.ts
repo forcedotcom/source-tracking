@@ -144,10 +144,10 @@ export const writeLooseObject = Effect.fnUntraced(function* (
 
   yield* fs
     .makeDirectory(dir, { recursive: true })
-    .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(dir, cause))));
+    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(dir, cause)));
   yield* fs
     .writeFile(file, yield* deflate(frameLooseObject(type, content)))
-    .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
+    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)));
   return oid;
 });
 
@@ -161,7 +161,7 @@ export const readLooseObject = Effect.fn('readLooseObject')(function* (gitdir: s
   const path = yield* Path;
   const { file } = looseObjectPath(path, gitdir, oid);
 
-  const compressed = yield* fs.readFile(file).pipe(
+  const inflated = yield* fs.readFile(file).pipe(
     Effect.catchReason('PlatformError', 'NotFound', () =>
       Effect.fail(new ObjectNotFoundError({ oid, message: `loose object ${oid} not found at ${file}` }))
     ),
@@ -175,10 +175,9 @@ export const readLooseObject = Effect.fn('readLooseObject')(function* (gitdir: s
           message: `loose object ${oid} read failed: ${cause.message}`,
         })
       )
-    )
+    ),
+    Effect.flatMap(inflate)
   );
-
-  const inflated = yield* inflate(compressed);
   const parsed = parseLooseObject(oid, inflated);
   if (parsed.kind === 'corrupt') return yield* parsed.error;
   const verifiedHex = yield* sha1Hex(inflated);

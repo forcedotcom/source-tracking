@@ -5,6 +5,7 @@
     "runEffectInsideEffect",
     "globalErrorInEffectFailure",
     "globalErrorInEffectCatch",
+    "catchAllToMapError",
     "catchUnfailableEffect",
     "tryCatchInEffectGen",
     "unknownInEffectCatch",

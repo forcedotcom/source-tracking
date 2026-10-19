@@ -36,7 +36,7 @@ const readUtf8 = (file: string) =>
       fs.readFile(file).pipe(
         Effect.map((bytes) => Option.some(TEXT.decode(bytes))),
         Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<string>())),
-        Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause)))
+        Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause))
       )
     )
   );
@@ -139,11 +139,9 @@ const writeAtomically = Effect.fn('writeAtomically')(function* (gitdir: string, 
   const tmp = `${file}.tmp.${random.toString(36).slice(2)}`;
   yield* fs
     .makeDirectory(path.dirname(file), { recursive: true })
-    .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(path.dirname(file), cause))));
-  yield* fs
-    .writeFile(tmp, bytes)
-    .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(tmp, cause))));
-  yield* fs.rename(tmp, file).pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
+    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(path.dirname(file), cause)));
+  yield* fs.writeFile(tmp, bytes).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(tmp, cause)));
+  yield* fs.rename(tmp, file).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)));
 });
 
 /**

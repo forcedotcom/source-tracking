@@ -13,14 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { Stats } from 'node:fs';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
 import * as Arr from 'effect/Array';
 import * as Effect from 'effect/Effect';
+import * as HashMap from 'effect/HashMap';
+import * as HashSet from 'effect/HashSet';
 import * as Match from 'effect/Match';
 import * as Option from 'effect/Option';
 import * as Order from 'effect/Order';
+import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 import * as Stream from 'effect/Stream';
 import { nodeIgnores, readInfoExclude, walkAllRoots, type WalkResult } from './dirWalk.js';
@@ -43,12 +45,17 @@ const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string, mode:
   const content = isSymlinkMode(mode)
     ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
     : fs.readFile(abs);
-  const bytes = yield* content.pipe(
+  return yield* content.pipe(
     Effect.map((b) => Option.some(b)),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Uint8Array>())),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause)))
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)),
+    Effect.flatMap((bytes) =>
+      Option.match(bytes, {
+        onNone: () => Effect.succeed(Option.none<Oid>()),
+        onSome: (value) => hashBlob(value).pipe(Effect.map(Option.some)),
+      })
+    )
   );
-  return Option.isNone(bytes) ? Option.none<Oid>() : Option.some(yield* hashBlob(bytes.value));
 });
 
 /**
@@ -59,7 +66,7 @@ const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string, mode:
  * ignored?" is already a Map lookup. `'added'` and `'ignored'` are the only
  * two valid resolutions for an untracked workdir file.
  */
-type UntrackedClassification = ReadonlyMap<string, 'added' | 'ignored'>;
+type UntrackedClassification = HashMap.HashMap<string, 'added' | 'ignored'>;
 
 /**
  * Collapse (head, index, workdir) → public StatusEntry per
@@ -84,7 +91,10 @@ const collapse = (
       // 'ignored'. Anything not in the map (shouldn't happen with a fresh
       // walk; possible if a stale cache slice is in play) defaults to
       // 'added' — the safe-to-show classification.
-      Option.some<StatusEntry>({ path, status: untracked.get(rawPath) ?? 'added' })
+      Option.some<StatusEntry>({
+        path,
+        status: Option.getOrElse(HashMap.get(untracked, rawPath), () => 'added'),
+      })
     ),
     Match.when({ tracked: true, hasWorkdir: false }, () => Option.some<StatusEntry>({ path, status: 'deleted' })),
     Match.when({ tracked: true, hasWorkdir: true }, () =>
@@ -134,8 +144,11 @@ const cellHashing = Effect.fn('cellHashing')(function* (
   untracked: UntrackedClassification
 ) {
   const path = yield* Path;
-  const workdirOid = yield* hashWorkdirOid(path.join(cfg.dir, rel), workdirMode);
-  return collapse(rel, head, index, Option.getOrUndefined(workdirOid), workdirMode, untracked, true);
+  return yield* hashWorkdirOid(path.join(cfg.dir, rel), workdirMode).pipe(
+    Effect.map((workdirOid) =>
+      collapse(rel, head, index, Option.getOrUndefined(workdirOid), workdirMode, untracked, true)
+    )
+  );
 });
 
 /**
@@ -143,41 +156,44 @@ const cellHashing = Effect.fn('cellHashing')(function* (
  */
 const evaluateMatrix = (
   cfg: { readonly dir: string; readonly roots: readonly RepoPath[] },
-  headByPath: ReadonlyMap<string, HeadFile>,
-  indexByPath: ReadonlyMap<string, IndexEntry>,
-  workdirSet: ReadonlySet<string>,
-  workdirModes: ReadonlyMap<string, number>,
+  headByPath: HashMap.HashMap<string, HeadFile>,
+  indexByPath: HashMap.HashMap<string, IndexEntry>,
+  workdirSet: HashSet.HashSet<string>,
+  workdirModes: HashMap.HashMap<string, number>,
   untracked: UntrackedClassification
 ) =>
   Effect.gen(function* () {
+    const trackedPaths = HashSet.union(
+      headByPath.pipe(HashMap.keys, HashSet.fromIterable),
+      indexByPath.pipe(HashMap.keys, HashSet.fromIterable)
+    );
     const allPaths = Arr.sort(Order.String)(
-      Arr.fromIterable(new Set([...headByPath.keys(), ...indexByPath.keys(), ...workdirSet])).filter((p) =>
-        inRoots(p, cfg.roots)
-      )
+      Arr.fromIterable(HashSet.union(trackedPaths, workdirSet)).filter((p) => inRoots(p, cfg.roots))
     );
 
-    // Partition: paths that need a workdir hash vs paths that don't.
     // Hashing cohort is small (modified-or-unmodified tracked files); pure
-    // cohort is the rest. Doing the pure majority synchronously avoids
-    // spawning N fibers for pure-CPU work.
-    const pure: Array<Option.Option<StatusEntry>> = [];
-    const needsHash: string[] = [];
-    // eslint-disable-next-line functional/no-loop-statements
-    for (const p of allPaths) {
-      const head = headByPath.get(p);
-      const indexEntry = indexByPath.get(p);
+    // cohort is the rest. Partition once so the pure majority doesn't spawn
+    // fibers or require mutable accumulator arrays.
+    const [needsHash, pure] = Arr.partition(allPaths, (p) => {
+      const head = Option.getOrUndefined(HashMap.get(headByPath, p));
+      const indexEntry = Option.getOrUndefined(HashMap.get(indexByPath, p));
       const tracked = head !== undefined || indexEntry !== undefined;
-      const inWd = workdirSet.has(p);
-      if (tracked && inWd) needsHash.push(p);
-      else pure.push(cellPure(p, head, indexEntry, inWd, untracked));
-    }
-    const hashed = yield* Effect.forEach(
+      const inWd = HashSet.has(workdirSet, p);
+      return tracked && inWd ? Result.succeed(p) : Result.fail(cellPure(p, head, indexEntry, inWd, untracked));
+    });
+    return yield* Effect.forEach(
       needsHash,
       (p) =>
-        cellHashing(cfg, p, headByPath.get(p), indexByPath.get(p), workdirModes.get(p) ?? GIT_FILE_MODE, untracked),
+        cellHashing(
+          cfg,
+          p,
+          Option.getOrUndefined(HashMap.get(headByPath, p)),
+          Option.getOrUndefined(HashMap.get(indexByPath, p)),
+          Option.getOrUndefined(HashMap.get(workdirModes, p)) ?? GIT_FILE_MODE,
+          untracked
+        ),
       { concurrency: 256 }
-    );
-    return [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []));
+    ).pipe(Effect.map((hashed) => [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []))));
   });
 
 /**
@@ -190,10 +206,10 @@ const evaluateMatrix = (
  */
 const collectFromWalk = (
   walk: WalkResult,
-  indexByPath: ReadonlyMap<string, IndexEntry>
+  indexByPath: HashMap.HashMap<string, IndexEntry>
 ): {
-  readonly workdirSet: ReadonlySet<string>;
-  readonly workdirModes: ReadonlyMap<string, number>;
+  readonly workdirSet: HashSet.HashSet<string>;
+  readonly workdirModes: HashMap.HashMap<string, number>;
   readonly untracked: UntrackedClassification;
 } => {
   const workdirSet = new Set<string>();
@@ -206,10 +222,14 @@ const collectFromWalk = (
       const rel = node.snapshot.dir === '' ? name : `${node.snapshot.dir}/${name}`;
       workdirSet.add(rel);
       workdirModes.set(rel, node.snapshot.fileModes.get(name) ?? GIT_FILE_MODE);
-      if (!indexByPath.has(rel)) untracked.set(rel, nodeIgnores(node, rel) ? 'ignored' : 'added');
+      if (!HashMap.has(indexByPath, rel)) untracked.set(rel, nodeIgnores(node, rel) ? 'ignored' : 'added');
     }
   }
-  return { workdirSet, workdirModes, untracked };
+  return {
+    workdirSet: HashSet.fromIterable(workdirSet),
+    workdirModes: HashMap.fromIterable(workdirModes),
+    untracked: HashMap.fromIterable(untracked),
+  };
 };
 
 /**
@@ -228,13 +248,16 @@ export const cold = (cfg: {
     Effect.gen(function* () {
       const excludeContent = yield* readInfoExclude(cfg.gitdir);
       const idx = yield* readIndex(cfg.gitdir);
-      const indexByPath = new Map(idx.entries.map((e) => [e.path, e] as const));
+      const indexByPath = HashMap.fromIterable(
+        idx.entries.map((e) => [e.path, e] satisfies readonly [string, IndexEntry])
+      );
 
-      const headByPath = new Map(
+      const headByPath = HashMap.fromIterable(
         yield* streamHeadTreeWithMode(cfg.gitdir).pipe(
-          Stream.map((entry) => [entry.path, { oid: entry.oid, mode: entry.mode }] as const),
-          Stream.runCollect,
-          Effect.map((c): ReadonlyArray<readonly [string, HeadFile]> => Array.from(c))
+          Stream.map(
+            (entry) => [entry.path, { oid: entry.oid, mode: entry.mode }] satisfies readonly [string, HeadFile]
+          ),
+          Stream.runCollect
         )
       );
 
@@ -242,19 +265,28 @@ export const cold = (cfg: {
         { dir: cfg.dir, roots: cfg.roots, fdPermits: cfg.fdPermits ?? 256 },
         excludeContent
       );
-      const fileRoots = yield* collectBareFileRoots(cfg.dir, cfg.roots);
+      const { workdirSet: fileRootPaths, workdirModes: fileRootModes } = yield* collectBareFileRoots(
+        cfg.dir,
+        cfg.roots
+      );
       const { workdirSet: walked, workdirModes: walkedModes, untracked } = collectFromWalk(walk, indexByPath);
       // Bare file roots don't show up via dir-walk; merge them in.
-      const workdirSet = new Set([...walked, ...fileRoots.paths]);
-      const workdirModes = new Map([...walkedModes, ...fileRoots.modes]);
-      const untrackedAll = new Map(untracked);
-      // eslint-disable-next-line functional/no-loop-statements
-      for (const rel of fileRoots.paths) {
-        if (!indexByPath.has(rel)) untrackedAll.set(rel, walk.isIgnoredAtRoot(rel) ? 'ignored' : 'added');
-      }
+      const workdirSet = HashSet.union(walked, fileRootPaths);
+      const workdirModes = HashMap.union(walkedModes, fileRootModes);
+      const bareFileUntracked = HashMap.fromIterable(
+        fileRootPaths.pipe(
+          HashSet.filter((rel) => !HashMap.has(indexByPath, rel)),
+          HashSet.map(
+            (rel) =>
+              [rel, walk.isIgnoredAtRoot(rel) ? 'ignored' : 'added'] satisfies readonly [string, 'added' | 'ignored']
+          )
+        )
+      );
+      const untrackedAll = HashMap.union(untracked, bareFileUntracked);
 
-      const cells = yield* evaluateMatrix(cfg, headByPath, indexByPath, workdirSet, workdirModes, untrackedAll);
-      return Stream.fromIterable(cells);
+      return yield* evaluateMatrix(cfg, headByPath, indexByPath, workdirSet, workdirModes, untrackedAll).pipe(
+        Effect.map(Stream.fromIterable)
+      );
     })
   );
 
@@ -271,21 +303,23 @@ const collectBareFileRoots = (dir: string, roots: readonly RepoPath[]) =>
       Effect.gen(function* () {
         const path = yield* Path;
         const abs = path.join(dir, rel);
-        const info = yield* lstat(abs).pipe(
-          Effect.map(Option.some),
-          Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Stats>())),
-          Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause)))
-        );
-        return Option.match(info, {
-          onNone: () => Option.none<readonly [string, number]>(),
-          onSome: (entry) =>
+        return yield* lstat(abs).pipe(
+          Effect.map((entry) =>
             entry.isDirectory()
               ? Option.none<readonly [string, number]>()
-              : Option.some([rel, gitModeFromStat(entry)] as const),
-        });
+              : Option.some([rel, gitModeFromStat(entry)] satisfies readonly [RepoPath, number])
+          ),
+          Effect.catchReason('PlatformError', 'NotFound', () =>
+            Effect.succeed(Option.none<readonly [string, number]>())
+          ),
+          Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause))
+        );
       }),
     { concurrency: 'unbounded' }
   ).pipe(
     Effect.map((entries) => entries.flatMap((entry) => (Option.isSome(entry) ? [entry.value] : []))),
-    Effect.map((entries) => ({ paths: new Set(entries.map(([file]) => file)), modes: new Map(entries) }))
+    Effect.map((entries) => ({
+      workdirSet: HashSet.fromIterable(entries.map(([file]) => file)),
+      workdirModes: HashMap.fromIterable(entries),
+    }))
   );

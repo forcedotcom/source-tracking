@@ -71,10 +71,11 @@ export const getMetadataKeyFromFileResponse =
     }
     const reverseAliasTypesResult = reverseStringMap(getAliasTypes(registry));
     // if we've aliased a type, we'll have to possibly sync both types--you can't tell from the sourceComponent retrieved which way it was stored on the server
-    if (reverseAliasTypesResult.has(fileResponse.type)) {
+    const reverseAliasType = reverseAliasTypesResult.get(fileResponse.type);
+    if (reverseAliasType !== undefined) {
       return [
         getMetadataKey(fileResponse.type, fileResponse.fullName),
-        getMetadataKey(reverseAliasTypesResult.get(fileResponse.type) as string, fileResponse.fullName),
+        getMetadataKey(reverseAliasType, fileResponse.fullName),
       ];
     }
     // standard key for everything else

@@ -48,7 +48,7 @@ const statOptional = (abs: string) =>
   lstat(abs).pipe(
     Effect.map(Option.some),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Stats>())),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause)))
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause))
   );
 
 /**
@@ -67,29 +67,29 @@ export const walkOneDir = Effect.fnUntraced(function* (workdir: string, dirRel: 
   const dirInfo = yield* statOptional(abs);
   if (Option.isNone(dirInfo) || !dirInfo.value.isDirectory()) return Option.none<DirSnapshot>();
 
-  const names: readonly string[] = yield* fs.readDirectory(abs).pipe(
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([])),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause)))
-  );
-
   // lstat each child concurrently. ENOENT during lstat is silently dropped.
-  const children = yield* Effect.forEach(
-    names,
-    (name) =>
-      lstat(path.join(abs, name)).pipe(
-        Effect.map((info) => Option.some({ name, info })),
-        Effect.catchReason('PlatformError', 'NotFound', () =>
-          Effect.succeed(Option.none<{ name: string; info: Stats }>())
-        ),
-        Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(path.join(abs, name), cause)))
-      ),
-    { concurrency: 'unbounded' }
+  const realChildren = yield* fs.readDirectory(abs).pipe(
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([])),
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)),
+    Effect.flatMap((names) =>
+      Effect.forEach(
+        names,
+        (name) =>
+          lstat(path.join(abs, name)).pipe(
+            Effect.map((info) => Option.some({ name, info })),
+            Effect.catchReason('PlatformError', 'NotFound', () =>
+              Effect.succeed(Option.none<{ name: string; info: Stats }>())
+            ),
+            Effect.mapError((cause) => WorkdirIoError.fromPlatformError(path.join(abs, name), cause))
+          ),
+        { concurrency: 'unbounded' }
+      )
+    ),
+    Effect.map((children) => children.flatMap((c) => Option.match(c, { onNone: () => [], onSome: (s) => [s] })))
   );
-
-  const realChildren = children.flatMap((c) => Option.match(c, { onNone: () => [], onSome: (s) => [s] }));
   const files = realChildren.filter((c) => !c.info.isDirectory() && c.name !== GITIGNORE);
   const fileNames = files.map((c) => c.name);
-  const fileModes = new Map(files.map((c) => [c.name, gitModeFromStat(c.info)] as const));
+  const fileModes = new Map(files.map((c) => [c.name, gitModeFromStat(c.info)] satisfies readonly [string, number]));
   const subdirNames = realChildren.filter((c) => c.info.isDirectory()).map((c) => c.name);
   const hasGitignore = realChildren.some((c) => !c.info.isDirectory() && c.name === GITIGNORE);
   const gitignoreContent = hasGitignore
@@ -109,12 +109,12 @@ const readGitignoreSnapshot = Effect.fnUntraced(function* (giAbs: string) {
   const fs = yield* FileSystem;
   const info = yield* statOptional(giAbs);
   if (Option.isNone(info)) return Option.none<string>();
-  const bytes = yield* fs.readFile(giAbs).pipe(
+  return yield* fs.readFile(giAbs).pipe(
     Effect.map(Option.some),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Uint8Array>())),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(giAbs, cause)))
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(giAbs, cause)),
+    Effect.map((bytes) => Option.map(bytes, (b) => TEXT.decode(b)))
   );
-  return Option.map(bytes, (b) => TEXT.decode(b));
 });
 
 /** Read `.git/info/exclude` content. '' if absent. */
@@ -122,12 +122,12 @@ export const readInfoExclude = Effect.fnUntraced(function* (gitdir: string) {
   const fs = yield* FileSystem;
   const path = yield* Path;
   const file = path.join(gitdir, 'info', 'exclude');
-  const bytes = yield* fs.readFile(file).pipe(
+  return yield* fs.readFile(file).pipe(
     Effect.map(Option.some),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Uint8Array>())),
-    Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause)))
+    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)),
+    Effect.map((bytes) => Option.match(bytes, { onNone: () => '', onSome: (b) => TEXT.decode(b) }))
   );
-  return Option.match(bytes, { onNone: () => '', onSome: (b) => TEXT.decode(b) });
 });
 
 /** Posix dir of a path: 'src/foo/bar.ts' → 'src/foo'; 'a.ts' → ''. */
@@ -169,10 +169,9 @@ const walkRecursive: (
     });
     const here: WalkNode = { snapshot: snap.value, chain: localChain };
     const childRels = snap.value.subdirNames.map((n) => (snap.value.dir === '' ? n : `${snap.value.dir}/${n}`));
-    const subResults = yield* Effect.forEach(childRels, (c) => walkRecursive(workdir, c, localChain, fdPermits), {
+    return yield* Effect.forEach(childRels, (c) => walkRecursive(workdir, c, localChain, fdPermits), {
       concurrency: fdPermits,
-    });
-    return [here, ...subResults.flat()];
+    }).pipe(Effect.map((subResults) => [here, ...subResults.flat()]));
   });
 
 /**
@@ -200,12 +199,11 @@ export const walkAllRoots = Effect.fn('walkAllRoots')(function* (
   excludeContent: string
 ) {
   const baseChain: IgnoreChain = excludeContent === '' ? emptyChain() : [buildLink('', excludeContent)];
-  const nested = yield* Effect.forEach(cfg.roots, (r) => walkRecursive(cfg.dir, r, baseChain, cfg.fdPermits), {
-    concurrency: cfg.fdPermits,
-  });
   // Project a per-node oracle out of the chain attached to each node.
   // Cold's bare-file-roots use the root-level chain because they're not
   // attached to any DirSnapshot.
   const isIgnoredAtRoot = (p: string): boolean => chainIgnores(baseChain, p);
-  return { nodes: nested.flat(), isIgnoredAtRoot } satisfies WalkResult;
+  return yield* Effect.forEach(cfg.roots, (r) => walkRecursive(cfg.dir, r, baseChain, cfg.fdPermits), {
+    concurrency: cfg.fdPermits,
+  }).pipe(Effect.map((nested) => ({ nodes: nested.flat(), isIgnoredAtRoot } satisfies WalkResult)));
 });

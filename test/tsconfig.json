@@ -13,6 +13,7 @@
         "name": "@effect/language-service",
         "diagnosticSeverity": {
           "floatingEffect": "error",
+          "catchAllToMapError": "error",
           "globalRandom": "error",
           "globalRandomInEffect": "error",
           "globalFetchInEffect": "error",

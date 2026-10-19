@@ -47,11 +47,11 @@ const oidToBytes = (oid: Oid): Uint8Array => {
   return out;
 };
 
-const sha1 = async (bytes: Uint8Array): Promise<Uint8Array> => {
-  // TS 5.7+ Uint8Array<ArrayBufferLike> vs BufferSource — see objects.ts.
-  const buf = await crypto.subtle.digest('SHA-1', bytes as unknown as ArrayBuffer);
-  return new Uint8Array(buf);
-};
+const sha1 = (bytes: Uint8Array) =>
+  Effect.promise(() =>
+    // TS 5.7+ Uint8Array<ArrayBufferLike> vs BufferSource — see objects.ts.
+    crypto.subtle.digest('SHA-1', bytes as unknown as ArrayBuffer).then((buf) => new Uint8Array(buf))
+  );
 
 // =================== TREE WRITER ===================
 
@@ -104,14 +104,16 @@ const buildTreeBody = (
   subtreeOids: ReadonlyMap<string, Oid>
 ): Uint8Array =>
   concat(
-    Arr.sortBy(byTreeName)([
-      ...Arr.fromIterable(fileEntries).map(
-        ([name, e]) => ({ name, mode: e.mode, oid: e.oid, isTree: false } satisfies TreeBodyEntry)
-      ),
-      ...Arr.fromIterable(subtreeOids).map(
-        ([name, oid]) => ({ name, mode: 0o04_0000, oid, isTree: true } satisfies TreeBodyEntry)
-      ),
-    ]).flatMap((e) => [TEXT.encode(`${e.mode.toString(8)} ${e.name}\0`), oidToBytes(e.oid)])
+    Arr.sortBy(byTreeName)(
+      Arr.appendAll(
+        Arr.fromIterable(fileEntries).map(
+          ([name, e]) => ({ name, mode: e.mode, oid: e.oid, isTree: false } satisfies TreeBodyEntry)
+        ),
+        Arr.fromIterable(subtreeOids).map(
+          ([name, oid]) => ({ name, mode: 0o04_0000, oid, isTree: true } satisfies TreeBodyEntry)
+        )
+      )
+    ).flatMap((e) => [TEXT.encode(`${e.mode.toString(8)} ${e.name}\0`), oidToBytes(e.oid)])
   );
 
 /**
@@ -130,8 +132,9 @@ const writeTreeRecursive = (
 ): Effect.Effect<Oid, WorkdirIoError, FileSystem | Path> =>
   Effect.gen(function* () {
     const childOids = yield* Effect.forEach(
-      Array.from(node.subtrees),
-      ([name, sub]) => writeTreeRecursive(gitdir, sub).pipe(Effect.map((oid) => [name, oid] as const)),
+      node.subtrees,
+      ([name, sub]) =>
+        writeTreeRecursive(gitdir, sub).pipe(Effect.map((oid) => [name, oid] satisfies readonly [string, Oid])),
       { concurrency: 'unbounded' }
     );
     const subtreeOids = new Map<string, Oid>(childOids);
@@ -186,7 +189,7 @@ export const writeIndexV2 = (
   entries: HashSet.HashSet<IndexEntry>,
   extensions: ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }> = []
 ) =>
-  Effect.promise(async () => {
+  Effect.gen(function* () {
     const entryBytes = Arr.sortBy(byEntryPath)(entries).map(encodeIndexEntry);
     const header = new Uint8Array(HEADER_BYTES);
     const headerView = new DataView(header.buffer);
@@ -194,7 +197,7 @@ export const writeIndexV2 = (
     headerView.setUint32(4, 2, false); // version 2
     headerView.setUint32(8, entryBytes.length, false);
     const body = concat([header, ...entryBytes, ...extensions.map(encodeExtension)]);
-    return concat([body, await sha1(body)]);
+    return concat([body, yield* sha1(body)]);
   });
 
 const encodeExtension = (ext: { readonly signature: string; readonly payload: Uint8Array }): Uint8Array => {
@@ -249,8 +252,8 @@ const hashTreeRecursive = (
 ): Effect.Effect<Oid> =>
   Effect.gen(function* () {
     const childOids = yield* Effect.forEach(
-      Array.from(node.subtrees),
-      ([name, sub]) => hashTreeRecursive(sub).pipe(Effect.map((oid) => [name, oid] as const)),
+      node.subtrees,
+      ([name, sub]) => hashTreeRecursive(sub).pipe(Effect.map((oid) => [name, oid] satisfies readonly [string, Oid])),
       { concurrency: 'unbounded' }
     );
     const subtreeOids = new Map<string, Oid>(childOids);

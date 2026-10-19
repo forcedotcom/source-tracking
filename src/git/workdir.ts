@@ -18,42 +18,39 @@ import * as nodeFs from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import * as nodePath from 'node:path';
 import * as Effect from 'effect/Effect';
+import * as Match from 'effect/Match';
+import * as Option from 'effect/Option';
+import * as Schema from 'effect/Schema';
 import { systemError, type SystemErrorTag } from 'effect/PlatformError';
 
-const nodeErrorTag = (code?: string): SystemErrorTag => {
-  switch (code) {
-    case 'ENOENT':
-    case 'ENOTDIR':
-      return 'NotFound';
-    case 'EACCES':
-    case 'EPERM':
-      return 'PermissionDenied';
-    case 'EEXIST':
-      return 'AlreadyExists';
-    case 'EBUSY':
-      return 'Busy';
-    case 'ETIMEDOUT':
-      return 'TimedOut';
-    case 'EINVAL':
-      return 'InvalidData';
-    case undefined:
-    default:
-      return 'Unknown';
-  }
-};
+const NodeErrnoError = Schema.Struct({
+  code: Schema.optional(Schema.String),
+  syscall: Schema.optional(Schema.String),
+});
+
+const nodeErrorTag = (code?: string): SystemErrorTag =>
+  Match.value(code).pipe(
+    Match.whenOr('ENOENT', 'ENOTDIR', (): SystemErrorTag => 'NotFound'),
+    Match.whenOr('EACCES', 'EPERM', (): SystemErrorTag => 'PermissionDenied'),
+    Match.when('EEXIST', (): SystemErrorTag => 'AlreadyExists'),
+    Match.when('EBUSY', (): SystemErrorTag => 'Busy'),
+    Match.when('ETIMEDOUT', (): SystemErrorTag => 'TimedOut'),
+    Match.when('EINVAL', (): SystemErrorTag => 'InvalidData'),
+    Match.orElse((): SystemErrorTag => 'Unknown')
+  );
 
 /** lstat differs from FileSystem.stat, which follows symlinks. */
 export const lstat = Effect.fnUntraced(function* (path: string) {
   return yield* Effect.tryPromise({
     try: () => nodeFs.lstat(path),
     catch: (cause) => {
-      const error = cause as NodeJS.ErrnoException;
+      const error = Option.getOrUndefined(Schema.decodeUnknownOption(NodeErrnoError)(cause));
       return systemError({
-        _tag: nodeErrorTag(error.code),
+        _tag: nodeErrorTag(error?.code),
         module: 'FileSystem',
         method: 'lstat',
         description: cause instanceof Error ? cause.message : String(cause),
-        syscall: error.syscall,
+        syscall: error?.syscall,
         pathOrDescriptor: path,
         cause,
       });

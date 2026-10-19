@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import * as Config from 'effect/Config';
+import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Effect from 'effect/Effect';
 import * as Schema from 'effect/Schema';
 import { IndexCorruptError } from './errors.js';
@@ -32,7 +34,14 @@ const ENV_FLAG = 'SF_SOURCE_TRACKING_INTEGRITY_CHECK';
  * is set. Fails closed with IndexCorruptError so the caller can prompt the
  * user to delete + re-init the shadow.
  */
-export const isEnabled = (): boolean => process.env[ENV_FLAG] === 'true';
+export const isEnabled = () =>
+  Config.String(ENV_FLAG)
+    .pipe(
+      Config.withDefault('false'),
+      Config.map((value) => value === 'true')
+    )
+    .parse(ConfigProvider.fromEnv())
+    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(false)));
 
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 

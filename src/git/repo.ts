@@ -124,13 +124,15 @@ const makeRepo = Effect.gen(function* () {
     );
 
   const collectStatus = Effect.fn('Repo.collectStatus')(function* () {
-    const h = yield* requireHandle(handleRef, 'collectStatus');
-    return Array.from(yield* provideFsAndPath(coldStatus(h.cfg).pipe(Stream.runCollect)));
+    return yield* requireHandle(handleRef, 'collectStatus').pipe(
+      Effect.flatMap((h) => provideFsAndPath(coldStatus(h.cfg).pipe(Stream.runCollect))),
+      Effect.map((entries) => Array.from(entries))
+    );
   });
 
   const applyChanges = Effect.fn('Repo.applyChanges')(function* (args: ApplyChangesArgs) {
     const h = yield* requireHandle(handleRef, 'applyChanges');
-    const commitOid = yield* provideFsAndPath(
+    return yield* provideFsAndPath(
       applyChangesImpl({
         cfg: { dir: h.cfg.dir, gitdir: h.cfg.gitdir },
         adds: args.adds,
@@ -140,26 +142,29 @@ const makeRepo = Effect.gen(function* () {
         addConcurrency: h.cfg.fdPermits,
       })
     );
-    return commitOid;
   });
 
-  const hashBlob = (bytes: Uint8Array) => hashBlobImpl(bytes);
-
   const readBlob = Effect.fn('Repo.readBlob')(function* (oid: Oid) {
-    const h = yield* requireHandle(handleRef, 'readBlob');
-    const obj = yield* provideFsAndPath(readLooseObject(h.cfg.gitdir, oid));
-    return obj.type === 'blob'
-      ? obj.content
-      : yield* new ObjectCorruptError({
-          oid,
-          reason: `expected blob, got ${obj.type}`,
-          message: `Repo.readBlob ${oid}: not a blob`,
-        });
+    return yield* requireHandle(handleRef, 'readBlob').pipe(
+      Effect.flatMap((h) => provideFsAndPath(readLooseObject(h.cfg.gitdir, oid))),
+      Effect.flatMap((obj) =>
+        obj.type === 'blob'
+          ? Effect.succeed(obj.content)
+          : Effect.fail(
+              new ObjectCorruptError({
+                oid,
+                reason: `expected blob, got ${obj.type}`,
+                message: `Repo.readBlob ${oid}: not a blob`,
+              })
+            )
+      )
+    );
   });
 
   const resolveRef = Effect.fn('Repo.resolveRef')(function* (ref: RefName) {
-    const h = yield* requireHandle(handleRef, 'resolveRef');
-    return yield* provideFsAndPath(resolveRefImpl(h.cfg.gitdir, ref));
+    return yield* requireHandle(handleRef, 'resolveRef').pipe(
+      Effect.flatMap((h) => provideFsAndPath(resolveRefImpl(h.cfg.gitdir, ref)))
+    );
   });
 
   const streamHeadTree = () =>
@@ -176,10 +181,10 @@ const makeRepo = Effect.gen(function* () {
     const file = path.join(dir, 'exclude');
     yield* fs
       .makeDirectory(dir, { recursive: true })
-      .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(dir, cause))));
+      .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(dir, cause)));
     yield* fs
       .writeFileString(file, content)
-      .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(file, cause))));
+      .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)));
   });
 
   return {
@@ -188,7 +193,7 @@ const makeRepo = Effect.gen(function* () {
     statusMatrix,
     collectStatus,
     applyChanges,
-    hashBlob,
+    hashBlob: hashBlobImpl,
     readBlob,
     resolveRef,
     streamHeadTree,

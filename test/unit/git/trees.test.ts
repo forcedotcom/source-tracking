@@ -21,9 +21,6 @@ import * as Layer from 'effect/Layer';
 import * as Stream from 'effect/Stream';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
-import { FileSystem } from 'effect/FileSystem';
-import { Path } from 'effect/Path';
-import type { RepoError } from '../../../src/git/errors.js';
 import { streamHeadTree } from '../../../src/git/trees.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -38,11 +35,7 @@ describe('git/trees (phase 7)', () => {
         streamHeadTree(gitdir).pipe(
           Stream.runCollect,
           Effect.map((c) => Array.from(c))
-        ) as unknown as Effect.Effect<
-          ReadonlyArray<{ readonly path: string; readonly oid: string }>,
-          RepoError,
-          FileSystem | Path
-        >,
+        ),
         TestLayer
       )
     );
@@ -61,11 +54,7 @@ describe('git/trees (phase 7)', () => {
         streamHeadTree(gitdir).pipe(
           Stream.runCollect,
           Effect.map((c) => Array.from(c))
-        ) as unknown as Effect.Effect<
-          ReadonlyArray<{ readonly path: string; readonly oid: string }>,
-          RepoError,
-          FileSystem | Path
-        >,
+        ),
         TestLayer
       )
     );
@@ -81,11 +70,7 @@ describe('git/trees (phase 7)', () => {
         streamHeadTree(gitdir).pipe(
           Stream.runCollect,
           Effect.map((c) => Array.from(c))
-        ) as unknown as Effect.Effect<
-          ReadonlyArray<{ readonly path: string; readonly oid: string }>,
-          RepoError,
-          FileSystem | Path
-        >,
+        ),
         TestLayer
       )
     );

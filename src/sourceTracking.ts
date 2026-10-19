@@ -36,6 +36,7 @@ import {
   RegistryAccess,
   FileResponseSuccess,
 } from '@salesforce/source-deploy-retrieve';
+import * as Schema from 'effect/Schema';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js';
 import * as Effect from 'effect/Effect';
@@ -114,6 +115,11 @@ export type SourceTrackingOptions = {
   registry?: RegistryAccess;
 };
 
+const ResolvedProjectConfigSchema = Schema.Struct({
+  sourceApiVersion: Schema.optional(Schema.String),
+  pushPackageDirectoriesSequentially: Schema.optional(Schema.Boolean),
+});
+
 type RemoteChangesResults = {
   componentSetFromNonDeletes: ComponentSet;
   fileResponsesFromDelete: FileResponse[];
@@ -170,15 +176,8 @@ export class SourceTracking extends AsyncCreatable {
    * @returns ComponentSet[]
    */
   public async localChangesAsComponentSet(byPackageDir?: boolean): Promise<ComponentSet[]> {
-    const [projectConfig] = await Promise.all([
-      Promise.resolve(
-        this.project.resolveProjectConfig() as {
-          sourceApiVersion?: string;
-          pushPackageDirectoriesSequentially?: boolean;
-        }
-      ),
-      this.ensureLocalTracking(),
-    ]);
+    const [rawProjectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
+    const projectConfig = Schema.decodeUnknownSync(ResolvedProjectConfigSchema)(rawProjectConfig);
     const sourceApiVersion = projectConfig.sourceApiVersion;
 
     const [nonDeletes, deletes] = await Promise.all([
@@ -207,7 +206,7 @@ export class SourceTracking extends AsyncCreatable {
     if (applyIgnore) {
       this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
     }
-    const [changeResults, sourceBackedComponents, projectConfig] = await Promise.all([
+    const [changeResults, sourceBackedComponents, rawProjectConfig] = await Promise.all([
       // all changes based on remote tracking
       this.getChanges({
         origin: 'remote',
@@ -220,12 +219,9 @@ export class SourceTracking extends AsyncCreatable {
         state: 'nondelete',
         format: 'SourceComponent',
       }),
-      Promise.resolve(
-        this.project.resolveProjectConfig() as {
-          sourceApiVersion?: string;
-        }
-      ),
+      this.project.resolveProjectConfig(),
     ]);
+    const projectConfig = Schema.decodeUnknownSync(ResolvedProjectConfigSchema)(rawProjectConfig);
     const componentSet = new ComponentSet(
       applyIgnore ? sourceBackedComponents.filter(noFileIsIgnored(this.forceIgnore)) : sourceBackedComponents,
       this.registry
@@ -830,7 +826,7 @@ export class SourceTracking extends AsyncCreatable {
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath); // ensure forceignore is initialized
 
     const [adds, modifies, deletes] = await Promise.all(
-      (['add', 'modify', 'delete'] as const).map((state) =>
+      (['add', 'modify', 'delete'] satisfies readonly ['add', 'modify', 'delete']).map((state) =>
         this.getChanges({ origin: 'local', state, format: 'ChangeResult' })
       )
     );

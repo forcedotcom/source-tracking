@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Logger, envVars } from '@salesforce/core';
+import { Logger } from '@salesforce/core';
 import type { Connection } from '@salesforce/core';
 import { expect } from 'chai';
 import * as Duration from 'effect/Duration';
@@ -26,13 +26,6 @@ import {
   querySourceMembersTo,
 } from '../../../src/shared/remote/orgQueries.js';
 import type { SourceMember } from '../../../src/shared/remote/types.js';
-
-const reResolveEnvVars = (): void => {
-  /* eslint-disable @typescript-eslint/no-unsafe-call */
-  // @ts-expect-error test setup forces EnvVars to resolve updated process values
-  envVars.resolve();
-  /* eslint-enable @typescript-eslint/no-unsafe-call */
-};
 
 const member: SourceMember = {
   MemberType: 'QuickActionDefinition',
@@ -115,28 +108,19 @@ describe('calculateTimeout', () => {
   const logger = new Logger({ useMemoryLogger: true, name: 'test' }).getRawLogger();
   const functionUnderTest = calculateTimeout(logger);
 
-  afterEach(() => {
-    envVars.unset('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT');
-    envVars.unset('SF_SOURCE_MEMBER_POLLING_TIMEOUT');
-  });
-
   it('defaults to five seconds with no members', () => {
-    expect(Duration.toSeconds(functionUnderTest(0))).to.equal(5);
+    expect(Duration.toSeconds(functionUnderTest(0, 0))).to.equal(5);
   });
 
   it('allocates fifty seconds per thousand members plus five seconds', () => {
-    expect(Duration.toSeconds(functionUnderTest(10_000))).to.equal(505);
+    expect(Duration.toSeconds(functionUnderTest(10_000, 0))).to.equal(505);
   });
 
-  it('uses the environment override', () => {
-    envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '60');
-    reResolveEnvVars();
-    expect(Duration.toSeconds(functionUnderTest(10_000))).to.equal(60);
+  it('uses a positive override', () => {
+    expect(Duration.toSeconds(functionUnderTest(10_000, 60))).to.equal(60);
   });
 
-  it('ignores a zero environment override', () => {
-    envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '0');
-    reResolveEnvVars();
-    expect(Duration.toSeconds(functionUnderTest(10_000))).to.equal(505);
+  it('ignores a zero override', () => {
+    expect(Duration.toSeconds(functionUnderTest(10_000, 0))).to.equal(505);
   });
 });

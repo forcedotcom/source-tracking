@@ -78,17 +78,6 @@ const tryResolve =
     }
   };
 
-const claimComponent =
-  (state: { claimed: Set<string>; byKey: Map<string, ResolvedEntry> }, relativize: (s: string) => string) =>
-  (sc: SourceComponent): void => {
-    if (!sourceComponentHasFullNameAndType(sc)) return;
-    const key = `${sc.type.name}#${sc.fullName}`;
-    if (state.byKey.has(key)) return;
-    const relFiles = getAllFiles(sc).filter(isString).map(relativize);
-    relFiles.forEach((f) => state.claimed.add(f));
-    state.byKey.set(key, { sc, files: relFiles });
-  };
-
 const buildEnrichments = (
   byKey: ReadonlyMap<string, ResolvedEntry>,
   forceIgnore: ForceIgnore | undefined
@@ -104,7 +93,7 @@ const buildEnrichments = (
 
 export const populateTypesAndNames = (deps: Deps) =>
   Effect.fn('populateTypesAndNames')(function* (elements: readonly ChangeResult[]) {
-    if (elements.length === 0) return [] as ChangeResult[];
+    if (elements.length === 0) return [] satisfies ChangeResult[];
 
     const logger = Logger.childFromRoot('SourceTracking.PopulateTypesAndNames');
     logger.debug(`populateTypesAndNames for ${elements.length} change elements`);
@@ -114,10 +103,12 @@ export const populateTypesAndNames = (deps: Deps) =>
     // Single pass over elements: build the resolver's filename list and the
     // filename→element lookup map without iterating `elements` twice.
     const triples = elements.flatMap((e) =>
-      (e.filenames ?? []).filter(isString).map((f) => [f, relativize(f), e] as const)
+      (e.filenames ?? [])
+        .filter(isString)
+        .map((f) => [f, relativize(f), e] satisfies readonly [string, string, ChangeResult])
     );
     const filenames = triples.map(([f]) => f);
-    const elementMap = new Map(triples.map(([, rel, e]) => [rel, e] as const));
+    const elementMap = new Map(triples.map(([, rel, e]) => [rel, e] satisfies readonly [string, ChangeResult]));
 
     const resolver = new MetadataResolver(
       deps.registry,
@@ -127,12 +118,19 @@ export const populateTypesAndNames = (deps: Deps) =>
 
     const claimed = new Set<string>();
     const byKey = new Map<string, ResolvedEntry>();
-    const claim = claimComponent({ claimed, byKey }, relativize);
+    const claimComponent = (sc: SourceComponent): void => {
+      if (!sourceComponentHasFullNameAndType(sc)) return;
+      const key = `${sc.type.name}#${sc.fullName}`;
+      if (byKey.has(key)) return;
+      const relFiles = getAllFiles(sc).filter(isString).map(relativize);
+      relFiles.forEach((f) => claimed.add(f));
+      byKey.set(key, { sc, files: relFiles });
+    };
     const resolve = tryResolve(resolver, logger);
 
     const claimedSkipped = filenames.reduce((skipped, filename) => {
       if (claimed.has(relativize(filename))) return skipped + 1;
-      resolve(filename).forEach(claim);
+      resolve(filename).forEach(claimComponent);
       return skipped;
     }, 0);
 

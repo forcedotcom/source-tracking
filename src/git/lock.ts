@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 import * as Clock from 'effect/Clock';
+import * as Config from 'effect/Config';
+import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
@@ -29,12 +31,14 @@ const DEFAULT_AUTOCLEAR_SEC = 300; // 5 minutes
 const ENV_TIMEOUT = 'SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS';
 const ENV_AUTOCLEAR = 'SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS';
 
-const envSeconds = (name: string, fallback: number): number => {
-  const raw = process.env[name];
-  if (raw === undefined) return fallback;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
+const envSeconds = (name: string, fallback: number) =>
+  Config.Number(name)
+    .pipe(Config.withDefault(fallback))
+    .parse(ConfigProvider.fromEnv())
+    .pipe(
+      Effect.map((seconds) => (Number.isFinite(seconds) && seconds > 0 ? seconds : fallback)),
+      Effect.catchTag('ConfigError', () => Effect.succeed(fallback))
+    );
 
 const statSentinel = Symbol('stat-not-found');
 
@@ -61,14 +65,18 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
   const path = yield* Path;
   const lockPath = path.join(gitdir, 'index.lock');
   const indexPath = path.join(gitdir, 'index');
-  const timeoutMs = envSeconds(ENV_TIMEOUT, DEFAULT_TIMEOUT_SEC) * 1000;
-  const autoclearMs = envSeconds(ENV_AUTOCLEAR, DEFAULT_AUTOCLEAR_SEC) * 1000;
+  const [timeoutSeconds, autoclearSeconds] = yield* Effect.all([
+    envSeconds(ENV_TIMEOUT, DEFAULT_TIMEOUT_SEC),
+    envSeconds(ENV_AUTOCLEAR, DEFAULT_AUTOCLEAR_SEC),
+  ]);
+  const timeoutMs = timeoutSeconds * 1000;
+  const autoclearMs = autoclearSeconds * 1000;
   const startMs = yield* Clock.currentTimeMillis;
 
   const tryAutoclear = Effect.fn('tryAutoclear')(function* () {
     const info = yield* fs.stat(lockPath).pipe(
       Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(statSentinel)),
-      Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(lockPath, cause)))
+      Effect.mapError((cause) => WorkdirIoError.fromPlatformError(lockPath, cause))
     );
     if (info === statSentinel) return false;
     const now = yield* Clock.currentTimeMillis;
@@ -83,7 +91,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
     );
     yield* fs.remove(lockPath).pipe(
       Effect.catchReason('PlatformError', 'NotFound', () => Effect.void),
-      Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(lockPath, cause)))
+      Effect.mapError((cause) => WorkdirIoError.fromPlatformError(lockPath, cause))
     );
     return true;
   });
@@ -93,7 +101,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
   // failure. Effect.retry below drives the backoff loop, retrying only on
   // RepoLockedError.
   const wxOpen = Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
-    Effect.catch((c) => Effect.fail(WorkdirIoError.fromPlatformError(lockPath, c)))
+    Effect.mapError((c) => WorkdirIoError.fromPlatformError(lockPath, c))
   );
 
   const lockedFailure = Clock.currentTimeMillis.pipe(
@@ -114,7 +122,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
     const opened: boolean = yield* Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
       Effect.map(() => true),
       Effect.catchReason('PlatformError', 'AlreadyExists', () => Effect.succeed(false)),
-      Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(lockPath, cause)))
+      Effect.mapError((cause) => WorkdirIoError.fromPlatformError(lockPath, cause))
     );
     return opened
       ? { lockPath, indexPath }
@@ -155,7 +163,7 @@ const releaseLock = (lockPath: string, indexPath: string, succeeded: boolean, st
       succeeded && strategy === 'rename-to-index'
         ? fs
             .rename(lockPath, indexPath)
-            .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(indexPath, cause))))
+            .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(indexPath, cause)))
         : fs.remove(lockPath).pipe(
             Effect.catchReason('PlatformError', 'NotFound', () => Effect.void),
             Effect.catch((cause) => Effect.logWarning(`failed to remove ${lockPath}: ${cause.message}`))
@@ -189,8 +197,6 @@ export const withIndexLock =
 export const withIndexLockCtx =
   (gitdir: string, strategy: ReleaseStrategy = 'rename-to-index') =>
   <A, E, R>(body: (ctx: { readonly lockPath: string; readonly indexPath: string }) => Effect.Effect<A, E, R>) =>
-    Effect.acquireUseRelease(
-      acquireLock(gitdir),
-      (ctx) => body(ctx),
-      (ctx, exit) => releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
+    Effect.acquireUseRelease(acquireLock(gitdir), body, (ctx, exit) =>
+      releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
     );

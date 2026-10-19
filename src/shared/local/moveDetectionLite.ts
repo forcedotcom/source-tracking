@@ -48,7 +48,6 @@ import { Repo } from '../../git/repo.js';
 import { WorkdirIoError } from '../../git/errors.js';
 import { hashBlob } from '../../git/objects.js';
 import { lstat, normalizeGitSymlinkTarget } from '../../git/workdir.js';
-import { uniqueArrayConcat } from '../functions.js';
 import { ensurePosix, IS_WINDOWS } from './functions.js';
 import type { DetectionFileInfo, DetectionFileInfoWithType } from './types.js';
 
@@ -122,13 +121,10 @@ export const filenameMatchesToMapLite =
   (registry: RegistryAccess) =>
   (projectPath: string) =>
   (fdPermits: number) =>
-  ({ added, deleted }: { added: ReadonlySet<string>; deleted: ReadonlySet<string> }) => {
-    if (added.size === 0 || deleted.size === 0) return Effect.succeed(emptyResult);
+  ({ added, deleted }: { added: HashSet.HashSet<string>; deleted: HashSet.HashSet<string> }) => {
+    if (HashSet.isEmpty(added) || HashSet.isEmpty(deleted)) return Effect.succeed(emptyResult);
     const enrich = enrichStream(
-      new MetadataResolver(
-        registry,
-        VirtualTreeContainer.fromFilePaths(uniqueArrayConcat(Array.from(added), Array.from(deleted)))
-      )
+      new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(Array.from(HashSet.union(added, deleted))))
     );
     // Both bucket Effects sit at the same level so Effect.all races them.
     // The deleted side's stream waits on drainHeadOids; the added side
@@ -176,23 +172,25 @@ const toMoveDetectionResult = ({ fullMatches, deleteOnly }: StringMapsForMatches
  * Stream<DetectionFileInfo> for workdir adds. fdPermits caps the read+hash
  * concurrency; backpressure flows through to bucketing downstream.
  */
-const addedInfoStream = (projectPath: string, fdPermits: number, added: ReadonlySet<string>) =>
+const addedInfoStream = (projectPath: string, fdPermits: number, added: HashSet.HashSet<string>) =>
   Stream.fromIterable(added).pipe(
     Stream.mapEffect(
       (filepath) =>
         Effect.gen(function* () {
           const abs = path.join(projectPath, filepath);
-          const info = yield* lstat(abs).pipe(
-            Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause)))
-          );
+          const info = yield* lstat(abs).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)));
           const fs = yield* FileSystem;
-          const bytes = yield* (
+          return yield* (
             info.isSymbolicLink()
               ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
               : fs.readFile(abs)
-          ).pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(abs, cause))));
-          const hash = yield* hashBlob(bytes);
-          return { filename: filepath, basename: path.basename(filepath), hash } satisfies DetectionFileInfo;
+          ).pipe(
+            Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)),
+            Effect.flatMap(hashBlob),
+            Effect.map(
+              (hash) => ({ filename: filepath, basename: path.basename(filepath), hash } satisfies DetectionFileInfo)
+            )
+          );
         }),
       { concurrency: fdPermits }
     )
@@ -203,7 +201,7 @@ const addedInfoStream = (projectPath: string, fdPermits: number, added: Readonly
  * look up the oid recorded in HEAD; paths absent from HEAD drop via
  * filterMap.
  */
-const deletedInfoStream = (headOids: HashMap.HashMap<string, string>, deleted: ReadonlySet<string>) =>
+const deletedInfoStream = (headOids: HashMap.HashMap<string, string>, deleted: HashSet.HashSet<string>) =>
   Stream.fromIterable(deleted).pipe(
     Stream.flatMap((filepath) =>
       Stream.fromIterable(
@@ -219,7 +217,7 @@ const deletedInfoStream = (headOids: HashMap.HashMap<string, string>, deleted: R
 const drainHeadOids = Effect.fn('moveDetectionLite.drainHeadOids')(function* () {
   const repo = yield* Repo;
   return yield* repo.streamHeadTree().pipe(
-    Stream.map((p) => [p.path, p.oid] as const),
+    Stream.map((p) => [p.path, p.oid] satisfies readonly [string, string]),
     Stream.runCollect,
     Effect.map(HashMap.fromIterable)
   );
@@ -315,7 +313,10 @@ const intersectByKey = (
   const keysB = HashSet.fromIterable(keysBIterable);
   return keysA.pipe(
     HashSet.intersection(keysB),
-    HashSet.map((k) => [Option.getOrThrow(HashMap.get(a, k)), Option.getOrThrow(HashMap.get(b, k))] as const),
+    HashSet.map(
+      (k) =>
+        [Option.getOrThrow(HashMap.get(a, k)), Option.getOrThrow(HashMap.get(b, k))] satisfies readonly [string, string]
+    ),
     HashMap.fromIterable
   );
 };

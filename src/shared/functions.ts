@@ -17,6 +17,7 @@
 import { sep, normalize, isAbsolute, relative } from 'node:path';
 import fs from 'node:fs';
 import { isString } from 'effect/Predicate';
+import * as Schema from 'effect/Schema';
 import {
   FileResponseSuccess,
   ForceIgnore,
@@ -104,9 +105,11 @@ export const ensureRelative =
   (filePath: string): string =>
     isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;
 
-type ParsedCustomLabels = {
-  CustomLabels: { labels: Array<{ fullName: string }> };
+type ParsedCustomLabels = Record<string, unknown> & {
+  CustomLabels: Record<string, unknown> & { labels: Array<Record<string, unknown> & { fullName: string }> };
 };
+
+const XmlRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
 
 /**
  * A method to help delete custom labels from a file, or the entire file if there are no more labels
@@ -139,7 +142,21 @@ export const deleteCustomLabels = async (
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
   });
-  const cls = parser.parse(fs.readFileSync(filename, 'utf8')) as ParsedCustomLabels;
+  const parsed = Schema.decodeUnknownSync(XmlRecordSchema)(parser.parse(fs.readFileSync(filename, 'utf8')));
+  const parsedCustomLabels = Schema.decodeUnknownSync(XmlRecordSchema)(parsed.CustomLabels);
+  const cls = {
+    ...parsed,
+    CustomLabels: {
+      ...parsedCustomLabels,
+      labels: ensureArray(parsedCustomLabels.labels).map((label) => {
+        const parsedLabel = Schema.decodeUnknownSync(XmlRecordSchema)(label);
+        return {
+          ...parsedLabel,
+          fullName: Schema.decodeUnknownSync(Schema.String)(parsedLabel.fullName),
+        };
+      }),
+    },
+  } satisfies ParsedCustomLabels;
 
   // delete the labels from the json based on their fullName's
   cls.CustomLabels.labels = ensureArray(cls.CustomLabels.labels).filter(
@@ -198,10 +215,6 @@ export const changeResultToMetadataComponent =
     fullName: cr.name,
     type: registry.getTypeByName(cr.type),
   });
-
-// TODO: use set.union when node 22 is everywhere
-export const uniqueArrayConcat = <T>(arr1: T[] | Set<T>, arr2: T[] | Set<T>): T[] =>
-  Array.from(new Set([...arr1, ...arr2]));
 
 /** for web, where cwd does not existconstruct a TreeContainer with the projectPath to keep SDR MetadataResolver from trying to use cwd  */
 export const maybeGetTreeContainer = (projectPath: string): TreeContainer | undefined =>

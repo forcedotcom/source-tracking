@@ -75,18 +75,20 @@ export const getDedupedConflictsFromChanges = async ({
     remoteChanges.flatMap((change) => (change.filenames ?? []).map((filename) => [filename, change]))
   );
 
-  const populated = await runPromise(
-    populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
-  );
-
-  return populated.filter(isChangeResultWithNameAndType).flatMap((change) => {
-    const metadataKey = getMetadataKey(change.name, change.type);
-    return metadataKeyIndex.has(metadataKey)
-      ? // option 1: name and type match
-        [metadataKeyIndex.get(metadataKey)!]
-      : // option 2: some of the filenames match
-        (change.filenames ?? [])
-          .filter((filename) => fileNameIndex.has(filename))
-          .map((filename) => fileNameIndex.get(filename)!);
-  });
+  return (
+    await runPromise(
+      populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
+    )
+  )
+    .filter(isChangeResultWithNameAndType)
+    .flatMap((change) => {
+      const metadataKey = getMetadataKey(change.name, change.type);
+      return metadataKeyIndex.has(metadataKey)
+        ? // option 1: name and type match
+          [metadataKeyIndex.get(metadataKey)!]
+        : // option 2: some of the filenames match
+          (change.filenames ?? [])
+            .filter((filename) => fileNameIndex.has(filename))
+            .map((filename) => fileNameIndex.get(filename)!);
+    });
 };

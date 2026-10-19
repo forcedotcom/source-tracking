@@ -16,13 +16,15 @@
 
 import path from 'node:path';
 import { Lifecycle, Logger } from '@salesforce/core';
-import { env } from '@salesforce/kit';
 import { FileSystem, type FileSystem as FileSystemService } from 'effect/FileSystem';
 import { type Path } from 'effect/Path';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import * as Effect from 'effect/Effect';
 import * as Chunk from 'effect/Chunk';
+import * as Config from 'effect/Config';
+import * as ConfigProvider from 'effect/ConfigProvider';
+import * as HashSet from 'effect/HashSet';
 import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import * as Option from 'effect/Option';
@@ -53,7 +55,23 @@ const SHADOW_AUTHOR = Schema.decodeUnknownSync(AuthorSchema)({
 
 const EMPTY_CHANGES: LocalChanges = { added: [], modified: [], deleted: [] };
 
-const FD_PERMITS_DEFAULT = env.getNumber('SF_SOURCE_TRACKING_FD_PERMITS', IS_WINDOWS ? 64 : 256);
+const FD_PERMITS_ENV = 'SF_SOURCE_TRACKING_FD_PERMITS';
+const FD_PERMITS_FALLBACK = IS_WINDOWS ? 64 : 256;
+
+const readNumberEnv = (name: string, fallback: number) =>
+  Config.Number(name)
+    .pipe(Config.withDefault(fallback))
+    .parse(ConfigProvider.fromEnv())
+    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(fallback)));
+
+const readBooleanEnv = (name: string) =>
+  Config.String(name)
+    .pipe(
+      Config.withDefault('false'),
+      Config.map((value) => value.toLowerCase() === 'true' || value === '1')
+    )
+    .parse(ConfigProvider.fromEnv())
+    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(false)));
 
 const buildExclude = (packageDirs: string[]): string =>
   // .git/info/exclude is gitignore-syntax. Lite's status walk also applies the
@@ -91,6 +109,7 @@ type ShadowRepoEffects = {
 const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRepoOptions, logger: Logger) {
   const repo = yield* Repo;
   const fs = yield* FileSystem;
+  const fdPermits = yield* readNumberEnv(FD_PERMITS_ENV, FD_PERMITS_FALLBACK);
   const gitDir = getGitDir(options.orgId, options.projectPath);
   const packageDirs = options.packageDirs.map((d) => {
     const relative = path.relative(options.projectPath, d.fullPath);
@@ -102,7 +121,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
     dir: options.projectPath,
     gitdir: gitDir,
     roots,
-    fdPermits: FD_PERMITS_DEFAULT,
+    fdPermits,
   });
   const statusCache = yield* Ref.make<Option.Option<LocalChanges>>(Option.none());
 
@@ -153,14 +172,12 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
   const detectMovedFiles = Effect.fn('ShadowRepo.detectMovedFiles')(function* (changes: LocalChanges) {
     const matchingFiles = getMatches(changes);
     yield* Effect.annotateCurrentSpan({
-      addedCount: matchingFiles.added.size,
-      deletedCount: matchingFiles.deleted.size,
+      addedCount: HashSet.size(matchingFiles.added),
+      deletedCount: HashSet.size(matchingFiles.deleted),
     });
-    if (matchingFiles.added.size === 0 || matchingFiles.deleted.size === 0) return false;
+    if (HashSet.isEmpty(matchingFiles.added) || HashSet.isEmpty(matchingFiles.deleted)) return false;
 
-    const result = yield* filenameMatchesToMapLite(options.registry)(options.projectPath)(FD_PERMITS_DEFAULT)(
-      matchingFiles
-    );
+    const result = yield* filenameMatchesToMapLite(options.registry)(options.projectPath)(fdPermits)(matchingFiles);
     yield* Effect.annotateCurrentSpan({ moveCount: result.count });
     if (result.count === 0) return false;
 
@@ -179,7 +196,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
     // behavior: a later non-forced read does not repeat a failed detection.
     yield* Ref.set(statusCache, Option.some(changes));
 
-    const movesDisabled = env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true;
+    const movesDisabled = yield* readBooleanEnv('SF_DISABLE_SOURCE_MOBILITY');
     yield* Effect.promise(() =>
       Lifecycle.getInstance().emitTelemetry({
         eventName: movesDisabled ? 'moveFileDetectionDisabled' : 'moveFileDetectionEnabled',
@@ -200,7 +217,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
   const getStatus = Effect.fn('ShadowRepo.getStatus')(function* (refresh = false) {
     yield* Effect.sync(() => logger.trace(`lite start: getStatus (refresh = ${refresh})`));
     const cached = yield* Ref.get(statusCache);
-    if (env.getBoolean('SF_SOURCE_TRACKING_ASSUME_SYNCED') === true) {
+    if (yield* readBooleanEnv('SF_SOURCE_TRACKING_ASSUME_SYNCED')) {
       const shouldWarn =
         Option.isNone(cached) ||
         cached.value.added.length + cached.value.modified.length + cached.value.deleted.length > 0;
@@ -238,7 +255,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
   const deleteShadowRepo = Effect.fn('ShadowRepo.delete')(function* () {
     yield* fs
       .remove(gitDir, { recursive: true, force: true })
-      .pipe(Effect.catch((cause) => Effect.fail(WorkdirIoError.fromPlatformError(gitDir, cause))));
+      .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(gitDir, cause)));
     yield* Ref.set(statusCache, Option.none());
     return gitDir;
   });

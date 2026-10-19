@@ -31,10 +31,9 @@ import * as ManagedRuntime from 'effect/ManagedRuntime';
 const runtime = ManagedRuntime.make(Layer.empty);
 
 /**
- * `runtime.runPromise` rejects with `FiberFailure` for both typed failures and
- * defects, breaking callers that branch on `e instanceof SfError` or read
- * `e.name`. This helper runs the effect and rejects with the original
- * underlying error so legacy throw semantics are preserved.
+ * Promise boundary for Effects whose typed failures or defects may not be
+ * `Error` instances. Preserve existing errors (including `SfError`) and wrap
+ * non-Error causes so Promise callers can rely on Error rejection semantics.
  */
 export const runPromise = async <A, E>(eff: Effect.Effect<A, E, never>): Promise<A> => {
   const exit = await runtime.runPromiseExit(eff);

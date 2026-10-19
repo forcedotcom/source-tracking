@@ -33,6 +33,18 @@ describe('runPromise', () => {
     }
   });
 
+  it('wraps a non-Error typed failure as an Error with the failure as cause', async () => {
+    const original = { _tag: 'TypedFailure', message: 'typed value' };
+    try {
+      await runPromise(Effect.fail(original));
+      expect.fail('should have thrown');
+    } catch (e) {
+      expect(e).to.be.instanceOf(Error);
+      if (!(e instanceof Error)) throw e;
+      expect(e.cause).to.equal(original);
+    }
+  });
+
   it('rejects with the original error from a defect', async () => {
     const original = new SfError('defect', 'Defect');
     try {

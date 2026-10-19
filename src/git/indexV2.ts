@@ -59,6 +59,9 @@ export type IndexEntry = {
   };
 };
 
+const EMPTY_ENTRIES: readonly IndexEntry[] = [];
+const EMPTY_EXTENSIONS: ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }> = [];
+
 const HEX_CHARS = '0123456789abcdef';
 const hexNibble = (n: number): string => HEX_CHARS[n] ?? '';
 
@@ -172,7 +175,7 @@ export const parseIndexV2 = Effect.fn('parseIndexV2')(function* (gitdir: string,
   // each parse via Effect.reduce.
   const { entries, offset } = yield* Effect.reduce(
     Array.from({ length: entryCount }, (_, i) => i),
-    () => ({ entries: [] as readonly IndexEntry[], offset: HEADER_BYTES }),
+    () => ({ entries: EMPTY_ENTRIES, offset: HEADER_BYTES }),
     (acc, i) =>
       parseEntryAt(raw, view, acc.offset, gitdir, i).pipe(
         Effect.map(({ entry, nextOffset }) => ({
@@ -185,9 +188,10 @@ export const parseIndexV2 = Effect.fn('parseIndexV2')(function* (gitdir: string,
   const extEnd = raw.byteLength - TRAILER_BYTES;
   const extensions = yield* parseExtensionsFrom(raw, view, offset, extEnd, gitdir);
   const checksumInput = raw.subarray(0, extEnd);
-  const checksum = yield* Effect.promise(() => crypto.subtle.digest('SHA-1', checksumInput as unknown as BufferSource));
+  const actualChecksum = yield* Effect.promise(() =>
+    crypto.subtle.digest('SHA-1', checksumInput as unknown as BufferSource)
+  ).pipe(Effect.map((checksum) => new Uint8Array(checksum)));
   const expectedChecksum = raw.subarray(extEnd);
-  const actualChecksum = new Uint8Array(checksum);
   if (!actualChecksum.every((byte, index) => byte === expectedChecksum[index])) {
     return yield* corrupt('checksum-mismatch', gitdir);
   }
@@ -202,9 +206,9 @@ export const parseIndexV2 = Effect.fn('parseIndexV2')(function* (gitdir: string,
 
 /** Empty index used when `.git/index` is absent (fresh repo, pre-applyChanges). */
 const EMPTY_INDEX = {
-  entries: [] as readonly IndexEntry[],
+  entries: EMPTY_ENTRIES,
   entriesByteLength: 0,
-  extensions: [] as ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }>,
+  extensions: EMPTY_EXTENSIONS,
   trailer: new Uint8Array(0),
 };
 
@@ -215,17 +219,16 @@ export const readIndex = Effect.fn('readIndex')(function* (gitdir: string) {
   const file = path.join(gitdir, 'index');
   // NotFound → empty index (pre-applyChanges). Other read errors surface as
   // IndexCorruptError so the caller knows the bytes were unreadable.
-  const raw = yield* fs.readFile(file).pipe(
+  return yield* fs.readFile(file).pipe(
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.void),
-    Effect.catch((cause) =>
-      Effect.fail(
+    Effect.mapError(
+      (cause) =>
         new IndexCorruptError({
           gitdir,
           reason: 'read-failed',
           message: `failed to read ${file}: ${cause.message}`,
         })
-      )
-    )
+    ),
+    Effect.flatMap((raw) => (raw === undefined ? Effect.succeed(EMPTY_INDEX) : parseIndexV2(gitdir, raw)))
   );
-  return raw === undefined ? EMPTY_INDEX : yield* parseIndexV2(gitdir, raw);
 });

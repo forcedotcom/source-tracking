@@ -42,15 +42,15 @@ const cfg = (dir: string, gitdir: string): SwitchCfg => ({
 
 describe('git/integrityCheck (phase 13)', () => {
   describe('isEnabled', () => {
-    it('default off', () => {
+    it('default off', async () => {
       delete process.env.SF_SOURCE_TRACKING_INTEGRITY_CHECK;
-      expect(isEnabled()).to.equal(false);
+      expect(await Effect.runPromise(isEnabled())).to.equal(false);
     });
 
-    it('on for "true"', () => {
+    it('on for "true"', async () => {
       process.env.SF_SOURCE_TRACKING_INTEGRITY_CHECK = 'true';
       try {
-        expect(isEnabled()).to.equal(true);
+        expect(await Effect.runPromise(isEnabled())).to.equal(true);
       } finally {
         delete process.env.SF_SOURCE_TRACKING_INTEGRITY_CHECK;
       }

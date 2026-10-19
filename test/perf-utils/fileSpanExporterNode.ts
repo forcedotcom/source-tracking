@@ -74,7 +74,10 @@ export class FileSpanExporterNode implements SpanExporter {
         appendFileSync(this.filePath, lines);
         return { code: ExportResultCode.SUCCESS };
       } catch (error) {
-        return { code: ExportResultCode.FAILED, error: error as Error };
+        return {
+          code: ExportResultCode.FAILED,
+          error: error instanceof Error ? error : new Error(String(error), { cause: error }),
+        };
       }
     })();
     resultCallback(result);

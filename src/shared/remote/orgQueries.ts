@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Connection, envVars as env, SfError, trimTo15 } from '@salesforce/core';
+import { Connection, SfError, trimTo15 } from '@salesforce/core';
 import * as Cache from 'effect/Cache';
 import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
@@ -38,8 +38,7 @@ export type UserNameCache = Cache.Cache<UserNameRequest, Option.Option<string>, 
 
 export const calculateTimeout =
   (logger: PinoLogger) =>
-  (memberCount: number): Duration.Duration => {
-    const overriddenTimeout = env.getNumber('SF_SOURCE_MEMBER_POLLING_TIMEOUT', 0);
+  (memberCount: number, overriddenTimeout = 0): Duration.Duration => {
     if (overriddenTimeout > 0) {
       logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
       return Duration.seconds(overriddenTimeout);
@@ -95,7 +94,9 @@ export const makeUserNameCache = Effect.fn('makeUserNameCache')(function* (conn:
         try: () => conn.query<{ Id: string; Name: string }>(userQuery, { autoFetch: true, maxFetch: MAX_FETCH }),
         catch: (cause) => SfError.wrap(cause),
       });
-      const namesById = new Map(result.records.map((user) => [trimTo15(user.Id), user.Name] as const));
+      const namesById = new Map(
+        result.records.map((user) => [trimTo15(user.Id), user.Name] satisfies readonly [string, string])
+      );
       entries.forEach((entry) => {
         const name = namesById.get(entry.request.userId);
         entry.completeUnsafe(Exit.succeed(name === undefined ? Option.none() : Option.some(name)));
@@ -117,7 +118,9 @@ const resolveUserNames = Effect.fnUntraced(function* (
   const names = yield* Effect.forEach(userIds, (userId) => Cache.get(userNameCache, UserNameRequest({ userId })), {
     concurrency: 'unbounded',
   });
-  return new Map(userIds.map((userId, index) => [userId, names[index]] as const));
+  return new Map(
+    userIds.map((userId, index) => [userId, names[index]] satisfies readonly [string, Option.Option<string>])
+  );
 });
 
 const getResolvedUserName = (userId: string, userNames: Map<string, Option.Option<string>>): string => {

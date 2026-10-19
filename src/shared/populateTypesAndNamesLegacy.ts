@@ -88,7 +88,7 @@ export const populateTypesAndNamesLegacy =
           })
           .filter(isNotUndefined)
           .filter(sourceComponentHasFullNameAndType)
-          .map((sc) => [`${sc.fullName}:${sc.type.name}`, sc] as const)
+          .map((sc) => [`${sc.fullName}:${sc.type.name}`, sc] satisfies readonly [string, typeof sc])
       ).values(),
     ];
 

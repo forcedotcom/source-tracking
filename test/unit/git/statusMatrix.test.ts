@@ -24,16 +24,14 @@ import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
-import { FileSystem } from 'effect/FileSystem';
-import { Path } from 'effect/Path';
 import { cold } from '../../../src/git/statusMatrix.js';
-import type { RepoError } from '../../../src/git/errors.js';
 import { RepoPath, type StatusEntry } from '../../../src/git/schemas.js';
 import { normalizeGitSymlinkTarget } from '../../../src/git/workdir.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const FixtureRoot = path.join(currentDir, '..', '..', 'git', 'fixtures');
 const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+const repoPath = (value: string): RepoPath => Schema.decodeUnknownSync(RepoPath)(value);
 
 const linkFixture = async (name: string, tmpDir: string): Promise<{ dir: string; gitdir: string }> => {
   // Copy work/ + dot-git/ into a fresh tmp dir; rename dot-git -> .git so
@@ -70,7 +68,7 @@ const collectStatus = (cfg: { dir: string; gitdir: string; roots: readonly RepoP
       cold(cfg).pipe(
         Stream.runCollect,
         Effect.map((c) => Array.from(c))
-      ) as unknown as Effect.Effect<StatusEntry[], RepoError, FileSystem | Path>,
+      ),
       Layered
     )
   );
@@ -100,13 +98,13 @@ describe('git/statusMatrix (phase 8)', () => {
       void roots;
 
       // Expected set per the with-untracked/ generate.sh setup:
-      expect(byPath.get('tracked-unmodified.txt' as RepoPath)).to.equal('unmodified');
-      expect(byPath.get('tracked-modified.txt' as RepoPath)).to.equal('modified');
-      expect(byPath.get('tracked-deleted.txt' as RepoPath)).to.equal('deleted');
-      expect(byPath.get('untracked.txt' as RepoPath)).to.equal('added');
+      expect(byPath.get(repoPath('tracked-unmodified.txt'))).to.equal('unmodified');
+      expect(byPath.get(repoPath('tracked-modified.txt'))).to.equal('modified');
+      expect(byPath.get(repoPath('tracked-deleted.txt'))).to.equal('deleted');
+      expect(byPath.get(repoPath('untracked.txt'))).to.equal('added');
       // staged-add was committed only to the index, but lite reads the
       // shadow's commit form so it's "added" from HEAD-tree's perspective.
-      expect(byPath.get('staged-add.txt' as RepoPath)).to.be.oneOf(['added', 'modified', 'unmodified']);
+      expect(byPath.get(repoPath('staged-add.txt'))).to.be.oneOf(['added', 'modified', 'unmodified']);
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }
@@ -127,14 +125,14 @@ describe('git/statusMatrix (phase 8)', () => {
       const status = await collectStatus({ dir, gitdir, roots });
       const byPath = new Map(status.map((s) => [s.path, s.status]));
       // node_modules/foo/index.js → ignored by `**/node_modules/**`
-      expect(byPath.get('node_modules/foo/index.js' as RepoPath)).to.equal('ignored');
+      expect(byPath.get(repoPath('node_modules/foo/index.js'))).to.equal('ignored');
       // src/__tests__/x.test.js → ignored by `**/__tests__/**`
-      expect(byPath.get('src/__tests__/x.test.js' as RepoPath)).to.equal('ignored');
+      expect(byPath.get(repoPath('src/__tests__/x.test.js'))).to.equal('ignored');
       // .DS_Store → ignored
-      expect(byPath.get('.DS_Store' as RepoPath)).to.equal('ignored');
+      expect(byPath.get(repoPath('.DS_Store'))).to.equal('ignored');
       // .keep is negated and so should be added (untracked). Our matcher
       // honors the negation since `ignore` lib supports the full spec.
-      expect(byPath.get('.keep' as RepoPath)).to.equal('added');
+      expect(byPath.get(repoPath('.keep'))).to.equal('added');
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }
@@ -158,8 +156,8 @@ describe('git/statusMatrix (phase 8)', () => {
         roots: [Schema.decodeUnknownSync(RepoPath)('pkg')],
       });
       const byPath = new Map(status.map((entry) => [entry.path, entry.status]));
-      expect(byPath.get('pkg/nested/drop.log' as RepoPath)).to.equal('ignored');
-      expect(byPath.get('pkg/nested/keep.log' as RepoPath)).to.equal('added');
+      expect(byPath.get(repoPath('pkg/nested/drop.log'))).to.equal('ignored');
+      expect(byPath.get(repoPath('pkg/nested/keep.log'))).to.equal('added');
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }
@@ -175,7 +173,7 @@ describe('git/statusMatrix (phase 8)', () => {
         roots: [Schema.decodeUnknownSync(RepoPath)('a')],
       });
 
-      expect(status.find((entry) => entry.path === ('a/link-to-plain' as RepoPath))?.status).to.equal('unmodified');
+      expect(status.find((entry) => entry.path === repoPath('a/link-to-plain'))?.status).to.equal('unmodified');
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }
