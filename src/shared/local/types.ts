@@ -18,9 +18,6 @@ export type DetectionFileInfo = Readonly<{ filename: string; hash: string; basen
 export type DetectionFileInfoWithType = Readonly<
   DetectionFileInfo & { type: string; parentFullName: string; parentType: string }
 >;
-export type StringMap = Map<string, string>;
-export type AddAndDeleteMaps = { addedMap: StringMap; deletedMap: StringMap };
-
 export type LocalChanges = Readonly<{
   added: readonly string[];
   modified: readonly string[];

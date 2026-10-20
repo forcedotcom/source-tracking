@@ -21,7 +21,7 @@ type Step = {
   readonly args: readonly string[];
 };
 
-export type CommandResult = {
+type CommandResult = {
   readonly ok: boolean;
   readonly output: string;
 };
@@ -36,7 +36,7 @@ const STEPS: readonly Step[] = [
   { name: 'compile', command: 'yarn', args: ['compile'] },
   { name: 'lint', command: 'yarn', args: ['lint'] },
   { name: 'test', command: 'yarn', args: ['test:only'] },
-  { name: 'knip', command: 'npx', args: ['knip', '--include', 'exports,types,nsExports,nsTypes', '--no-config-hints'] },
+  { name: 'knip', command: 'yarn', args: ['knip'] },
 ];
 
 const runCommand: RunCommand = ({ command, args, cwd }) =>

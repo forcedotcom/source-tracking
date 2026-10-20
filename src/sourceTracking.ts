@@ -900,7 +900,7 @@ const remoteFilterByState = {
 };
 
 /** Correct SourceMember names that don't match Metadata API fullName by matching local components. */
-export const correctSourceMemberNames = (
+const correctSourceMemberNames = (
   changes: RemoteChangeElement[],
   packageDirPaths: string[],
   registry: RegistryAccess

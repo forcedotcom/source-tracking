@@ -40,8 +40,6 @@ export const getMetadataKey = (metadataType: string, metadataName: string): stri
 export const getLegacyMetadataKey = (metadataType: string, metadataName: string): string =>
   `${metadataType}${legacyKeySplit}${metadataName}`;
 
-export const getMetadataTypeFromKey = (key: string): string => decodeURIComponent(key.split(keySplit)[0]);
-export const getMetadataNameFromKey = (key: string): string => decodeURIComponent(key.split(keySplit)[1]);
 export const getMetadataTypeFromLegacyKey = (key: string): string => key.split(legacyKeySplit)[0];
 export const getMetadataNameFromLegacyKey = (key: string): string =>
   decodeURIComponent(key.split(legacyKeySplit).slice(1).join(legacyKeySplit));
@@ -95,10 +93,6 @@ export const folderContainsPath =
     pathIsInFolder(folder)(filePath);
 
 const nonEmptyStringFilter = (value: string): boolean => isString(value) && value.length > 0;
-
-// adapted for TS from https://github.com/30-seconds/30-seconds-of-code/blob/master/snippets/chunk.md
-export const chunkArray = <T>(arr: T[], size: number): T[][] =>
-  Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
 
 export const ensureRelative =
   (projectPath: string) =>

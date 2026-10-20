@@ -102,7 +102,7 @@ export const initializeRemoteTracking = Effect.fn('initializeRemoteTracking')(fu
 });
 
 /** Load the file-backed snapshot for one operation. No state is retained after the Effect completes. */
-export const readRemoteTracking = Effect.fn('readRemoteTracking')(function* (identity: RemoteTrackingIdentity) {
+const readRemoteTracking = Effect.fn('readRemoteTracking')(function* (identity: RemoteTrackingIdentity) {
   const contents = yield* readFileContents(getFilePath(identity));
   if (!('serverMaxRevisionCounter' in contents) || !('sourceMembers' in contents)) {
     return emptyRemoteTrackingState();

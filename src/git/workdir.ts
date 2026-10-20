@@ -59,8 +59,8 @@ export const lstat = Effect.fnUntraced(function* (path: string) {
 });
 
 export const GIT_FILE_MODE = 0o10_0644;
-export const GIT_EXECUTABLE_MODE = 0o10_0755;
-export const GIT_SYMLINK_MODE = 0o12_0000;
+const GIT_EXECUTABLE_MODE = 0o10_0755;
+const GIT_SYMLINK_MODE = 0o12_0000;
 
 export const gitModeFromStat = (info: Stats): number =>
   info.isSymbolicLink() ? GIT_SYMLINK_MODE : info.mode & 0o111 ? GIT_EXECUTABLE_MODE : GIT_FILE_MODE;

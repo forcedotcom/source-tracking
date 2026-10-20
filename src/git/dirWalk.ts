@@ -31,7 +31,7 @@ const TEXT = new TextDecoder('utf-8', { fatal: false });
  * [[walkOneDir]] and consumed by the cold status scan. Subdir entries
  * surface as `subdirs` so the walker can recurse with bounded concurrency.
  */
-export type DirSnapshot = {
+type DirSnapshot = {
   /** Posix workdir-relative path; '' for the root. */
   readonly dir: string;
   /** Some(content) if `<dir>/.gitignore` exists; None otherwise. Some('') if empty. */
@@ -59,7 +59,7 @@ const statOptional = (abs: string) =>
  * span would dominate the trace stream; the parent operation's
  * aggregate-count annotation is the right granularity.
  */
-export const walkOneDir = Effect.fnUntraced(function* (workdir: string, dirRel: string) {
+const walkOneDir = Effect.fnUntraced(function* (workdir: string, dirRel: string) {
   const fs = yield* FileSystem;
   const path = yield* Path;
   const abs = dirRel === '' ? workdir : path.join(workdir, dirRel);
@@ -129,12 +129,6 @@ export const readInfoExclude = Effect.fnUntraced(function* (gitdir: string) {
     Effect.map((bytes) => Option.match(bytes, { onNone: () => '', onSome: (b) => TEXT.decode(b) }))
   );
 });
-
-/** Posix dir of a path: 'src/foo/bar.ts' → 'src/foo'; 'a.ts' → ''. */
-export const dirOf = (p: string): string => {
-  const i = p.lastIndexOf('/');
-  return i < 0 ? '' : p.slice(0, i);
-};
 
 /**
  * Per-directory snapshot tagged with the ignore-chain effective inside

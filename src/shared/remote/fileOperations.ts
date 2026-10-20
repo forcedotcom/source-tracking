@@ -31,7 +31,7 @@ import { RemoteChangeElement } from '../types.js';
 import { ContentsJsonSchema } from './types.js';
 import type { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types.js';
 
-export const FILENAME = 'maxRevision.json';
+const FILENAME = 'maxRevision.json';
 const FILE_VERSION_ENV = 'SF_SOURCE_TRACKING_FILE_VERSION';
 
 export type RemoteTrackingIdentity = {
@@ -84,7 +84,7 @@ export const revisionToRemoteChangeElement = (memberRevision: MemberRevision): R
   lastModifiedDate: memberRevision.LastModifiedDate,
 });
 
-export const upgradeFileContents = (contents: ContentsV0): ContentsV1 => ({
+const upgradeFileContents = (contents: ContentsV0): ContentsV1 => ({
   fileVersion: 1,
   serverMaxRevisionCounter: contents.serverMaxRevisionCounter,
   sourceMembers: Object.fromEntries(

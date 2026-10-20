@@ -197,7 +197,7 @@ const evaluateMatrix = (
   });
 
 /**
- * Build the (workdirSet, untrackedClassification) tuple from a fresh walk.
+ * Build the workdir indexes from a fresh walk.
  *
  * Tracked files are identified by membership in `indexByPath`. Walk-emitted
  * basenames not in the index are untracked; their `'added' | 'ignored'`
@@ -211,26 +211,24 @@ const collectFromWalk = (
   readonly workdirSet: HashSet.HashSet<string>;
   readonly workdirModes: HashMap.HashMap<string, number>;
   readonly untracked: UntrackedClassification;
-} => {
-  const workdirSet = new Set<string>();
-  const workdirModes = new Map<string, number>();
-  const untracked = new Map<string, 'added' | 'ignored'>();
-  // eslint-disable-next-line functional/no-loop-statements
-  for (const node of walk.nodes) {
-    // eslint-disable-next-line functional/no-loop-statements
-    for (const name of node.snapshot.fileNames) {
-      const rel = node.snapshot.dir === '' ? name : `${node.snapshot.dir}/${name}`;
-      workdirSet.add(rel);
-      workdirModes.set(rel, node.snapshot.fileModes.get(name) ?? GIT_FILE_MODE);
-      if (!HashMap.has(indexByPath, rel)) untracked.set(rel, nodeIgnores(node, rel) ? 'ignored' : 'added');
+} =>
+  walk.nodes.reduce(
+    (walked, node) =>
+      node.snapshot.fileNames.reduce((state, name) => {
+        const rel = node.snapshot.dir === '' ? name : `${node.snapshot.dir}/${name}`;
+        const workdirSet = HashSet.add(state.workdirSet, rel);
+        const workdirModes = HashMap.set(state.workdirModes, rel, node.snapshot.fileModes.get(name) ?? GIT_FILE_MODE);
+        const untracked = HashMap.has(indexByPath, rel)
+          ? state.untracked
+          : HashMap.set(state.untracked, rel, nodeIgnores(node, rel) ? 'ignored' : 'added');
+        return { workdirSet, workdirModes, untracked };
+      }, walked),
+    {
+      workdirSet: HashSet.empty<string>(),
+      workdirModes: HashMap.empty<string, number>(),
+      untracked: HashMap.empty<string, 'added' | 'ignored'>(),
     }
-  }
-  return {
-    workdirSet: HashSet.fromIterable(workdirSet),
-    workdirModes: HashMap.fromIterable(workdirModes),
-    untracked: HashMap.fromIterable(untracked),
-  };
-};
+  );
 
 /**
  * Cold statusMatrix: walk the workdir per-directory (with nested

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import * as Schema from 'effect/Schema';
 import type { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { SfError } from '@salesforce/core/sfError';
 
@@ -48,30 +47,20 @@ export type RemoteChangeElement = {
   memberIdOrName: string;
 };
 
-/**
- * Effect Schema for ChangeResult. The public type below is derived from this
- * schema, so parsing and encoding stay consistent with what consumers see.
- * Effect v4 compares ordinary objects and arrays structurally by default.
- */
-export const ChangeResultSchema = Schema.Struct({
-  origin: Schema.Literals(['local', 'remote']),
-  filenames: Schema.optional(Schema.String.pipe(Schema.Array)),
-  ignored: Schema.optional(Schema.Boolean),
-  name: Schema.optional(Schema.String),
-  type: Schema.optional(Schema.String),
-  deleted: Schema.optional(Schema.Boolean),
-  modified: Schema.optional(Schema.Boolean),
-  changedBy: Schema.optional(Schema.String),
-  revisionCounter: Schema.optional(Schema.Number),
-  lastModifiedDate: Schema.optional(Schema.String),
-  memberIdOrName: Schema.optional(Schema.String),
-});
-
-/**
- * Summary type that supports both local and remote change types. Derived from
- * `ChangeResultSchema`.
- */
-export type ChangeResult = Schema.Schema.Type<typeof ChangeResultSchema>;
+/** Summary type that supports both local and remote change types. */
+export type ChangeResult = {
+  origin: 'local' | 'remote';
+  filenames?: string[];
+  ignored?: boolean;
+  name?: string;
+  type?: string;
+  deleted?: boolean;
+  modified?: boolean;
+  changedBy?: string;
+  revisionCounter?: number;
+  lastModifiedDate?: string;
+  memberIdOrName?: string;
+};
 
 export type ConflictResponse = {
   state: 'Conflict';

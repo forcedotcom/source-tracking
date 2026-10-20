@@ -20,7 +20,7 @@ import * as Schema from 'effect/Schema';
 export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;
 
 /** Source member fields persisted in V1 tracking files. */
-export const SourceMemberSchema = Schema.Struct({
+const SourceMemberSchema = Schema.Struct({
   MemberType: Schema.String,
   MemberName: Schema.String,
   /** The change is a delete */
@@ -36,7 +36,7 @@ export const SourceMemberSchema = Schema.Struct({
 });
 export type SourceMember = Schema.Schema.Type<typeof SourceMemberSchema>;
 
-export const MemberRevisionSchema = Schema.Struct({
+const MemberRevisionSchema = Schema.Struct({
   ...SourceMemberSchema.fields,
   /** Not present in legacy tracking files; its absence preserves unknown add/modify status. */
   IsNewMember: Schema.optional(Schema.Boolean),
@@ -49,7 +49,7 @@ export type MemberRevision = Schema.Schema.Type<typeof MemberRevisionSchema>;
  * @deprecated replaced by the new MemberRevision
  * used for reading and writing the legacy tracking file format
  */
-export const MemberRevisionLegacySchema = Schema.Struct({
+const MemberRevisionLegacySchema = Schema.Struct({
   memberType: Schema.String,
   serverRevisionCounter: Schema.Number,
   lastRetrievedFromServer: Schema.optional(Schema.Number.pipe(Schema.NullOr)),
@@ -57,14 +57,14 @@ export const MemberRevisionLegacySchema = Schema.Struct({
 });
 export type MemberRevisionLegacy = Schema.Schema.Type<typeof MemberRevisionLegacySchema>;
 
-export const ContentsV1Schema = Schema.Struct({
+const ContentsV1Schema = Schema.Struct({
   fileVersion: Schema.Literal(1),
   serverMaxRevisionCounter: Schema.Number,
   sourceMembers: Schema.Record(Schema.String, MemberRevisionSchema),
 });
 export type ContentsV1 = Schema.Schema.Type<typeof ContentsV1Schema>;
 
-export const ContentsV0Schema = Schema.Struct({
+const ContentsV0Schema = Schema.Struct({
   fileVersion: Schema.optional(Schema.Literal(0)),
   serverMaxRevisionCounter: Schema.Number,
   sourceMembers: Schema.Record(Schema.String, MemberRevisionLegacySchema),

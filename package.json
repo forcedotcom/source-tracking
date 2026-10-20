@@ -19,6 +19,7 @@
     "docs": "sf-docs",
     "fix-license": "eslint src test --fix --rule \"header/header: [2]\"",
     "format": "wireit",
+    "knip": "knip --no-config-hints",
     "link-check": "wireit",
     "lint": "wireit",
     "lint-fix": "yarn sf-lint --fix",
@@ -92,8 +93,8 @@
     "eslint": "^10.13.0",
     "eslint-config-salesforce-typescript": "^7.0.1",
     "eslint-plugin-functional": "^10.0.1",
-    "eslint-plugin-local-rules": "^3.0.2",
     "eslint-plugin-sf-plugin": "^3.0.1",
+    "knip": "^6.42.1",
     "ts-node": "^10.9.2",
     "ts-patch": "^4.0.1",
     "typescript": "^6.0.3"
