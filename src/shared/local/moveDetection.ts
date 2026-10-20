@@ -39,6 +39,7 @@ import {
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { FileSystem } from 'effect/FileSystem';
+import * as Chunk from 'effect/Chunk';
 import * as Effect from 'effect/Effect';
 import * as HashMap from 'effect/HashMap';
 import * as HashSet from 'effect/HashSet';
@@ -61,15 +62,15 @@ const TEXT = new TextEncoder();
  */
 type MoveDetectionResult = {
   readonly count: number;
-  readonly deployedFiles: readonly string[];
-  readonly deletedFiles: readonly string[];
+  readonly deployedFiles: Chunk.Chunk<string>;
+  readonly deletedFiles: Chunk.Chunk<string>;
   readonly logMessage: string;
 };
 
 const emptyResult: MoveDetectionResult = {
   count: 0,
-  deployedFiles: [],
-  deletedFiles: [],
+  deployedFiles: Chunk.empty(),
+  deletedFiles: Chunk.empty(),
   logMessage: '',
 };
 
@@ -153,10 +154,13 @@ export const filenameMatchesToMap =
 const toMoveDetectionResult = ({ fullMatches, deleteOnly }: StringMapsForMatches): MoveDetectionResult => {
   const count = HashMap.size(fullMatches) + HashMap.size(deleteOnly);
   if (count === 0) return emptyResult;
+  const deployedFiles = fullMatches.pipe(HashMap.keys, Chunk.fromIterable);
+  const fullDeletedFiles = fullMatches.pipe(HashMap.values, Chunk.fromIterable);
+  const deleteOnlyFiles = deleteOnly.pipe(HashMap.values, Chunk.fromIterable);
   return {
     count,
-    deployedFiles: Array.from(HashMap.keys(fullMatches)),
-    deletedFiles: [...Array.from(HashMap.values(fullMatches)), ...Array.from(HashMap.values(deleteOnly))],
+    deployedFiles,
+    deletedFiles: fullDeletedFiles.pipe(Chunk.appendAll(deleteOnlyFiles)),
     logMessage: [
       'Files have moved. Committing moved files:',
       ...Array.from(HashMap.entries(fullMatches), ([add, del]) => `- File ${del} was moved to ${add}`),

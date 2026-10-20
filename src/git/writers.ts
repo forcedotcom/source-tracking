@@ -223,7 +223,7 @@ const concat = (parts: readonly Uint8Array[]): Uint8Array => {
 
 // =================== COMMIT WRITER ===================
 
-export type CommitArgs = {
+type CommitArgs = {
   readonly tree: Oid;
   readonly parent: Option.Option<Oid>;
   readonly author: { readonly name: string; readonly email: string };

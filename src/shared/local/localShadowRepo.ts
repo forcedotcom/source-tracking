@@ -105,6 +105,14 @@ type ShadowRepoEffects = {
   readonly delete: () => Effect.Effect<string, RepoError, Repo | FileSystemService | Path>;
 };
 
+type ApplyChangesArgs = {
+  readonly deployedFiles: Iterable<string>;
+  readonly deletedFiles: Iterable<string>;
+  readonly deployedCount: number;
+  readonly deletedCount: number;
+  readonly message?: string;
+};
+
 /** Build one org's local-tracking operations. Git state and the status cache live in this closure. */
 const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRepoOptions, logger: Logger) {
   const repo = yield* Repo;
@@ -157,15 +165,20 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
     };
   });
 
-  const applyChanges = Effect.fn('ShadowRepo.applyChanges')(function* (request: SyncRequest = {}) {
-    const { deployedFiles = [], deletedFiles = [], message = 'sfdx source tracking' } = request;
-    if (deployedFiles.length === 0 && deletedFiles.length === 0) return 'no files to commit';
+  const applyChanges = Effect.fn('ShadowRepo.applyChanges')(function* ({
+    deployedFiles,
+    deletedFiles,
+    deployedCount,
+    deletedCount,
+    message = 'sfdx source tracking',
+  }: ApplyChangesArgs) {
+    if (deployedCount === 0 && deletedCount === 0) return 'no files to commit';
 
     const toRepoPath = (file: string): RepoPath =>
       Schema.decodeUnknownSync(RepoPathSchema)(IS_WINDOWS ? ensurePosix(file) : file);
     const adds = Stream.fromIterable(deployedFiles).pipe(Stream.map(toRepoPath));
     const removes = Stream.fromIterable(deletedFiles).pipe(Stream.map(toRepoPath));
-    yield* Effect.annotateCurrentSpan({ deployedCount: deployedFiles.length, deletedCount: deletedFiles.length });
+    yield* Effect.annotateCurrentSpan({ deployedCount, deletedCount });
     return yield* repo.applyChanges({ adds, removes, message, author: SHADOW_AUTHOR });
   });
 
@@ -183,8 +196,10 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
 
     yield* Effect.sync(() => logger.debug(result.logMessage));
     yield* applyChanges({
-      deployedFiles: [...result.deployedFiles],
-      deletedFiles: [...result.deletedFiles],
+      deployedFiles: result.deployedFiles,
+      deletedFiles: result.deletedFiles,
+      deployedCount: Chunk.size(result.deployedFiles),
+      deletedCount: Chunk.size(result.deletedFiles),
       message: 'Committing moved files',
     });
     return true;
@@ -245,7 +260,15 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
 
   const recordSync = Effect.fn('ShadowRepo.recordSync')(function* (request: SyncRequest = {}) {
     const hasFiles = (request.deployedFiles?.length ?? 0) > 0 || (request.deletedFiles?.length ?? 0) > 0;
-    const result = yield* applyChanges(request);
+    const deployedFiles = request.deployedFiles ?? [];
+    const deletedFiles = request.deletedFiles ?? [];
+    const result = yield* applyChanges({
+      deployedFiles,
+      deletedFiles,
+      deployedCount: deployedFiles.length,
+      deletedCount: deletedFiles.length,
+      message: request.message,
+    });
     if (hasFiles && request.needsUpdatedStatus !== false) {
       yield* refreshStatus();
     }

@@ -36,8 +36,8 @@ export type ShadowRepoOptions = {
 
 /** Files to record in the local tracking baseline. */
 export type SyncRequest = {
-  deployedFiles?: string[];
-  deletedFiles?: string[];
-  message?: string;
-  needsUpdatedStatus?: boolean;
+  readonly deployedFiles?: readonly string[];
+  readonly deletedFiles?: readonly string[];
+  readonly message?: string;
+  readonly needsUpdatedStatus?: boolean;
 };
