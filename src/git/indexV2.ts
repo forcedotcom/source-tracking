@@ -16,6 +16,7 @@
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
 import * as Effect from 'effect/Effect';
+import { isUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
 import { IndexCorruptError } from './errors.js';
 import { Oid } from './schemas.js';
@@ -220,7 +221,7 @@ export const readIndex = Effect.fn('readIndex')(function* (gitdir: string) {
   // NotFound → empty index (pre-applyChanges). Other read errors surface as
   // IndexCorruptError so the caller knows the bytes were unreadable.
   return yield* fs.readFile(file).pipe(
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.void),
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.void.pipe(Effect.as(undefined))),
     Effect.mapError(
       (cause) =>
         new IndexCorruptError({
@@ -229,6 +230,6 @@ export const readIndex = Effect.fn('readIndex')(function* (gitdir: string) {
           message: `failed to read ${file}: ${cause.message}`,
         })
     ),
-    Effect.flatMap((raw) => (raw === undefined ? Effect.succeed(EMPTY_INDEX) : parseIndexV2(gitdir, raw)))
+    Effect.flatMap((raw) => (isUndefined(raw) ? Effect.succeed(EMPTY_INDEX) : parseIndexV2(gitdir, raw)))
   );
 });

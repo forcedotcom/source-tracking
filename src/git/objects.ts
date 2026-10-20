@@ -17,7 +17,7 @@ import * as Effect from 'effect/Effect';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
-import { ObjectCorruptError, ObjectNotFoundError, WorkdirIoError } from './errors.js';
+import { ObjectCorruptError, ObjectNotFoundError } from './errors.js';
 import { Oid } from './schemas.js';
 
 export const LooseObjectType = Schema.Literals(['blob', 'tree', 'commit']);
@@ -142,12 +142,8 @@ export const writeLooseObject = Effect.fnUntraced(function* (
   const exists = yield* fs.exists(file).pipe(Effect.orElseSucceed(() => false));
   if (exists) return oid;
 
-  yield* fs
-    .makeDirectory(dir, { recursive: true })
-    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(dir, cause)));
-  yield* fs
-    .writeFile(file, yield* deflate(frameLooseObject(type, content)))
-    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)));
+  yield* fs.makeDirectory(dir, { recursive: true });
+  yield* fs.writeFile(file, yield* deflate(frameLooseObject(type, content)));
   return oid;
 });
 

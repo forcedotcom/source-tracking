@@ -20,8 +20,9 @@ import * as Effect from 'effect/Effect';
 import * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
 import * as Order from 'effect/Order';
+import { isUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
-import { type WorkdirIoError } from './errors.js';
+import type { PlatformError } from 'effect/PlatformError';
 import { hashLooseObject, writeLooseObject } from './objects.js';
 import { Oid } from './schemas.js';
 import type { IndexEntry } from './indexV2.js';
@@ -82,7 +83,7 @@ export const buildTreeMap = (
     for (const seg of segs.slice(0, -1)) {
       const existing = node.subtrees.get(seg);
       const next = existing ?? newTreeNode();
-      if (existing === undefined) node.subtrees.set(seg, next);
+      if (isUndefined(existing)) node.subtrees.set(seg, next);
       node = next;
     }
     const leaf = segs[segs.length - 1] ?? '';
@@ -129,7 +130,7 @@ const writeTreeRecursive = (
   gitdir: string,
   node: TreeMapNode
   // eslint-disable-next-line local-rules/no-explicit-effect-return-type
-): Effect.Effect<Oid, WorkdirIoError, FileSystem | Path> =>
+): Effect.Effect<Oid, PlatformError, FileSystem | Path> =>
   Effect.gen(function* () {
     const childOids = yield* Effect.forEach(
       node.subtrees,

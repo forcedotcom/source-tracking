@@ -24,25 +24,25 @@ import * as Schedule from 'effect/Schedule';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
-import { RepoLockedError, WorkdirIoError } from './errors.js';
+import { RepoLockedError } from './errors.js';
 
-const DEFAULT_TIMEOUT_SEC = 600; // 10 minutes
-const DEFAULT_AUTOCLEAR_SEC = 300; // 5 minutes
+const DEFAULT_TIMEOUT = Duration.seconds(600); // 10 minutes
+const DEFAULT_AUTOCLEAR = Duration.seconds(300); // 5 minutes
 const ENV_TIMEOUT = 'SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS';
 const ENV_AUTOCLEAR = 'SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS';
 
-const envSeconds = (name: string, fallback: number) =>
+const envDurationSeconds = (name: string, fallback: Duration.Duration) =>
   Config.Number(name)
-    .pipe(Config.withDefault(fallback))
+    .pipe(Config.withDefault(Duration.toSeconds(fallback)))
     .parse(ConfigProvider.fromEnv())
     .pipe(
-      Effect.map((seconds) => (Number.isFinite(seconds) && seconds > 0 ? seconds : fallback)),
+      Effect.map((seconds) => (Number.isFinite(seconds) && seconds > 0 ? Duration.seconds(seconds) : fallback)),
       Effect.catchTag('ConfigError', () => Effect.succeed(fallback))
     );
 
 const statSentinel = Symbol('stat-not-found');
 
-const humanReadable = (ms: number): string => Duration.format(Duration.millis(ms));
+const humanReadable = (duration: Duration.Duration): string => Duration.format(duration);
 
 /**
  * Acquire `<gitdir>/index.lock` exclusively (`open({flag:'wx'})`), run the
@@ -65,19 +65,18 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
   const path = yield* Path;
   const lockPath = path.join(gitdir, 'index.lock');
   const indexPath = path.join(gitdir, 'index');
-  const [timeoutSeconds, autoclearSeconds] = yield* Effect.all([
-    envSeconds(ENV_TIMEOUT, DEFAULT_TIMEOUT_SEC),
-    envSeconds(ENV_AUTOCLEAR, DEFAULT_AUTOCLEAR_SEC),
+  const [timeout, autoclear] = yield* Effect.all([
+    envDurationSeconds(ENV_TIMEOUT, DEFAULT_TIMEOUT),
+    envDurationSeconds(ENV_AUTOCLEAR, DEFAULT_AUTOCLEAR),
   ]);
-  const timeoutMs = timeoutSeconds * 1000;
-  const autoclearMs = autoclearSeconds * 1000;
+  const timeoutMs = Duration.toMillis(timeout);
+  const autoclearMs = Duration.toMillis(autoclear);
   const startMs = yield* Clock.currentTimeMillis;
 
   const tryAutoclear = Effect.fn('tryAutoclear')(function* () {
-    const info = yield* fs.stat(lockPath).pipe(
-      Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(statSentinel)),
-      Effect.mapError((cause) => WorkdirIoError.fromPlatformError(lockPath, cause))
-    );
+    const info = yield* fs
+      .stat(lockPath)
+      .pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(statSentinel)));
     if (info === statSentinel) return false;
     const now = yield* Clock.currentTimeMillis;
     const mtimeMs = Option.getOrElse(
@@ -87,22 +86,17 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
     const ageMs = now - mtimeMs;
     if (ageMs <= autoclearMs) return false;
     yield* Effect.logWarning(
-      `lock auto-clear: ${lockPath} is ${humanReadable(ageMs)} old (> ${humanReadable(autoclearMs)})`
+      `lock auto-clear: ${lockPath} is ${humanReadable(Duration.millis(ageMs))} old (> ${humanReadable(autoclear)})`
     );
-    yield* fs.remove(lockPath).pipe(
-      Effect.catchReason('PlatformError', 'NotFound', () => Effect.void),
-      Effect.mapError((cause) => WorkdirIoError.fromPlatformError(lockPath, cause))
-    );
+    yield* fs.remove(lockPath).pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.void));
     return true;
   });
 
   // Single-attempt open; fails with RepoLockedError if the lock is held
-  // (after auto-clear has had a chance), or WorkdirIoError on real fs
+  // (after auto-clear has had a chance), or PlatformError on real fs
   // failure. Effect.retry below drives the backoff loop, retrying only on
   // RepoLockedError.
-  const wxOpen = Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
-    Effect.mapError((c) => WorkdirIoError.fromPlatformError(lockPath, c))
-  );
+  const wxOpen = Effect.scoped(fs.open(lockPath, { flag: 'wx' }));
 
   const lockedFailure = Clock.currentTimeMillis.pipe(
     Effect.flatMap((now) => {
@@ -111,8 +105,8 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
         new RepoLockedError({
           lockPath,
           ageMs,
-          ageHumanReadable: humanReadable(ageMs),
-          message: `index.lock at ${lockPath} held; waited ${humanReadable(ageMs)}`,
+          ageHumanReadable: humanReadable(Duration.millis(ageMs)),
+          message: `index.lock at ${lockPath} held; waited ${humanReadable(Duration.millis(ageMs))}`,
         })
       );
     })
@@ -121,8 +115,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
   const tryAcquireOnce = Effect.fn('tryAcquireOnce')(function* () {
     const opened: boolean = yield* Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
       Effect.map(() => true),
-      Effect.catchReason('PlatformError', 'AlreadyExists', () => Effect.succeed(false)),
-      Effect.mapError((cause) => WorkdirIoError.fromPlatformError(lockPath, cause))
+      Effect.catchReason('PlatformError', 'AlreadyExists', () => Effect.succeed(false))
     );
     return opened
       ? { lockPath, indexPath }
@@ -138,7 +131,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
   const backoff = Schedule.min([
     Duration.millis(50).pipe(Schedule.exponential, Schedule.jittered),
     Schedule.spaced(Duration.millis(1000)),
-  ]).pipe(Schedule.upTo({ duration: Duration.millis(timeoutMs) }));
+  ]).pipe(Schedule.upTo({ duration: timeout }));
   return yield* tryAcquireOnce().pipe(
     Effect.retry({ schedule: backoff, while: Schema.is(RepoLockedError) }),
     // After timeout, repackage with the canonical "remove manually" message.
@@ -147,9 +140,9 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
         new RepoLockedError({
           lockPath,
           ageMs: timeoutMs,
-          ageHumanReadable: humanReadable(timeoutMs),
+          ageHumanReadable: humanReadable(timeout),
           message: `index.lock at ${lockPath} not acquired within ${humanReadable(
-            timeoutMs
+            timeout
           )}; remove manually if you are sure no other process is writing`,
         })
       )
@@ -161,9 +154,7 @@ const releaseLock = (lockPath: string, indexPath: string, succeeded: boolean, st
   FileSystem.pipe(
     Effect.flatMap((fs) =>
       succeeded && strategy === 'rename-to-index'
-        ? fs
-            .rename(lockPath, indexPath)
-            .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(indexPath, cause)))
+        ? fs.rename(lockPath, indexPath)
         : fs.remove(lockPath).pipe(
             Effect.catchReason('PlatformError', 'NotFound', () => Effect.void),
             Effect.catch((cause) => Effect.logWarning(`failed to remove ${lockPath}: ${cause.message}`))

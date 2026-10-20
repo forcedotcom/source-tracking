@@ -16,6 +16,7 @@
 import { basename, dirname, join, normalize, sep } from 'node:path';
 import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { Lifecycle } from '@salesforce/core/lifecycle';
+import { isNotUndefined } from 'effect/Predicate';
 import { RemoteSyncInput } from './types.js';
 import { getMetadataKey } from './functions.js';
 
@@ -72,7 +73,7 @@ export const getMetadataKeyFromFileResponse =
     const reverseAliasTypesResult = reverseStringMap(getAliasTypes(registry));
     // if we've aliased a type, we'll have to possibly sync both types--you can't tell from the sourceComponent retrieved which way it was stored on the server
     const reverseAliasType = reverseAliasTypesResult.get(fileResponse.type);
-    if (reverseAliasType !== undefined) {
+    if (isNotUndefined(reverseAliasType)) {
       return [
         getMetadataKey(fileResponse.type, fileResponse.fullName),
         getMetadataKey(reverseAliasType, fileResponse.fullName),

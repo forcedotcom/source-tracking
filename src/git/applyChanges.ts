@@ -22,7 +22,6 @@ import * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import * as Stream from 'effect/Stream';
-import { WorkdirIoError } from './errors.js';
 import { readIndex, type IndexEntry } from './indexV2.js';
 import { withIndexLockCtx } from './lock.js';
 import { writeLooseObject } from './objects.js';
@@ -40,7 +39,7 @@ const readWorkdirBytes = Effect.fnUntraced(function* (dir: string, rel: RepoPath
   const fs = yield* FileSystem;
   const path = yield* Path;
   const abs = path.join(dir, rel);
-  return yield* fs.readFile(abs).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)));
+  return yield* fs.readFile(abs);
 });
 
 export type ApplyArgs = {
@@ -68,12 +67,9 @@ const stageAdd = Effect.fnUntraced(function* (cfg: ApplyArgs['cfg'], p: RepoPath
   const fs = yield* FileSystem;
   const path = yield* Path;
   const abs = path.join(cfg.dir, p);
-  const info = yield* lstat(abs).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)));
+  const info = yield* lstat(abs);
   const bytes = info.isSymbolicLink()
-    ? yield* fs.readLink(abs).pipe(
-        Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))),
-        Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause))
-      )
+    ? yield* fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
     : yield* readWorkdirBytes(cfg.dir, p);
   const oid = yield* writeLooseObject(cfg.gitdir, 'blob', bytes);
   const mtimeMs = info.mtimeMs;
@@ -137,9 +133,7 @@ const writeIndex = Effect.fn('writeIndex')(function* (
 ) {
   const fs = yield* FileSystem;
   const bytes = yield* writeIndexV2(entries, extensions);
-  yield* fs
-    .writeFile(indexPath, bytes)
-    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(indexPath, cause)));
+  yield* fs.writeFile(indexPath, bytes);
 });
 
 const writeTreeForEntries = (gitdir: string, entries: HashSet.HashSet<IndexEntry>) => {

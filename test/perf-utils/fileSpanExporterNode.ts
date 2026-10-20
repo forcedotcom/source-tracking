@@ -25,6 +25,7 @@ import { type Attributes, SpanStatusCode } from '@opentelemetry/api';
 import { ExportResult, ExportResultCode } from '@opentelemetry/core';
 import { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Global } from '@salesforce/core/global';
+import { isNotNullish } from 'effect/Predicate';
 
 const SPANS_DIR = join(Global.SF_DIR, 'source-tracking-spans');
 
@@ -34,7 +35,7 @@ const spanDuration = (span: ReadableSpan): number =>
 const convertAttributes = (attributes: Attributes): Attributes =>
   Object.fromEntries(
     Object.entries(attributes)
-      .filter(([, value]) => value !== undefined && value !== null)
+      .filter(([, value]) => isNotNullish(value))
       .map(([key, value]) => [key, String(value)])
   );
 

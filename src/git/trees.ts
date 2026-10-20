@@ -159,20 +159,23 @@ export const streamHeadTreeWithMode = (gitdir: string) =>
       const headOid = yield* resolveRef(gitdir, Schema.decodeUnknownSync(RefName)('HEAD'));
       const commit = yield* readLooseObject(gitdir, headOid);
       const firstLine = ASCII.decode(commit.content).split('\n', 1)[0] ?? '';
-      const matched = Option.fromNullishOr(/^tree ([0-9a-f]{40})$/.exec(firstLine));
-      return commit.type !== 'commit'
-        ? yield* new ObjectCorruptError({
-            oid: headOid,
-            reason: `expected commit, got ${commit.type}`,
-            message: `streamHeadTree: HEAD oid ${headOid} is not a commit`,
-          })
-        : Option.isNone(matched)
-        ? yield* new ObjectCorruptError({
+      if (commit.type !== 'commit') {
+        return yield* new ObjectCorruptError({
+          oid: headOid,
+          reason: `expected commit, got ${commit.type}`,
+          message: `streamHeadTree: HEAD oid ${headOid} is not a commit`,
+        });
+      }
+      const matched = yield* Effect.fromOption(
+        Option.fromNullishOr(/^tree ([0-9a-f]{40})$/.exec(firstLine)),
+        () =>
+          new ObjectCorruptError({
             oid: headOid,
             reason: 'no tree line',
             message: `streamHeadTree: commit ${headOid} has no tree header`,
           })
-        : readTree(gitdir, Schema.decodeUnknownSync(Oid)(matched.value[1] ?? ''));
+      );
+      return readTree(gitdir, Schema.decodeUnknownSync(Oid)(matched[1] ?? ''));
     })
   );
 

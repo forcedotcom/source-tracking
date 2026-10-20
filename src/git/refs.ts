@@ -18,10 +18,10 @@ import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Random from 'effect/Random';
 import * as Schema from 'effect/Schema';
-import { badArgument } from 'effect/PlatformError';
+import { badArgument, type PlatformError } from 'effect/PlatformError';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
-import { RefNotFoundError, WorkdirIoError } from './errors.js';
+import { RefNotFoundError } from './errors.js';
 import { Oid, RefName } from './schemas.js';
 
 const SYMBOLIC_PREFIX = 'ref: ';
@@ -35,14 +35,13 @@ const readUtf8 = (file: string) =>
     Effect.flatMap((fs) =>
       fs.readFile(file).pipe(
         Effect.map((bytes) => Option.some(TEXT.decode(bytes))),
-        Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<string>())),
-        Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause))
+        Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<string>()))
       )
     )
   );
 
-const badArgumentError = (path: string, method: string, message: string): WorkdirIoError =>
-  WorkdirIoError.fromPlatformError(path, badArgument({ module: 'FileSystem', method, description: message }));
+const badArgumentError = (file: string, method: string, message: string): PlatformError =>
+  badArgument({ module: 'FileSystem', method, description: `${file}: ${message}` });
 
 /**
  * Read `.git/HEAD`. Returns a discriminated union: `'symbolic'` for the
@@ -60,10 +59,10 @@ const HEAD_REF: RefName = Schema.decodeUnknownSync(RefName)('HEAD');
 export const readHead = Effect.fn('readHead')(function* (gitdir: string) {
   const path = yield* Path;
   const file = refFile(path, gitdir, HEAD_REF);
-  const raw = yield* readUtf8(file);
-  return yield* Option.isNone(raw)
-    ? Effect.fail(new RefNotFoundError({ ref: HEAD_REF, message: `HEAD missing at ${file}` }))
-    : decodeHeadContent(file, raw.value.replace(/\n$/, ''));
+  const raw = yield* readUtf8(file).pipe(
+    Effect.flatMap(Effect.fromOption(() => new RefNotFoundError({ ref: HEAD_REF, message: `HEAD missing at ${file}` })))
+  );
+  return yield* decodeHeadContent(file, raw.replace(/\n$/, ''));
 });
 
 const decodeHeadContent = (file: string, trimmed: string) => {
@@ -89,11 +88,10 @@ const decodeHeadContent = (file: string, trimmed: string) => {
 export const readDirectRef = Effect.fn('readDirectRef')(function* (gitdir: string, ref: RefName) {
   const path = yield* Path;
   const file = refFile(path, gitdir, ref);
-  const raw = yield* readUtf8(file);
-  if (Option.isNone(raw)) {
-    return yield* new RefNotFoundError({ ref, message: `ref ${ref} missing at ${file}` });
-  }
-  const trimmed = raw.value.replace(/\n$/, '').trim();
+  const raw = yield* readUtf8(file).pipe(
+    Effect.flatMap(Effect.fromOption(() => new RefNotFoundError({ ref, message: `ref ${ref} missing at ${file}` })))
+  );
+  const trimmed = raw.replace(/\n$/, '').trim();
   const decoded = Schema.decodeUnknownExit(Oid)(trimmed);
   return yield* Exit.isSuccess(decoded)
     ? Effect.succeed(decoded.value)
@@ -137,11 +135,9 @@ const writeAtomically = Effect.fn('writeAtomically')(function* (gitdir: string, 
   const file = refFile(path, gitdir, ref);
   const random = yield* Random.next;
   const tmp = `${file}.tmp.${random.toString(36).slice(2)}`;
-  yield* fs
-    .makeDirectory(path.dirname(file), { recursive: true })
-    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(path.dirname(file), cause)));
-  yield* fs.writeFile(tmp, bytes).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(tmp, cause)));
-  yield* fs.rename(tmp, file).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)));
+  yield* fs.makeDirectory(path.dirname(file), { recursive: true });
+  yield* fs.writeFile(tmp, bytes);
+  yield* fs.rename(tmp, file);
 });
 
 /**

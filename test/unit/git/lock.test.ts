@@ -24,6 +24,7 @@ import * as Layer from 'effect/Layer';
 import * as Cause from 'effect/Cause';
 import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
+import { isNull } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
@@ -237,7 +238,7 @@ describe('git/lock (phase 4)', () => {
       expect(await fs.readFile(logPath, 'utf8')).to.equal('first:start\nfirst:end\nsecond:start\nsecond:end\n');
     } finally {
       children.forEach((child) => {
-        if (child.exitCode === null) child.kill();
+        if (isNull(child.exitCode)) child.kill();
       });
       await fs.rm(tmp, { recursive: true, force: true });
     }
@@ -259,7 +260,7 @@ describe('git/lock (phase 4)', () => {
         .catch(() => false);
       expect(lockExists).to.equal(false);
     } finally {
-      if (worker.child.exitCode === null) worker.child.kill();
+      if (isNull(worker.child.exitCode)) worker.child.kill();
       await fs.rm(tmp, { recursive: true, force: true });
     }
   }).timeout(15000);

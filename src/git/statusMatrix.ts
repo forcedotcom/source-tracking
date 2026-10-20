@@ -22,11 +22,11 @@ import * as HashSet from 'effect/HashSet';
 import * as Match from 'effect/Match';
 import * as Option from 'effect/Option';
 import * as Order from 'effect/Order';
+import { isNotUndefined } from 'effect/Predicate';
 import * as Result from 'effect/Result';
 import * as Schema from 'effect/Schema';
 import * as Stream from 'effect/Stream';
 import { nodeIgnores, readInfoExclude, walkAllRoots, type WalkResult } from './dirWalk.js';
-import { WorkdirIoError } from './errors.js';
 import { readIndex, type IndexEntry } from './indexV2.js';
 import { hashBlob } from './objects.js';
 import { type Oid, type RepoPath, RepoPath as RepoPathSchema, type StatusEntry } from './schemas.js';
@@ -37,7 +37,10 @@ const TEXT = new TextEncoder();
 type HeadFile = { readonly oid: Oid; readonly mode: number };
 
 /** Predicate: does `p` live under any of `roots`? Exact match or prefix-with-slash. */
-const inRoots = (p: string, roots: readonly RepoPath[]): boolean => roots.some((r) => r === p || p.startsWith(`${r}/`));
+const inRoots =
+  (roots: readonly RepoPath[]) =>
+  (p: string): boolean =>
+    roots.some((r) => r === p || p.startsWith(`${r}/`));
 
 /** Hash workdir bytes for one path, or None if the file vanished mid-walk. */
 const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string, mode: number) {
@@ -48,7 +51,6 @@ const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string, mode:
   return yield* content.pipe(
     Effect.map((b) => Option.some(b)),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Uint8Array>())),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)),
     Effect.flatMap((bytes) =>
       Option.match(bytes, {
         onNone: () => Effect.succeed(Option.none<Oid>()),
@@ -83,7 +85,7 @@ const collapse = (
   hasWorkdir: boolean
 ): Option.Option<StatusEntry> => {
   const path = Schema.decodeUnknownSync(RepoPathSchema)(rawPath);
-  const tracked = head !== undefined || index !== undefined;
+  const tracked = isNotUndefined(head) || isNotUndefined(index);
   return Match.value({ tracked, hasWorkdir }).pipe(
     Match.when({ tracked: false, hasWorkdir: false }, () => Option.none<StatusEntry>()),
     Match.when({ tracked: false, hasWorkdir: true }, () =>
@@ -101,8 +103,8 @@ const collapse = (
       Option.some<StatusEntry>({
         path,
         status:
-          head !== undefined &&
-          index !== undefined &&
+          isNotUndefined(head) &&
+          isNotUndefined(index) &&
           head.oid === workdir &&
           index.oid === workdir &&
           head.mode === workdirMode &&
@@ -154,47 +156,55 @@ const cellHashing = Effect.fn('cellHashing')(function* (
 /**
  * Produce status entries from pre-resolved HEAD, index, and workdir paths.
  */
-const evaluateMatrix = (
-  cfg: { readonly dir: string; readonly roots: readonly RepoPath[] },
-  headByPath: HashMap.HashMap<string, HeadFile>,
-  indexByPath: HashMap.HashMap<string, IndexEntry>,
-  workdirSet: HashSet.HashSet<string>,
-  workdirModes: HashMap.HashMap<string, number>,
-  untracked: UntrackedClassification
-) =>
-  Effect.gen(function* () {
-    const trackedPaths = HashSet.union(
-      headByPath.pipe(HashMap.keys, HashSet.fromIterable),
-      indexByPath.pipe(HashMap.keys, HashSet.fromIterable)
-    );
-    const allPaths = Arr.sort(Order.String)(
-      Arr.fromIterable(HashSet.union(trackedPaths, workdirSet)).filter((p) => inRoots(p, cfg.roots))
-    );
+const evaluateMatrix = Effect.fn('evaluateMatrix')(function* ({
+  cfg,
+  headByPath,
+  indexByPath,
+  workdirSet,
+  workdirModes,
+  untracked,
+}: {
+  readonly cfg: { readonly dir: string; readonly roots: readonly RepoPath[] };
+  readonly headByPath: HashMap.HashMap<string, HeadFile>;
+  readonly indexByPath: HashMap.HashMap<string, IndexEntry>;
+  readonly workdirSet: HashSet.HashSet<string>;
+  readonly workdirModes: HashMap.HashMap<string, number>;
+  readonly untracked: UntrackedClassification;
+}) {
+  const trackedPaths = HashSet.union(
+    headByPath.pipe(HashMap.keys, HashSet.fromIterable),
+    indexByPath.pipe(HashMap.keys, HashSet.fromIterable)
+  );
+  const allPaths = HashSet.union(trackedPaths, workdirSet).pipe(
+    Arr.fromIterable,
+    Arr.filter(inRoots(cfg.roots)),
+    Arr.sort(Order.String)
+  );
 
-    // Hashing cohort is small (modified-or-unmodified tracked files); pure
-    // cohort is the rest. Partition once so the pure majority doesn't spawn
-    // fibers or require mutable accumulator arrays.
-    const [needsHash, pure] = Arr.partition(allPaths, (p) => {
-      const head = Option.getOrUndefined(HashMap.get(headByPath, p));
-      const indexEntry = Option.getOrUndefined(HashMap.get(indexByPath, p));
-      const tracked = head !== undefined || indexEntry !== undefined;
-      const inWd = HashSet.has(workdirSet, p);
-      return tracked && inWd ? Result.succeed(p) : Result.fail(cellPure(p, head, indexEntry, inWd, untracked));
-    });
-    return yield* Effect.forEach(
-      needsHash,
-      (p) =>
-        cellHashing(
-          cfg,
-          p,
-          Option.getOrUndefined(HashMap.get(headByPath, p)),
-          Option.getOrUndefined(HashMap.get(indexByPath, p)),
-          Option.getOrUndefined(HashMap.get(workdirModes, p)) ?? GIT_FILE_MODE,
-          untracked
-        ),
-      { concurrency: 256 }
-    ).pipe(Effect.map((hashed) => [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []))));
+  // Hashing cohort is small (modified-or-unmodified tracked files); pure
+  // cohort is the rest. Partition once so the pure majority doesn't spawn
+  // fibers or require mutable accumulator arrays.
+  const [needsHash, pure] = Arr.partition(allPaths, (p) => {
+    const head = Option.getOrUndefined(HashMap.get(headByPath, p));
+    const indexEntry = Option.getOrUndefined(HashMap.get(indexByPath, p));
+    const tracked = isNotUndefined(head) || isNotUndefined(indexEntry);
+    const inWd = HashSet.has(workdirSet, p);
+    return tracked && inWd ? Result.succeed(p) : Result.fail(cellPure(p, head, indexEntry, inWd, untracked));
   });
+  return yield* Effect.forEach(
+    needsHash,
+    (p) =>
+      cellHashing(
+        cfg,
+        p,
+        Option.getOrUndefined(HashMap.get(headByPath, p)),
+        Option.getOrUndefined(HashMap.get(indexByPath, p)),
+        Option.getOrUndefined(HashMap.get(workdirModes, p)) ?? GIT_FILE_MODE,
+        untracked
+      ),
+    { concurrency: 256 }
+  ).pipe(Effect.map((hashed) => [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []))));
+});
 
 /**
  * Build the workdir indexes from a fresh walk.
@@ -282,9 +292,14 @@ export const cold = (cfg: {
       );
       const untrackedAll = HashMap.union(untracked, bareFileUntracked);
 
-      return yield* evaluateMatrix(cfg, headByPath, indexByPath, workdirSet, workdirModes, untrackedAll).pipe(
-        Effect.map(Stream.fromIterable)
-      );
+      return yield* evaluateMatrix({
+        cfg,
+        headByPath,
+        indexByPath,
+        workdirSet,
+        workdirModes,
+        untracked: untrackedAll,
+      }).pipe(Effect.map(Stream.fromIterable));
     })
   );
 
@@ -309,8 +324,7 @@ const collectBareFileRoots = (dir: string, roots: readonly RepoPath[]) =>
           ),
           Effect.catchReason('PlatformError', 'NotFound', () =>
             Effect.succeed(Option.none<readonly [string, number]>())
-          ),
-          Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause))
+          )
         );
       }),
     { concurrency: 'unbounded' }

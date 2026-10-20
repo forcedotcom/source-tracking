@@ -20,6 +20,7 @@ import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
+import { isUndefined } from 'effect/Predicate';
 import * as Request from 'effect/Request';
 import * as RequestResolver from 'effect/RequestResolver';
 import { PinoLogger, SOURCE_MEMBER_FIELDS, SourceMember } from './types.js';
@@ -99,7 +100,7 @@ export const makeUserNameCache = Effect.fn('makeUserNameCache')(function* (conn:
       );
       entries.forEach((entry) => {
         const name = namesById.get(entry.request.userId);
-        entry.completeUnsafe(Exit.succeed(name === undefined ? Option.none() : Option.some(name)));
+        entry.completeUnsafe(Exit.succeed(isUndefined(name) ? Option.none() : Option.some(name)));
       });
     })
   );

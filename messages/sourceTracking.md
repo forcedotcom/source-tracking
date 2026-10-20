@@ -18,10 +18,6 @@ The local source-tracking shadow repo could not decode object %s (%s). Remove .s
 
 Source tracking made an internal call before the shadow repo was configured (%s). This is a programming error; please report it.
 
-# workdirIo
-
-Source tracking failed reading or writing %s: %s.
-
 # invalidPath
 
 Source tracking received an invalid path %s (%s). This is a programming error; please report it.

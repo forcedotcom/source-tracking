@@ -18,8 +18,8 @@ import * as Match from 'effect/Match';
 import { type RepoError } from './errors.js';
 
 /**
- * Map a RepoError to an SfError with a stable name. Each arm builds an
- * SfError whose `name` matches a key in `messages/sourceTracking.md`.
+ * Map Git errors to SfErrors at the source-tracking boundary. Platform errors
+ * are wrapped without discarding their original details.
  *
  * Used by source-tracking's existing `redirectToCliRepoError`-shaped sync
  * catch site. When phase 12 wires source-tracking call sites into lite's
@@ -38,7 +38,7 @@ export const repoErrorToSfError: (e: RepoError) => SfError = Match.type<RepoErro
     ObjectNotFoundError: (e) => new SfError(`objectNotFound: ${e.oid}`, 'objectNotFound'),
     ObjectCorruptError: (e) => new SfError(`objectCorrupt: ${e.oid} (${e.reason})`, 'objectCorrupt'),
     RepoNotConfiguredError: (e) => new SfError(`repoNotConfigured: ${e.message}`, 'repoNotConfigured'),
-    WorkdirIoError: (e) => new SfError(`workdirIo: ${e.path}: ${e.message}`, 'workdirIo'),
+    PlatformError: (e) => SfError.wrap(e),
     RefNotFoundError: (e) => new SfError(`refNotFound: ${e.ref}`, 'refNotFound'),
   })
 );

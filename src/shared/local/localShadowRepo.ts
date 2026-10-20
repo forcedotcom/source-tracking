@@ -31,7 +31,7 @@ import * as Option from 'effect/Option';
 import * as Ref from 'effect/Ref';
 import * as Schema from 'effect/Schema';
 import * as Stream from 'effect/Stream';
-import { type RepoError, WorkdirIoError } from '../../git/errors.js';
+import { type RepoError } from '../../git/errors.js';
 import { Repo } from '../../git/repo.js';
 import { repoErrorToSfError } from '../../git/sfCompatibility.js';
 import {
@@ -42,7 +42,7 @@ import {
 } from '../../git/schemas.js';
 import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
 import { getMatches, ensurePosix, IS_WINDOWS } from './functions.js';
-import { filenameMatchesToMapLite } from './moveDetectionLite.js';
+import { filenameMatchesToMap } from './moveDetection.js';
 import type { LocalChanges, ShadowRepoOptions, SyncRequest } from './types.js';
 
 const getGitDir = (orgId: string, projectPath: string): string =>
@@ -177,7 +177,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
     });
     if (HashSet.isEmpty(matchingFiles.added) || HashSet.isEmpty(matchingFiles.deleted)) return false;
 
-    const result = yield* filenameMatchesToMapLite(options.registry)(options.projectPath)(fdPermits)(matchingFiles);
+    const result = yield* filenameMatchesToMap(options.registry)(options.projectPath)(fdPermits)(matchingFiles);
     yield* Effect.annotateCurrentSpan({ moveCount: result.count });
     if (result.count === 0) return false;
 
@@ -253,9 +253,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
   });
 
   const deleteShadowRepo = Effect.fn('ShadowRepo.delete')(function* () {
-    yield* fs
-      .remove(gitDir, { recursive: true, force: true })
-      .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(gitDir, cause)));
+    yield* fs.remove(gitDir, { recursive: true, force: true });
     yield* Ref.set(statusCache, Option.none());
     return gitDir;
   });

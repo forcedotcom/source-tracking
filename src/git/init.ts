@@ -19,7 +19,7 @@ import * as Semaphore from 'effect/Semaphore';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
-import { IndexCorruptError, WorkdirIoError } from './errors.js';
+import { IndexCorruptError } from './errors.js';
 import { hashLooseObject, writeLooseObject } from './objects.js';
 import { readDirectRef, readHead, writeDirectRef, writeSymbolicHead } from './refs.js';
 import { type Author, Oid, RefName, type SwitchCfg } from './schemas.js';
@@ -33,41 +33,32 @@ const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 const exists = (file: string) =>
   FileSystem.pipe(
     Effect.flatMap((fs) =>
-      fs.exists(file).pipe(
-        Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)),
-        Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause))
-      )
+      fs.exists(file).pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)))
     )
   );
 
 const readStringOrEmpty = Effect.fnUntraced(function* (file: string) {
   const fs = yield* FileSystem;
-  return yield* fs.readFileString(file).pipe(
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed('')),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause))
-  );
+  return yield* fs.readFileString(file).pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed('')));
 });
 
 const readDirectoryOrEmpty = Effect.fnUntraced(function* (directory: string) {
   const fs = yield* FileSystem;
-  return yield* fs.readDirectory(directory).pipe(
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([] satisfies string[])),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(directory, cause))
-  );
+  return yield* fs
+    .readDirectory(directory)
+    .pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([] satisfies string[])));
 });
 
 const isRegularFile = (file: string) =>
   lstat(file).pipe(
     Effect.map((info) => info.isFile()),
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause))
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false))
   );
 
 const isDirectory = (directory: string) =>
   lstat(directory).pipe(
     Effect.map((info) => info.isDirectory()),
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false)),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(directory, cause))
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(false))
   );
 
 const hasExactly = (actual: readonly string[], expected: readonly string[]): boolean =>
@@ -185,10 +176,8 @@ const isLegacyEmptyIsomorphicRepo = Effect.fnUntraced(function* (gitdir: string)
 const writeFile = Effect.fn('writeFile')(function* (file: string, bytes: Uint8Array) {
   const fs = yield* FileSystem;
   const path = yield* Path;
-  yield* fs
-    .makeDirectory(path.dirname(file), { recursive: true })
-    .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(path.dirname(file), cause)));
-  yield* fs.writeFile(file, bytes).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)));
+  yield* fs.makeDirectory(path.dirname(file), { recursive: true });
+  yield* fs.writeFile(file, bytes);
 });
 
 /** Format a timestamp as `<seconds> +0000` (lite always uses UTC). */

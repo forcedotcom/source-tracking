@@ -45,7 +45,6 @@ import * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
 import { Repo } from '../../git/repo.js';
-import { WorkdirIoError } from '../../git/errors.js';
 import { hashBlob } from '../../git/objects.js';
 import { lstat, normalizeGitSymlinkTarget } from '../../git/workdir.js';
 import { ensurePosix, IS_WINDOWS } from './functions.js';
@@ -117,7 +116,7 @@ const emptyBucket: Bucket = { map: HashMap.empty(), ignored: HashMap.empty() };
  * call: file lists + count + a pre-formatted log line. The internal
  * HashMaps don't leak across the module boundary.
  */
-export const filenameMatchesToMapLite =
+export const filenameMatchesToMap =
   (registry: RegistryAccess) =>
   (projectPath: string) =>
   (fdPermits: number) =>
@@ -178,14 +177,13 @@ const addedInfoStream = (projectPath: string, fdPermits: number, added: HashSet.
       (filepath) =>
         Effect.gen(function* () {
           const abs = path.join(projectPath, filepath);
-          const info = yield* lstat(abs).pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)));
+          const info = yield* lstat(abs);
           const fs = yield* FileSystem;
           return yield* (
             info.isSymbolicLink()
               ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
               : fs.readFile(abs)
           ).pipe(
-            Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)),
             Effect.flatMap(hashBlob),
             Effect.map(
               (hash) => ({ filename: filepath, basename: path.basename(filepath), hash } satisfies DetectionFileInfo)
@@ -214,7 +212,7 @@ const deletedInfoStream = (headOids: HashMap.HashMap<string, string>, deleted: H
   );
 
 /** Drain HEAD tree once into a path→oid HashMap. Replaces N readBlob calls. */
-const drainHeadOids = Effect.fn('moveDetectionLite.drainHeadOids')(function* () {
+const drainHeadOids = Effect.fn('moveDetection.drainHeadOids')(function* () {
   const repo = yield* Repo;
   return yield* repo.streamHeadTree().pipe(
     Stream.map((p) => [p.path, p.oid] satisfies readonly [string, string]),
@@ -283,7 +281,7 @@ const accumulateBucket = ({ map, ignored }: Bucket, i: DetectionFileInfoWithType
 const COLLISION_MESSAGE =
   'Files were found that have the same basename, hash, metadata type, and parent. Skipping the commit of these files';
 
-const emitCollisionTelemetry = Effect.fn('moveDetectionLite.emitCollisionTelemetry')(function* (collisions: number) {
+const emitCollisionTelemetry = Effect.fn('moveDetection.emitCollisionTelemetry')(function* (collisions: number) {
   if (collisions === 0) return;
   Logger.childFromRoot('ShadowRepo.compareHashes').warn(COLLISION_MESSAGE);
   const lifecycle = Lifecycle.getInstance();

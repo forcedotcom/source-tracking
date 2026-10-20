@@ -12,7 +12,7 @@ const effectFiles = [
   'src/shared/remote/orgQueries.ts',
   'src/shared/remote/remoteSourceTracking.ts',
   'src/shared/local/localShadowRepo.ts',
-  'src/shared/local/moveDetectionLite.ts',
+  'src/shared/local/moveDetection.ts',
 ];
 
 const configs = [

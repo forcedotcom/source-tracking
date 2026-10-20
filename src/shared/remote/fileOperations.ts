@@ -20,6 +20,7 @@ import { lockInit, Logger, SfError } from '@salesforce/core';
 import * as Config from 'effect/Config';
 import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Effect from 'effect/Effect';
+import { isNotUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
 import {
   getLegacyMetadataKey,
@@ -153,7 +154,7 @@ export const writeTrackingFile = Effect.fnUntraced(function* ({
           : { fileVersion: 1, serverMaxRevisionCounter: 0, sourceMembers: {} };
       const committed = replace
         ? incoming
-        : baseMaxCounter !== undefined && latest.serverMaxRevisionCounter < baseMaxCounter
+        : isNotUndefined(baseMaxCounter) && latest.serverMaxRevisionCounter < baseMaxCounter
         ? latest
         : mergeTrackingContents(latest, incoming);
       const persisted =

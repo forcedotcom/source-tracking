@@ -17,6 +17,7 @@
  */
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isUndefined } from 'effect/Predicate';
 
 type Span = {
   name: string;
@@ -49,7 +50,7 @@ spans.forEach((s) => byName.set(s.name, (byName.get(s.name) ?? []).concat(s)));
 const pct = (sorted: number[], p: number): number =>
   sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
 
-const num = (v: string | undefined): number => (v === undefined ? NaN : Number(v));
+const num = (v: string | undefined): number => (isUndefined(v) ? NaN : Number(v));
 const fmt = (n: number): string => (Number.isFinite(n) ? n.toFixed(1) : '');
 
 const summarize = (name: string, ss: Span[]): string => {

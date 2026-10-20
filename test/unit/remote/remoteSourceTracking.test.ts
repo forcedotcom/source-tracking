@@ -23,6 +23,7 @@ import { envVars, Lifecycle, Org } from '@salesforce/core';
 import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
+import { isUndefined } from 'effect/Predicate';
 import {
   deleteRemoteTracking,
   initializeRemoteTracking,
@@ -268,7 +269,7 @@ describe('remote source tracking Effects', () => {
       expect(contents.sourceMembers).to.have.all.keys(encodedKey);
       expect(contents.sourceMembers[encodedKey].lastRetrievedFromServer).to.equal(2);
     } finally {
-      if (fileVersion === undefined) delete process.env.SF_SOURCE_TRACKING_FILE_VERSION;
+      if (isUndefined(fileVersion)) delete process.env.SF_SOURCE_TRACKING_FILE_VERSION;
       else process.env.SF_SOURCE_TRACKING_FILE_VERSION = fileVersion;
     }
   });

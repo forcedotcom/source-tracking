@@ -27,6 +27,7 @@ import * as Exit from 'effect/Exit';
 import * as HashMap from 'effect/HashMap';
 import * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
+import { isNotUndefined, isUndefined } from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Schedule from 'effect/Schedule';
 import * as Stream from 'effect/Stream';
@@ -204,16 +205,15 @@ export const resetRemoteTracking = Effect.fn('resetRemoteTracking')(function* ({
 }: RemoteTrackingOptions & { toRevision?: number; userNameCache?: UserNameCache }) {
   const logger = getLogger();
   const state = emptyRemoteTrackingState();
-  const names = userNameCache ?? (toRevision === undefined ? yield* makeUserNameCache(org.getConnection()) : undefined);
-  const members =
-    toRevision !== undefined
-      ? yield* sourceMemberQueries.querySourceMembersTo(org.getConnection(), toRevision)
-      : yield* sourceMemberQueries.querySourceMembersFrom({
-          fromRevision: 0,
-          logger,
-          userNameCache: names,
-          conn: org.getConnection(),
-        });
+  const names = userNameCache ?? (isUndefined(toRevision) ? yield* makeUserNameCache(org.getConnection()) : undefined);
+  const members = isNotUndefined(toRevision)
+    ? yield* sourceMemberQueries.querySourceMembersTo(org.getConnection(), toRevision)
+    : yield* sourceMemberQueries.querySourceMembersFrom({
+        fromRevision: 0,
+        logger,
+        userNameCache: names,
+        conn: org.getConnection(),
+      });
 
   trackSourceMembers(state, members, { markRetrievedFromServer: true });
   yield* writeRemoteTracking(identity, state, { replace: true });

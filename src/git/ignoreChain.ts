@@ -15,6 +15,7 @@
  */
 import ignore from 'ignore';
 import type { Ignore } from 'ignore';
+import { isUndefined } from 'effect/Predicate';
 
 /**
  * Real git evaluates a `.gitignore` at every depth of the tree, with rules
@@ -53,13 +54,13 @@ const relativePathAtAnchor = (anchor: string, path: string): string | undefined 
 const ignoredByChain = (chain: IgnoreChain, path: string): boolean => {
   const lastMatchingLink = chain.findLast(({ anchor, matcher }) => {
     const relativePath = relativePathAtAnchor(anchor, path);
-    if (relativePath === undefined || relativePath.length === 0) return false;
+    if (isUndefined(relativePath) || relativePath.length === 0) return false;
     const result = matcher.test(relativePath);
     return result.ignored || result.unignored;
   });
-  if (lastMatchingLink === undefined) return false;
+  if (isUndefined(lastMatchingLink)) return false;
   const relativePath = relativePathAtAnchor(lastMatchingLink.anchor, path);
-  if (relativePath === undefined || relativePath.length === 0) return false;
+  if (isUndefined(relativePath) || relativePath.length === 0) return false;
   return lastMatchingLink.matcher.test(relativePath).ignored;
 };
 

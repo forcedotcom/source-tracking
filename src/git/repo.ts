@@ -25,7 +25,7 @@ import * as Semaphore from 'effect/Semaphore';
 import * as Scope from 'effect/Scope';
 import * as Stream from 'effect/Stream';
 import { applyChanges as applyChangesImpl } from './applyChanges.js';
-import { ObjectCorruptError, RepoNotConfiguredError, WorkdirIoError } from './errors.js';
+import { ObjectCorruptError, RepoNotConfiguredError } from './errors.js';
 import { init as initImpl } from './init.js';
 import { hashBlob as hashBlobImpl, readLooseObject } from './objects.js';
 import { resolveRef as resolveRefImpl } from './refs.js';
@@ -55,14 +55,7 @@ const notConfigured = (op: string): RepoNotConfiguredError =>
   });
 
 const requireHandle = (handleRef: Ref.Ref<Option.Option<RepoHandle>>, op: string) =>
-  Ref.get(handleRef).pipe(
-    Effect.flatMap((maybe) =>
-      Option.match(maybe, {
-        onNone: () => Effect.fail(notConfigured(op)),
-        onSome: (h) => Effect.succeed(h),
-      })
-    )
-  );
+  Ref.get(handleRef).pipe(Effect.flatMap(Effect.fromOption(() => notConfigured(op))));
 
 const buildHandle = (cfg: SwitchCfg, serviceScope: Scope.Scope) =>
   Effect.gen(function* () {
@@ -179,12 +172,8 @@ const makeRepo = Effect.gen(function* () {
     yield* Effect.annotateCurrentSpan('byteLength', content.length);
     const dir = path.join(h.cfg.gitdir, 'info');
     const file = path.join(dir, 'exclude');
-    yield* fs
-      .makeDirectory(dir, { recursive: true })
-      .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(dir, cause)));
-    yield* fs
-      .writeFileString(file, content)
-      .pipe(Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)));
+    yield* fs.makeDirectory(dir, { recursive: true });
+    yield* fs.writeFileString(file, content);
   });
 
   return {

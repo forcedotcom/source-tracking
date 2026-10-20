@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import { spawn } from 'node:child_process';
+import { isNotNull } from 'effect/Predicate';
 
 type Step = {
   readonly name: string;
@@ -65,7 +66,7 @@ export const formatStopFailure = (result: Awaited<ReturnType<typeof verifyStop>>
 const EDIT_TOOLS = new Set(['edit', 'write', 'apply_patch']);
 
 const asObject = (value: unknown): Record<string, unknown> | undefined =>
-  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
+  typeof value === 'object' && isNotNull(value) ? (value as Record<string, unknown>) : undefined;
 
 const eventData = (event: unknown): Record<string, unknown> | undefined => {
   const data = asObject(event);

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { isNotUndefined } from 'effect/Predicate';
 import { getMetadataKey } from '../functions.js';
 import { MemberRevision, SourceMember } from './types.js';
 
@@ -68,7 +69,7 @@ export const setMemberRevision = (state: RemoteTrackingState, key: string, sourc
   });
   if (state.decodedKeyIndex) {
     const decodedKey = tryDecodeURIComponent(matchingKey);
-    if (decodedKey !== undefined) {
+    if (isNotUndefined(decodedKey)) {
       state.decodedKeyIndex.set(decodedKey, matchingKey);
     }
   }
@@ -94,7 +95,7 @@ const buildDecodedKeyIndex = (sourceMembers: Map<string, MemberRevision>): Map<s
   const index = new Map<string, string>();
   for (const key of sourceMembers.keys()) {
     const decodedKey = tryDecodeURIComponent(key);
-    if (decodedKey !== undefined) {
+    if (isNotUndefined(decodedKey)) {
       index.set(decodedKey, key);
     }
   }

@@ -18,7 +18,7 @@ import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
 import * as Effect from 'effect/Effect';
 import * as Option from 'effect/Option';
-import { WorkdirIoError } from './errors.js';
+import type { PlatformError } from 'effect/PlatformError';
 import { type IgnoreChain, buildLink, chainIgnores, emptyChain } from './ignoreChain.js';
 import type { RepoPath } from './schemas.js';
 import { gitModeFromStat, lstat } from './workdir.js';
@@ -47,8 +47,7 @@ type DirSnapshot = {
 const statOptional = (abs: string) =>
   lstat(abs).pipe(
     Effect.map(Option.some),
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Stats>())),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause))
+    Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Stats>()))
   );
 
 /**
@@ -70,7 +69,6 @@ const walkOneDir = Effect.fnUntraced(function* (workdir: string, dirRel: string)
   // lstat each child concurrently. ENOENT during lstat is silently dropped.
   const realChildren = yield* fs.readDirectory(abs).pipe(
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([])),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(abs, cause)),
     Effect.flatMap((names) =>
       Effect.forEach(
         names,
@@ -79,8 +77,7 @@ const walkOneDir = Effect.fnUntraced(function* (workdir: string, dirRel: string)
             Effect.map((info) => Option.some({ name, info })),
             Effect.catchReason('PlatformError', 'NotFound', () =>
               Effect.succeed(Option.none<{ name: string; info: Stats }>())
-            ),
-            Effect.mapError((cause) => WorkdirIoError.fromPlatformError(path.join(abs, name), cause))
+            )
           ),
         { concurrency: 'unbounded' }
       )
@@ -112,7 +109,6 @@ const readGitignoreSnapshot = Effect.fnUntraced(function* (giAbs: string) {
   return yield* fs.readFile(giAbs).pipe(
     Effect.map(Option.some),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Uint8Array>())),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(giAbs, cause)),
     Effect.map((bytes) => Option.map(bytes, (b) => TEXT.decode(b)))
   );
 });
@@ -125,7 +121,6 @@ export const readInfoExclude = Effect.fnUntraced(function* (gitdir: string) {
   return yield* fs.readFile(file).pipe(
     Effect.map(Option.some),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Uint8Array>())),
-    Effect.mapError((cause) => WorkdirIoError.fromPlatformError(file, cause)),
     Effect.map((bytes) => Option.match(bytes, { onNone: () => '', onSome: (b) => TEXT.decode(b) }))
   );
 });
@@ -153,7 +148,7 @@ const walkRecursive: (
   rootRel: string,
   baseChain: IgnoreChain,
   fdPermits: number
-) => Effect.Effect<readonly WalkNode[], WorkdirIoError, FileSystem | Path> = (workdir, rootRel, baseChain, fdPermits) =>
+) => Effect.Effect<readonly WalkNode[], PlatformError, FileSystem | Path> = (workdir, rootRel, baseChain, fdPermits) =>
   Effect.gen(function* () {
     const snap = yield* walkOneDir(workdir, rootRel);
     if (Option.isNone(snap)) return [];

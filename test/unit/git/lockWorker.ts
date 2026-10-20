@@ -16,6 +16,7 @@
 import { access, appendFile } from 'node:fs/promises';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
+import { isNotUndefined } from 'effect/Predicate';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { withIndexLock } from '../../../src/git/lock.js';
@@ -26,14 +27,14 @@ const logPath = process.env.LOCK_TEST_LOG;
 const holdMs = Number(process.env.LOCK_TEST_HOLD_MS ?? '0');
 const releaseSignal = process.env.LOCK_TEST_RELEASE_SIGNAL;
 
-if (role === undefined || gitdir === undefined || logPath === undefined) {
+if (!isNotUndefined(role) || !isNotUndefined(gitdir) || !isNotUndefined(logPath)) {
   throw new Error('lock worker requires role, gitdir, and log path');
 }
 
 const action = withIndexLock(gitdir)(
   Effect.gen(function* () {
     yield* Effect.promise(() => appendFile(logPath, `${role}:start\n`));
-    if (role === 'first' && releaseSignal !== undefined && releaseSignal !== '') {
+    if (role === 'first' && isNotUndefined(releaseSignal) && releaseSignal !== '') {
       yield* Effect.sync(() => process.stdout.write(`${role}-acquired\n`));
       let released = false;
       while (!released) {

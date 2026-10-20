@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import * as Schema from 'effect/Schema';
-import { PlatformError } from 'effect/PlatformError';
+import type { PlatformError } from 'effect/PlatformError';
 import { Oid, RefName } from './schemas.js';
 
 // every operation called before any switchTo
@@ -44,21 +44,6 @@ export class ObjectCorruptError extends Schema.TaggedError<ObjectCorruptError>()
   message: Schema.String,
 }) {}
 
-// catches every PlatformError at the lite boundary. Emitted as a warning by
-// statusMatrix and as a failure elsewhere.
-/** @internal */
-export class WorkdirIoError extends Schema.TaggedError<WorkdirIoError>()('WorkdirIoError', {
-  path: Schema.String,
-  // The raw Effect PlatformError. Source-tracking never sees
-  // it directly; mapping happens via catchTags.
-  cause: Schema.Defect(),
-  message: Schema.String,
-}) {
-  public static fromPlatformError(path: string, cause: PlatformError): WorkdirIoError {
-    return new WorkdirIoError({ path, cause, message: `${path}: ${cause.message}` });
-  }
-}
-
 /** @internal */
 export class RepoLockedError extends Schema.TaggedError<RepoLockedError>()('RepoLockedError', {
   lockPath: Schema.String,
@@ -73,14 +58,13 @@ export class RefNotFoundError extends Schema.TaggedError<RefNotFoundError>()('Re
   message: Schema.String,
 }) {}
 
-// closed-set error type used in catchTags by source-tracking's
-// redirectToCliRepoError replacement.
+// Closed-set error type mapped to SfError at the source-tracking boundary.
 /** @internal */
 export type RepoError =
   | RepoNotConfiguredError
   | IndexCorruptError
   | ObjectNotFoundError
   | ObjectCorruptError
-  | WorkdirIoError
+  | PlatformError
   | RepoLockedError
   | RefNotFoundError;

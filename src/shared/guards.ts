@@ -15,6 +15,7 @@
  */
 import { FileResponse, ComponentStatus, FileResponseSuccess } from '@salesforce/source-deploy-retrieve';
 import { SfError } from '@salesforce/core/sfError';
+import { isNotUndefined } from 'effect/Predicate';
 import { ChangeResult } from './types.js';
 import { ChangeResultWithNameAndType } from './types.js';
 
@@ -30,7 +31,7 @@ export const FileResponseIsNotDeleted = (fileResponse: FileResponse): boolean =>
 export const FileResponseHasPath = (
   fileResponse: FileResponseSuccess
 ): fileResponse is FileResponseSuccess & Required<Pick<FileResponseSuccess, 'filePath'>> =>
-  fileResponse.filePath !== undefined;
+  isNotUndefined(fileResponse.filePath);
 
 export const isChangeResultWithNameAndType = (cr?: ChangeResult): cr is ChangeResultWithNameAndType =>
   typeof cr === 'object' && typeof cr.name === 'string' && typeof cr.type === 'string';
