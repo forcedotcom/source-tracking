@@ -21,7 +21,6 @@ import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { createShadowRepo, type ShadowRepo } from '../../src/shared/local/localShadowRepo.js';
 
-/* eslint-disable no-unused-expressions */
 config.truncateThreshold = 0;
 afterEach(() => {
   sinon.restore();

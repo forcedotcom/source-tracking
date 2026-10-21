@@ -19,6 +19,8 @@ import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from 'effect/Predicate';
 import * as Cache from 'effect/Cache';
+import type * as Crypto from 'effect/Crypto';
+import type * as Layer from 'effect/Layer';
 import {
   ComponentSet,
   MetadataResolver,
@@ -113,6 +115,9 @@ export type SourceTrackingOptions = {
 
   /** pass in an instance of SDR's RegistryAccess.  If not provided, a new one will be created */
   registry?: RegistryAccess;
+
+  /** Platform cryptography for local tracking; defaults to NodeCrypto.layer. */
+  cryptoLayer?: Layer.Layer<Crypto.Crypto>;
 };
 
 const ResolvedProjectConfigSchema = Schema.Struct({
@@ -149,6 +154,7 @@ export class SourceTracking extends AsyncCreatable {
   private subscribeSDREvents: boolean;
   private ignoreLocalCache: boolean;
   private orgId: string;
+  private cryptoLayer?: Layer.Layer<Crypto.Crypto>;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
@@ -162,6 +168,7 @@ export class SourceTracking extends AsyncCreatable {
     this.ignoreLocalCache = options.ignoreLocalCache ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
     this.registry = options.registry ?? new RegistryAccess(undefined, this.projectPath);
+    this.cryptoLayer = options.cryptoLayer;
   }
 
   public async init(): Promise<void> {
@@ -302,7 +309,6 @@ export class SourceTracking extends AsyncCreatable {
   /**
    * @deprecated omit the type parameter <ChangeResult>.
    */
-  // eslint-disable-next-line @typescript-eslint/unified-signatures
   public async getChanges<T extends ChangeResult>(options: ChangeOptions & { format: 'ChangeResult' }): Promise<T[]>;
   public async getChanges(
     options: ChangeOptions & { format: 'ChangeResultWithPaths' }
@@ -568,6 +574,7 @@ export class SourceTracking extends AsyncCreatable {
         projectPath: normalize(this.projectPath),
         packageDirs: this.packagesDirs,
         registry: this.registry,
+        cryptoLayer: this.cryptoLayer,
       });
       // Load status before publishing the repo so concurrent callers await
       // the same initialized handle and cache.
@@ -742,16 +749,6 @@ export class SourceTracking extends AsyncCreatable {
         true // retrieves don't need to poll for SourceMembers
       ),
     ]);
-  }
-
-  /**
-   * If you've already got an instance of STL, but need to change the conflicts setting
-   * normally you set this on instantiation
-   *
-   * @param value true/false
-   */
-  public setIgnoreConflicts(value: boolean): void {
-    this.ignoreConflicts = value;
   }
 
   private remoteTrackingIdentity(): RemoteTrackingIdentity {

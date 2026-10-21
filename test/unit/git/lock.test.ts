@@ -20,6 +20,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
+import * as Deferred from 'effect/Deferred';
 import * as Layer from 'effect/Layer';
 import * as Cause from 'effect/Cause';
 import * as Exit from 'effect/Exit';
@@ -144,6 +145,95 @@ const startLockWorker = (
 };
 
 describe('git/lock (phase 4)', () => {
+  for (const variant of ['withIndexLock', 'withIndexLockCtx'] as const) {
+    it(`${variant} cancels waiting without removing another writer's lock`, async () => {
+      const { tmp, gitdir } = await mkGitdir();
+      const lockPath = path.join(gitdir, 'index.lock');
+      await fs.writeFile(lockPath, 'held');
+      const attempted = Deferred.makeUnsafe<void>();
+      const controller = new AbortController();
+      let used = false;
+      const body = Effect.sync(() => {
+        used = true;
+      });
+      const locked =
+        variant === 'withIndexLock' ? body.pipe(withIndexLock(gitdir)) : withIndexLockCtx(gitdir, 'remove')(() => body);
+      // @effect-diagnostics-next-line strictEffectProvide:off
+      const completed = Effect.runPromiseExit(
+        Effect.gen(function* () {
+          const platform = yield* FileSystem;
+          return yield* locked.pipe(
+            Effect.provideService(FileSystem, {
+              ...platform,
+              open: (...args) =>
+                platform.open(...args).pipe(Effect.tapError(() => Deferred.succeed(attempted, undefined))),
+            })
+          );
+        }).pipe(Effect.provide(TestLayer)),
+        { signal: controller.signal }
+      );
+      try {
+        await Effect.runPromise(attempted.pipe(Deferred.await));
+        controller.abort();
+        const settled = await Promise.race([
+          completed.then(() => true),
+          Effect.runPromise(Effect.sleep('250 millis').pipe(Effect.as(false))),
+        ]);
+        expect(settled).to.equal(true);
+        const exit = await completed;
+        expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).to.equal(true);
+        expect(used).to.equal(false);
+        expect(await fs.readFile(lockPath, 'utf8')).to.equal('held');
+      } finally {
+        controller.abort();
+        await fs.rm(lockPath, { force: true });
+        await completed;
+        await fs.rm(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it(`${variant} releases a lock when interrupted immediately after open succeeds`, async () => {
+      const { tmp, gitdir } = await mkGitdir();
+      const indexPath = path.join(gitdir, 'index');
+      await fs.writeFile(indexPath, 'original-index');
+      const controller = new AbortController();
+      let used = false;
+      const body = Effect.sync(() => {
+        used = true;
+      });
+      const locked =
+        variant === 'withIndexLock'
+          ? body.pipe(withIndexLock(gitdir, 'rename-to-index'))
+          : withIndexLockCtx(gitdir)(() => body);
+      try {
+        // @effect-diagnostics-next-line strictEffectProvide:off
+        const exit = await Effect.runPromiseExit(
+          Effect.gen(function* () {
+            const platform = yield* FileSystem;
+            return yield* locked.pipe(
+              Effect.provideService(FileSystem, {
+                ...platform,
+                open: (...args) => platform.open(...args).pipe(Effect.tap(() => Effect.sync(() => controller.abort()))),
+              })
+            );
+          }).pipe(Effect.provide(TestLayer)),
+          { signal: controller.signal }
+        );
+        expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).to.equal(true);
+        expect(used).to.equal(false);
+        expect(await fs.readFile(indexPath, 'utf8')).to.equal('original-index');
+        const lockExists = await fs
+          .access(path.join(gitdir, 'index.lock'))
+          .then(() => true)
+          .catch(() => false);
+        expect(lockExists).to.equal(false);
+      } finally {
+        controller.abort();
+        await fs.rm(tmp, { recursive: true, force: true });
+      }
+    });
+  }
+
   it('rename-to-index strategy moves the lockfile into place on success', async () => {
     const { tmp, gitdir } = await mkGitdir();
     try {

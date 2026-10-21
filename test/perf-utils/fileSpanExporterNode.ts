@@ -18,7 +18,7 @@
  * Vendored from salesforcedx-vscode/packages/salesforcedx-vscode-services/src/observability/{fileSpanExporterNode,spanUtils}.ts
  * to keep source-tracking decoupled from any otel SDK ownership. Used only by the perf NUT.
  */
-/* eslint-disable @typescript-eslint/explicit-function-return-type, @typescript-eslint/member-ordering, header/header */
+/* eslint-disable @typescript-eslint/member-ordering */
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { type Attributes, SpanStatusCode } from '@opentelemetry/api';
@@ -70,7 +70,6 @@ export class FileSpanExporterNode implements SpanExporter {
       return;
     }
     const result: ExportResult = (() => {
-      // eslint-disable-next-line functional/no-try-statements -- sync fs op, no Effect in exporter
       try {
         appendFileSync(this.filePath, lines);
         return { code: ExportResultCode.SUCCESS };

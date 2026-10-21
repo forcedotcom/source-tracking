@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import * as Effect from 'effect/Effect';
+import { Crypto } from 'effect/Crypto';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
@@ -62,20 +63,20 @@ const concat = (parts: readonly Uint8Array[]): Uint8Array => {
   return out;
 };
 
-const sha1Hex = (bytes: Uint8Array) =>
-  Effect.promise(() =>
-    // TS 5.7+: Uint8Array<ArrayBufferLike> isn't assignable to BufferSource
-    // (which requires ArrayBufferView<ArrayBuffer>). Threading the narrower
-    // type parameter through every caller is impractical for a slice/subarray.
-    crypto.subtle.digest('SHA-1', bytes as unknown as ArrayBuffer).then((buf) => toHex(new Uint8Array(buf)))
-  );
+/** Shared Git object/index checksum; the runtime supplies platform cryptography. @internal */
+export const sha1 = Effect.fnUntraced(function* (bytes: Uint8Array) {
+  const crypto = yield* Crypto;
+  return yield* crypto.digest('SHA-1', bytes);
+});
+
+const sha1Hex = (bytes: Uint8Array) => sha1(bytes).pipe(Effect.map(toHex));
 
 /**
  * Stream-API-based zlib deflate using web-platform CompressionStream.
  * Node 22+ and modern browsers both expose this. No `node:zlib` import.
  */
 const transform = async (bytes: Uint8Array, ts: GenericTransformStream): Promise<Uint8Array> => {
-  // TS 5.7+: same Uint8Array<ArrayBufferLike> vs BodyInit mismatch as sha1Hex.
+  // Uint8Array<ArrayBufferLike> isn't assignable to BodyInit.
   // GenericTransformStream lacks the Uint8Array chunk-type Response() needs,
   // so the pipeThrough arg also needs a cast to the typed pair.
   const stream = new Response(bytes as unknown as BodyInit).body!.pipeThrough(ts);
@@ -85,11 +86,20 @@ const transform = async (bytes: Uint8Array, ts: GenericTransformStream): Promise
 
 const deflate = (bytes: Uint8Array) => Effect.promise(() => transform(bytes, new CompressionStream('deflate')));
 
-const inflate = (bytes: Uint8Array) => Effect.promise(() => transform(bytes, new DecompressionStream('deflate')));
+const inflate = (oid: Oid, bytes: Uint8Array) =>
+  Effect.tryPromise({
+    try: () => transform(bytes, new DecompressionStream('deflate')),
+    catch: (cause) =>
+      new ObjectCorruptError({
+        oid,
+        reason: 'inflate-failed',
+        message: `loose object ${oid} inflate failed: ${String(cause)}`,
+      }),
+  });
 
 /**
  * Hash a blob with git's loose-object framing: `blob <size>\0<content>`.
- * Pure function over bytes; no filesystem dependency. Internal to the Git service.
+ * No filesystem dependency; requires the platform Crypto service. Internal to the Git service.
  *
  * @internal
  */
@@ -172,7 +182,7 @@ export const readLooseObject = Effect.fn('readLooseObject')(function* (gitdir: s
         })
       )
     ),
-    Effect.flatMap(inflate)
+    Effect.flatMap((bytes) => inflate(oid, bytes))
   );
   const parsed = parseLooseObject(oid, inflated);
   if (parsed.kind === 'corrupt') return yield* parsed.error;

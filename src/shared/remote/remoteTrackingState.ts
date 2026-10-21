@@ -40,7 +40,6 @@ export const trackSourceMembers = (
   if (sourceMembers.length === 0) return;
 
   // This Map is operation-local; mutate its counter rather than clone a large SourceMember snapshot.
-  // eslint-disable-next-line no-param-reassign
   state.serverMaxRevisionCounter = Math.max(
     state.serverMaxRevisionCounter,
     ...sourceMembers.map((member) => member.RevisionCounter)
@@ -82,7 +81,6 @@ const resolveStoredKey = (state: RemoteTrackingState, key: string): string =>
 /** Resolve the stored key from a decoded key in O(1) after the first lookup. */
 const resolveDecodedKey = (state: RemoteTrackingState, key: string): string => {
   // The reverse index is operation-local and built only on first decoded-key lookup.
-  // eslint-disable-next-line no-param-reassign
   state.decodedKeyIndex ??= buildDecodedKeyIndex(state.sourceMembers);
   try {
     return state.decodedKeyIndex.get(decodeURIComponent(key)) ?? key;

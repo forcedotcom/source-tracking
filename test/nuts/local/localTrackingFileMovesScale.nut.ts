@@ -21,8 +21,6 @@ import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
-/* eslint-disable no-unused-expressions */
-
 const dirCount = 20;
 const classesPerDir = 50;
 const classCount = dirCount * classesPerDir;

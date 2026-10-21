@@ -22,6 +22,7 @@ import * as Layer from 'effect/Layer';
 import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import * as HashSet from 'effect/HashSet';
 import { applyChanges } from '../../../src/git/applyChanges.js';
@@ -32,7 +33,7 @@ import { readIndex, type IndexEntry } from '../../../src/git/indexV2.js';
 import { writeIndexV2 } from '../../../src/git/writers.js';
 import { Author, RefName, RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
 
-const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
 const FIXED_TS = Date.parse('2026-01-01T00:00:00Z');
 
 const ALICE: Author = { name: 'sfdx source tracking', email: 'source-tracking@noreply.salesforce.com' };

@@ -25,19 +25,21 @@ import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
+import { Crypto } from 'effect/Crypto';
 import { hashBlob, hashLooseObject, readLooseObject, writeLooseObject } from '../../../src/git/objects.js';
 import { Oid } from '../../../src/git/schemas.js';
-import { ObjectNotFoundError } from '../../../src/git/errors.js';
+import { ObjectCorruptError, ObjectNotFoundError } from '../../../src/git/errors.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const FixtureRoot = path.join(currentDir, '..', '..', 'git', 'fixtures');
 
-const TestLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+const TestLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
 
-const run = <A, E>(eff: Effect.Effect<A, E, FileSystem | Path>): Promise<Exit.Exit<A, E>> =>
+const run = <A, E>(eff: Effect.Effect<A, E, FileSystem | Path | Crypto>): Promise<Exit.Exit<A, E>> =>
   Effect.runPromiseExit(Effect.provide(eff, TestLayer));
 
 const oid = (s: string): Oid => Schema.decodeUnknownSync(Oid)(s);
@@ -176,9 +178,19 @@ describe('git/objects (phase 2)', () => {
         const dir = path.join(gitdir, 'objects', truncatedOid.slice(0, 2));
         await fs.mkdir(dir, { recursive: true });
         await fs.writeFile(path.join(dir, truncatedOid.slice(2)), truncated);
-        // We expect a defect or typed failure — both prove "not graceful".
         const exit = await run(readLooseObject(gitdir, truncatedOid));
         expect(Exit.isFailure(exit)).to.equal(true);
+        if (Exit.isFailure(exit)) {
+          const fail = Cause.findErrorOption(exit.cause);
+          expect(Option.isSome(fail)).to.equal(true);
+          if (Option.isSome(fail)) {
+            expect(fail.value).to.have.property('_tag', 'ObjectCorruptError');
+            if (Schema.is(ObjectCorruptError)(fail.value)) {
+              expect(fail.value.reason).to.equal('inflate-failed');
+              expect(fail.value.oid).to.equal(truncatedOid);
+            }
+          }
+        }
       } finally {
         await fs.rm(tmp, { recursive: true, force: true });
       }

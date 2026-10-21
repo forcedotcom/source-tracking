@@ -22,20 +22,63 @@ import * as Layer from 'effect/Layer';
 import * as Cause from 'effect/Cause';
 import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
+import * as HashSet from 'effect/HashSet';
+import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
+import type { Crypto } from 'effect/Crypto';
 import { parseIndexV2, readIndex } from '../../../src/git/indexV2.js';
 import { IndexCorruptError } from '../../../src/git/errors.js';
+import { writeIndexV2 } from '../../../src/git/writers.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const FixtureRoot = path.join(currentDir, '..', '..', 'git', 'fixtures');
-const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
-const run = <A, E>(eff: Effect.Effect<A, E, FileSystem | Path>): Promise<Exit.Exit<A, E>> =>
+const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
+const run = <A, E>(eff: Effect.Effect<A, E, FileSystem | Path | Crypto>): Promise<Exit.Exit<A, E>> =>
   Effect.runPromiseExit(Effect.provide(eff, Layered));
 
 describe('git/indexV2 (phase 6)', () => {
+  it('round-trips 40,000 entries in order without copying parsed prefixes', async () => {
+    const fixture = await Effect.runPromise(
+      readIndex(path.join(FixtureRoot, 'single-file', 'dot-git')).pipe(Effect.provide(Layered))
+    );
+    const entries = Array.from({ length: 40_000 }, (_, i) => ({
+      ...fixture.entries[0],
+      path: `file-${i.toString().padStart(6, '0')}.txt`,
+    }));
+    const exit = await run(
+      Effect.gen(function* () {
+        const bytes = yield* writeIndexV2(HashSet.fromIterable(entries));
+        return yield* parseIndexV2('large-index', bytes);
+      })
+    );
+    expect(Exit.isSuccess(exit)).to.equal(true);
+    if (Exit.isSuccess(exit)) expect(exit.value.entries).to.deep.equal(entries);
+  });
+
+  it('rejects an impossible entry count without allocating a count-sized array', async () => {
+    const raw = new Uint8Array(32);
+    const view = new DataView(raw.buffer);
+    view.setUint32(0, 0x44_49_52_43, false);
+    view.setUint32(4, 2, false);
+    view.setUint32(8, 0xff_ff_ff_ff, false);
+    const exit = await run(parseIndexV2('impossible-count', raw));
+    expect(Exit.isFailure(exit)).to.equal(true);
+    if (Exit.isFailure(exit)) {
+      const error = Cause.findErrorOption(exit.cause);
+      expect(Option.isSome(error)).to.equal(true);
+      if (Option.isSome(error)) {
+        expect(error.value).to.have.property('_tag', 'IndexCorruptError');
+        if (Schema.is(IndexCorruptError)(error.value)) {
+          expect(error.value.reason).to.equal('entry 0 fixed-fields overflow at offset 12');
+        }
+      }
+    }
+  });
+
   it('parses the single-file/ fixture index (1 entry)', async () => {
     const exit = await run(readIndex(path.join(FixtureRoot, 'single-file', 'dot-git')));
     expect(Exit.isSuccess(exit)).to.equal(true);
@@ -103,7 +146,10 @@ describe('git/indexV2 (phase 6)', () => {
     if (Exit.isFailure(exit)) {
       const fail = Cause.findErrorOption(exit.cause);
       expect(Option.isSome(fail)).to.equal(true);
-      if (Option.isSome(fail)) expect(fail.value.reason).to.equal('checksum-mismatch');
+      if (Option.isSome(fail)) {
+        expect(fail.value).to.have.property('_tag', 'IndexCorruptError');
+        if (Schema.is(IndexCorruptError)(fail.value)) expect(fail.value.reason).to.equal('checksum-mismatch');
+      }
     }
   });
 

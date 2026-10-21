@@ -22,7 +22,6 @@ import { NodeSdk } from '@effect/opentelemetry';
 import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { FileSpanExporterNode } from './fileSpanExporterNode.js';
 
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export const PerfNutSdkLayer = (label: string) => {
   const exporter = new FileSpanExporterNode(label);
   return {

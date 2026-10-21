@@ -26,4 +26,4 @@ export {
   SourceConflictError,
   SourceMemberPollingEvent,
 } from './shared/types.js';
-export { getKeyFromObject, deleteCustomLabels } from './shared/functions.js';
+export { deleteCustomLabels } from './shared/functions.js';

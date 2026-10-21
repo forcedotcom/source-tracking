@@ -19,6 +19,7 @@ import { EOL } from 'node:os';
 import fs from 'graceful-fs';
 import { Logger, Lifecycle, Messages, Org, SfError } from '@salesforce/core';
 import * as Cache from 'effect/Cache';
+import * as Chunk from 'effect/Chunk';
 import * as Config from 'effect/Config';
 import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Duration from 'effect/Duration';
@@ -517,11 +518,33 @@ const doesNotMatchServer = (member: MemberRevision): boolean =>
   member.RevisionCounter !== member.lastRetrievedFromServer;
 
 const formatSourceMemberWarnings = (outstandingSourceMembers: HashMap.HashMap<string, RemoteSyncInput>): string => {
-  const mapByType = Array.from(HashMap.values(outstandingSourceMembers)).reduce<Map<string, string[]>>((acc, value) => {
-    acc.set(value.type, [...(acc.get(value.type) ?? []), value.fullName]);
-    return acc;
-  }, new Map());
-  return Array.from(mapByType.entries())
-    .map(([type, names]) => `  - ${type}: ${names.join(', ')}`)
-    .join(EOL);
+  const grouped = outstandingSourceMembers.pipe(
+    HashMap.reduce(
+      {
+        namesByType: HashMap.empty<string, Chunk.Chunk<string>>(),
+        types: Chunk.empty<string>(),
+      },
+      (acc, value) => {
+        const names = acc.namesByType.pipe(HashMap.get(value.type));
+        const nextNames: Chunk.Chunk<string> = names.pipe(
+          Option.getOrElse(() => Chunk.empty<string>()),
+          Chunk.append(value.fullName)
+        );
+        return {
+          namesByType: acc.namesByType.pipe(HashMap.set(value.type, nextNames)),
+          types: Option.isNone(names) ? Chunk.append(acc.types, value.type) : acc.types,
+        };
+      }
+    )
+  );
+  return grouped.types.pipe(
+    Chunk.map((type) => {
+      const names = grouped.namesByType.pipe(
+        HashMap.get(type),
+        Option.getOrElse(() => Chunk.empty<string>())
+      );
+      return `  - ${type}: ${Chunk.join(names, ', ')}`;
+    }),
+    Chunk.join(EOL)
+  );
 };

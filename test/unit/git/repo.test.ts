@@ -21,12 +21,14 @@ import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
+import * as Crypto from 'effect/Crypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { Repo } from '../../../src/git/repo.js';
 import { RepoNotConfiguredError } from '../../../src/git/errors.js';
 import { RefName, RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
 
-const TestLayer = Layer.provide(Repo.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer));
+const TestLayer = Layer.provide(Repo.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer));
 
 const cfg = (gitdir: string): SwitchCfg => ({
   dir: '/tmp/lite-test',
@@ -36,8 +38,7 @@ const cfg = (gitdir: string): SwitchCfg => ({
 });
 
 const runUnit = <A, E>(effect: Effect.Effect<A, E, Repo>): Promise<Exit.Exit<A, E>> =>
-  // @effect-diagnostics-next-line strictEffectProvide:off
-  Effect.runPromiseExit(effect.pipe(Effect.provide(TestLayer), Effect.scoped));
+  Effect.runPromiseExit(effect.pipe(Effect.provide(TestLayer)));
 
 describe('git/Repo lifecycle (phase 1)', () => {
   it('every method but init/switchTo/hashBlob fails with RepoNotConfiguredError pre-switchTo', async () => {
@@ -101,16 +102,39 @@ describe('git/Repo lifecycle (phase 1)', () => {
     expect(Exit.isSuccess(exit)).to.equal(true);
   });
 
-  it('Layer scope close finalizes a switched-in handle (no orphan resource warnings)', async () => {
-    // Smoke test: scoping the whole runUnit through Effect.scoped releases the
-    // service scope and, transitively, the per-handle child scope.
-    const exit = await runUnit(
+  it('switching keeps the captured Crypto alive until Repo.layer teardown', async () => {
+    const calls: string[] = [];
+    const lifecycle: string[] = [];
+    const crypto = Crypto.make({
+      randomBytes: (size) => new Uint8Array(size),
+      digest: (algorithm, bytes) => {
+        calls.push(`${algorithm}:${new TextDecoder().decode(bytes)}`);
+        return Effect.succeed(new Uint8Array(20).fill(0xab));
+      },
+    });
+    const cryptoLayer = Layer.effect(
+      Crypto.Crypto,
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          lifecycle.push('acquire');
+          return crypto;
+        }),
+        () => Effect.sync(() => lifecycle.push('release'))
+      )
+    );
+    const layer = Layer.provide(Repo.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer));
+    const hash = await Effect.runPromise(
       Effect.gen(function* () {
         const repo = yield* Repo;
-        yield* repo.switchTo(cfg('/tmp/lite-test/scoped/.git'));
-        return 'ok';
-      })
+        yield* repo.switchTo(cfg('/tmp/lite-test/a/.git'));
+        yield* repo.switchTo(cfg('/tmp/lite-test/b/.git'));
+        expect(lifecycle).to.deep.equal(['acquire']);
+        // No ambient Crypto service: only Repo is provided to this program.
+        return yield* repo.hashBlob(new TextEncoder().encode('hello'));
+      }).pipe(Effect.provide(layer))
     );
-    expect(Exit.isSuccess(exit)).to.equal(true);
+    expect(hash).to.equal('ab'.repeat(20));
+    expect(calls).to.deep.equal(['SHA-1:blob 5\0hello']);
+    expect(lifecycle).to.deep.equal(['acquire', 'release']);
   });
 });

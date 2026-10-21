@@ -18,7 +18,14 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { expect } from 'chai';
+import fs from 'graceful-fs';
+import sinon from 'sinon';
+import { SfError } from '@salesforce/core';
+import * as Cause from 'effect/Cause';
+import * as Deferred from 'effect/Deferred';
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
+import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import { readFileContents, writeTrackingFile } from '../../../src/shared/remote/fileOperations.js';
 import { ContentsJsonSchema, MemberRevision } from '../../../src/shared/remote/types.js';
@@ -137,6 +144,61 @@ describe('remote tracking file operations', () => {
     expect(contents).to.have.property('serverMaxRevisionCounter', 2);
     expect(contents).to.have.nested.property('sourceMembers.ApexClass###First');
     expect(contents).to.have.nested.property('sourceMembers.ApexClass###Second');
+  });
+
+  it('holds the lock during interruption until the underlying write settles', async () => {
+    const filePath = path.join(directory, 'maxRevision.json');
+    const started = Deferred.makeUnsafe<void>();
+    const finish = Deferred.makeUnsafe<void>();
+    const writeFile = fs.promises.writeFile;
+    const stub = sinon.stub(fs.promises, 'writeFile').callsFake(async (...args) => {
+      Deferred.doneUnsafe(started, Effect.void);
+      await Effect.runPromise(finish.pipe(Deferred.await));
+      return writeFile(...args);
+    });
+    const controller = new AbortController();
+    const completed = Effect.runPromiseExit(
+      writeTrackingFile({ filePath, maxCounter: 3, members: new Map([['ApexClass###MyClass', member]]) }),
+      { signal: controller.signal }
+    );
+    try {
+      await Effect.runPromise(started.pipe(Deferred.await));
+      controller.abort();
+      const settled = await Promise.race([
+        completed.then(() => true),
+        Effect.runPromise(Effect.sleep('25 millis').pipe(Effect.as(false))),
+      ]);
+      expect(settled).to.equal(false);
+      expect(fs.existsSync(`${filePath}.lock`)).to.equal(true);
+    } finally {
+      Deferred.doneUnsafe(finish, Effect.void);
+      await completed;
+      stub.restore();
+    }
+    const exit = await completed;
+    expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).to.equal(true);
+    expect(fs.existsSync(`${filePath}.lock`)).to.equal(false);
+    expect(await Effect.runPromise(readFileContents(filePath))).to.have.property('serverMaxRevisionCounter', 3);
+  });
+
+  it('preserves SfError and releases the lock when writing fails', async () => {
+    const filePath = path.join(directory, 'maxRevision.json');
+    const stub = sinon.stub(fs.promises, 'writeFile').rejects(new Error('write failed'));
+    try {
+      const exit = await Effect.runPromiseExit(writeTrackingFile({ filePath, maxCounter: 3, members: new Map() }));
+      expect(Exit.isFailure(exit)).to.equal(true);
+      if (Exit.isFailure(exit)) {
+        const error = Cause.findErrorOption(exit.cause);
+        expect(Option.isSome(error)).to.equal(true);
+        if (Option.isSome(error)) {
+          expect(error.value).to.be.instanceOf(SfError);
+          expect(error.value.message).to.equal('write failed');
+        }
+      }
+      expect(fs.existsSync(`${filePath}.lock`)).to.equal(false);
+    } finally {
+      stub.restore();
+    }
   });
 
   it('preserves a completed sync when an older snapshot commits concurrently', async () => {

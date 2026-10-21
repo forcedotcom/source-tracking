@@ -21,8 +21,6 @@ import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
-/* eslint-disable no-unused-expressions */
-
 describe('it detects image file moves ', () => {
   const registry = new RegistryAccess();
   let session: TestSession;

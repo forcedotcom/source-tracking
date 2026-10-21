@@ -15,6 +15,7 @@
  */
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
+import type { Crypto } from 'effect/Crypto';
 import * as Arr from 'effect/Array';
 import * as Effect from 'effect/Effect';
 import * as HashSet from 'effect/HashSet';
@@ -23,7 +24,7 @@ import * as Order from 'effect/Order';
 import { isUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
 import type { PlatformError } from 'effect/PlatformError';
-import { hashLooseObject, writeLooseObject } from './objects.js';
+import { hashLooseObject, sha1, writeLooseObject } from './objects.js';
 import { Oid } from './schemas.js';
 import type { IndexEntry } from './indexV2.js';
 
@@ -47,12 +48,6 @@ const oidToBytes = (oid: Oid): Uint8Array => {
   }
   return out;
 };
-
-const sha1 = (bytes: Uint8Array) =>
-  Effect.promise(() =>
-    // TS 5.7+ Uint8Array<ArrayBufferLike> vs BufferSource — see objects.ts.
-    crypto.subtle.digest('SHA-1', bytes as unknown as ArrayBuffer).then((buf) => new Uint8Array(buf))
-  );
 
 // =================== TREE WRITER ===================
 
@@ -130,7 +125,7 @@ const writeTreeRecursive = (
   gitdir: string,
   node: TreeMapNode
   // eslint-disable-next-line local-rules/no-explicit-effect-return-type
-): Effect.Effect<Oid, PlatformError, FileSystem | Path> =>
+): Effect.Effect<Oid, PlatformError, FileSystem | Path | Crypto> =>
   Effect.gen(function* () {
     const childOids = yield* Effect.forEach(
       node.subtrees,
@@ -250,7 +245,7 @@ export const writeCommit = Effect.fn('writeCommit')(function* (gitdir: string, a
 const hashTreeRecursive = (
   node: TreeMapNode
   // eslint-disable-next-line local-rules/no-explicit-effect-return-type
-): Effect.Effect<Oid> =>
+): Effect.Effect<Oid, PlatformError, Crypto> =>
   Effect.gen(function* () {
     const childOids = yield* Effect.forEach(
       node.subtrees,

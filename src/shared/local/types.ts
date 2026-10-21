@@ -26,12 +26,15 @@ export type LocalChanges = Readonly<{
 
 import type { NamedPackageDir } from '@salesforce/core';
 import type { RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import type * as Crypto from 'effect/Crypto';
+import type * as Layer from 'effect/Layer';
 
 export type ShadowRepoOptions = {
   orgId: string;
   projectPath: string;
   packageDirs: NamedPackageDir[];
   registry: RegistryAccess;
+  cryptoLayer?: Layer.Layer<Crypto.Crypto>;
 };
 
 /** Files to record in the local tracking baseline. */

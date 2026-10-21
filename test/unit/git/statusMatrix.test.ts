@@ -23,6 +23,7 @@ import * as Layer from 'effect/Layer';
 import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { cold } from '../../../src/git/statusMatrix.js';
 import { RepoPath, type StatusEntry } from '../../../src/git/schemas.js';
@@ -30,7 +31,7 @@ import { normalizeGitSymlinkTarget } from '../../../src/git/workdir.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const FixtureRoot = path.join(currentDir, '..', '..', 'git', 'fixtures');
-const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
 const repoPath = (value: string): RepoPath => Schema.decodeUnknownSync(RepoPath)(value);
 
 const linkFixture = async (name: string, tmpDir: string): Promise<{ dir: string; gitdir: string }> => {

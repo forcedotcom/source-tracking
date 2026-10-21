@@ -19,6 +19,7 @@ import * as Effect from 'effect/Effect';
 import { isUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
 import { IndexCorruptError } from './errors.js';
+import { sha1 } from './objects.js';
 import { Oid } from './schemas.js';
 
 /**
@@ -84,7 +85,7 @@ const findNul = (raw: Uint8Array, from: number, end: number): number => {
   return ix < 0 ? -1 : from + ix;
 };
 
-const parseEntryAt = Effect.fn('parseEntryAt')(function* (
+const parseEntryAt = Effect.fnUntraced(function* (
   raw: Uint8Array,
   view: DataView,
   offset: number,
@@ -172,33 +173,29 @@ export const parseIndexV2 = Effect.fn('parseIndexV2')(function* (gitdir: string,
   }
   const entryCount = view.getUint32(8, false);
 
-  // Fold over `entryCount` indices, threading the byte offset through
-  // each parse via Effect.reduce.
-  const { entries, offset } = yield* Effect.reduce(
-    Array.from({ length: entryCount }, (_, i) => i),
-    () => ({ entries: EMPTY_ENTRIES, offset: HEADER_BYTES }),
-    (acc, i) =>
-      parseEntryAt(raw, view, acc.offset, gitdir, i).pipe(
-        Effect.map(({ entry, nextOffset }) => ({
-          entries: [...acc.entries, entry],
-          offset: nextOffset,
-        }))
-      )
-  );
+  // Local builder: append without copying prefixes or allocating an entry-count-sized range.
+  const entries: IndexEntry[] = [];
+  // eslint-disable-next-line functional/no-let
+  let offset = HEADER_BYTES;
+  // eslint-disable-next-line functional/no-loop-statements, functional/no-let
+  for (let i = 0; i < entryCount; i += 1) {
+    const parsed = yield* parseEntryAt(raw, view, offset, gitdir, i);
+    entries.push(parsed.entry);
+    offset = parsed.nextOffset;
+  }
 
   const extEnd = raw.byteLength - TRAILER_BYTES;
   const extensions = yield* parseExtensionsFrom(raw, view, offset, extEnd, gitdir);
   const checksumInput = raw.subarray(0, extEnd);
-  const actualChecksum = yield* Effect.promise(() =>
-    crypto.subtle.digest('SHA-1', checksumInput as unknown as BufferSource)
-  ).pipe(Effect.map((checksum) => new Uint8Array(checksum)));
+  const actualChecksum = yield* sha1(checksumInput);
   const expectedChecksum = raw.subarray(extEnd);
   if (!actualChecksum.every((byte, index) => byte === expectedChecksum[index])) {
     return yield* corrupt('checksum-mismatch', gitdir);
   }
 
+  const parsedEntries: readonly IndexEntry[] = entries;
   return {
-    entries,
+    entries: parsedEntries,
     entriesByteLength: offset - HEADER_BYTES,
     extensions,
     trailer: raw.subarray(extEnd),

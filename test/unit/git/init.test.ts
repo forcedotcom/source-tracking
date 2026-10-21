@@ -25,6 +25,8 @@ import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
+import type { Crypto } from 'effect/Crypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
@@ -35,11 +37,11 @@ import { RefName, RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const FixtureRoot = path.join(currentDir, '..', '..', 'git', 'fixtures');
-const NodeLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+const NodeLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
 
 const run = <A, E>(
-  eff: Effect.Effect<A, E, FileSystem | Path>,
-  layer: Layer.Layer<FileSystem | Path> = NodeLayer
+  eff: Effect.Effect<A, E, FileSystem | Path | Crypto>,
+  layer: Layer.Layer<FileSystem | Path | Crypto> = NodeLayer
 ): Promise<Exit.Exit<A, E>> => Effect.runPromiseExit(Effect.provide(eff, layer));
 
 const cfg = (gitdir: string): SwitchCfg => ({

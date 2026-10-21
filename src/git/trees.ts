@@ -18,12 +18,14 @@
  * `Effect.try`'s sync body. The throws never escape the Effect boundary.
  */
 import * as Effect from 'effect/Effect';
+import type { Crypto } from 'effect/Crypto';
+import type { PlatformError } from 'effect/PlatformError';
 import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
-import { ObjectCorruptError, ObjectNotFoundError } from './errors.js';
+import { ObjectCorruptError, ObjectNotFoundError, type RefNotFoundError } from './errors.js';
 import { readLooseObject } from './objects.js';
 import { resolveRef } from './refs.js';
 import { Oid, RefName, RepoPath } from './schemas.js';
@@ -78,20 +80,23 @@ const parseOneTreeEntry = (oid: Oid, content: Uint8Array, offset: number): Parse
   };
 };
 
-const parseTreeEntries = (
-  oid: Oid,
-  content: Uint8Array,
-  acc: readonly TreeEntry[],
-  offset: number
-): readonly TreeEntry[] => {
-  if (offset >= content.byteLength) return acc;
-  const { entry, nextOffset } = parseOneTreeEntry(oid, content, offset);
-  return parseTreeEntries(oid, content, [...acc, entry], nextOffset);
+const parseTreeEntries = (oid: Oid, content: Uint8Array): readonly TreeEntry[] => {
+  // Local builder: one append per entry, without copying prefixes or growing the call stack.
+  const entries: TreeEntry[] = [];
+  // eslint-disable-next-line functional/no-let
+  let offset = 0;
+  // eslint-disable-next-line functional/no-loop-statements
+  while (offset < content.byteLength) {
+    const parsed = parseOneTreeEntry(oid, content, offset);
+    entries.push(parsed.entry);
+    offset = parsed.nextOffset;
+  }
+  return entries;
 };
 
 const parseTreeObject = (oid: Oid, content: Uint8Array) =>
   Effect.try({
-    try: (): readonly TreeEntry[] => parseTreeEntries(oid, content, [], 0),
+    try: (): readonly TreeEntry[] => parseTreeEntries(oid, content),
     catch: (e) =>
       Schema.is(ObjectCorruptError)(e)
         ? e
@@ -114,7 +119,7 @@ export type HeadTreeEntry = { readonly path: RepoPath; readonly oid: Oid; readon
 const readTree = (
   gitdir: string,
   treeOid: Oid
-): Stream.Stream<HeadTreeEntry, ObjectNotFoundError | ObjectCorruptError, FileSystem | Path> =>
+): Stream.Stream<HeadTreeEntry, ObjectNotFoundError | ObjectCorruptError | PlatformError, FileSystem | Path | Crypto> =>
   Stream.unwrap(
     readLooseObject(gitdir, treeOid).pipe(
       Effect.flatMap((obj) =>
@@ -136,7 +141,7 @@ const buildStream = (
   gitdir: string,
   entries: readonly TreeEntry[],
   prefix: string
-): Stream.Stream<HeadTreeEntry, ObjectNotFoundError | ObjectCorruptError, FileSystem | Path> =>
+): Stream.Stream<HeadTreeEntry, ObjectNotFoundError | ObjectCorruptError | PlatformError, FileSystem | Path | Crypto> =>
   Stream.flatMap(Stream.fromIterable(entries), (e) => {
     const fullPath = prefix.length === 0 ? e.name : `${prefix}/${e.name}`;
     // Submodules (mode 160000) are emitted but not recursed (per spec).
@@ -153,7 +158,15 @@ const buildStream = (
 /* eslint-enable local-rules/no-explicit-effect-return-type */
 
 /** Resolve HEAD to a commit oid, then to its tree, preserving file modes. */
-export const streamHeadTreeWithMode = (gitdir: string) =>
+/* eslint-disable local-rules/no-explicit-effect-return-type -- keep the package declaration portable for consumers. */
+export const streamHeadTreeWithMode = (
+  gitdir: string
+): Stream.Stream<
+  HeadTreeEntry,
+  ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | PlatformError,
+  FileSystem | Path | Crypto
+> =>
+  /* eslint-enable local-rules/no-explicit-effect-return-type */
   Stream.unwrap(
     Effect.gen(function* () {
       const headOid = yield* resolveRef(gitdir, Schema.decodeUnknownSync(RefName)('HEAD'));

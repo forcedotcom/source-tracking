@@ -21,9 +21,9 @@ import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Schedule from 'effect/Schedule';
-import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
+import type { PlatformError } from 'effect/PlatformError';
 import { RepoLockedError } from './errors.js';
 
 const DEFAULT_TIMEOUT = Duration.seconds(600); // 10 minutes
@@ -60,7 +60,10 @@ const humanReadable = (duration: Duration.Duration): string => Duration.format(d
  */
 export type ReleaseStrategy = 'rename-to-index' | 'remove';
 
-const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
+const acquireLock = Effect.fn('acquireLock')(function* (
+  gitdir: string,
+  restore: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+) {
   const fs = yield* FileSystem;
   const path = yield* Path;
   const lockPath = path.join(gitdir, 'index.lock');
@@ -94,7 +97,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
 
   // Single-attempt open; fails with RepoLockedError if the lock is held
   // (after auto-clear has had a chance), or PlatformError on real fs
-  // failure. Effect.retry below drives the backoff loop, retrying only on
+  // failure. The backoff loop below retries only on
   // RepoLockedError.
   const wxOpen = Effect.scoped(fs.open(lockPath, { flag: 'wx' }));
 
@@ -124,16 +127,24 @@ const acquireLock = Effect.fn('acquireLock')(function* (gitdir: string) {
       : yield* lockedFailure;
   });
 
-  // Native retry: exponential backoff jittered, capped at 1s spacing,
-  // bounded by the user-configured timeout. The `while` predicate uses
-  // an instanceof check on the tagged-error class — the structurally
-  // typed discriminant Effect's tagged errors are designed for.
+  // Exponential backoff jittered, capped at 1s spacing, bounded by timeout.
   const backoff = Schedule.min([
     Duration.millis(50).pipe(Schedule.exponential, Schedule.jittered),
     Schedule.spaced(Duration.millis(1000)),
   ]).pipe(Schedule.upTo({ duration: timeout }));
+  const next = yield* Schedule.toStepWithSleep(backoff);
   return yield* tryAcquireOnce().pipe(
-    Effect.retry({ schedule: backoff, while: Schema.is(RepoLockedError) }),
+    Effect.map(Option.some),
+    Effect.catchTag('RepoLockedError', (error) =>
+      // Only waiting is cancellable. A successful open stays masked until
+      // acquireUseRelease has installed release, including closing the handle.
+      restore(next(error)).pipe(
+        Effect.catchTag('Done', () => Effect.fail(error)),
+        Effect.as(Option.none())
+      )
+    ),
+    Effect.repeat({ until: Option.isSome }),
+    Effect.map(Option.getOrThrow),
     // After timeout, repackage with the canonical "remove manually" message.
     Effect.catchTag('RepoLockedError', () =>
       Effect.fail(
@@ -172,22 +183,38 @@ const releaseLock = (lockPath: string, indexPath: string, succeeded: boolean, st
  * // or, for non-index critical sections:
  * yield* applyChanges.pipe(withIndexLock(gitdir))
  */
-export const withIndexLock =
+export const withIndexLock: (
+  gitdir: string,
+  strategy?: ReleaseStrategy
+) => <A, E, R>(
+  self: Effect.Effect<A, E, R>
+) => Effect.Effect<A, E | RepoLockedError | PlatformError, R | FileSystem | Path> =
   (gitdir: string, strategy: ReleaseStrategy = 'remove') =>
   <A, E, R>(self: Effect.Effect<A, E, R>) =>
-    Effect.acquireUseRelease(
-      acquireLock(gitdir),
-      () => self,
-      (ctx, exit) => releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
+    Effect.uninterruptibleMask((restore) =>
+      Effect.acquireUseRelease(
+        acquireLock(gitdir, restore),
+        () => restore(self),
+        (ctx, exit) => releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
+      )
     );
 
 /**
  * Variant that exposes the lockPath/indexPath to callers who write the new
  * index bytes into the lockfile before the atomic rename-to-index commit.
  */
-export const withIndexLockCtx =
+export const withIndexLockCtx: (
+  gitdir: string,
+  strategy?: ReleaseStrategy
+) => <A, E, R>(
+  body: (ctx: { readonly lockPath: string; readonly indexPath: string }) => Effect.Effect<A, E, R>
+) => Effect.Effect<A, E | RepoLockedError | PlatformError, R | FileSystem | Path> =
   (gitdir: string, strategy: ReleaseStrategy = 'rename-to-index') =>
   <A, E, R>(body: (ctx: { readonly lockPath: string; readonly indexPath: string }) => Effect.Effect<A, E, R>) =>
-    Effect.acquireUseRelease(acquireLock(gitdir), body, (ctx, exit) =>
-      releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
+    Effect.uninterruptibleMask((restore) =>
+      Effect.acquireUseRelease(
+        acquireLock(gitdir, restore),
+        (ctx) => restore(body(ctx)),
+        (ctx, exit) => releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
+      )
     );

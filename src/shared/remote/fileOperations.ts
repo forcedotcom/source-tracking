@@ -172,10 +172,11 @@ export const writeTrackingFile = Effect.fnUntraced(function* ({
         catch: (cause) => SfError.wrap(cause),
       }).pipe(
         Effect.flatMap((encoded) =>
+          // Node's write cannot be cancelled safely; keep the lock until it settles.
           Effect.tryPromise({
             try: () => fs.promises.writeFile(filePath, encoded),
             catch: (cause) => SfError.wrap(cause),
-          })
+          }).pipe(Effect.uninterruptible)
         )
       );
       return committed;

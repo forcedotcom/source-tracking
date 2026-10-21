@@ -18,8 +18,10 @@ import path from 'node:path';
 import { Lifecycle, Logger } from '@salesforce/core';
 import { FileSystem, type FileSystem as FileSystemService } from 'effect/FileSystem';
 import { type Path } from 'effect/Path';
+import type { Crypto } from 'effect/Crypto';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
+import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as Effect from 'effect/Effect';
 import * as Chunk from 'effect/Chunk';
 import * as Config from 'effect/Config';
@@ -27,6 +29,7 @@ import * as ConfigProvider from 'effect/ConfigProvider';
 import * as HashSet from 'effect/HashSet';
 import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
+import * as Match from 'effect/Match';
 import * as Option from 'effect/Option';
 import * as Ref from 'effect/Ref';
 import * as Schema from 'effect/Schema';
@@ -100,8 +103,12 @@ const liteFileFilter =
 type ShadowRepoEffects = {
   readonly gitDir: string;
   readonly projectPath: string;
-  readonly getStatus: (refresh?: boolean) => Effect.Effect<LocalChanges, RepoError, Repo | FileSystemService | Path>;
-  readonly recordSync: (request?: SyncRequest) => Effect.Effect<string, RepoError, Repo | FileSystemService | Path>;
+  readonly getStatus: (
+    refresh?: boolean
+  ) => Effect.Effect<LocalChanges, RepoError, Repo | FileSystemService | Path | Crypto>;
+  readonly recordSync: (
+    request?: SyncRequest
+  ) => Effect.Effect<string, RepoError, Repo | FileSystemService | Path | Crypto>;
   readonly delete: () => Effect.Effect<string, RepoError, Repo | FileSystemService | Path>;
 };
 
@@ -144,17 +151,13 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
         }),
         (current, entry) => {
           const file = IS_WINDOWS ? path.normalize(entry.path) : entry.path;
-          switch (entry.status) {
-            case 'added':
-              return { ...current, added: Chunk.append(current.added, file) };
-            case 'modified':
-              return { ...current, modified: Chunk.append(current.modified, file) };
-            case 'deleted':
-              return { ...current, deleted: Chunk.append(current.deleted, file) };
-            case 'unmodified':
-            case 'ignored':
-              return current;
-          }
+          return Match.value(entry.status).pipe(
+            Match.when('added', () => ({ ...current, added: Chunk.append(current.added, file) })),
+            Match.when('modified', () => ({ ...current, modified: Chunk.append(current.modified, file) })),
+            Match.when('deleted', () => ({ ...current, deleted: Chunk.append(current.deleted, file) })),
+            Match.whenOr('unmodified', 'ignored', () => current),
+            Match.exhaustive
+          );
         }
       )
     );
@@ -308,13 +311,13 @@ export type ShadowRepo = {
   delete: () => Promise<string>;
 };
 
-type ShadowRepoRuntime = ManagedRuntime.ManagedRuntime<Repo | FileSystemService | Path, never>;
+type ShadowRepoRuntime = ManagedRuntime.ManagedRuntime<Repo | FileSystemService | Path | Crypto, never>;
 
 const runEffect = <A>(
   runtime: ShadowRepoRuntime,
   logger: Logger,
   operation: string,
-  effect: Effect.Effect<A, RepoError, Repo | FileSystemService | Path>
+  effect: Effect.Effect<A, RepoError, Repo | FileSystemService | Path | Crypto>
 ): Promise<A> =>
   runtime.runPromise(
     effect.pipe(
@@ -326,7 +329,7 @@ const runEffect = <A>(
 /** Promise adapter for SourceTracking and CLI callers; the implementation above stays Effect-native. */
 export const createShadowRepo = async (options: ShadowRepoOptions): Promise<ShadowRepo> => {
   const logger = await Logger.child('ShadowRepo');
-  const baseLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+  const baseLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, options.cryptoLayer ?? NodeCrypto.layer);
   const repoLayer = Layer.provide(Repo.layer, baseLayer);
   const runtime = ManagedRuntime.make(Layer.mergeAll(repoLayer, baseLayer));
   const effects = await runEffect(runtime, logger, 'init', makeShadowRepo(options, logger));

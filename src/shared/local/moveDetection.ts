@@ -39,13 +39,22 @@ import {
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { FileSystem } from 'effect/FileSystem';
+import type { Crypto } from 'effect/Crypto';
+import type { PlatformError } from 'effect/PlatformError';
 import * as Chunk from 'effect/Chunk';
 import * as Effect from 'effect/Effect';
+import * as Filter from 'effect/Filter';
 import * as HashMap from 'effect/HashMap';
 import * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
 import { Repo } from '../../git/repo.js';
+import type {
+  ObjectCorruptError,
+  ObjectNotFoundError,
+  RepoNotConfiguredError,
+  RefNotFoundError,
+} from '../../git/errors.js';
 import { hashBlob } from '../../git/objects.js';
 import { lstat, normalizeGitSymlinkTarget } from '../../git/workdir.js';
 import { ensurePosix, IS_WINDOWS } from './functions.js';
@@ -117,7 +126,20 @@ const emptyBucket: Bucket = { map: HashMap.empty(), ignored: HashMap.empty() };
  * call: file lists + count + a pre-formatted log line. The internal
  * HashMaps don't leak across the module boundary.
  */
-export const filenameMatchesToMap =
+export const filenameMatchesToMap: (
+  registry: RegistryAccess
+) => (
+  projectPath: string
+) => (
+  fdPermits: number
+) => (changes: {
+  added: HashSet.HashSet<string>;
+  deleted: HashSet.HashSet<string>;
+}) => Effect.Effect<
+  MoveDetectionResult,
+  RepoNotConfiguredError | ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | PlatformError,
+  Repo | FileSystem | Crypto
+> =
   (registry: RegistryAccess) =>
   (projectPath: string) =>
   (fdPermits: number) =>
@@ -129,14 +151,16 @@ export const filenameMatchesToMap =
     // Both bucket Effects sit at the same level so Effect.all races them.
     // The deleted side's stream waits on drainHeadOids; the added side
     // doesn't, so it can start hashing while HEAD is still being walked.
-    const addedBucket = Stream.runFold(
-      addedInfoStream(projectPath, fdPermits, added).pipe(enrich),
-      () => emptyBucket,
-      accumulateBucket
+    const addedBucket = addedInfoStream(projectPath, fdPermits, added).pipe(
+      enrich,
+      Stream.runFold(() => emptyBucket, accumulateBucket)
     );
     const deletedBucket = drainHeadOids().pipe(
       Effect.flatMap((headOids) =>
-        Stream.runFold(deletedInfoStream(headOids, deleted).pipe(enrich), () => emptyBucket, accumulateBucket)
+        deletedInfoStream(headOids, deleted).pipe(
+          enrich,
+          Stream.runFold(() => emptyBucket, accumulateBucket)
+        )
       )
     );
     return Effect.all({ added: addedBucket, deleted: deletedBucket }, { concurrency: 'unbounded' }).pipe(
@@ -204,24 +228,18 @@ const addedInfoStream = (projectPath: string, fdPermits: number, added: HashSet.
  * filterMap.
  */
 const deletedInfoStream = (headOids: HashMap.HashMap<string, string>, deleted: HashSet.HashSet<string>) =>
-  Stream.fromIterable(deleted).pipe(
-    Stream.flatMap((filepath) =>
-      Stream.fromIterable(
-        Option.match(lookupDeleted(headOids)(filepath), {
-          onNone: () => [],
-          onSome: (info) => [info],
-        })
-      )
-    )
-  );
+  Stream.fromIterable(deleted).pipe(Stream.filterMap(Filter.fromPredicateOption(lookupDeleted(headOids))));
 
 /** Drain HEAD tree once into a path→oid HashMap. Replaces N readBlob calls. */
 const drainHeadOids = Effect.fn('moveDetection.drainHeadOids')(function* () {
-  const repo = yield* Repo;
-  return yield* repo.streamHeadTree().pipe(
-    Stream.map((p) => [p.path, p.oid] satisfies readonly [string, string]),
-    Stream.runCollect,
-    Effect.map(HashMap.fromIterable)
+  return yield* Repo.pipe(
+    Effect.flatMap((repo) =>
+      repo.streamHeadTree().pipe(
+        Stream.map((p) => [p.path, p.oid] satisfies readonly [string, string]),
+        Stream.runCollect,
+        Effect.map(HashMap.fromIterable)
+      )
+    )
   );
 });
 
@@ -300,44 +318,41 @@ const emitCollisionTelemetry = Effect.fn('moveDetection.emitCollisionTelemetry')
 // =============================== match phase =============================
 
 /**
- * Intersect two HashMaps on their keys; for each shared key build
- * `[fromAdded, fromDeleted]` so we get an `add->del` map suitable for the
- * commitChanges call. Used twice: once on the full key, once on the
- * hashless key after dropping fullMatches.
+ * Intersect two HashMaps on their keys; retain those keys for removal and
+ * build an `add->del` filename map for commitChanges. Used twice: once on
+ * the full key, once on the hashless key after dropping exact matches.
  */
 const intersectByKey = (
   a: HashMap.HashMap<string, string>,
   b: HashMap.HashMap<string, string>
-): HashMap.HashMap<string, string> => {
+): { matchedKeys: HashSet.HashSet<string>; matches: HashMap.HashMap<string, string> } => {
   const keysAIterable = HashMap.keys(a);
   const keysBIterable = HashMap.keys(b);
   const keysA = HashSet.fromIterable(keysAIterable);
   const keysB = HashSet.fromIterable(keysBIterable);
-  return keysA.pipe(
-    HashSet.intersection(keysB),
+  const matchedKeys = HashSet.intersection(keysA, keysB);
+  const matches = matchedKeys.pipe(
     HashSet.map(
       (k) =>
         [Option.getOrThrow(HashMap.get(a, k)), Option.getOrThrow(HashMap.get(b, k))] satisfies readonly [string, string]
     ),
     HashMap.fromIterable
   );
+  return { matchedKeys, matches };
 };
 
 const reKey = (m: HashMap.HashMap<string, string>): HashMap.HashMap<string, string> =>
   m.pipe(HashMap.reduce(HashMap.empty<string, string>(), (acc, v, k) => HashMap.set(acc, removeHashFromKey(k), v)));
 
 const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteHashMaps): StringMapsForMatches => {
-  const fullMatches = intersectByKey(addedMap, deletedMap);
-  const matchedKeysIterable = HashMap.keys(fullMatches);
-  const matchedKeys = HashSet.fromIterable(matchedKeysIterable);
+  const { matchedKeys, matches: fullMatches } = intersectByKey(addedMap, deletedMap);
   const remainingAdds = HashMap.removeMany(addedMap, matchedKeys);
   const remainingDeletes = HashMap.removeMany(deletedMap, matchedKeys);
-  // matchedKeys held the FULL keys; intersectByKey on fullMatches above
-  // produced add->del pairs. The leftover sides still hold full keys, so
-  // strip the hash component before the second intersection.
+  // Remove exact matches by composite key, not by added filename. Strip
+  // hashes only from the leftovers before the second intersection.
   return HashMap.size(remainingAdds) === 0 || HashMap.size(remainingDeletes) === 0
     ? { fullMatches, deleteOnly: HashMap.empty() }
-    : { fullMatches, deleteOnly: intersectByKey(reKey(remainingAdds), reKey(remainingDeletes)) };
+    : { fullMatches, deleteOnly: intersectByKey(reKey(remainingAdds), reKey(remainingDeletes)).matches };
 };
 
 // =============================== key serialization =======================

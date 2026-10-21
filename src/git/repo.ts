@@ -15,14 +15,13 @@
  */
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
+import { Crypto } from 'effect/Crypto';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
-import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as Option from 'effect/Option';
 import * as Ref from 'effect/Ref';
 import * as Semaphore from 'effect/Semaphore';
-import * as Scope from 'effect/Scope';
 import * as Stream from 'effect/Stream';
 import { applyChanges as applyChangesImpl } from './applyChanges.js';
 import { ObjectCorruptError, RepoNotConfiguredError } from './errors.js';
@@ -39,7 +38,6 @@ import { streamHeadTree as streamHeadTreeImpl } from './trees.js';
  */
 type RepoHandle = {
   readonly cfg: SwitchCfg;
-  readonly scope: Scope.Closeable;
 };
 
 type ApplyChangesArgs = {
@@ -57,15 +55,6 @@ const notConfigured = (op: string): RepoNotConfiguredError =>
 const requireHandle = (handleRef: Ref.Ref<Option.Option<RepoHandle>>, op: string) =>
   Ref.get(handleRef).pipe(Effect.flatMap(Effect.fromOption(() => notConfigured(op))));
 
-const buildHandle = (cfg: SwitchCfg, serviceScope: Scope.Scope) =>
-  Effect.gen(function* () {
-    const scope = yield* Scope.fork(serviceScope, 'sequential');
-    return {
-      cfg,
-      scope,
-    } satisfies RepoHandle;
-  });
-
 /**
  * The Repo service. One swappable handle, no multi-org. Methods that need
  * the handle fail with RepoNotConfiguredError pre-switchTo.
@@ -73,59 +62,53 @@ const buildHandle = (cfg: SwitchCfg, serviceScope: Scope.Scope) =>
 const makeRepo = Effect.gen(function* () {
   const fs = yield* FileSystem;
   const path = yield* Path;
-  const serviceScope = yield* Effect.scope;
+  const crypto = yield* Crypto;
 
   const handleRef = yield* Ref.make<Option.Option<RepoHandle>>(Option.none());
   const swapSemaphore = yield* Semaphore.make(1);
 
-  const provideFsAndPath = <A, E, R>(eff: Effect.Effect<A, E, R | FileSystem | Path>) =>
-    eff.pipe(Effect.provideService(FileSystem, fs), Effect.provideService(Path, path));
+  const provideGitServices = <A, E, R>(eff: Effect.Effect<A, E, R | FileSystem | Path | Crypto>) =>
+    eff.pipe(
+      Effect.provideService(FileSystem, fs),
+      Effect.provideService(Path, path),
+      Effect.provideService(Crypto, crypto)
+    );
 
-  const provideFsAndPathStream = <A, E, R>(stream: Stream.Stream<A, E, R | FileSystem | Path>) =>
-    stream.pipe(Stream.provideService(FileSystem, fs), Stream.provideService(Path, path));
+  const provideGitServicesStream = <A, E, R>(stream: Stream.Stream<A, E, R | FileSystem | Path | Crypto>) =>
+    stream.pipe(
+      Stream.provideService(FileSystem, fs),
+      Stream.provideService(Path, path),
+      Stream.provideService(Crypto, crypto)
+    );
 
   /**
-   * Atomic publish + prior-scope close. The semaphore serializes
-   * concurrent switchTo calls; in-flight operations against the prior
-   * handle hold their own reference (captured at op entry) and so keep
-   * the prior scope alive until they complete.
+   * Serialize configuration changes. In-flight operations retain the
+   * handle captured at entry; switching cannot redirect their I/O.
    */
   const switchTo = Effect.fn('Repo.switchTo')(function* (cfg: SwitchCfg) {
-    yield* Semaphore.withPermits(
-      swapSemaphore,
-      1
-    )(
-      Effect.gen(function* () {
-        const next = yield* buildHandle(cfg, serviceScope);
-        const prior = yield* Ref.getAndSet(handleRef, Option.some(next));
-        yield* Option.match(prior, {
-          onNone: () => Effect.void,
-          onSome: (h) => Scope.close(h.scope, Exit.void),
-        });
-      })
-    );
+    yield* Semaphore.withPermits(swapSemaphore, 1)(Ref.set(handleRef, Option.some({ cfg })));
   });
 
   const init = Effect.fn('Repo.init')(function* (cfg: SwitchCfg) {
-    yield* provideFsAndPath(initImpl({ cfg }));
+    yield* provideGitServices(initImpl({ cfg }));
     yield* switchTo(cfg);
   });
 
   const statusMatrix = () =>
     Stream.unwrap(
-      requireHandle(handleRef, 'statusMatrix').pipe(Effect.map((h) => provideFsAndPathStream(coldStatus(h.cfg))))
+      requireHandle(handleRef, 'statusMatrix').pipe(Effect.map((h) => provideGitServicesStream(coldStatus(h.cfg))))
     );
 
   const collectStatus = Effect.fn('Repo.collectStatus')(function* () {
     return yield* requireHandle(handleRef, 'collectStatus').pipe(
-      Effect.flatMap((h) => provideFsAndPath(coldStatus(h.cfg).pipe(Stream.runCollect))),
+      Effect.flatMap((h) => provideGitServices(coldStatus(h.cfg).pipe(Stream.runCollect))),
       Effect.map((entries) => Array.from(entries))
     );
   });
 
   const applyChanges = Effect.fn('Repo.applyChanges')(function* (args: ApplyChangesArgs) {
     const h = yield* requireHandle(handleRef, 'applyChanges');
-    return yield* provideFsAndPath(
+    return yield* provideGitServices(
       applyChangesImpl({
         cfg: { dir: h.cfg.dir, gitdir: h.cfg.gitdir },
         adds: args.adds,
@@ -139,7 +122,7 @@ const makeRepo = Effect.gen(function* () {
 
   const readBlob = Effect.fn('Repo.readBlob')(function* (oid: Oid) {
     return yield* requireHandle(handleRef, 'readBlob').pipe(
-      Effect.flatMap((h) => provideFsAndPath(readLooseObject(h.cfg.gitdir, oid))),
+      Effect.flatMap((h) => provideGitServices(readLooseObject(h.cfg.gitdir, oid))),
       Effect.flatMap((obj) =>
         obj.type === 'blob'
           ? Effect.succeed(obj.content)
@@ -156,14 +139,14 @@ const makeRepo = Effect.gen(function* () {
 
   const resolveRef = Effect.fn('Repo.resolveRef')(function* (ref: RefName) {
     return yield* requireHandle(handleRef, 'resolveRef').pipe(
-      Effect.flatMap((h) => provideFsAndPath(resolveRefImpl(h.cfg.gitdir, ref)))
+      Effect.flatMap((h) => provideGitServices(resolveRefImpl(h.cfg.gitdir, ref)))
     );
   });
 
   const streamHeadTree = () =>
     Stream.unwrap(
       requireHandle(handleRef, 'streamHeadTree').pipe(
-        Effect.map((h) => provideFsAndPathStream(streamHeadTreeImpl(h.cfg.gitdir)))
+        Effect.map((h) => provideGitServicesStream(streamHeadTreeImpl(h.cfg.gitdir)))
       )
     );
 
@@ -182,7 +165,7 @@ const makeRepo = Effect.gen(function* () {
     statusMatrix,
     collectStatus,
     applyChanges,
-    hashBlob: hashBlobImpl,
+    hashBlob: (bytes: Uint8Array) => provideGitServices(hashBlobImpl(bytes)),
     readBlob,
     resolveRef,
     streamHeadTree,

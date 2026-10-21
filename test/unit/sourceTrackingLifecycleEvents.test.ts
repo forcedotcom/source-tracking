@@ -20,6 +20,10 @@ import sinon from 'sinon';
 import { expect } from 'chai';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { Lifecycle, Logger, Org, SfProject } from '@salesforce/core';
+import * as Crypto from 'effect/Crypto';
+import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
+import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import { SourceTracking } from '../../src/sourceTracking.js';
 
 describe('SourceTracking lifecycle events cleanup', () => {
@@ -95,7 +99,7 @@ describe('SourceTracking lifecycle events cleanup', () => {
     expect(removeAllListenersSpy.calledWith('scopedPreRetrieve')).to.equal(false);
   });
 
-  it('coalesces concurrent local tracking initialization', async () => {
+  it('coalesces concurrent local tracking initialization and uses the injected Crypto layer', async () => {
     stubContext($$);
     const orgData = new MockTestOrgData();
     orgData.username = username;
@@ -118,11 +122,16 @@ describe('SourceTracking lifecycle events cleanup', () => {
     ]);
     const loggerChildStub = Reflect.get(Logger, 'child') as unknown as { callCount: number };
     const loggerChildCallCount = loggerChildStub.callCount;
+    const crypto = await Effect.runPromise(Crypto.Crypto.pipe(Effect.provide(NodeCrypto.layer)));
+    const digest = sinon.spy((algorithm: Crypto.DigestAlgorithm, bytes: Uint8Array) => crypto.digest(algorithm, bytes));
+    const cryptoLayer = Layer.succeed(Crypto.Crypto, { ...crypto, digest });
 
     try {
-      const sourceTracking = await SourceTracking.create({ org, project });
+      const sourceTracking = await SourceTracking.create({ org, project, cryptoLayer });
       await Promise.all([sourceTracking.ensureLocalTracking(), sourceTracking.ensureLocalTracking()]);
       expect(loggerChildStub.callCount - loggerChildCallCount).to.equal(1);
+      expect(digest.called).to.equal(true);
+      expect(digest.getCalls().every((call) => call.args[0] === 'SHA-1')).to.equal(true);
       expect(
         fs.existsSync(path.join(projectPath, '.sf', 'orgs', orgId, 'localSourceTracking', 'refs', 'heads', 'main'))
       ).to.equal(true);
