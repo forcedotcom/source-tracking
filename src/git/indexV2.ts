@@ -15,9 +15,11 @@
  */
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
+import type { Crypto } from 'effect/Crypto';
 import * as Effect from 'effect/Effect';
 import { isUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
+import type { PlatformError } from 'effect/PlatformError';
 import { IndexCorruptError } from './errors.js';
 import { sha1 } from './objects.js';
 import { Oid } from './schemas.js';
@@ -130,6 +132,12 @@ const parseEntryAt = Effect.fnUntraced(function* (
 });
 
 type ParsedExtension = { readonly signature: string; readonly payload: Uint8Array };
+type ParsedIndex = {
+  readonly entries: readonly IndexEntry[];
+  readonly entriesByteLength: number;
+  readonly extensions: readonly ParsedExtension[];
+  readonly trailer: Uint8Array;
+};
 
 // Recursive helper: an explicit return type breaks TS's self-reference cycle.
 const parseExtensionsFrom = (
@@ -160,7 +168,13 @@ const parseExtensionsFrom = (
  * Parse `.git/index` (version 2 only). Rejects v3/v4 with IndexCorruptError.
  * The trailing SHA-1 covers every preceding byte and is verified on read.
  */
-export const parseIndexV2 = Effect.fn('parseIndexV2')(function* (gitdir: string, raw: Uint8Array) {
+export const parseIndexV2: (
+  gitdir: string,
+  raw: Uint8Array
+) => Effect.Effect<ParsedIndex, IndexCorruptError | PlatformError, Crypto> = Effect.fn('parseIndexV2')(function* (
+  gitdir: string,
+  raw: Uint8Array
+) {
   if (raw.byteLength < HEADER_BYTES + TRAILER_BYTES) {
     return yield* corrupt(`buffer too short (${raw.byteLength} bytes)`, gitdir);
   }
@@ -211,22 +225,26 @@ const EMPTY_INDEX = {
 };
 
 /** Read + parse `<gitdir>/index`. Honors mtime cache (caller passes via cache). */
-export const readIndex = Effect.fn('readIndex')(function* (gitdir: string) {
-  const fs = yield* FileSystem;
-  const path = yield* Path;
-  const file = path.join(gitdir, 'index');
-  // NotFound → empty index (pre-applyChanges). Other read errors surface as
-  // IndexCorruptError so the caller knows the bytes were unreadable.
-  return yield* fs.readFile(file).pipe(
-    Effect.catchReason('PlatformError', 'NotFound', () => Effect.void.pipe(Effect.as(undefined))),
-    Effect.mapError(
-      (cause) =>
-        new IndexCorruptError({
-          gitdir,
-          reason: 'read-failed',
-          message: `failed to read ${file}: ${cause.message}`,
-        })
-    ),
-    Effect.flatMap((raw) => (isUndefined(raw) ? Effect.succeed(EMPTY_INDEX) : parseIndexV2(gitdir, raw)))
-  );
-});
+export const readIndex: (
+  gitdir: string
+) => Effect.Effect<ParsedIndex, IndexCorruptError | PlatformError, FileSystem | Path | Crypto> = Effect.fn('readIndex')(
+  function* (gitdir: string) {
+    const fs = yield* FileSystem;
+    const path = yield* Path;
+    const file = path.join(gitdir, 'index');
+    // NotFound → empty index (pre-applyChanges). Other read errors surface as
+    // IndexCorruptError so the caller knows the bytes were unreadable.
+    return yield* fs.readFile(file).pipe(
+      Effect.catchReason('PlatformError', 'NotFound', () => Effect.void.pipe(Effect.as(undefined))),
+      Effect.mapError(
+        (cause) =>
+          new IndexCorruptError({
+            gitdir,
+            reason: 'read-failed',
+            message: `failed to read ${file}: ${cause.message}`,
+          })
+      ),
+      Effect.flatMap((raw) => (isUndefined(raw) ? Effect.succeed(EMPTY_INDEX) : parseIndexV2(gitdir, raw)))
+    );
+  }
+);
