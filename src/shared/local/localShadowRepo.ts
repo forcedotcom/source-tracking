@@ -21,7 +21,6 @@ import { type Path } from 'effect/Path';
 import type { Crypto } from 'effect/Crypto';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
-import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as Effect from 'effect/Effect';
 import * as Chunk from 'effect/Chunk';
 import * as Config from 'effect/Config';
@@ -47,6 +46,7 @@ import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
 import { getMatches, ensurePosix, IS_WINDOWS } from './functions.js';
 import { filenameMatchesToMap } from './moveDetection.js';
 import type { LocalChanges, ShadowRepoOptions, SyncRequest } from './types.js';
+import { cryptoLayer } from './crypto.js';
 
 const getGitDir = (orgId: string, projectPath: string): string =>
   path.join(projectPath, '.sf', 'orgs', orgId, 'localSourceTracking');
@@ -329,7 +329,7 @@ const runEffect = <A>(
 /** Promise adapter for SourceTracking and CLI callers; the implementation above stays Effect-native. */
 export const createShadowRepo = async (options: ShadowRepoOptions): Promise<ShadowRepo> => {
   const logger = await Logger.child('ShadowRepo');
-  const baseLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, options.cryptoLayer ?? NodeCrypto.layer);
+  const baseLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer);
   const repoLayer = Layer.provide(Repo.layer, baseLayer);
   const runtime = ManagedRuntime.make(Layer.mergeAll(repoLayer, baseLayer));
   const effects = await runEffect(runtime, logger, 'init', makeShadowRepo(options, logger));

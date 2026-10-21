@@ -361,6 +361,11 @@
   resolved "https://registry.yarnpkg.com/@effect/opentelemetry/-/opentelemetry-4.0.5.tgz#c2a615aa0d923fa673a57dba7a896a950cb9f316"
   integrity sha512-/Ms5DCZyHZzAbQQtXP4QRCSvHnKXaw3vLnDUegFmO3K3qIRqRdqfVtIqbGa1pbjMKdTShggiitDjRAYOHyWo1A==
 
+"@effect/platform-browser@^4.0.5":
+  version "4.0.5"
+  resolved "https://registry.yarnpkg.com/@effect/platform-browser/-/platform-browser-4.0.5.tgz#4a5c96d27ee7d743980ac80ad13532f0903a49eb"
+  integrity sha512-o3H75xA91nkgIWOcp0XouIxxWxJEOFkTf7gG4qkQtZfy0tq46hJBI0U8jrUqsPruo2vCCNfM0yCoj5AG7F5BMQ==
+
 "@effect/platform-node-shared@^4.0.5":
   version "4.0.5"
   resolved "https://registry.yarnpkg.com/@effect/platform-node-shared/-/platform-node-shared-4.0.5.tgz#9eb1c5aeb6a5355e6df017643238bad1a44bee2b"

@@ -19,8 +19,6 @@ import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from 'effect/Predicate';
 import * as Cache from 'effect/Cache';
-import type * as Crypto from 'effect/Crypto';
-import type * as Layer from 'effect/Layer';
 import {
   ComponentSet,
   MetadataResolver,
@@ -115,9 +113,6 @@ export type SourceTrackingOptions = {
 
   /** pass in an instance of SDR's RegistryAccess.  If not provided, a new one will be created */
   registry?: RegistryAccess;
-
-  /** Platform cryptography for local tracking; defaults to NodeCrypto.layer. */
-  cryptoLayer?: Layer.Layer<Crypto.Crypto>;
 };
 
 const ResolvedProjectConfigSchema = Schema.Struct({
@@ -154,7 +149,6 @@ export class SourceTracking extends AsyncCreatable {
   private subscribeSDREvents: boolean;
   private ignoreLocalCache: boolean;
   private orgId: string;
-  private cryptoLayer?: Layer.Layer<Crypto.Crypto>;
 
   public constructor(options: SourceTrackingOptions) {
     super(options);
@@ -168,7 +162,6 @@ export class SourceTracking extends AsyncCreatable {
     this.ignoreLocalCache = options.ignoreLocalCache ?? false;
     this.subscribeSDREvents = options.subscribeSDREvents ?? false;
     this.registry = options.registry ?? new RegistryAccess(undefined, this.projectPath);
-    this.cryptoLayer = options.cryptoLayer;
   }
 
   public async init(): Promise<void> {
@@ -574,7 +567,6 @@ export class SourceTracking extends AsyncCreatable {
         projectPath: normalize(this.projectPath),
         packageDirs: this.packagesDirs,
         registry: this.registry,
-        cryptoLayer: this.cryptoLayer,
       });
       // Load status before publishing the repo so concurrent callers await
       // the same initialized handle and cache.
