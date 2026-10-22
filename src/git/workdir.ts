@@ -22,6 +22,9 @@ import * as Match from 'effect/Match';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import { systemError, type SystemErrorTag } from 'effect/PlatformError';
+import { FileSystem } from 'effect/FileSystem';
+
+const TEXT = new TextEncoder();
 
 const NodeErrnoError = Schema.Struct({
   code: Schema.optional(Schema.String),
@@ -73,4 +76,12 @@ export const gitModeFromStat = (info: Stats): number =>
 export const normalizeGitSymlinkTarget = (target: string, separator = nodePath.sep): string =>
   separator === '/' ? target : target.split(separator).join('/');
 
-export const isSymlinkMode = (mode: number): boolean => (mode & 0o17_0000) === GIT_SYMLINK_MODE;
+const isSymlinkMode = (mode: number): boolean => (mode & 0o17_0000) === GIT_SYMLINK_MODE;
+
+/** Read the bytes Git stores: normalized link-target text for symlinks, file content otherwise. */
+export const readWorkdirBytes = Effect.fnUntraced(function* (abs: string, mode: number) {
+  const fs = yield* FileSystem;
+  return yield* isSymlinkMode(mode)
+    ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
+    : fs.readFile(abs);
+});

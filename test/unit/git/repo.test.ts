@@ -13,96 +13,51 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import * as fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
-import * as Cause from 'effect/Cause';
-import * as Exit from 'effect/Exit';
-import * as Option from 'effect/Option';
+import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as Crypto from 'effect/Crypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { Repo } from '../../../src/git/repo.js';
-import { RepoNotConfiguredError } from '../../../src/git/errors.js';
-import { RefName, RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
+import { RefName, RepoPath, RepoConfig } from '../../../src/git/schemas.js';
 
-const TestLayer = Layer.provide(Repo.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer));
-
-const cfg = (gitdir: string): SwitchCfg => ({
-  dir: '/tmp/lite-test',
+const cfg = (gitdir: string): RepoConfig => ({
+  dir: path.dirname(gitdir),
   gitdir,
   roots: [Schema.decodeUnknownSync(RepoPath)('force-app')],
   fdPermits: 8,
 });
 
-const runUnit = <A, E>(effect: Effect.Effect<A, E, Repo>): Promise<Exit.Exit<A, E>> =>
-  Effect.runPromiseExit(effect.pipe(Effect.provide(TestLayer)));
-
-describe('git/Repo lifecycle (phase 1)', () => {
-  it('every method but init/switchTo/hashBlob fails with RepoNotConfiguredError pre-switchTo', async () => {
-    const exit = await runUnit(
-      Effect.gen(function* () {
+describe('git/Repo configuration', () => {
+  it('initializes and reads the repository configured by its layer', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'git-repo-config-'));
+    try {
+      await Effect.gen(function* () {
         const repo = yield* Repo;
-        return yield* repo.collectStatus();
-      })
-    );
-    expect(Exit.isFailure(exit)).to.equal(true);
-    if (Exit.isFailure(exit)) {
-      const fail = Cause.findErrorOption(exit.cause);
-      expect(Option.isSome(fail)).to.equal(true);
-      if (Option.isSome(fail)) {
-        expect(fail.value).to.be.instanceOf(RepoNotConfiguredError);
-      }
+        const oid = yield* repo.init();
+        expect(yield* repo.resolveRef(Schema.decodeUnknownSync(RefName)('HEAD'))).to.equal(oid);
+        expect(yield* repo.statusMatrix().pipe(Stream.runCollect)).to.deep.equal([]);
+      }).pipe(
+        Effect.provide(
+          Repo.layer(cfg(path.join(tmp, '.git'))).pipe(
+            Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer))
+          )
+        ),
+        Effect.runPromise
+      );
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
     }
   });
 
-  it('resolveRef pre-switchTo fails with RepoNotConfiguredError', async () => {
-    const exit = await runUnit(
-      Effect.gen(function* () {
-        const repo = yield* Repo;
-        return yield* repo.resolveRef(Schema.decodeUnknownSync(RefName)('HEAD'));
-      })
-    );
-    expect(Exit.isFailure(exit)).to.equal(true);
-  });
-
-  it('switchTo installs a handle (subsequent ops no longer fail with RepoNotConfiguredError)', async () => {
-    // collectStatus now implements (phase 8). Against /tmp/lite-test/.git
-    // it'll fail with IndexCorruptError (no index file) — what we care
-    // about is that it does NOT fail with RepoNotConfiguredError.
-    const exit = await runUnit(
-      Effect.gen(function* () {
-        const repo = yield* Repo;
-        yield* repo.switchTo(cfg('/tmp/lite-test/.git'));
-        return yield* repo.collectStatus();
-      })
-    );
-    if (Exit.isFailure(exit)) {
-      const fail = Cause.findErrorOption(exit.cause);
-      if (Option.isSome(fail)) {
-        expect(fail.value).to.not.be.instanceOf(RepoNotConfiguredError);
-      }
-    }
-  });
-
-  it('switchTo replaces the prior handle atomically (second cfg wins)', async () => {
-    const exit = await runUnit(
-      Effect.gen(function* () {
-        const repo = yield* Repo;
-        yield* repo.switchTo(cfg('/tmp/lite-test/a/.git'));
-        yield* repo.switchTo(cfg('/tmp/lite-test/b/.git'));
-        // Just exercise the swap path; no asserting on cfg shape here because
-        // SwitchCfg is private to the handle. Phase 5+ surfaces something
-        // observable about the active handle (the init bytes themselves).
-        return 'ok';
-      })
-    );
-    expect(Exit.isSuccess(exit)).to.equal(true);
-  });
-
-  it('switching keeps the captured Crypto alive until Repo.layer teardown', async () => {
+  it('keeps the captured Crypto alive until the repository layer is disposed', async () => {
     const calls: string[] = [];
     const lifecycle: string[] = [];
     const crypto = Crypto.make({
@@ -122,12 +77,12 @@ describe('git/Repo lifecycle (phase 1)', () => {
         () => Effect.sync(() => lifecycle.push('release'))
       )
     );
-    const layer = Layer.provide(Repo.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer));
+    const layer = Repo.layer(cfg('unused/.git')).pipe(
+      Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer))
+    );
     const hash = await Effect.runPromise(
       Effect.gen(function* () {
         const repo = yield* Repo;
-        yield* repo.switchTo(cfg('/tmp/lite-test/a/.git'));
-        yield* repo.switchTo(cfg('/tmp/lite-test/b/.git'));
         expect(lifecycle).to.deep.equal(['acquire']);
         // No ambient Crypto service: only Repo is provided to this program.
         return yield* repo.hashBlob(new TextEncoder().encode('hello'));

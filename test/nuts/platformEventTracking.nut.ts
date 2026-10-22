@@ -73,5 +73,11 @@ describe('platform event source tracking after deploy (@W-21612413@)', () => {
     expect(pollingTimeoutWarnings, 'source tracking should match the platform-event field SourceMember').to.have.length(
       0
     );
+    expect(
+      (await sourceTracking.getChanges({ origin: 'remote', state: 'nondelete', format: 'ChangeResult' })).filter(
+        ({ name }) => name?.startsWith('TestEvent')
+      ),
+      'deployed platform-event members should be marked synced'
+    ).to.be.empty;
   });
 });

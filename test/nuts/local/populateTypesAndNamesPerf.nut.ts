@@ -26,7 +26,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
@@ -44,37 +44,74 @@ type RunStats = {
   readonly elP50Ms: number;
   readonly elP99Ms: number;
   readonly elMaxMs: number;
+  readonly samples: number;
 };
 
 const ns = (h: ReturnType<typeof monitorEventLoopDelay>, p: number) => h.percentile(p) / 1_000_000;
 
-const yieldToEventLoop = Effect.callback<void>((resume) => {
-  setImmediate(() => resume(Effect.void));
+const measure = Effect.fnUntraced(function* <A, E, R>(effect: Effect.Effect<A, E, R>) {
+  return yield* Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const histogram = monitorEventLoopDelay({ resolution: 1 });
+      histogram.enable();
+      return histogram;
+    }),
+    (histogram) =>
+      Effect.gen(function* () {
+        // Timer ticks, not setImmediate, must arm and drain the sampler.
+        yield* Effect.sleep('10 millis');
+        const start = performance.now();
+        return yield* effect.pipe(
+          Effect.map((result) => ({ result, wallMs: performance.now() - start })),
+          Effect.tap(() => Effect.sleep('10 millis')),
+          Effect.map(({ result, wallMs }) => ({
+            result,
+            stats: {
+              wallMs,
+              elP50Ms: ns(histogram, 50),
+              elP99Ms: ns(histogram, 99),
+              elMaxMs: histogram.max / 1_000_000,
+              samples: histogram.count,
+            },
+          }))
+        );
+      }),
+    (histogram) =>
+      Effect.sync(() => {
+        histogram.disable();
+      })
+  );
 });
 
-const measure = async <T>(
-  fn: () => Promise<T> | T
-): Promise<{ result: T; stats: Omit<RunStats, 'variant' | 'fixture' | 'inputElements' | 'resultElements'> }> => {
-  const histogram = monitorEventLoopDelay({ resolution: 1 });
-  histogram.enable();
-  // ensure histogram's internal sampler is registered before our work starts
-  await Effect.runPromise(yieldToEventLoop);
-  const start = performance.now();
-  const result = await fn();
-  const wallMs = performance.now() - start;
-  // give the sampler one more tick to record any block that finished before its timer fired
-  await Effect.runPromise(yieldToEventLoop);
-  histogram.disable();
-  return {
-    result,
-    stats: {
-      wallMs,
-      elP50Ms: ns(histogram, 50),
-      elP99Ms: ns(histogram, 99),
-      elMaxMs: histogram.max / 1_000_000,
-    },
-  };
+const expectWithinBudget = (stats: Pick<RunStats, 'samples' | 'wallMs' | 'elMaxMs'>): void => {
+  expect(stats.samples, 'event-loop samples').to.be.greaterThan(0);
+  expect(stats.wallMs, 'wall time').to.be.lessThan(process.platform === 'win32' ? 30_000 : 10_000);
+  expect(stats.elMaxMs, 'maximum event-loop delay').to.be.lessThan(process.platform === 'win32' ? 250 : 100);
 };
+
+describe('event-loop sampling', () => {
+  it('detects every deliberate synchronous block', async () => {
+    await Effect.forEach([0, 1, 2, 3, 4, 5], () =>
+      measure(
+        Effect.sync(() => {
+          const start = performance.now();
+          // Deliberately block the event loop to validate the sampler.
+          // eslint-disable-next-line functional/no-loop-statements
+          while (performance.now() - start < 100) {
+            /* block */
+          }
+        })
+      ).pipe(
+        Effect.tap(({ stats }) =>
+          Effect.sync(() => {
+            expect(stats.samples).to.be.greaterThan(0);
+            expect(stats.elMaxMs).to.be.at.least(80);
+          })
+        )
+      )
+    ).pipe(Effect.runPromise);
+  });
+});
 
 const writeStats = async (file: string, line: RunStats) => fs.appendFile(file, `${JSON.stringify(line)}\n`, 'utf8');
 
@@ -121,7 +158,18 @@ type Ctx = {
 
 const cloneEda = (target: string) => {
   fsSync.mkdirSync(target, { recursive: true });
-  execSync(`git clone --depth 1 https://github.com/SalesforceFoundation/EDA "${target}"`, { stdio: 'ignore' });
+  execFileSync('git', ['init', '--quiet', target]);
+  execFileSync('git', [
+    '-C',
+    target,
+    'fetch',
+    '--quiet',
+    '--depth',
+    '1',
+    'https://github.com/SalesforceFoundation/EDA',
+    'b311845eb082fc6b8fafdbcebdbe03cc570df3a6',
+  ]);
+  execFileSync('git', ['-C', target, 'checkout', '--quiet', 'FETCH_HEAD']);
 };
 
 describe('perf: populateTypesAndNames @ EDA', () => {
@@ -146,13 +194,9 @@ describe('perf: populateTypesAndNames @ EDA', () => {
 
   it(`effect: measures ${process.env.STL_PERF_LABEL ?? 'EDA'}`, async () => {
     const { layer, spanFilePath } = PerfNutSdkLayer('eda-effect');
-    const { result, stats } = await measure(() =>
-      Effect.runPromise(
-        populateTypesAndNamesEffect({ projectPath: ctx.projectPath, registry })(ctx.elements).pipe(
-          Effect.provide(layer)
-        )
-      )
-    );
+    const { result, stats } = await populateTypesAndNamesEffect({ projectPath: ctx.projectPath, registry })(
+      ctx.elements
+    ).pipe(measure, Effect.provide(layer), Effect.runPromise);
     const row: RunStats = {
       variant: 'effect',
       fixture: 'EDA',
@@ -162,7 +206,14 @@ describe('perf: populateTypesAndNames @ EDA', () => {
     };
     await writeStats(ctx.statsPath, row);
     logRow(row, spanFilePath);
-    expect(result.filter((r) => r.name && r.type).length).to.be.greaterThan(0);
+    expect(result).to.have.length(6462);
+    expect(result.filter((r) => !r.name || !r.type).flatMap(({ filenames }) => filenames ?? [])).to.have.members([
+      path.join('force-app', 'main', 'default', 'lwc', 'jsconfig.json'),
+      path.join('force-app', 'main', 'settingsComponentLibrary', 'lwc', 'jsconfig.json'),
+      path.join('force-app', 'test', 'jest-mocks', 'lightning', 'navigation.js'),
+      path.join('force-app', 'test', 'jest-mocks', 'lightning', 'platformShowToastEvent.js'),
+    ]);
+    expectWithinBudget(stats);
   });
 });
 
@@ -243,13 +294,9 @@ describe(`perf: populateTypesAndNames @ ${OBJECT_COUNT}x${FIELDS_PER_OBJECT} syn
   it(`effect: measures ${OBJECT_COUNT}x${FIELDS_PER_OBJECT} synthetic objects`, async function () {
     this.timeout(120_000);
     const { layer, spanFilePath } = PerfNutSdkLayer(`objects-${OBJECT_COUNT}x${FIELDS_PER_OBJECT}-effect`);
-    const { result, stats } = await measure(() =>
-      Effect.runPromise(
-        populateTypesAndNamesEffect({ projectPath: ctx.projectPath, registry })(ctx.elements).pipe(
-          Effect.provide(layer)
-        )
-      )
-    );
+    const { result, stats } = await populateTypesAndNamesEffect({ projectPath: ctx.projectPath, registry })(
+      ctx.elements
+    ).pipe(measure, Effect.provide(layer), Effect.runPromise);
     const row: RunStats = {
       variant: 'effect',
       fixture: `objects-${OBJECT_COUNT}x${FIELDS_PER_OBJECT}`,
@@ -259,6 +306,9 @@ describe(`perf: populateTypesAndNames @ ${OBJECT_COUNT}x${FIELDS_PER_OBJECT} syn
     };
     await writeStats(ctx.statsPath, row);
     logRow(row, spanFilePath);
-    expect(result.filter((r) => r.name && r.type).length).to.be.greaterThan(0);
+    expect(result).to.have.length(OBJECT_COUNT * (FIELDS_PER_OBJECT + 1));
+    expect(result.filter((r) => r.name && r.type === 'CustomObject')).to.have.length(ctx.elements.length);
+    expect(new Set(result.map(({ name }) => name)).size).to.equal(OBJECT_COUNT);
+    expectWithinBudget(stats);
   });
 });

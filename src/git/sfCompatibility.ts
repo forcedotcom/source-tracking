@@ -37,7 +37,6 @@ export const repoErrorToSfError: (e: RepoError) => SfError = Match.type<RepoErro
     IndexCorruptError: (e) => new SfError(`indexCorrupt: ${e.gitdir} (${e.reason})`, 'indexCorrupt'),
     ObjectNotFoundError: (e) => new SfError(`objectNotFound: ${e.oid}`, 'objectNotFound'),
     ObjectCorruptError: (e) => new SfError(`objectCorrupt: ${e.oid} (${e.reason})`, 'objectCorrupt'),
-    RepoNotConfiguredError: (e) => new SfError(`repoNotConfigured: ${e.message}`, 'repoNotConfigured'),
     PlatformError: (e) => SfError.wrap(e),
     RefNotFoundError: (e) => new SfError(`refNotFound: ${e.ref}`, 'refNotFound'),
   })

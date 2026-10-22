@@ -49,18 +49,11 @@ import * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
 import { Repo } from '../../git/repo.js';
-import type {
-  ObjectCorruptError,
-  ObjectNotFoundError,
-  RepoNotConfiguredError,
-  RefNotFoundError,
-} from '../../git/errors.js';
+import type { ObjectCorruptError, ObjectNotFoundError, RefNotFoundError } from '../../git/errors.js';
 import { hashBlob } from '../../git/objects.js';
-import { lstat, normalizeGitSymlinkTarget } from '../../git/workdir.js';
+import { gitModeFromStat, lstat, readWorkdirBytes } from '../../git/workdir.js';
 import { ensurePosix, IS_WINDOWS } from './functions.js';
 import type { DetectionFileInfo, DetectionFileInfoWithType } from './types.js';
-
-const TEXT = new TextEncoder();
 
 // =============================== types ====================================
 
@@ -137,7 +130,7 @@ export const filenameMatchesToMap: (
   deleted: HashSet.HashSet<string>;
 }) => Effect.Effect<
   MoveDetectionResult,
-  RepoNotConfiguredError | ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | PlatformError,
+  ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | PlatformError,
   Repo | FileSystem | Crypto
 > =
   (registry: RegistryAccess) =>
@@ -205,13 +198,9 @@ const addedInfoStream = (projectPath: string, fdPermits: number, added: HashSet.
       (filepath) =>
         Effect.gen(function* () {
           const abs = path.join(projectPath, filepath);
-          const info = yield* lstat(abs);
-          const fs = yield* FileSystem;
-          return yield* (
-            info.isSymbolicLink()
-              ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
-              : fs.readFile(abs)
-          ).pipe(
+          return yield* lstat(abs).pipe(
+            Effect.map(gitModeFromStat),
+            Effect.flatMap((mode) => readWorkdirBytes(abs, mode)),
             Effect.flatMap(hashBlob),
             Effect.map(
               (hash) => ({ filename: filepath, basename: path.basename(filepath), hash } satisfies DetectionFileInfo)

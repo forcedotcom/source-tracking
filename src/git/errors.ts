@@ -17,12 +17,6 @@ import * as Schema from 'effect/Schema';
 import type { PlatformError } from 'effect/PlatformError';
 import { Oid, RefName } from './schemas.js';
 
-// every operation called before any switchTo
-/** @internal */
-export class RepoNotConfiguredError extends Schema.TaggedError<RepoNotConfiguredError>()('RepoNotConfiguredError', {
-  message: Schema.String,
-}) {}
-
 // partial/torn .git/ state, malformed index v2, or init over a partial shadow
 /** @internal */
 export class IndexCorruptError extends Schema.TaggedError<IndexCorruptError>()('IndexCorruptError', {
@@ -61,7 +55,6 @@ export class RefNotFoundError extends Schema.TaggedError<RefNotFoundError>()('Re
 // Closed-set error type mapped to SfError at the source-tracking boundary.
 /** @internal */
 export type RepoError =
-  | RepoNotConfiguredError
   | IndexCorruptError
   | ObjectNotFoundError
   | ObjectCorruptError

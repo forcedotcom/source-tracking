@@ -25,7 +25,7 @@ import { isUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
 import type { PlatformError } from 'effect/PlatformError';
 import { concatBytes } from './bytes.js';
-import { hashLooseObject, sha1, writeLooseObject } from './objects.js';
+import { sha1, writeLooseObject } from './objects.js';
 import { Oid } from './schemas.js';
 import type { IndexEntry } from './indexV2.js';
 
@@ -220,27 +220,3 @@ export const writeCommit = Effect.fn('writeCommit')(function* (gitdir: string, a
   ].join('\n');
   return yield* writeLooseObject(gitdir, 'commit', TEXT.encode(body));
 });
-
-// Recursive helper: an explicit return type breaks TS's self-reference cycle.
-const hashTreeRecursive = (
-  node: TreeMapNode
-  // eslint-disable-next-line local-rules/no-explicit-effect-return-type
-): Effect.Effect<Oid, PlatformError, Crypto> =>
-  Effect.gen(function* () {
-    const childOids = yield* Effect.forEach(
-      node.subtrees,
-      ([name, sub]) => hashTreeRecursive(sub).pipe(Effect.map((oid) => [name, oid] satisfies readonly [string, Oid])),
-      { concurrency: 'unbounded' }
-    );
-    const subtreeOids = new Map<string, Oid>(childOids);
-    return yield* hashLooseObject('tree', buildTreeBody(node.entries, subtreeOids));
-  });
-
-/** Hash a tree map without writing — for callers that want the oid first. */
-/** @internal */
-export const hashTreeFromMap = Effect.fn('hashTreeFromMap')(function* (node: TreeMapNode) {
-  return yield* hashTreeRecursive(node);
-});
-
-// keep Schema import used (decode in tests via re-export)
-void Schema;

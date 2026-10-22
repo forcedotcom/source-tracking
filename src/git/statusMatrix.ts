@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
 import * as Arr from 'effect/Array';
 import * as Effect from 'effect/Effect';
@@ -31,9 +30,8 @@ import { readIndex, type IndexEntry } from './indexV2.js';
 import { hashBlob } from './objects.js';
 import { type Oid, type RepoPath, RepoPath as RepoPathSchema, type StatusEntry } from './schemas.js';
 import { streamHeadTreeWithMode } from './trees.js';
-import { GIT_FILE_MODE, gitModeFromStat, isSymlinkMode, lstat, normalizeGitSymlinkTarget } from './workdir.js';
+import { GIT_FILE_MODE, gitModeFromStat, lstat, readWorkdirBytes } from './workdir.js';
 
-const TEXT = new TextEncoder();
 type HeadFile = { readonly oid: Oid; readonly mode: number };
 
 /** Predicate: does `p` live under any of `roots`? Exact match or prefix-with-slash. */
@@ -44,11 +42,7 @@ const inRoots =
 
 /** Hash workdir bytes for one path, or None if the file vanished mid-walk. */
 const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string, mode: number) {
-  const fs = yield* FileSystem;
-  const content = isSymlinkMode(mode)
-    ? fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
-    : fs.readFile(abs);
-  return yield* content.pipe(
+  return yield* readWorkdirBytes(abs, mode).pipe(
     Effect.map((b) => Option.some(b)),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Uint8Array>())),
     Effect.flatMap((bytes) =>

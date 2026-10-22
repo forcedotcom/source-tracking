@@ -28,13 +28,13 @@ import * as NodePath from '@effect/platform-node/NodePath';
 import { applyChanges } from '../../../src/git/applyChanges.js';
 import { init } from '../../../src/git/init.js';
 import { isEnabled, runIntegrityCheck } from '../../../src/git/integrityCheck.js';
-import { Author, RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
+import { Author, RepoPath, RepoConfig } from '../../../src/git/schemas.js';
 
 const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
 const FIXED_TS = Date.parse('2026-01-01T00:00:00Z');
 const ALICE: Author = { name: 'sfdx source tracking', email: 'source-tracking@noreply.salesforce.com' };
 
-const cfg = (dir: string, gitdir: string): SwitchCfg => ({
+const cfg = (dir: string, gitdir: string): RepoConfig => ({
   dir,
   gitdir,
   roots: [Schema.decodeUnknownSync(RepoPath)('a')],

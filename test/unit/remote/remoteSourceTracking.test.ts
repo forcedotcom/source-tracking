@@ -274,6 +274,177 @@ describe('remote source tracking Effects', () => {
     }
   });
 
+  it('syncs a NavigationMenu whose Metadata API name includes the SourceMember name', async () => {
+    const queryStub = $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom').returns(
+      Effect.succeed([
+        {
+          ...sourceMember(4, 'Default_Navigation'),
+          MemberType: 'NavigationMenu',
+        },
+      ])
+    );
+    await Effect.runPromise(
+      updateRemoteTracking({
+        org,
+        identity,
+        registry: new RegistryAccess(),
+        elements: [{ fullName: 'site_Default_Navigation', type: 'NavigationMenu', state: ComponentStatus.Changed }],
+      })
+    );
+    expect(
+      (await readSnapshot()).sourceMembers['NavigationMenu###Default_Navigation'].lastRetrievedFromServer
+    ).to.equal(4);
+    expect(queryStub.callCount).to.equal(1);
+  });
+
+  it('syncs an Audience whose Metadata API name includes the SourceMember name', async () => {
+    await writeSnapshot(4, {
+      'Audience###Members': { ...sourceMember(4, 'Members'), MemberType: 'Audience' },
+    });
+    await Effect.runPromise(
+      updateRemoteTracking({
+        org,
+        identity,
+        registry: new RegistryAccess(),
+        skipPolling: true,
+        elements: [{ fullName: 'site_Members', type: 'Audience', state: ComponentStatus.Changed }],
+      })
+    );
+    expect((await readSnapshot()).sourceMembers['Audience###Members'].lastRetrievedFromServer).to.equal(4);
+  });
+
+  it('does not sync ambiguous name fallbacks or apply them to unsupported types', async () => {
+    await writeSnapshot(4, {
+      'NavigationMenu###Default': { ...sourceMember(4, 'Default'), MemberType: 'NavigationMenu' },
+      'NavigationMenu###Navigation': { ...sourceMember(4, 'Navigation'), MemberType: 'NavigationMenu' },
+      'ApexClass###MyClass': sourceMember(4, 'MyClass'),
+    });
+    await Effect.runPromise(
+      updateRemoteTracking({
+        org,
+        identity,
+        registry: new RegistryAccess(),
+        skipPolling: true,
+        elements: [
+          { fullName: 'site_Default_Navigation', type: 'NavigationMenu', state: ComponentStatus.Changed },
+          { fullName: 'OtherMyClass', type: 'ApexClass', state: ComponentStatus.Changed },
+        ],
+      })
+    );
+    expect(
+      Object.values((await readSnapshot()).sourceMembers).map(({ lastRetrievedFromServer }) => lastRetrievedFromServer)
+    ).to.deep.equal([undefined, undefined, undefined]);
+  });
+
+  it('prefers an exact name over ambiguous fallbacks', async () => {
+    await writeSnapshot(4, {
+      'NavigationMenu###site_Default_Navigation': {
+        ...sourceMember(4, 'site_Default_Navigation'),
+        MemberType: 'NavigationMenu',
+      },
+      'NavigationMenu###Default': { ...sourceMember(4, 'Default'), MemberType: 'NavigationMenu' },
+    });
+    await Effect.runPromise(
+      updateRemoteTracking({
+        org,
+        identity,
+        registry: new RegistryAccess(),
+        skipPolling: true,
+        elements: [{ fullName: 'site_Default_Navigation', type: 'NavigationMenu', state: ComponentStatus.Changed }],
+      })
+    );
+    const contents = await readSnapshot();
+    expect(contents.sourceMembers['NavigationMenu###site_Default_Navigation'].lastRetrievedFromServer).to.equal(4);
+    expect(contents.sourceMembers['NavigationMenu###Default'].lastRetrievedFromServer).to.equal(undefined);
+  });
+
+  it('does not disambiguate a name fallback by excluding already-synced members', async () => {
+    await writeSnapshot(4, {
+      'NavigationMenu###Default': {
+        ...sourceMember(4, 'Default'),
+        MemberType: 'NavigationMenu',
+        lastRetrievedFromServer: 4,
+      },
+      'NavigationMenu###Navigation': { ...sourceMember(4, 'Navigation'), MemberType: 'NavigationMenu' },
+    });
+    await Effect.runPromise(
+      updateRemoteTracking({
+        org,
+        identity,
+        registry: new RegistryAccess(),
+        skipPolling: true,
+        elements: [{ fullName: 'site_Default_Navigation', type: 'NavigationMenu', state: ComponentStatus.Changed }],
+      })
+    );
+    expect((await readSnapshot()).sourceMembers['NavigationMenu###Navigation'].lastRetrievedFromServer).to.equal(
+      undefined
+    );
+  });
+
+  for (const names of [
+    ['Default', 'Default_Navigation'],
+    ['Default_Navigation', 'Default'],
+  ]) {
+    it(`finishes polling overlapping names returned in order ${names.join(', ')}`, async () => {
+      envVars.setString('SF_SOURCE_MEMBER_POLLING_TIMEOUT', '1');
+      reResolveEnvVars();
+      const queryStub = $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom').returns(Effect.succeed([]));
+      queryStub.onFirstCall().returns(
+        Effect.succeed(
+          names.map((name, index) => ({
+            ...sourceMember(index + 4, name),
+            MemberType: 'NavigationMenu',
+          }))
+        )
+      );
+      const warnings = $$.SANDBOX.stub(Lifecycle.getInstance(), 'emitWarning').resolves();
+      await Effect.runPromise(
+        updateRemoteTracking({
+          org,
+          identity,
+          registry: new RegistryAccess(),
+          elements: [
+            { fullName: 'site_Default', type: 'NavigationMenu', state: ComponentStatus.Changed },
+            { fullName: 'site_Default_Navigation', type: 'NavigationMenu', state: ComponentStatus.Changed },
+          ],
+        })
+      );
+      expect(queryStub.callCount).to.equal(1);
+      expect(warnings.called).to.equal(false);
+    });
+  }
+
+  for (const suffix of ['__c', '__b', '__x', '__mdt']) {
+    it(`polls and syncs a custom field when SourceMember omits its parent's ${suffix} suffix`, async () => {
+      $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom').returns(
+        Effect.succeed([
+          {
+            ...sourceMember(4, 'TestObject.Message__c'),
+            MemberType: 'CustomField',
+          },
+        ])
+      );
+      await Effect.runPromise(
+        updateRemoteTracking({
+          org,
+          identity,
+          registry: new RegistryAccess(),
+          elements: [
+            {
+              fullName: `TestObject${suffix}.Message__c`,
+              type: 'CustomField',
+              state: ComponentStatus.Changed,
+              filePath: `force-app/main/default/objects/TestObject${suffix}/fields/Message__c.field-meta.xml`,
+            },
+          ],
+        })
+      );
+      expect(
+        (await readSnapshot()).sourceMembers['CustomField###TestObject.Message__c'].lastRetrievedFromServer
+      ).to.equal(4);
+    });
+  }
+
   it('polls SourceMember batches, then syncs and writes one completed snapshot', async () => {
     const queryStub = $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom');
     queryStub.onFirstCall().returns(Effect.succeed([]));
@@ -330,6 +501,9 @@ describe('remote source tracking Effects', () => {
 
     expect(queryStub.callCount).to.equal(1);
     expect(warnings.some((warning) => warning.includes('SourceMembers timed out'))).to.equal(false);
+    expect((await readSnapshot()).sourceMembers['CustomField###TestEvent.Message__c'].lastRetrievedFromServer).to.equal(
+      4
+    );
   });
 
   it('emits a warning and persists partial state when polling times out', async () => {

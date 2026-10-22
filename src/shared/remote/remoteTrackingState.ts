@@ -16,7 +16,7 @@
 
 import * as Array from 'effect/Array';
 import { isNotUndefined } from 'effect/Predicate';
-import { getMetadataKey } from '../functions.js';
+import { getMetadataKey, TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH } from '../functions.js';
 import { MemberRevision, SourceMember } from './types.js';
 
 /** The in-memory form of one project's persisted remote tracking snapshot. */
@@ -59,6 +59,22 @@ export const trackSourceMembers = (
 /** Return a tracked element, resolving either form of an encoded metadata key. */
 export const getSourceMember = (state: RemoteTrackingState, key: string): MemberRevision | undefined =>
   state.sourceMembers.get(resolveStoredKey(state, key));
+
+/** SourceMember can omit the parent entity suffix in a custom-object child name. */
+export const stripSourceMemberEntitySuffix = (metadataKey: string): string =>
+  metadataKey.replace(/__(?:e|c|b|x|mdt)\./, '.');
+
+/** Compare Metadata API and SourceMember names, including known server name differences. */
+export const sourceMemberMatchesKey = (
+  member: Pick<SourceMember, 'MemberType' | 'MemberName'>,
+  metadataKey: string
+): boolean =>
+  metadataKey === getMetadataKey(member.MemberType, member.MemberName) ||
+  stripSourceMemberEntitySuffix(metadataKey) === getMetadataKey(member.MemberType, member.MemberName) ||
+  (TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(member.MemberType) &&
+    Boolean(member.MemberName) &&
+    metadataKey.startsWith(`${member.MemberType}###`) &&
+    metadataKey.slice(`${member.MemberType}###`.length).includes(member.MemberName));
 
 /** Update a tracked element without losing the spelling of its stored key. */
 export const setMemberRevision = (state: RemoteTrackingState, key: string, sourceMember: MemberRevision): void => {

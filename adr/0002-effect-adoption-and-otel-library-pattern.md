@@ -40,8 +40,8 @@ We considered:
 Adopt Effect for performance-critical internals, starting with
 `populateTypesAndNames`. Use:
 
-- `Stream.runFoldEffect` / `Effect.reduce` for the resolve-then-claim fold.
-- Persistent `HashMap` / `HashSet` with structural values for dedup.
+- Native `Map` / `Set` for resolve-then-claim and input-identity deduplication.
+- `Effect.reduce` over batches of 100 filenames, yielding between batches.
 - `Effect.fn(name)` for span instrumentation on the outer function. Per-component
   `getAllFiles` spans were removed after measurement showed their overhead.
 
@@ -50,14 +50,13 @@ ManagedRuntimes use Effect's empty layer, so library spans are not exported.
 Performance tests that need span output provide their own `NodeSdk.layer` from
 `test/perf-utils`. Consumer-provided tracing is deferred to a separate design.
 
-### Follow-up: synchronous `populateTypesAndNames` fold
+### Follow-up: native collections with bounded yielding
 
-`populateTypesAndNames` uses native `Map`/`Set` in its measured resolve-then-claim
-fold. That fold is synchronous and contains no effectful work to schedule; the
-persistent collection version was slower. This is a targeted hot-path exception,
-not a general replacement for Effect Streams or persistent collections in
-effectful folds. It trades cooperative yielding during that fold for lower
-measured wall time.
+`populateTypesAndNames` retains native `Map`/`Set`; the persistent collection
+version was slower. A single synchronous fold still blocked the event loop for
+hundreds of milliseconds. The fold now resolves batches of 100 filenames and
+uses `Effect.yieldNow` between batches. This trades some wall time for event-loop
+responsiveness without restoring redundant component resolution.
 
 ESLint rules for Effect-using files (mirroring
 [salesforcedx-vscode/eslint.config.mjs][vscode-eslint] lines 583-645):
@@ -86,6 +85,10 @@ handling.
 
 ## Measured numbers
 
+The tables below are historical. Their event-loop sampler could record zero
+samples during a synchronous block; reported zero-delay values do not establish
+that the event loop stayed responsive.
+
 Source: `test/nuts/local/populateTypesAndNamesPerf.nut.ts` on Apple M-series
 (node v24.14.1, macOS 25.4.0), 350 CustomObjects × 100 CustomFields = 35,350
 file fixture, generated via `mkdtempSync`. Wall time = `performance.now`
@@ -109,11 +112,9 @@ Throttle-lever sweep (resolve-then-claim, no per-component span):
 | 1000         | 281       | 0           |
 | 5000         | 261       | 0           |
 
-Conclusion on throttle: at this scale Effect's default cooperative yielding
-(every ~2048 fiber ops) is sufficient. Explicit `Effect.yieldNow()`
-sprinkling has no measurable wall-time cost or benefit. Default
-`yieldEvery: 0` (no extra yields). The lever stays exposed as `@internal` for
-adversarial workloads.
+That sweep measured an earlier Effect-heavy implementation, not the later
+synchronous native-collection fold. The current implementation uses fixed
+100-filename batches; there is no configurable `yieldEvery` option.
 
 Vanilla `Map`/`Set` vs `HashMap`/`HashSet` + `Data.struct` (resolve-then-claim,
 no spans, three runs each):
@@ -121,18 +122,19 @@ no spans, three runs each):
 | Variant                     | Wall p50 (ms) | EL p99                                         |
 | --------------------------- | ------------- | ---------------------------------------------- |
 | Vanilla mutable collections | 245           | sometimes wall-blocking (245ms), sometimes 0ms |
-| `HashMap` + `Data.struct`   | 289           | reliably 0ms                                   |
+| `HashMap` + `Data.struct`   | 289           | reported 0ms; sampler unvalidated              |
 
-`HashMap`+`Data.struct` is ~15 % slower wall-clock but yields more often
-(persistent-structure cloning produces more fiber ops, triggering Effect's
-cooperative yielding more reliably). The wall-clock difference (~44ms at 35k)
-is dwarfed by the legacy reduction (~1500ms saved). That was the initial
-decision; the targeted synchronous-fold follow-up above records the later
-switch to native collections for this function.
+`HashMap`+`Data.struct` measured ~15 % slower wall-clock. That was the initial
+decision; the follow-up above records the switch to native collections and
+explicit batch yields. Historical zero-delay measurements cannot compare
+responsiveness between these implementations.
 
 EDA fixture (6,462 input filenames, real Salesforce metadata): legacy 398ms
 → resolve-then-claim 245ms (1.6×).
 
-Bottom line: resolve-then-claim eliminates a 1.7-second sync block per
-status refresh on bundle-heavy projects, with no remaining event-loop block
-detectable at 1 ms resolution.
+Current performance validation warms and drains the histogram using timer
+ticks, verifies nonzero sample counts, and checks that a deliberate 100 ms block
+is detected. The pinned EDA fixture and generated 35,350-file fixture assert
+complete result counts, wall time below 10 seconds, and maximum event-loop delay
+below 100 ms (Windows: 30 seconds and 250 ms). These are fixture-specific CI
+budgets, not guarantees for arbitrary projects.

@@ -15,18 +15,19 @@
  */
 import * as Effect from 'effect/Effect';
 import * as Clock from 'effect/Clock';
-import * as Semaphore from 'effect/Semaphore';
+import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
 import { IndexCorruptError } from './errors.js';
-import { hashLooseObject, writeLooseObject } from './objects.js';
+import { writeLooseObject } from './objects.js';
+import { withIndexLock } from './lock.js';
+import { writeCommit } from './writers.js';
 import { readDirectRef, readHead, writeDirectRef, writeSymbolicHead } from './refs.js';
-import { type Author, Oid, RefName, type SwitchCfg } from './schemas.js';
+import { type Author, Oid, RefName, type RepoConfig } from './schemas.js';
 import { lstat } from './workdir.js';
 
 const ENCODER = new TextEncoder();
-const initSemaphore = Semaphore.makeUnsafe(1);
 const EMPTY_TREE_OID: Oid = Schema.decodeUnknownSync(Oid)('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 
@@ -147,7 +148,9 @@ const isLegacyEmptyIsomorphicRepo = Effect.fnUntraced(function* (gitdir: string)
     {
       head: readStringOrEmpty(path.join(gitdir, 'HEAD')),
       config: readStringOrEmpty(path.join(gitdir, 'config')),
-      gitdirEntries: readDirectoryOrEmpty(gitdir),
+      gitdirEntries: readDirectoryOrEmpty(gitdir).pipe(
+        Effect.map((entries) => entries.filter((name) => name !== 'index.lock'))
+      ),
       hooksEntries: readDirectoryOrEmpty(path.join(gitdir, 'hooks')),
       infoEntries: readDirectoryOrEmpty(info),
       objectDirs: readDirectoryOrEmpty(objects),
@@ -180,26 +183,6 @@ const writeFile = Effect.fn('writeFile')(function* (file: string, bytes: Uint8Ar
   yield* fs.writeFile(file, bytes);
 });
 
-/** Format a timestamp as `<seconds> +0000` (lite always uses UTC). */
-const fmtTs = (ms: number): string => `${Math.floor(ms / 1000)} +0000`;
-
-/**
- * Build an initial commit body: tree + author + committer + message. The
- * trailing empty line yields a final LF after the message — required to
- * match real-git's commit serialization (e.g. `init\n`, not bare `init`).
- */
-const buildInitialCommitBody = (treeOid: Oid, author: Author, ts: string, message: string): Uint8Array =>
-  ENCODER.encode(
-    [
-      `tree ${treeOid}`,
-      `author ${author.name} <${author.email}> ${ts}`,
-      `committer ${author.name} <${author.email}> ${ts}`,
-      '',
-      message,
-      '',
-    ].join('\n')
-  );
-
 const buildConfig = (): Uint8Array => ENCODER.encode('[core]\n\trepositoryformatversion = 0\n');
 
 const SHADOW_AUTHOR_DEFAULT: Author = {
@@ -208,7 +191,7 @@ const SHADOW_AUTHOR_DEFAULT: Author = {
 };
 
 export type InitArgs = {
-  readonly cfg: SwitchCfg;
+  readonly cfg: RepoConfig;
   readonly author?: Author;
   readonly message?: string;
   /** Override the timestamp for tests. Defaults to Clock.currentTimeMillis. */
@@ -279,7 +262,7 @@ const initialize = Effect.fnUntraced(function* (args: InitArgs) {
 });
 
 const freshInit = Effect.fn('freshInit')(function* (a: {
-  readonly cfg: SwitchCfg;
+  readonly cfg: RepoConfig;
   readonly author: Author;
   readonly message: string;
   readonly timestampMs: number;
@@ -295,13 +278,13 @@ const freshInit = Effect.fn('freshInit')(function* (a: {
     ? Effect.void
     : fail('empty-tree-oid-mismatch', `init: hashed empty tree to ${emptyTreeOid}, expected ${EMPTY_TREE_OID}`);
 
-  // 2. initial commit + sanity-check that hashLooseObject agrees.
-  const commitBody = buildInitialCommitBody(emptyTreeOid, a.author, fmtTs(a.timestampMs), a.message);
-  const commitOid = yield* writeLooseObject(a.cfg.gitdir, 'commit', commitBody);
-  const hashed = yield* hashLooseObject('commit', commitBody);
-  yield* hashed === commitOid
-    ? Effect.void
-    : fail('commit-oid-mismatch', `init: writeLooseObject returned ${commitOid} but hashLooseObject says ${hashed}`);
+  const commitOid = yield* writeCommit(a.cfg.gitdir, {
+    tree: emptyTreeOid,
+    parent: Option.none(),
+    author: a.author,
+    tsSeconds: Math.floor(a.timestampMs / 1000),
+    message: a.message,
+  });
 
   // 3. refs/heads/main → commit oid; 4. HEAD → ref: refs/heads/main.
   yield* writeDirectRef(a.cfg.gitdir, MAIN_REF, commitOid);
@@ -326,5 +309,7 @@ const freshInit = Effect.fn('freshInit')(function* (a: {
 
 /** @internal */
 export const init = Effect.fn('init')(function* (args: InitArgs) {
-  return yield* Semaphore.withPermits(initSemaphore, 1)(initialize(args));
+  const fs = yield* FileSystem;
+  yield* fs.makeDirectory(args.cfg.gitdir, { recursive: true });
+  return yield* initialize(args).pipe(withIndexLock(args.cfg.gitdir));
 });

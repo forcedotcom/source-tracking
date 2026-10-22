@@ -26,13 +26,12 @@ import * as HashSet from 'effect/HashSet';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 import { Repo } from '../../src/git/repo.js';
-import { RepoPath } from '../../src/git/schemas.js';
+import { RepoConfig, RepoPath } from '../../src/git/schemas.js';
 import { createShadowRepo } from '../../src/shared/local/localShadowRepo.js';
 import { filenameMatchesToMap } from '../../src/shared/local/moveDetection.js';
 
-const testLayer = Repo.layer.pipe(
-  Layer.provideMerge(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer))
-);
+const testLayer = (cfg: RepoConfig) =>
+  Repo.layer(cfg).pipe(Layer.provideMerge(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer)));
 
 describe('move detection exact matches', () => {
   for (const moveAndEdit of [false, true]) {
@@ -69,19 +68,20 @@ describe('move detection exact matches', () => {
             if (index > 0) fs.appendFileSync(path.join(projectDir, newFiles[index]), '<xml>edited</xml>');
           });
 
-          const result = await Effect.gen(function* () {
-            const repo = yield* Repo;
-            yield* repo.switchTo({
-              dir: projectDir,
-              gitdir: shadowRepo.gitDir,
-              roots: [Schema.decodeUnknownSync(RepoPath)('force-app')],
-              fdPermits: 8,
-            });
-            return yield* filenameMatchesToMap(registry)(projectDir)(8)({
-              added: HashSet.fromIterable(newFiles),
-              deleted: HashSet.fromIterable(oldFiles),
-            });
-          }).pipe(Effect.provide(testLayer), Effect.runPromise);
+          const result = await filenameMatchesToMap(registry)(projectDir)(8)({
+            added: HashSet.fromIterable(newFiles),
+            deleted: HashSet.fromIterable(oldFiles),
+          }).pipe(
+            Effect.provide(
+              testLayer({
+                dir: projectDir,
+                gitdir: shadowRepo.gitDir,
+                roots: [Schema.decodeUnknownSync(RepoPath)('force-app')],
+                fdPermits: 8,
+              })
+            ),
+            Effect.runPromise
+          );
 
           expect(result.count).to.equal(oldFiles.length);
           expect(Array.from(result.deployedFiles)).to.deep.equal([newFiles[0]]);

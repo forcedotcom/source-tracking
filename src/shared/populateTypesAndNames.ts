@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import * as Effect from 'effect/Effect';
+import * as Arr from 'effect/Array';
 import { Logger } from '@salesforce/core/logger';
 import { isString } from 'effect/Predicate';
 import {
@@ -128,17 +129,26 @@ export const populateTypesAndNames = (deps: Deps) =>
     };
     const resolve = tryResolve(resolver, logger);
 
-    const claimedSkipped = filenames.reduce((skipped, filename) => {
-      if (claimed.has(relativize(filename))) return skipped + 1;
-      resolve(filename).forEach(claimComponent);
-      return skipped;
-    }, 0);
-
-    yield* Effect.annotateCurrentSpan({
-      elementCount: elements.length,
-      uniqueComponentCount: byKey.size,
-      claimedSkipped,
-    });
+    yield* Effect.reduce(
+      Arr.chunksOf(filenames, 100),
+      () => 0,
+      (skipped, batch) =>
+        Effect.sync(() =>
+          batch.reduce((count, filename) => {
+            if (claimed.has(relativize(filename))) return count + 1;
+            resolve(filename).forEach(claimComponent);
+            return count;
+          }, skipped)
+        ).pipe(Effect.tap(() => Effect.yieldNow))
+    ).pipe(
+      Effect.flatMap((claimedSkipped) =>
+        Effect.annotateCurrentSpan({
+          elementCount: elements.length,
+          uniqueComponentCount: byKey.size,
+          claimedSkipped,
+        })
+      )
+    );
 
     const enrichments = buildEnrichments(byKey, deps.forceIgnore);
     const seen = new Set<ChangeResult>();

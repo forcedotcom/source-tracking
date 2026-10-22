@@ -16,6 +16,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -30,15 +31,16 @@ import { init } from '../../../src/git/init.js';
 import { resolveRef } from '../../../src/git/refs.js';
 import { readLooseObject } from '../../../src/git/objects.js';
 import { readIndex, type IndexEntry } from '../../../src/git/indexV2.js';
+import { streamHeadTree } from '../../../src/git/trees.js';
 import { writeIndexV2 } from '../../../src/git/writers.js';
-import { Author, RefName, RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
+import { Author, RefName, RepoPath, RepoConfig } from '../../../src/git/schemas.js';
 
 const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
 const FIXED_TS = Date.parse('2026-01-01T00:00:00Z');
 
 const ALICE: Author = { name: 'sfdx source tracking', email: 'source-tracking@noreply.salesforce.com' };
 
-const cfg = (dir: string, gitdir: string): SwitchCfg => ({
+const cfg = (dir: string, gitdir: string): RepoConfig => ({
   dir,
   gitdir,
   roots: [Schema.decodeUnknownSync(RepoPath)('a')],
@@ -46,6 +48,31 @@ const cfg = (dir: string, gitdir: string): SwitchCfg => ({
 });
 
 describe('git/applyChanges (phase 9)', () => {
+  it('keeps HEAD readable after deleting the last file from an existing repository', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-apply-existing-empty-'));
+    try {
+      const fixture = fileURLToPath(new URL('../../git/fixtures/single-file/', import.meta.url));
+      const dir = path.join(tmp, 'work');
+      const gitdir = path.join(tmp, 'git');
+      await fs.cp(path.join(fixture, 'work'), dir, { recursive: true });
+      await fs.cp(path.join(fixture, 'dot-git'), gitdir, { recursive: true });
+      await fs.unlink(path.join(dir, 'hello.txt'));
+      await Effect.runPromise(
+        applyChanges({
+          cfg: { dir, gitdir },
+          adds: Stream.empty,
+          removes: Stream.make(Schema.decodeUnknownSync(RepoPath)('hello.txt')),
+          message: 'remove last file',
+          author: ALICE,
+        }).pipe(Effect.provide(Layered))
+      );
+      const files = await Effect.runPromise(streamHeadTree(gitdir).pipe(Stream.runCollect, Effect.provide(Layered)));
+      expect(files).to.deep.equal([]);
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
   it('empty streams: no commit, returns existing HEAD oid', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-apply-empty-'));
     try {

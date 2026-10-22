@@ -62,15 +62,14 @@ export const Author = Schema.Struct({
 });
 export type Author = Schema.Schema.Type<typeof Author>;
 
-// SwitchCfg is what callers pass to switchTo / init. Roots and fdPermits are
-// properties of the handle; they change only via another switchTo.
-export const SwitchCfg = Schema.Struct({
+// Each repository layer keeps one immutable set of roots and I/O limits.
+export const RepoConfig = Schema.Struct({
   dir: Schema.NonEmptyString,
   gitdir: Schema.NonEmptyString,
   roots: Schema.Array(RepoPath),
   fdPermits: Schema.Int.check(Schema.isGreaterThan(0)),
 });
-export type SwitchCfg = Schema.Schema.Type<typeof SwitchCfg>;
+export type RepoConfig = Schema.Schema.Type<typeof RepoConfig>;
 
 // CommitOid is the result of applyChanges / init.
 export type CommitOid = Oid;

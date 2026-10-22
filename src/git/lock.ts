@@ -49,7 +49,7 @@ const humanReadable = (duration: Duration.Duration): string => Duration.format(d
  * piped effect while holding it, then release per strategy. Real-git
  * compatible.
  *
- * `'rename-to-index'` (default): on success, atomically renames the lockfile
+ * `'rename-to-index'`: on success, atomically renames the lockfile
  * to `<gitdir>/index`. The piped effect should have written the new index
  * bytes to `<gitdir>/index.lock` so the rename is the index-swap. On
  * failure, the lockfile is removed.
@@ -188,13 +188,7 @@ export const withIndexLock: (
 ) => Effect.Effect<A, E | RepoLockedError | PlatformError, R | FileSystem | Path> =
   (gitdir: string, strategy: ReleaseStrategy = 'remove') =>
   <A, E, R>(self: Effect.Effect<A, E, R>) =>
-    Effect.uninterruptibleMask((restore) =>
-      Effect.acquireUseRelease(
-        acquireLock(gitdir, restore),
-        () => restore(self),
-        (ctx, exit) => releaseLock(ctx.lockPath, ctx.indexPath, Exit.isSuccess(exit), strategy)
-      )
-    );
+    withIndexLockCtx(gitdir, strategy)(() => self);
 
 /**
  * Variant that exposes the lockPath/indexPath to callers who write the new

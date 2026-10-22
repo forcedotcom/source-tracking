@@ -16,7 +16,7 @@
 import { expect } from 'chai';
 import * as Exit from 'effect/Exit';
 import * as Schema from 'effect/Schema';
-import { Author, Oid, RefName, RepoPath, StatusEntry, SwitchCfg } from '../../../src/git/schemas.js';
+import { Author, Oid, RefName, RepoPath, StatusEntry, RepoConfig } from '../../../src/git/schemas.js';
 
 const decode = <S extends Schema.ConstraintDecoder<unknown>>(
   s: S
@@ -120,9 +120,9 @@ describe('git/schemas', () => {
     });
   });
 
-  describe('SwitchCfg', () => {
+  describe('RepoConfig', () => {
     it('accepts a typical CLI invocation', () => {
-      const result = decode(SwitchCfg)({
+      const result = decode(RepoConfig)({
         dir: '/abs/project',
         gitdir: '/abs/project/.sf/orgs/x/localSourceTracking/.git',
         roots: [Schema.decodeUnknownSync(RepoPath)('force-app')],
@@ -134,7 +134,7 @@ describe('git/schemas', () => {
     it('rejects fdPermits = 0', () => {
       expect(
         Exit.isFailure(
-          decode(SwitchCfg)({
+          decode(RepoConfig)({
             dir: '/abs/project',
             gitdir: '/abs/project/.git',
             roots: [],

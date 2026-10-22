@@ -36,12 +36,7 @@ import * as Stream from 'effect/Stream';
 import { type RepoError } from '../../git/errors.js';
 import { Repo } from '../../git/repo.js';
 import { repoErrorToSfError } from '../../git/sfCompatibility.js';
-import {
-  Author as AuthorSchema,
-  RepoPath as RepoPathSchema,
-  type RepoPath,
-  SwitchCfg as SwitchCfgSchema,
-} from '../../git/schemas.js';
+import { Author as AuthorSchema, RepoPath as RepoPathSchema, type RepoPath, RepoConfig } from '../../git/schemas.js';
 import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
 import { getMatches, ensurePosix, IS_WINDOWS } from './functions.js';
 import { filenameMatchesToMap } from './moveDetection.js';
@@ -76,7 +71,7 @@ const readBooleanEnv = (name: string) =>
     .parse(ConfigProvider.fromEnv())
     .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(false)));
 
-const buildExclude = (packageDirs: string[]): string =>
+const buildExclude = (packageDirs: readonly string[]): string =>
   // .git/info/exclude is gitignore-syntax. Lite's status walk also applies the
   // package-root and Salesforce-specific exclusions in liteFileFilter below.
   [
@@ -92,7 +87,7 @@ const buildExclude = (packageDirs: string[]): string =>
   ].join('\n');
 
 const liteFileFilter =
-  (packageDirs: string[]) =>
+  (packageDirs: readonly string[]) =>
   (file: string): boolean =>
     !file.includes('/.') &&
     !file.split('/').includes('node_modules') &&
@@ -120,24 +115,30 @@ type ApplyChangesArgs = {
   readonly message?: string;
 };
 
+const makeRepoConfig = (options: ShadowRepoOptions) =>
+  readNumberEnv(FD_PERMITS_ENV, FD_PERMITS_FALLBACK).pipe(
+    Effect.map((fdPermits) =>
+      Schema.decodeUnknownSync(RepoConfig)({
+        dir: options.projectPath,
+        gitdir: getGitDir(options.orgId, options.projectPath),
+        roots: options.packageDirs.map((directory) =>
+          ensurePosix(path.relative(options.projectPath, directory.fullPath))
+        ),
+        fdPermits,
+      })
+    )
+  );
+
 /** Build one org's local-tracking operations. Git state and the status cache live in this closure. */
-const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRepoOptions, logger: Logger) {
+const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (
+  options: ShadowRepoOptions,
+  logger: Logger,
+  cfg: RepoConfig
+) {
   const repo = yield* Repo;
   const fs = yield* FileSystem;
-  const fdPermits = yield* readNumberEnv(FD_PERMITS_ENV, FD_PERMITS_FALLBACK);
-  const gitDir = getGitDir(options.orgId, options.projectPath);
-  const packageDirs = options.packageDirs.map((d) => {
-    const relative = path.relative(options.projectPath, d.fullPath);
-    return IS_WINDOWS ? ensurePosix(relative) : relative;
-  });
+  const { gitdir: gitDir, roots: packageDirs, fdPermits } = cfg;
   const fileFilter = liteFileFilter(packageDirs);
-  const roots = packageDirs.map((p) => Schema.decodeUnknownSync(RepoPathSchema)(p));
-  const cfg = Schema.decodeUnknownSync(SwitchCfgSchema)({
-    dir: options.projectPath,
-    gitdir: gitDir,
-    roots,
-    fdPermits,
-  });
   const statusCache = yield* Ref.make<Option.Option<LocalChanges>>(Option.none());
 
   const scanStatus = Effect.fnUntraced(function* () {
@@ -286,7 +287,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (options: ShadowRe
 
   // init is idempotent for a valid repo and initializes an existing empty
   // directory. Merely switching on fs.exists could select a partial gitdir.
-  yield* repo.init(cfg);
+  yield* repo.init();
   yield* repo.setInfoExclude(buildExclude(packageDirs));
 
   return {
@@ -329,10 +330,11 @@ const runEffect = <A>(
 /** Promise adapter for SourceTracking and CLI callers; the implementation above stays Effect-native. */
 export const createShadowRepo = async (options: ShadowRepoOptions): Promise<ShadowRepo> => {
   const logger = await Logger.child('ShadowRepo');
-  const baseLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer);
-  const repoLayer = Layer.provide(Repo.layer, baseLayer);
-  const runtime = ManagedRuntime.make(Layer.mergeAll(repoLayer, baseLayer));
-  const effects = await runEffect(runtime, logger, 'init', makeShadowRepo(options, logger));
+  const cfg = await Effect.runPromise(makeRepoConfig(options));
+  const runtime = ManagedRuntime.make(
+    Repo.layer(cfg).pipe(Layer.provideMerge(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer)))
+  );
+  const effects = await runEffect(runtime, logger, 'init', makeShadowRepo(options, logger, cfg));
   const getStatus = (refresh = false): Promise<LocalChanges> =>
     runEffect(runtime, logger, 'getStatus', effects.getStatus(refresh));
 

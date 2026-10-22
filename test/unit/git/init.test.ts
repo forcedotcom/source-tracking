@@ -17,6 +17,8 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { fork } from 'node:child_process';
+import { once } from 'node:events';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -33,7 +35,7 @@ import { Path } from 'effect/Path';
 import { init } from '../../../src/git/init.js';
 import { resolveRef } from '../../../src/git/refs.js';
 import { IndexCorruptError } from '../../../src/git/errors.js';
-import { RefName, RepoPath, SwitchCfg } from '../../../src/git/schemas.js';
+import { RefName, RepoPath, RepoConfig } from '../../../src/git/schemas.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const FixtureRoot = path.join(currentDir, '..', '..', 'git', 'fixtures');
@@ -44,7 +46,7 @@ const run = <A, E>(
   layer: Layer.Layer<FileSystem | Path | Crypto> = NodeLayer
 ): Promise<Exit.Exit<A, E>> => Effect.runPromiseExit(Effect.provide(eff, layer));
 
-const cfg = (gitdir: string): SwitchCfg => ({
+const cfg = (gitdir: string): RepoConfig => ({
   dir: path.dirname(gitdir),
   gitdir,
   roots: [Schema.decodeUnknownSync(RepoPath)('force-app')],
@@ -60,6 +62,39 @@ const createLegacyEmptyIsomorphicRepo = async (gitdir: string): Promise<void> =>
   await Promise.all(directories.map((directory) => fs.mkdir(path.join(gitdir, directory), { recursive: true })));
   await fs.writeFile(path.join(gitdir, 'config'), legacyEmptyIsomorphicConfig);
   await fs.writeFile(path.join(gitdir, 'HEAD'), 'ref: refs/heads/main\n');
+};
+
+const startInitWorker = (gitdir: string, pause = false) => {
+  const child = fork(
+    fileURLToPath(new URL('./initWorker.ts', import.meta.url)),
+    [gitdir, ...(pause ? ['pause'] : [])],
+    {
+      execArgv: ['--loader', 'ts-node/esm'],
+      env: {
+        ...process.env,
+        TS_NODE_TRANSPILE_ONLY: 'true',
+        TS_NODE_PROJECT: path.resolve('test/tsconfig.json'),
+        TS_NODE_COMPILER_OPTIONS: JSON.stringify({ rootDir: process.cwd() }),
+      },
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    }
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout?.on('data', (data: Buffer) => (stdout += data.toString()));
+  child.stderr?.on('data', (data: Buffer) => (stderr += data.toString()));
+  const result = once(child, 'close').then(([code]) => ({ code: code as number, stdout, stderr }));
+  return {
+    child,
+    result,
+    message: () =>
+      Promise.race([
+        once(child, 'message').then(([message]) => message as string),
+        result.then((completed) => {
+          throw new Error(`init worker exited ${completed.code}: ${completed.stderr}`);
+        }),
+      ]),
+  };
 };
 
 describe('git/init (phase 5)', () => {
@@ -144,6 +179,32 @@ describe('git/init (phase 5)', () => {
         expect(await fs.readFile(path.join(gitdir, 'refs', 'heads', 'main'), 'utf8')).to.equal(`${exit.value}\n`);
       }
     } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('waits for initialization in another process instead of rejecting its partially written repository', async function () {
+    this.timeout(15_000);
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-init-processes-'));
+    const gitdir = path.join(tmp, '.git');
+    const first = startInitWorker(gitdir, true);
+    let second: ReturnType<typeof startInitWorker> | undefined;
+    try {
+      expect(await first.message()).to.equal('starting');
+      expect(await first.message()).to.equal('paused');
+      second = startInitWorker(gitdir);
+      expect(await second.message()).to.equal('starting');
+      // The first process remains paused while the second attempts initialization.
+      await Effect.runPromise(Effect.sleep('200 millis'));
+      first.child.send('release');
+      const [a, b] = await Promise.all([first.result, second.result]);
+      expect(a.code, a.stderr).to.equal(0);
+      expect(b.code, b.stderr).to.equal(0);
+      expect(b.stdout).to.equal(a.stdout);
+    } finally {
+      first.child.kill();
+      second?.child.kill();
+      await Promise.all([first.result, second?.result]);
       await fs.rm(tmp, { recursive: true, force: true });
     }
   });

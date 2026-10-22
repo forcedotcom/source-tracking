@@ -27,20 +27,10 @@ import { withIndexLockCtx } from './lock.js';
 import { writeLooseObject } from './objects.js';
 import { readDirectRef, writeDirectRef } from './refs.js';
 import { type Author, type CommitOid, RefName, type RepoPath } from './schemas.js';
-import { buildTreeMap, hashTreeFromMap, writeCommit, writeIndexV2, writeTreeFromMap } from './writers.js';
-import { gitModeFromStat, lstat, normalizeGitSymlinkTarget } from './workdir.js';
+import { buildTreeMap, writeCommit, writeIndexV2, writeTreeFromMap } from './writers.js';
+import { gitModeFromStat, lstat, readWorkdirBytes } from './workdir.js';
 
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
-const TEXT = new TextEncoder();
-
-// fnUntraced: callsite is per-file in applyChanges; we get the aggregate
-// from the count annotation on the parent span instead of N child spans.
-const readWorkdirBytes = Effect.fnUntraced(function* (dir: string, rel: RepoPath) {
-  const fs = yield* FileSystem;
-  const path = yield* Path;
-  const abs = path.join(dir, rel);
-  return yield* fs.readFile(abs);
-});
 
 export type ApplyArgs = {
   readonly cfg: { readonly dir: string; readonly gitdir: string };
@@ -64,13 +54,11 @@ export type ApplyArgs = {
 // Record lstat fields in the index entry. Symlinks are stored as their target
 // text with Git's symlink mode; regular files store their bytes as usual.
 const stageAdd = Effect.fnUntraced(function* (cfg: ApplyArgs['cfg'], p: RepoPath) {
-  const fs = yield* FileSystem;
   const path = yield* Path;
   const abs = path.join(cfg.dir, p);
   const info = yield* lstat(abs);
-  const bytes = info.isSymbolicLink()
-    ? yield* fs.readLink(abs).pipe(Effect.map((target) => TEXT.encode(normalizeGitSymlinkTarget(target))))
-    : yield* readWorkdirBytes(cfg.dir, p);
+  const mode = gitModeFromStat(info);
+  const bytes = yield* readWorkdirBytes(abs, mode);
   const oid = yield* writeLooseObject(cfg.gitdir, 'blob', bytes);
   const mtimeMs = info.mtimeMs;
   const ctimeMs = info.ctimeMs;
@@ -79,7 +67,7 @@ const stageAdd = Effect.fnUntraced(function* (cfg: ApplyArgs['cfg'], p: RepoPath
     {
       path: p,
       oid,
-      mode: gitModeFromStat(info),
+      mode,
       stage: 0,
       assumeValid: false,
       stat: {
@@ -136,11 +124,6 @@ const writeIndex = Effect.fn('writeIndex')(function* (
   yield* fs.writeFile(indexPath, bytes);
 });
 
-const writeTreeForEntries = (gitdir: string, entries: HashSet.HashSet<IndexEntry>) => {
-  const treeMap = buildTreeMap(HashSet.map(entries, (e) => ({ path: e.path, mode: e.mode, oid: e.oid })));
-  return HashSet.size(entries) === 0 ? hashTreeFromMap(treeMap) : writeTreeFromMap(gitdir, treeMap);
-};
-
 const DEFAULT_ADD_CONCURRENCY = 256;
 
 const buildAndCommit = Effect.fn('buildAndCommit')(function* (
@@ -187,7 +170,11 @@ const buildAndCommit = Effect.fn('buildAndCommit')(function* (
 
   const entries = nextEntries(currentMap, removesSet, addsMap);
   const commitOid = yield* writeCommit(args.cfg.gitdir, {
-    tree: yield* writeTreeForEntries(args.cfg.gitdir, entries),
+    tree: yield* entries.pipe(
+      HashSet.map((e) => ({ path: e.path, mode: e.mode, oid: e.oid })),
+      buildTreeMap,
+      (tree) => writeTreeFromMap(args.cfg.gitdir, tree)
+    ),
     parent: Option.some(headOid),
     author: args.author,
     tsSeconds: Math.floor((yield* Clock.currentTimeMillis) / 1000),

@@ -35,7 +35,7 @@ import * as Stream from 'effect/Stream';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types.js';
 import { getMetadataKeyFromFileResponse, getMappingsForSourceMemberTypesToMetadataType } from '../metadataKeys.js';
-import { getMetadataKey } from '../functions.js';
+import { getMetadataKey, TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH } from '../functions.js';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers.js';
 import type { MemberRevision, PinoLogger, SourceMember } from './types.js';
 import {
@@ -53,6 +53,8 @@ import {
   getSourceMember,
   RemoteTrackingState,
   setMemberRevision,
+  sourceMemberMatchesKey,
+  stripSourceMemberEntitySuffix,
   trackSourceMembers,
 } from './remoteTrackingState.js';
 
@@ -60,7 +62,6 @@ const POLLING_DELAY_MS = 1000;
 const SOURCE_MEMBER_POLLING_TIMEOUT = 'SF_SOURCE_MEMBER_POLLING_TIMEOUT';
 const DISABLE_SOURCE_MEMBER_POLLING = 'SF_DISABLE_SOURCE_MEMBER_POLLING';
 const DEFAULT_EMPTY_POLLING_RESULT_LIMIT = 120;
-const ENTITY_SUFFIXES = ['__e', '__c', '__b', '__x', '__mdt'];
 
 export type RemoteTrackingOptions = {
   org: Org;
@@ -265,16 +266,19 @@ const syncSpecifiedElements = ({
   const metadataKeysFromFileResponse = getMetadataKeyFromFileResponse(registry);
   const metadataKeys = new Set(elements.flatMap(metadataKeysFromFileResponse));
   metadataKeys.forEach((metadataKey) => {
-    const revision = getSourceMember(state, metadataKey);
-    if (!revision) {
+    const match = findSourceMemberToSync(state, metadataKey);
+    if (!match) {
       logger.warn(`found no matching revision for ${metadataKey}`);
-    } else if (doesNotMatchServer(revision)) {
+    } else if (doesNotMatchServer(match.member)) {
       quietLogger(
-        `Syncing ${metadataKey} revision from ${revision.lastRetrievedFromServer ?? 'null'} to ${
-          revision.RevisionCounter
+        `Syncing ${match.key} revision from ${match.member.lastRetrievedFromServer ?? 'null'} to ${
+          match.member.RevisionCounter
         }`
       );
-      setMemberRevision(state, metadataKey, { ...revision, lastRetrievedFromServer: revision.RevisionCounter });
+      setMemberRevision(state, match.key, {
+        ...match.member,
+        lastRetrievedFromServer: match.member.RevisionCounter,
+      });
     }
   });
 };
@@ -352,23 +356,18 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
     const queriedMembers = queryResult.members;
 
     yield* Ref.update(pollState, (current) => {
-      const [remainingMembers, bonusMemberKeys] = Array.from(queriedMembers).reduce<
-        [HashMap.HashMap<string, RemoteSyncInput>, HashSet.HashSet<string>]
-      >(
-        (collections, member) => {
-          const [outstanding, bonus] = collections;
-          const metadataKey = getMetadataKey(member.MemberType, member.MemberName);
-          const expectedKey = getExpectedSourceMemberKey(outstanding, member);
-          return isNotUndefined(expectedKey)
-            ? [HashMap.remove(outstanding, expectedKey), bonus]
-            : [outstanding, HashSet.add(bonus, metadataKey)];
-        },
-        [current.outstandingSourceMembers, current.bonusMemberKeys]
+      const { outstandingSourceMembers, unmatchedMembers } = matchPolledSourceMembers(
+        current.outstandingSourceMembers,
+        queriedMembers
       );
       return {
         ...current,
-        outstandingSourceMembers: remainingMembers,
-        bonusMemberKeys,
+        outstandingSourceMembers,
+        bonusMemberKeys: unmatchedMembers.pipe(
+          Chunk.map((member) => getMetadataKey(member.MemberType, member.MemberName)),
+          HashSet.fromIterable,
+          HashSet.union(current.bonusMemberKeys)
+        ),
         highestRevisionSoFar:
           queriedMembers.length > 0
             ? Math.max(current.highestRevisionSoFar, ...queriedMembers.map((member) => member.RevisionCounter))
@@ -453,6 +452,26 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
   });
 });
 
+const findSourceMemberToSync = (
+  state: RemoteTrackingState,
+  metadataKey: string
+): { key: string; member: MemberRevision } | undefined => {
+  const member = getSourceMember(state, metadataKey);
+  if (member) return { key: metadataKey, member };
+
+  const suffixlessKey = stripSourceMemberEntitySuffix(metadataKey);
+  const suffixlessMember = getSourceMember(state, suffixlessKey);
+  if (suffixlessMember) return { key: suffixlessKey, member: suffixlessMember };
+  if (!Array.from(TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH).some((type) => metadataKey.startsWith(`${type}###`))) {
+    return undefined;
+  }
+
+  const matches = Array.from(state.sourceMembers).filter(([, candidate]) =>
+    sourceMemberMatchesKey(candidate, metadataKey)
+  );
+  return matches.length === 1 ? { key: matches[0][0], member: matches[0][1] } : undefined;
+};
+
 const getExpectedSourceMemberKey = (
   outstanding: HashMap.HashMap<string, RemoteSyncInput>,
   member: SourceMember
@@ -460,16 +479,34 @@ const getExpectedSourceMemberKey = (
   const key = getMetadataKey(member.MemberType, member.MemberName);
   if (HashMap.has(outstanding, key)) return key;
 
-  // SourceMember can omit an entity suffix from a custom-object child name,
-  // e.g. `TestEvent.Message__c` for the expected key `TestEvent__e.Message__c`.
-  const dotIndex = member.MemberName.indexOf('.');
-  if (dotIndex < 0) return undefined;
-
-  const parent = member.MemberName.slice(0, dotIndex);
-  const child = member.MemberName.slice(dotIndex);
-  return ENTITY_SUFFIXES.map((suffix) => getMetadataKey(member.MemberType, `${parent}${suffix}${child}`)).find(
-    (candidate) => HashMap.has(outstanding, candidate)
+  const matches = Array.from(HashMap.keys(outstanding)).filter((candidate) =>
+    sourceMemberMatchesKey(member, candidate)
   );
+  return matches.length === 1 ? matches[0] : undefined;
+};
+
+const matchPolledSourceMembers = (
+  outstandingSourceMembers: HashMap.HashMap<string, RemoteSyncInput>,
+  members: Iterable<SourceMember>
+): {
+  outstandingSourceMembers: HashMap.HashMap<string, RemoteSyncInput>;
+  unmatchedMembers: Chunk.Chunk<SourceMember>;
+} => {
+  const matched = Array.from(members).reduce(
+    (current, member) => {
+      const key = getExpectedSourceMemberKey(current.outstandingSourceMembers, member);
+      return isNotUndefined(key)
+        ? { ...current, outstandingSourceMembers: HashMap.remove(current.outstandingSourceMembers, key) }
+        : { ...current, unmatchedMembers: Chunk.append(current.unmatchedMembers, member) };
+    },
+    { outstandingSourceMembers, unmatchedMembers: Chunk.empty<SourceMember>() }
+  );
+
+  // A later unique match can disambiguate an earlier member in this same query batch.
+  return HashMap.size(matched.outstandingSourceMembers) < HashMap.size(outstandingSourceMembers) &&
+    !Chunk.isEmpty(matched.unmatchedMembers)
+    ? matchPolledSourceMembers(matched.outstandingSourceMembers, matched.unmatchedMembers)
+    : matched;
 };
 
 const emitPollingTimeout = Effect.fnUntraced(function* ({
