@@ -15,7 +15,7 @@
  */
 import fs from 'node:fs';
 import sinon from 'sinon';
-import { SourceComponent, RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import { type SourceComponent, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
 import { deleteCustomLabels } from '../../src/shared/functions.js';
 

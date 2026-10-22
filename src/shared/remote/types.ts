@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Logger } from '@salesforce/core';
+import { type Logger } from '@salesforce/core';
 import * as Schema from 'effect/Schema';
 
 export type PinoLogger = ReturnType<(typeof Logger)['getRawRootLogger']>;

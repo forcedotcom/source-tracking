@@ -19,9 +19,9 @@ import fs from 'graceful-fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ProjectJson } from '@salesforce/schemas';
-import { NamedPackageDir } from '@salesforce/core';
-import { PackageDir } from '@salesforce/schemas';
+import { type ProjectJson } from '@salesforce/schemas';
+import { type NamedPackageDir } from '@salesforce/core';
+import { type PackageDir } from '@salesforce/schemas';
 import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 describe('handles local files moves that also change the file', () => {

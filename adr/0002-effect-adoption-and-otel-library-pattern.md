@@ -45,8 +45,9 @@ Adopt Effect for performance-critical internals, starting with
 - `Effect.fn(name)` for span instrumentation on the outer function. Per-component
   `getAllFiles` spans were removed after measurement showed their overhead.
 
-The library does not construct or accept an OTel SDK layer. Its private
-ManagedRuntimes use Effect's empty layer, so library spans are not exported.
+The library does not construct or accept an OTel SDK layer. Promise boundaries
+use `Effect.runPromise` directly. Local shadow repositories retain private
+ManagedRuntimes for their Git and platform services, without an OTel SDK.
 Performance tests that need span output provide their own `NodeSdk.layer` from
 `test/perf-utils`. Consumer-provided tracing is deferred to a separate design.
 

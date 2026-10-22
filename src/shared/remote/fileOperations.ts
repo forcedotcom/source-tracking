@@ -28,7 +28,7 @@ import {
   getMetadataNameFromLegacyKey,
   getMetadataTypeFromLegacyKey,
 } from '../functions.js';
-import { RemoteChangeElement } from '../types.js';
+import { type RemoteChangeElement } from '../types.js';
 import { ContentsJsonSchema } from './types.js';
 import type { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types.js';
 

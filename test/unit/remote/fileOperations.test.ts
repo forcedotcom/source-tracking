@@ -28,7 +28,7 @@ import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import { readFileContents, writeTrackingFile } from '../../../src/shared/remote/fileOperations.js';
-import { ContentsJsonSchema, MemberRevision } from '../../../src/shared/remote/types.js';
+import { ContentsJsonSchema, type MemberRevision } from '../../../src/shared/remote/types.js';
 
 const FILE_VERSION_ENV = 'SF_SOURCE_TRACKING_FILE_VERSION';
 

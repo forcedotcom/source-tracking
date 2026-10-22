@@ -32,7 +32,7 @@ import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { populateTypesAndNames as populateTypesAndNamesEffect } from '../../../src/shared/populateTypesAndNames.js';
-import { ChangeResult } from '../../../src/shared/types.js';
+import { type ChangeResult } from '../../../src/shared/types.js';
 import { PerfNutSdkLayer } from '../../perf-utils/sdkLayer.js';
 
 type RunStats = {

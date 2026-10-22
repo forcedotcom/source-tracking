@@ -33,7 +33,7 @@ import { readLooseObject } from '../../../src/git/objects.js';
 import { readIndex, type IndexEntry } from '../../../src/git/indexV2.js';
 import { streamHeadTree } from '../../../src/git/trees.js';
 import { writeIndexV2 } from '../../../src/git/writers.js';
-import { Author, RefName, RepoPath, RepoConfig } from '../../../src/git/schemas.js';
+import { type Author, RefName, RepoPath, type RepoConfig } from '../../../src/git/schemas.js';
 
 const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
 const FIXED_TS = Date.parse('2026-01-01T00:00:00Z');

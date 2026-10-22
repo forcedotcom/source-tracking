@@ -13,9 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { ForceIgnore, MetadataComponent, MetadataMember, RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import {
+  type ForceIgnore,
+  type MetadataComponent,
+  type MetadataMember,
+  type RegistryAccess,
+} from '@salesforce/source-deploy-retrieve';
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js';
-import { ChangeResult } from './types.js';
+import { type ChangeResult } from './types.js';
 import { ensureNameAndType } from './guards.js';
 import { forceIgnoreDenies, changeResultToMetadataComponent } from './functions.js';
 

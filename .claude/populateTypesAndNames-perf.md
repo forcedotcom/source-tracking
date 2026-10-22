@@ -29,7 +29,7 @@ Speedups vs legacy: **2.6×** on EDA, **9.2×** on `objects-350x100`.
 
 ## Notes
 
-- `effect`: resolve-then-claim fold, called by local status and conflict detection through [src/shared/runtime.ts](../src/shared/runtime.ts).
+- `effect`: resolve-then-claim fold, called by local status and conflict detection through `Effect.runPromise`.
 - `legacy` rows are historical measurements of the pre-Effect implementation. The comparison implementation and baseline runs have been removed; the current perf NUT measures only the Effect implementation.
 - Historical result counts matched; counts alone do not prove behavioral equivalence.
 - Historical sampler could miss synchronous blocks entirely. Zero delay is not evidence of yielding. Current NUT validates the sampler, asserts full result counts and latency budgets, and yields between 100-filename batches.

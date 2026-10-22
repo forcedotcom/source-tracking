@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 import { resolve } from 'node:path';
-import { ComponentSet, ForceIgnore, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ConflictResponse, ChangeResult, SourceConflictError } from './types.js';
+import { type ComponentSet, type ForceIgnore, type RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import * as Effect from 'effect/Effect';
+import { type ConflictResponse, type ChangeResult, SourceConflictError } from './types.js';
 import { getMetadataKey } from './functions.js';
 import { populateTypesAndNames } from './populateTypesAndNames.js';
 import { isChangeResultWithNameAndType } from './guards.js';
-import { runPromise } from './runtime.js';
 
 export const throwIfConflicts = (conflicts: ConflictResponse[]): void => {
   if (conflicts.length > 0) {
@@ -76,7 +76,7 @@ export const getDedupedConflictsFromChanges = async ({
   );
 
   return (
-    await runPromise(
+    await Effect.runPromise(
       populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
     )
   )

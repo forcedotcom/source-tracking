@@ -34,11 +34,11 @@ import path from 'node:path';
 import { Logger, Lifecycle } from '@salesforce/core';
 import {
   MetadataResolver,
-  RegistryAccess,
+  type RegistryAccess,
   type SourceComponent,
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
-import { FileSystem } from 'effect/FileSystem';
+import { type FileSystem } from 'effect/FileSystem';
 import type { Crypto } from 'effect/Crypto';
 import type { PlatformError } from 'effect/PlatformError';
 import * as Chunk from 'effect/Chunk';

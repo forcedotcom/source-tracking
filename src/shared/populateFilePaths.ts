@@ -15,8 +15,8 @@
  */
 import { EOL } from 'node:os';
 import { Logger } from '@salesforce/core/logger';
-import { ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult } from './types.js';
+import { ComponentSet, type RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import { type ChangeResult } from './types.js';
 import { isChangeResultWithNameAndType } from './guards.js';
 import {
   getAllFiles,

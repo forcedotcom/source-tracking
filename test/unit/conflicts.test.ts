@@ -19,7 +19,7 @@ import sinon from 'sinon';
 import { expect } from 'chai';
 import { ForceIgnore, ComponentSet, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { findConflictsInComponentSet, getDedupedConflictsFromChanges } from '../../src/shared/conflicts.js';
-import { ChangeResult } from '../../src/shared/types.js';
+import { type ChangeResult } from '../../src/shared/types.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const clsFullName = 'MyClass';

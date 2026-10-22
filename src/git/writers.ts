@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { FileSystem } from 'effect/FileSystem';
-import { Path } from 'effect/Path';
+import { type FileSystem } from 'effect/FileSystem';
+import { type Path } from 'effect/Path';
 import type { Crypto } from 'effect/Crypto';
 import * as Arr from 'effect/Array';
 import * as Effect from 'effect/Effect';
-import * as HashSet from 'effect/HashSet';
+import type * as HashSet from 'effect/HashSet';
 import * as Option from 'effect/Option';
 import * as Order from 'effect/Order';
 import { isUndefined } from 'effect/Predicate';
@@ -26,7 +26,7 @@ import * as Schema from 'effect/Schema';
 import type { PlatformError } from 'effect/PlatformError';
 import { concatBytes } from './bytes.js';
 import { sha1, writeLooseObject } from './objects.js';
-import { Oid } from './schemas.js';
+import { type Oid } from './schemas.js';
 import type { IndexEntry } from './indexV2.js';
 
 const TEXT = new TextEncoder();

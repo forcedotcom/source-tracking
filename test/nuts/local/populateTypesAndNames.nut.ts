@@ -20,7 +20,7 @@ import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import { ForceIgnore, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { populateTypesAndNames } from '../../../src/shared/populateTypesAndNames.js';
-import { ChangeResult } from '../../../src/shared/types.js';
+import { type ChangeResult } from '../../../src/shared/types.js';
 
 const run = <A>(eff: Effect.Effect<A>): Promise<A> => Effect.runPromise(eff);
 

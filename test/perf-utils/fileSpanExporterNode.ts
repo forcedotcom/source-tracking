@@ -22,8 +22,8 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { type Attributes, SpanStatusCode } from '@opentelemetry/api';
-import { ExportResult, ExportResultCode } from '@opentelemetry/core';
-import { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
+import { type ExportResult, ExportResultCode } from '@opentelemetry/core';
+import { type ReadableSpan, type SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Global } from '@salesforce/core/global';
 import { isNotNullish } from 'effect/Predicate';
 

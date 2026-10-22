@@ -26,7 +26,7 @@ import * as HashSet from 'effect/HashSet';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 import { Repo } from '../../src/git/repo.js';
-import { RepoConfig, RepoPath } from '../../src/git/schemas.js';
+import { type RepoConfig, RepoPath } from '../../src/git/schemas.js';
 import { createShadowRepo } from '../../src/shared/local/localShadowRepo.js';
 import { filenameMatchesToMap } from '../../src/shared/local/moveDetection.js';
 

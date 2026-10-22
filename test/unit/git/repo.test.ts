@@ -26,7 +26,7 @@ import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as Crypto from 'effect/Crypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { Repo } from '../../../src/git/repo.js';
-import { RefName, RepoPath, RepoConfig } from '../../../src/git/schemas.js';
+import { RefName, RepoPath, type RepoConfig } from '../../../src/git/schemas.js';
 
 const cfg = (gitdir: string): RepoConfig => ({
   dir: path.dirname(gitdir),

@@ -18,13 +18,13 @@ import * as Arr from 'effect/Array';
 import { Logger } from '@salesforce/core/logger';
 import { isString } from 'effect/Predicate';
 import {
-  ForceIgnore,
+  type ForceIgnore,
   MetadataResolver,
-  RegistryAccess,
-  SourceComponent,
+  type RegistryAccess,
+  type SourceComponent,
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult } from './types.js';
+import { type ChangeResult } from './types.js';
 import { isChangeResultWithNameAndType } from './guards.js';
 import {
   ensureRelative,

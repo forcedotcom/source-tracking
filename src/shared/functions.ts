@@ -19,18 +19,23 @@ import fs from 'node:fs';
 import { isString } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
 import {
-  FileResponseSuccess,
-  ForceIgnore,
-  MetadataComponent,
-  MetadataMember,
+  type FileResponseSuccess,
+  type ForceIgnore,
+  type MetadataComponent,
+  type MetadataMember,
   NodeFSTreeContainer,
-  RegistryAccess,
-  SourceComponent,
-  TreeContainer,
+  type RegistryAccess,
+  type SourceComponent,
+  type TreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
-import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types.js';
+import {
+  type RemoteChangeElement,
+  type ChangeResult,
+  type ChangeResultWithNameAndType,
+  type RemoteSyncInput,
+} from './types.js';
 import { ensureNameAndType } from './guards.js';
 
 const keySplit = '###';

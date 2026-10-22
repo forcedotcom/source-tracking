@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Connection, SfError, trimTo15 } from '@salesforce/core';
+import { type Connection, SfError, trimTo15 } from '@salesforce/core';
 import * as Array from 'effect/Array';
 import * as Cache from 'effect/Cache';
 import * as Duration from 'effect/Duration';
@@ -24,7 +24,7 @@ import * as Option from 'effect/Option';
 import { isUndefined } from 'effect/Predicate';
 import * as Request from 'effect/Request';
 import * as RequestResolver from 'effect/RequestResolver';
-import { PinoLogger, SOURCE_MEMBER_FIELDS, SourceMember } from './types.js';
+import { type PinoLogger, SOURCE_MEMBER_FIELDS, type SourceMember } from './types.js';
 
 const MAX_FETCH = 50_000;
 

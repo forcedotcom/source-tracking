@@ -17,7 +17,7 @@
 import * as Array from 'effect/Array';
 import { isNotUndefined } from 'effect/Predicate';
 import { getMetadataKey, TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH } from '../functions.js';
-import { MemberRevision, SourceMember } from './types.js';
+import { type MemberRevision, type SourceMember } from './types.js';
 
 /** The in-memory form of one project's persisted remote tracking snapshot. */
 export type RemoteTrackingState = {

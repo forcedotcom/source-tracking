@@ -15,7 +15,7 @@
  */
 import * as fs from 'node:fs';
 import { sep, normalize } from 'node:path';
-import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
+import { type NamedPackageDir, Logger, type Org, type SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
 import { isString } from 'effect/Predicate';
 import * as Cache from 'effect/Cache';
@@ -23,25 +23,24 @@ import {
   ComponentSet,
   MetadataResolver,
   ComponentStatus,
-  SourceComponent,
-  FileResponse,
+  type SourceComponent,
+  type FileResponse,
   ForceIgnore,
   VirtualTreeContainer,
-  DeployResult,
-  ScopedPreDeploy,
-  ScopedPostRetrieve,
-  ScopedPreRetrieve,
-  ScopedPostDeploy,
-  RetrieveResult,
+  type DeployResult,
+  type ScopedPreDeploy,
+  type ScopedPostRetrieve,
+  type ScopedPreRetrieve,
+  type ScopedPostDeploy,
+  type RetrieveResult,
   RegistryAccess,
-  FileResponseSuccess,
+  type FileResponseSuccess,
 } from '@salesforce/source-deploy-retrieve';
 import * as Schema from 'effect/Schema';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js';
 import * as Effect from 'effect/Effect';
 import { isNotUndefined } from 'effect/Predicate';
-import { runPromise } from './shared/runtime.js';
 import {
   deleteRemoteTracking,
   initializeRemoteTracking,
@@ -56,13 +55,13 @@ import type { RemoteTrackingIdentity } from './shared/remote/fileOperations.js';
 import { createShadowRepo, type ShadowRepo } from './shared/local/localShadowRepo.js';
 import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts.js';
 import {
-  RemoteSyncInput,
-  StatusOutputRow,
-  ChangeOptions,
-  ChangeResult,
-  ChangeOptionType,
-  LocalUpdateOptions,
-  RemoteChangeElement,
+  type RemoteSyncInput,
+  type StatusOutputRow,
+  type ChangeOptions,
+  type ChangeResult,
+  type ChangeOptionType,
+  type LocalUpdateOptions,
+  type RemoteChangeElement,
 } from './shared/types.js';
 import {
   FileResponseHasPath,
@@ -343,7 +342,7 @@ export class SourceTracking extends AsyncCreatable {
 
     if (options?.origin === 'remote') {
       await this.ensureRemoteTracking();
-      const remoteChanges = await runPromise(
+      const remoteChanges = await Effect.runPromise(
         retrieveRemoteChanges({
           org: this.org,
           identity: this.remoteTrackingIdentity(),
@@ -523,7 +522,7 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async updateRemoteTracking(fileResponses: RemoteSyncInput[], skipPolling = false): Promise<void> {
     await this.ensureRemoteTracking(false);
-    await runPromise(
+    await Effect.runPromise(
       updateRemoteTrackingEffect({
         org: this.org,
         identity: this.remoteTrackingIdentity(),
@@ -536,7 +535,7 @@ export class SourceTracking extends AsyncCreatable {
 
   public async reReadRemoteTracking(): Promise<void> {
     await this.ensureRemoteTracking(false);
-    await runPromise(
+    await Effect.runPromise(
       retrieveRemoteChanges({
         org: this.org,
         identity: this.remoteTrackingIdentity(),
@@ -585,18 +584,18 @@ export class SourceTracking extends AsyncCreatable {
    * Useful before parallel operations
    */
   public async ensureRemoteTracking(initializeWithQuery = false): Promise<void> {
-    this.remoteTrackingInitialization ??= runPromise(
+    this.remoteTrackingInitialization ??= Effect.runPromise(
       initializeRemoteTracking({ org: this.org, identity: this.remoteTrackingIdentity() })
     ).catch((error: unknown) => {
       this.remoteTrackingInitialization = undefined;
       throw error;
     });
     await this.remoteTrackingInitialization;
-    this.remoteTrackingCaches ??= await runPromise(
+    this.remoteTrackingCaches ??= await Effect.runPromise(
       makeRemoteTrackingCaches({ org: this.org, identity: this.remoteTrackingIdentity() })
     );
     if (initializeWithQuery) {
-      await runPromise(
+      await Effect.runPromise(
         retrieveRemoteChanges({
           org: this.org,
           identity: this.remoteTrackingIdentity(),
@@ -636,7 +635,7 @@ export class SourceTracking extends AsyncCreatable {
    * Deletes the remote tracking files
    */
   public async clearRemoteTracking(): Promise<string> {
-    const filePath = await runPromise(deleteRemoteTracking(this.remoteTrackingIdentity()));
+    const filePath = await Effect.runPromise(deleteRemoteTracking(this.remoteTrackingIdentity()));
     this.remoteTrackingInitialization = undefined;
     this.remoteTrackingCaches = undefined;
     return filePath;
@@ -647,7 +646,7 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async resetRemoteTracking(serverRevision?: number): Promise<number> {
     await this.ensureRemoteTracking();
-    const resetMembers = await runPromise(
+    const resetMembers = await Effect.runPromise(
       resetRemoteTrackingEffect({
         org: this.org,
         identity: this.remoteTrackingIdentity(),
@@ -656,7 +655,7 @@ export class SourceTracking extends AsyncCreatable {
       })
     );
     if (this.remoteTrackingCaches) {
-      await runPromise(this.remoteTrackingCaches.sourceMembers.pipe(Cache.invalidateAll));
+      await Effect.runPromise(this.remoteTrackingCaches.sourceMembers.pipe(Cache.invalidateAll));
     }
     return resetMembers.length;
   }
@@ -823,10 +822,8 @@ export class SourceTracking extends AsyncCreatable {
     const base = { projectPath: this.projectPath, registry: this.registry, excludeUnresolvable: true };
     const toOutput = localChangesToOutputRow(this.logger)(this.forceIgnore);
 
-    // One runPromise on the shared ManagedRuntime so the three populate calls
-    // share one fiber/runtime. Adds/modifies use the FS resolver; deletes use
-    // a virtual tree (resolveDeleted).
-    const [resolvedAdds, resolvedModifies, resolvedDeletes] = await runPromise(
+    // Resolve adds/modifies from the filesystem and deletes from a virtual tree.
+    const [resolvedAdds, resolvedModifies, resolvedDeletes] = await Effect.runPromise(
       Effect.all(
         [
           populateTypesAndNames(base)(adds),

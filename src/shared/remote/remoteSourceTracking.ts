@@ -17,7 +17,7 @@
 import path from 'node:path';
 import { EOL } from 'node:os';
 import fs from 'graceful-fs';
-import { Logger, Lifecycle, Messages, Org, SfError } from '@salesforce/core';
+import { Logger, Lifecycle, Messages, type Org, SfError } from '@salesforce/core';
 import * as Cache from 'effect/Cache';
 import * as Chunk from 'effect/Chunk';
 import * as Config from 'effect/Config';
@@ -32,8 +32,13 @@ import { isNotUndefined, isUndefined } from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Schedule from 'effect/Schedule';
 import * as Stream from 'effect/Stream';
-import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult, RemoteChangeElement, RemoteSyncInput, SourceMemberPollingEvent } from '../types.js';
+import { type RegistryAccess } from '@salesforce/source-deploy-retrieve';
+import {
+  type ChangeResult,
+  type RemoteChangeElement,
+  type RemoteSyncInput,
+  type SourceMemberPollingEvent,
+} from '../types.js';
 import { getMetadataKeyFromFileResponse, getMappingsForSourceMemberTypesToMetadataType } from '../metadataKeys.js';
 import { getMetadataKey, TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH } from '../functions.js';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers.js';
@@ -41,7 +46,7 @@ import type { MemberRevision, PinoLogger, SourceMember } from './types.js';
 import {
   getFilePath,
   readFileContents,
-  RemoteTrackingIdentity,
+  type RemoteTrackingIdentity,
   revisionToRemoteChangeElement,
   trackingFileExists,
   writeTrackingFile,
@@ -51,7 +56,7 @@ import type { UserNameCache } from './orgQueries.js';
 import {
   emptyRemoteTrackingState,
   getSourceMember,
-  RemoteTrackingState,
+  type RemoteTrackingState,
   setMemberRevision,
   sourceMemberMatchesKey,
   stripSourceMemberEntitySuffix,

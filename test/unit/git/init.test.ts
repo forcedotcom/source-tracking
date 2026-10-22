@@ -30,12 +30,12 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import type { Crypto } from 'effect/Crypto';
 import * as NodePath from '@effect/platform-node/NodePath';
-import { FileSystem } from 'effect/FileSystem';
-import { Path } from 'effect/Path';
+import { type FileSystem } from 'effect/FileSystem';
+import { type Path } from 'effect/Path';
 import { init } from '../../../src/git/init.js';
 import { resolveRef } from '../../../src/git/refs.js';
 import { IndexCorruptError } from '../../../src/git/errors.js';
-import { RefName, RepoPath, RepoConfig } from '../../../src/git/schemas.js';
+import { RefName, RepoPath, type RepoConfig } from '../../../src/git/schemas.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const FixtureRoot = path.join(currentDir, '..', '..', 'git', 'fixtures');

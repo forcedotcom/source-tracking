@@ -90,12 +90,6 @@
       },
       {
         "issuer": "src/sourceTracking.ts",
-        "request": "./shared/runtime.js",
-        "kind": "StaticImport",
-        "id": "src/shared/runtime.ts"
-      },
-      {
-        "issuer": "src/sourceTracking.ts",
         "request": "./shared/remote/remoteSourceTracking.js",
         "kind": "StaticImport",
         "id": "src/shared/remote/remoteSourceTracking.ts"
@@ -256,50 +250,6 @@
       }
     ],
     "node_modules/@salesforce/core/lib/sfError.js": null,
-    "src/shared/runtime.ts": [
-      {
-        "issuer": "src/shared/runtime.ts",
-        "request": "effect/Effect",
-        "kind": "StaticImport",
-        "id": "node_modules/effect/dist/Effect.js"
-      },
-      {
-        "issuer": "src/shared/runtime.ts",
-        "request": "effect/Cause",
-        "kind": "StaticImport",
-        "id": "node_modules/effect/dist/Cause.js"
-      },
-      {
-        "issuer": "src/shared/runtime.ts",
-        "request": "effect/Exit",
-        "kind": "StaticImport",
-        "id": "node_modules/effect/dist/Exit.js"
-      },
-      {
-        "issuer": "src/shared/runtime.ts",
-        "request": "effect/Layer",
-        "kind": "StaticImport",
-        "id": "node_modules/effect/dist/Layer.js"
-      },
-      {
-        "issuer": "src/shared/runtime.ts",
-        "request": "effect/Option",
-        "kind": "StaticImport",
-        "id": "node_modules/effect/dist/Option.js"
-      },
-      {
-        "issuer": "src/shared/runtime.ts",
-        "request": "effect/Result",
-        "kind": "StaticImport",
-        "id": "node_modules/effect/dist/Result.js"
-      },
-      {
-        "issuer": "src/shared/runtime.ts",
-        "request": "effect/ManagedRuntime",
-        "kind": "StaticImport",
-        "id": "node_modules/effect/dist/ManagedRuntime.js"
-      }
-    ],
     "src/shared/remote/remoteSourceTracking.ts": [
       {
         "issuer": "src/shared/remote/remoteSourceTracking.ts",
@@ -729,9 +679,9 @@
       },
       {
         "issuer": "src/shared/conflicts.ts",
-        "request": "./runtime.js",
+        "request": "effect/Effect",
         "kind": "StaticImport",
-        "id": "src/shared/runtime.ts"
+        "id": "node_modules/effect/dist/Effect.js"
       }
     ],
     "src/shared/guards.ts": [
@@ -965,7 +915,6 @@
     "node_modules/@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js": null,
     "node_modules/effect/dist/Effect.js": null,
     "node_modules/fast-xml-parser/lib/fxp.d.cts": null,
-    "node_modules/effect/dist/Cause.js": null,
     "node_modules/effect/dist/Exit.js": null,
     "node_modules/effect/dist/Layer.js": null,
     "node_modules/effect/dist/Option.js": null,

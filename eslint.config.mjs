@@ -28,6 +28,9 @@ const configs = [
       functional: functionalPlugin,
       'local-rules': { rules: localRules },
     },
+    rules: {
+      '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
+    },
   },
   {
     files: ['test/unit/git/**/*.ts'],

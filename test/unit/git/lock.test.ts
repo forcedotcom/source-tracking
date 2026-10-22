@@ -31,7 +31,7 @@ import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { FileSystem } from 'effect/FileSystem';
-import { Path } from 'effect/Path';
+import { type Path } from 'effect/Path';
 import { withIndexLock, withIndexLockCtx } from '../../../src/git/lock.js';
 import { RepoLockedError } from '../../../src/git/errors.js';
 

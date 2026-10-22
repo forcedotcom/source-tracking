@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { FileResponse, ComponentStatus, FileResponseSuccess } from '@salesforce/source-deploy-retrieve';
+import { type FileResponse, ComponentStatus, type FileResponseSuccess } from '@salesforce/source-deploy-retrieve';
 import { SfError } from '@salesforce/core/sfError';
 import { isNotUndefined } from 'effect/Predicate';
-import { ChangeResult } from './types.js';
-import { ChangeResultWithNameAndType } from './types.js';
+import { type ChangeResult } from './types.js';
+import { type ChangeResultWithNameAndType } from './types.js';
 
 export const isSdrSuccess = (fileResponse: FileResponse): fileResponse is FileResponseSuccess =>
   fileResponse.state !== ComponentStatus.Failed;

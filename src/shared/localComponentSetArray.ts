@@ -15,13 +15,13 @@
  */
 import fs from 'node:fs';
 import { resolve } from 'node:path';
-import { NamedPackageDir, Logger } from '@salesforce/core';
+import { type NamedPackageDir, Logger } from '@salesforce/core';
 import {
   ComponentSet,
   MetadataResolver,
   VirtualTreeContainer,
   DestructiveChangesType,
-  RegistryAccess,
+  type RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
 import { isNotUndefined } from 'effect/Predicate';
 import { supportsPartialDelete, pathIsInFolder, maybeGetTreeContainer } from './functions.js';

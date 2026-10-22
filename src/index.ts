@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-export { SourceTracking, SourceTrackingOptions } from './sourceTracking.js';
-export {
+export { SourceTracking } from './sourceTracking.js';
+export type { SourceTrackingOptions } from './sourceTracking.js';
+export type {
   RemoteSyncInput,
   ChangeOptionType,
   ChangeOptions,
@@ -23,7 +24,7 @@ export {
   ChangeResult,
   StatusOutputRow,
   ConflictResponse,
-  SourceConflictError,
   SourceMemberPollingEvent,
 } from './shared/types.js';
+export { SourceConflictError } from './shared/types.js';
 export { deleteCustomLabels } from './shared/functions.js';
