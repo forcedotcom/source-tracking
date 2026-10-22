@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 import * as BrowserCrypto from '@effect/platform-browser/BrowserCrypto';
+import type * as Crypto from 'effect/Crypto';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 
 // Inline build-time comparison lets web bundles drop the Node import entirely.
 // Unbundled consumers default to Node without configuring a layer.
-export const cryptoLayer =
+export const cryptoLayer: Layer.Layer<Crypto.Crypto> =
   process.env.ESBUILD_PLATFORM === 'web'
     ? BrowserCrypto.layer
     : Layer.unwrap(Effect.promise(async () => (await import('@effect/platform-node/NodeCrypto')).layer));
