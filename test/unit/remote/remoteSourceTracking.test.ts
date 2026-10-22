@@ -297,6 +297,41 @@ describe('remote source tracking Effects', () => {
     expect(telemetryStub.calledWithMatch({ eventName: 'sourceMemberBonusTypes' })).to.equal(true);
   });
 
+  it('matches platform-event custom-field SourceMembers when the server omits the __e suffix', async () => {
+    envVars.setString('SF_SOURCE_MEMBER_POLLING_TIMEOUT', '1');
+    reResolveEnvVars();
+    const queryStub = $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom');
+    queryStub.onFirstCall().returns(
+      Effect.succeed([
+        {
+          ...defaultSourceMember,
+          RevisionCounter: 4,
+          MemberType: 'CustomField',
+          MemberName: 'TestEvent.Message__c',
+        },
+      ])
+    );
+    queryStub.returns(Effect.succeed([]));
+    const warnings: string[] = [];
+    Lifecycle.getInstance().onWarning((warning) => {
+      warnings.push(warning);
+      return Promise.resolve();
+    });
+    const elements: RemoteSyncInput[] = [
+      {
+        fullName: 'TestEvent__e.Message__c',
+        type: 'CustomField',
+        filePath: 'force-app/main/default/objects/TestEvent__e/fields/Message__c.field-meta.xml',
+        state: ComponentStatus.Changed,
+      },
+    ];
+
+    await Effect.runPromise(updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }));
+
+    expect(queryStub.callCount).to.equal(1);
+    expect(warnings.some((warning) => warning.includes('SourceMembers timed out'))).to.equal(false);
+  });
+
   it('emits a warning and persists partial state when polling times out', async () => {
     envVars.setString('SF_SOURCE_MEMBER_POLLING_TIMEOUT', '1');
     reResolveEnvVars();

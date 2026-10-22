@@ -60,6 +60,7 @@ const POLLING_DELAY_MS = 1000;
 const SOURCE_MEMBER_POLLING_TIMEOUT = 'SF_SOURCE_MEMBER_POLLING_TIMEOUT';
 const DISABLE_SOURCE_MEMBER_POLLING = 'SF_DISABLE_SOURCE_MEMBER_POLLING';
 const DEFAULT_EMPTY_POLLING_RESULT_LIMIT = 120;
+const ENTITY_SUFFIXES = ['__e', '__c', '__b', '__x', '__mdt'];
 
 export type RemoteTrackingOptions = {
   org: Org;
@@ -357,8 +358,9 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
         (collections, member) => {
           const [outstanding, bonus] = collections;
           const metadataKey = getMetadataKey(member.MemberType, member.MemberName);
-          return HashMap.has(outstanding, metadataKey)
-            ? [HashMap.remove(outstanding, metadataKey), bonus]
+          const expectedKey = getExpectedSourceMemberKey(outstanding, member);
+          return isNotUndefined(expectedKey)
+            ? [HashMap.remove(outstanding, expectedKey), bonus]
             : [outstanding, HashSet.add(bonus, metadataKey)];
         },
         [current.outstandingSourceMembers, current.bonusMemberKeys]
@@ -450,6 +452,25 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
     bonusMemberKeys: completedPollState.bonusMemberKeys,
   });
 });
+
+const getExpectedSourceMemberKey = (
+  outstanding: HashMap.HashMap<string, RemoteSyncInput>,
+  member: SourceMember
+): string | undefined => {
+  const key = getMetadataKey(member.MemberType, member.MemberName);
+  if (HashMap.has(outstanding, key)) return key;
+
+  // SourceMember can omit an entity suffix from a custom-object child name,
+  // e.g. `TestEvent.Message__c` for the expected key `TestEvent__e.Message__c`.
+  const dotIndex = member.MemberName.indexOf('.');
+  if (dotIndex < 0) return undefined;
+
+  const parent = member.MemberName.slice(0, dotIndex);
+  const child = member.MemberName.slice(dotIndex);
+  return ENTITY_SUFFIXES.map((suffix) => getMetadataKey(member.MemberType, `${parent}${suffix}${child}`)).find(
+    (candidate) => HashMap.has(outstanding, candidate)
+  );
+};
 
 const emitPollingTimeout = Effect.fnUntraced(function* ({
   outstandingSourceMembers,
