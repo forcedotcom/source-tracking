@@ -30,7 +30,7 @@ Speedups vs legacy: **2.6×** on EDA, **9.2×** on `objects-350x100`.
 ## Notes
 
 - `effect` is the resolve-then-claim Stream pipeline now wired into `SourceTracking.getLocalStatusRows` and `getDedupedConflictsFromChanges`, both routed through the shared `ManagedRuntime` in [src/shared/runtime.ts](../src/shared/runtime.ts).
-- `legacy` is the O(N) `MetadataResolver.getComponentsFromPath`-per-filename baseline kept around in [src/shared/populateTypesAndNamesLegacy.ts](../src/shared/populateTypesAndNamesLegacy.ts) for equivalence + speedup measurement.
+- `legacy` rows are historical measurements of the pre-Effect implementation. The comparison implementation and baseline runs have been removed; the current perf NUT measures only the Effect implementation.
 - Result-element counts match between variants on both fixtures, confirming behavioral equivalence at this sample.
 - Event-loop-delay numbers swing because the `monitorEventLoopDelay({ resolution: 1 })` sampler can record one outlier sample per run; treat them as upper bounds rather than steady-state EL pressure.
 - Raw JSONL: `/var/folders/r4/pj95jr_j41707b_yfx_pfwf80000gn/T/stl-perf-stats.jsonl`.

@@ -20,7 +20,6 @@ import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import { ForceIgnore, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { populateTypesAndNames } from '../../../src/shared/populateTypesAndNames.js';
-import { populateTypesAndNamesLegacy } from '../../../src/shared/populateTypesAndNamesLegacy.js';
 import { ChangeResult } from '../../../src/shared/types.js';
 
 const run = <A>(eff: Effect.Effect<A>): Promise<A> => Effect.runPromise(eff);
@@ -105,12 +104,6 @@ describe('populateTypesAndNames', () => {
     expect(result.name).to.equal(undefined);
   });
 
-  // Pins the structural-equality dedup that diverges from legacy. Legacy used
-  // identity dedup (`new Set(elementMap.values())`), which kept N copies of the
-  // same patched ChangeResult when one input element carried N filenames in the
-  // same bundle. The new code collapses them to one. This is the desired
-  // behavior — duplicates would multiply downstream rows in
-  // `localChangesToOutputRow`. The legacy run here documents the divergence.
   describe('multi-filename element in one bundle', () => {
     const input: ChangeResult[] = [
       {
@@ -123,20 +116,11 @@ describe('populateTypesAndNames', () => {
       },
     ];
 
-    it('collapses to one element by structural equality', async () => {
+    it('emits one enriched change result', async () => {
       const results = await run(populateTypesAndNames({ projectPath, registry })(input));
       expect(results).to.have.length(1);
       expect(results[0].type).to.equal('LightningComponentBundle');
       expect(results[0].name).to.equal('accountMap');
-    });
-
-    it('legacy returns one entry per filename (documents divergence)', () => {
-      const results = populateTypesAndNamesLegacy({ projectPath, registry })(input);
-      expect(results).to.have.length(3);
-      results.forEach((r) => {
-        expect(r.type).to.equal('LightningComponentBundle');
-        expect(r.name).to.equal('accountMap');
-      });
     });
   });
 });

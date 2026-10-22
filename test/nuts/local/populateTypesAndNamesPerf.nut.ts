@@ -17,12 +17,9 @@
 /**
  * Perf NUT for populateTypesAndNames.
  *
- * Measures the current implementation against two fixtures (EDA + 35k generated
+ * Measures the Effect implementation on two fixtures (EDA + 35k generated
  * object/field files). Captures wall-clock + perf_hooks event-loop-delay
  * histogram per run. Writes per-run JSONL to the test session's directory.
- *
- * Effect-translated variants (resolve-then-claim, vanilla-vs-HashMap dedup,
- * throttle-lever sweeps) get layered on by subsequent commits in this PR.
  */
 
 import path from 'node:path';
@@ -34,7 +31,6 @@ import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { populateTypesAndNamesLegacy } from '../../../src/shared/populateTypesAndNamesLegacy.js';
 import { populateTypesAndNames as populateTypesAndNamesEffect } from '../../../src/shared/populateTypesAndNames.js';
 import { ChangeResult } from '../../../src/shared/types.js';
 import { PerfNutSdkLayer } from '../../perf-utils/sdkLayer.js';
@@ -148,23 +144,7 @@ describe('perf: populateTypesAndNames @ EDA', () => {
     }
   });
 
-  it(`baseline: legacy populateTypesAndNames on ${process.env.STL_PERF_LABEL ?? 'EDA'}`, async () => {
-    const { result, stats } = await measure(() =>
-      populateTypesAndNamesLegacy({ projectPath: ctx.projectPath, registry })(ctx.elements)
-    );
-    const row: RunStats = {
-      variant: 'legacy',
-      fixture: 'EDA',
-      inputElements: ctx.elements.length,
-      resultElements: result.length,
-      ...stats,
-    };
-    await writeStats(ctx.statsPath, row);
-    logRow(row);
-    expect(result.filter((r) => r.name && r.type).length).to.be.greaterThan(0);
-  });
-
-  it('effect: matches legacy on EDA', async () => {
+  it(`effect: measures ${process.env.STL_PERF_LABEL ?? 'EDA'}`, async () => {
     const { layer, spanFilePath } = PerfNutSdkLayer('eda-effect');
     const { result, stats } = await measure(() =>
       Effect.runPromise(
@@ -173,7 +153,6 @@ describe('perf: populateTypesAndNames @ EDA', () => {
         )
       )
     );
-    const legacy = populateTypesAndNamesLegacy({ projectPath: ctx.projectPath, registry })(ctx.elements);
     const row: RunStats = {
       variant: 'effect',
       fixture: 'EDA',
@@ -183,10 +162,7 @@ describe('perf: populateTypesAndNames @ EDA', () => {
     };
     await writeStats(ctx.statsPath, row);
     logRow(row, spanFilePath);
-    expect(result.length).to.equal(legacy.length);
-    const legacyResolved = legacy.filter((r) => r.name && r.type).length;
-    const effectResolved = result.filter((r) => r.name && r.type).length;
-    expect(effectResolved).to.equal(legacyResolved);
+    expect(result.filter((r) => r.name && r.type).length).to.be.greaterThan(0);
   });
 });
 
@@ -264,24 +240,7 @@ describe(`perf: populateTypesAndNames @ ${OBJECT_COUNT}x${FIELDS_PER_OBJECT} syn
     }
   });
 
-  it(`baseline: legacy populateTypesAndNames on ${OBJECT_COUNT}x${FIELDS_PER_OBJECT}`, async function () {
-    this.timeout(120_000);
-    const { result, stats } = await measure(() =>
-      populateTypesAndNamesLegacy({ projectPath: ctx.projectPath, registry })(ctx.elements)
-    );
-    const row: RunStats = {
-      variant: 'legacy',
-      fixture: `objects-${OBJECT_COUNT}x${FIELDS_PER_OBJECT}`,
-      inputElements: ctx.elements.length,
-      resultElements: result.length,
-      ...stats,
-    };
-    await writeStats(ctx.statsPath, row);
-    logRow(row, ctx.statsPath);
-    expect(result.filter((r) => r.name && r.type).length).to.be.greaterThan(0);
-  });
-
-  it(`effect: matches legacy on ${OBJECT_COUNT}x${FIELDS_PER_OBJECT}`, async function () {
+  it(`effect: measures ${OBJECT_COUNT}x${FIELDS_PER_OBJECT} synthetic objects`, async function () {
     this.timeout(120_000);
     const { layer, spanFilePath } = PerfNutSdkLayer(`objects-${OBJECT_COUNT}x${FIELDS_PER_OBJECT}-effect`);
     const { result, stats } = await measure(() =>
@@ -291,7 +250,6 @@ describe(`perf: populateTypesAndNames @ ${OBJECT_COUNT}x${FIELDS_PER_OBJECT} syn
         )
       )
     );
-    const legacy = populateTypesAndNamesLegacy({ projectPath: ctx.projectPath, registry })(ctx.elements);
     const row: RunStats = {
       variant: 'effect',
       fixture: `objects-${OBJECT_COUNT}x${FIELDS_PER_OBJECT}`,
@@ -301,9 +259,6 @@ describe(`perf: populateTypesAndNames @ ${OBJECT_COUNT}x${FIELDS_PER_OBJECT} syn
     };
     await writeStats(ctx.statsPath, row);
     logRow(row, spanFilePath);
-    expect(result.length).to.equal(legacy.length);
-    const legacyResolved = legacy.filter((r) => r.name && r.type).length;
-    const effectResolved = result.filter((r) => r.name && r.type).length;
-    expect(effectResolved).to.equal(legacyResolved);
+    expect(result.filter((r) => r.name && r.type).length).to.be.greaterThan(0);
   });
 });
