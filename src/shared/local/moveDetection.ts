@@ -228,7 +228,8 @@ const drainHeadOids = Effect.fn('moveDetection.drainHeadOids')(function* () {
         Stream.runCollect,
         Effect.map(HashMap.fromIterable)
       )
-    )
+    ),
+    Effect.tap((oids) => Effect.annotateCurrentSpan('fileCount', HashMap.size(oids)))
   );
 });
 

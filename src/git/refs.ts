@@ -56,7 +56,7 @@ type HeadValue =
 const HEAD_REF: RefName = Schema.decodeUnknownSync(RefName)('HEAD');
 
 /** @internal */
-export const readHead = Effect.fn('readHead')(function* (gitdir: string) {
+export const readHead = Effect.fnUntraced(function* (gitdir: string) {
   const path = yield* Path;
   const file = refFile(path, gitdir, HEAD_REF);
   const raw = yield* readUtf8(file).pipe(
@@ -85,7 +85,7 @@ const decodeHeadContent = (file: string, trimmed: string) => {
  * Read a leaf ref like `refs/heads/main` (40-hex + LF).
  */
 /** @internal */
-export const readDirectRef = Effect.fn('readDirectRef')(function* (gitdir: string, ref: RefName) {
+export const readDirectRef = Effect.fnUntraced(function* (gitdir: string, ref: RefName) {
   const path = yield* Path;
   const file = refFile(path, gitdir, ref);
   const raw = yield* readUtf8(file).pipe(
@@ -129,7 +129,7 @@ export const resolveRef = (gitdir: string, ref: RefName) =>
  * across processes (the index.lock only serializes index writes, not
  * arbitrary ref writes) don't collide on a shared `<file>.tmp` name.
  */
-const writeAtomically = Effect.fn('writeAtomically')(function* (gitdir: string, ref: RefName, bytes: Uint8Array) {
+const writeAtomically = Effect.fnUntraced(function* (gitdir: string, ref: RefName, bytes: Uint8Array) {
   const fs = yield* FileSystem;
   const path = yield* Path;
   const file = refFile(path, gitdir, ref);

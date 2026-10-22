@@ -51,6 +51,18 @@ ManagedRuntimes for their Git and platform services, without an OTel SDK.
 Performance tests that need span output provide their own `NodeSdk.layer` from
 `test/perf-utils`. Consumer-provided tracing is deferred to a separate design.
 
+### Tracing granularity
+
+Named `Effect.fn` and `Stream.withSpan` belong at operation boundaries: status
+evaluation, complete workdir/tree walks, index encoding, commits, and org queries.
+Record file/directory counts on those spans instead of tracing each item.
+
+Use `Effect.fnUntraced` for per-file hashes and reads, per-entry parsing,
+recursive directory helpers, lock retries, and small I/O helpers. These still
+run inside the enclosing operation's span but skip their own spans and Effect
+stack-frame capture. No OTel exporter does not mean no tracing overhead:
+Effect's default tracer still creates in-memory spans.
+
 ### Follow-up: native collections with bounded yielding
 
 `populateTypesAndNames` retains native `Map`/`Set`; the persistent collection

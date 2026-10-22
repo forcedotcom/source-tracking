@@ -41,7 +41,7 @@ const inRoots =
     roots.some((r) => r === p || p.startsWith(`${r}/`));
 
 /** Hash workdir bytes for one path, or None if the file vanished mid-walk. */
-const hashWorkdirOid = Effect.fn('hashWorkdirOid')(function* (abs: string, mode: number) {
+const hashWorkdirOid = Effect.fnUntraced(function* (abs: string, mode: number) {
   return yield* readWorkdirBytes(abs, mode).pipe(
     Effect.map((b) => Option.some(b)),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Uint8Array>())),
@@ -131,7 +131,7 @@ const cellPure = (
  * These are the ones we genuinely have to hash — there's no other way to
  * know modified vs unmodified.
  */
-const cellHashing = Effect.fn('cellHashing')(function* (
+const cellHashing = Effect.fnUntraced(function* (
   cfg: { readonly dir: string },
   rel: string,
   head: HeadFile | undefined,
@@ -185,6 +185,7 @@ const evaluateMatrix = Effect.fn('evaluateMatrix')(function* ({
     const inWd = HashSet.has(workdirSet, p);
     return tracked && inWd ? Result.succeed(p) : Result.fail(cellPure(p, head, indexEntry, inWd, untracked));
   });
+  yield* Effect.annotateCurrentSpan({ pathCount: allPaths.length, hashedFileCount: needsHash.length });
   return yield* Effect.forEach(
     needsHash,
     (p) =>

@@ -176,7 +176,7 @@ const isLegacyEmptyIsomorphicRepo = Effect.fnUntraced(function* (gitdir: string)
   return isLegacyEmptyRepoLayout(layout);
 });
 
-const writeFile = Effect.fn('writeFile')(function* (file: string, bytes: Uint8Array) {
+const writeFile = Effect.fnUntraced(function* (file: string, bytes: Uint8Array) {
   const fs = yield* FileSystem;
   const path = yield* Path;
   yield* fs.makeDirectory(path.dirname(file), { recursive: true });

@@ -76,7 +76,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (
   const autoclearMs = Duration.toMillis(autoclear);
   const startMs = yield* Clock.currentTimeMillis;
 
-  const tryAutoclear = Effect.fn('tryAutoclear')(function* () {
+  const tryAutoclear = Effect.fnUntraced(function* () {
     const info = yield* fs
       .stat(lockPath)
       .pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(statSentinel)));
@@ -112,7 +112,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (
     })
   );
 
-  const tryAcquireOnce = Effect.fn('tryAcquireOnce')(function* () {
+  const tryAcquireOnce = Effect.fnUntraced(function* () {
     const opened: boolean = yield* Effect.scoped(fs.open(lockPath, { flag: 'wx' })).pipe(
       Effect.map(() => true),
       Effect.catchReason('PlatformError', 'AlreadyExists', () => Effect.succeed(false))

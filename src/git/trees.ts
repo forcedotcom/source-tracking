@@ -190,7 +190,7 @@ export const streamHeadTreeWithMode = (
       );
       return readTree(gitdir, Schema.decodeUnknownSync(Oid)(matched[1] ?? ''));
     })
-  );
+  ).pipe(Stream.withSpan('streamHeadTree'));
 
 /** Resolve HEAD to a commit oid, then to its tree, projecting paths and oids. */
 /** @internal */

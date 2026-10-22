@@ -61,7 +61,7 @@ const makeRepo = Effect.fn('Repo.make')(function* (cfg: RepoConfig) {
   const applyChanges = (args: ApplyChangesArgs) =>
     applyChangesImpl({ cfg, ...args, addConcurrency: cfg.fdPermits }).pipe(provideGitServices);
 
-  const readBlob = Effect.fn('Repo.readBlob')(function* (oid: Oid) {
+  const readBlob = Effect.fnUntraced(function* (oid: Oid) {
     return yield* readLooseObject(cfg.gitdir, oid).pipe(
       provideGitServices,
       Effect.flatMap((obj) =>

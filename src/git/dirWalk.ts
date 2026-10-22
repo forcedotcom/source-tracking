@@ -138,7 +138,7 @@ export type WalkNode = {
  * directory observed. Each filesystem call acquires a shared I/O permit;
  * no permit is held while waiting for child directories to finish.
  */
-// recursive Effect.gen needs the explicit return type so TS can resolve
+// Recursive calls need the explicit return type so TS can resolve
 // the self-call inside the body.
 const walkRecursive: (
   workdir: string,
@@ -146,26 +146,25 @@ const walkRecursive: (
   baseChain: IgnoreChain,
   fdPermits: number,
   ioSemaphore: Semaphore.Semaphore
-) => Effect.Effect<readonly WalkNode[], PlatformError, FileSystem | Path> = (
+) => Effect.Effect<readonly WalkNode[], PlatformError, FileSystem | Path> = Effect.fnUntraced(function* (
   workdir,
   rootRel,
   baseChain,
   fdPermits,
   ioSemaphore
-) =>
-  Effect.gen(function* () {
-    const snap = yield* walkOneDir(workdir, rootRel, ioSemaphore);
-    if (Option.isNone(snap)) return [];
-    const localChain = Option.match(snap.value.gitignoreContent, {
-      onNone: () => baseChain,
-      onSome: (content) => [...baseChain, buildLink(snap.value.dir, content)],
-    });
-    const here: WalkNode = { snapshot: snap.value, chain: localChain };
-    const childRels = snap.value.subdirNames.map((n) => (snap.value.dir === '' ? n : `${snap.value.dir}/${n}`));
-    return yield* Effect.forEach(childRels, (c) => walkRecursive(workdir, c, localChain, fdPermits, ioSemaphore), {
-      concurrency: fdPermits,
-    }).pipe(Effect.map((subResults) => [here, ...subResults.flat()]));
+) {
+  const snap = yield* walkOneDir(workdir, rootRel, ioSemaphore);
+  if (Option.isNone(snap)) return [];
+  const localChain = Option.match(snap.value.gitignoreContent, {
+    onNone: () => baseChain,
+    onSome: (content) => [...baseChain, buildLink(snap.value.dir, content)],
   });
+  const here: WalkNode = { snapshot: snap.value, chain: localChain };
+  const childRels = snap.value.subdirNames.map((n) => (snap.value.dir === '' ? n : `${snap.value.dir}/${n}`));
+  return yield* Effect.forEach(childRels, (c) => walkRecursive(workdir, c, localChain, fdPermits, ioSemaphore), {
+    concurrency: fdPermits,
+  }).pipe(Effect.map((subResults) => [here, ...subResults.flat()]));
+});
 
 /**
  * The aggregate of a full multi-root walk: `nodes` (one per directory
@@ -199,5 +198,8 @@ export const walkAllRoots = Effect.fn('walkAllRoots')(function* (
   const isIgnoredAtRoot = (p: string): boolean => chainIgnores(baseChain, p);
   return yield* Effect.forEach(cfg.roots, (r) => walkRecursive(cfg.dir, r, baseChain, cfg.fdPermits, ioSemaphore), {
     concurrency: cfg.fdPermits,
-  }).pipe(Effect.map((nested) => ({ nodes: nested.flat(), isIgnoredAtRoot } satisfies WalkResult)));
+  }).pipe(
+    Effect.map((nested) => ({ nodes: nested.flat(), isIgnoredAtRoot } satisfies WalkResult)),
+    Effect.tap(({ nodes }) => Effect.annotateCurrentSpan({ rootCount: cfg.roots.length, directoryCount: nodes.length }))
+  );
 });

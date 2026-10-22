@@ -22,10 +22,12 @@ import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Stream from 'effect/Stream';
 import * as Schema from 'effect/Schema';
+import * as Tracer from 'effect/Tracer';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { cold } from '../../../src/git/statusMatrix.js';
+import { applyChanges } from '../../../src/git/applyChanges.js';
 import { RepoPath, type StatusEntry } from '../../../src/git/schemas.js';
 import { normalizeGitSymlinkTarget } from '../../../src/git/workdir.js';
 
@@ -75,6 +77,76 @@ const collectStatus = (cfg: { dir: string; gitdir: string; roots: readonly RepoP
   );
 
 describe('git/statusMatrix (phase 8)', () => {
+  it('keeps status and commit span counts constant as tracked files and directories grow', async () => {
+    const counts = await Promise.all(
+      [1, 40].map(async (fileCount) => {
+        const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'lite-status-tracing-'));
+        try {
+          const { dir, gitdir } = await linkFixture('empty', tmp);
+          const files = Array.from({ length: fileCount }, (_, index) => repoPath(`pkg/dir-${index}/file.txt`));
+          await Promise.all(
+            files.map(async (file) => {
+              await fs.mkdir(path.dirname(path.join(dir, file)), { recursive: true });
+              await fs.writeFile(path.join(dir, file), 'tracked content\n');
+            })
+          );
+          const spans: Tracer.Span[] = [];
+          const tracer = Tracer.make({
+            span: (options) => {
+              const span = Tracer.nativeTracer.span(options);
+              spans.push(span);
+              return span;
+            },
+          });
+          await Effect.runPromise(
+            applyChanges({
+              cfg: { dir, gitdir },
+              adds: Stream.fromIterable(files),
+              removes: Stream.empty,
+              author: { name: 'Test', email: 'test@example.com' },
+              message: 'track files',
+            }).pipe(Effect.withTracer(tracer), Effect.provide(Layered))
+          );
+          expect(spans.map(({ name }) => name)).to.include.members([
+            'applyChanges',
+            'writeIndexV2',
+            'writeTreeFromMap',
+          ]);
+          expect(spans.find(({ name }) => name === 'buildAndCommit')?.attributes.get('addCount')).to.equal(fileCount);
+          expect(spans.every(({ status: state }) => 'endTime' in state)).to.equal(true);
+          const commitSpanCount = spans.length;
+
+          spans.length = 0;
+          const status = await cold({ dir, gitdir, roots: [repoPath('pkg')] }).pipe(
+            Stream.runCollect,
+            Effect.withTracer(tracer),
+            Effect.provide(Layered),
+            Effect.runPromise
+          );
+          expect(status).to.have.length(fileCount);
+          expect(status.every(({ status: state }) => state === 'unmodified')).to.equal(true);
+          expect(spans.map(({ name }) => name)).to.include.members([
+            'streamHeadTree',
+            'walkAllRoots',
+            'evaluateMatrix',
+          ]);
+          expect(spans.find(({ name }) => name === 'evaluateMatrix')?.attributes.get('hashedFileCount')).to.equal(
+            fileCount
+          );
+          expect(spans.find(({ name }) => name === 'walkAllRoots')?.attributes.get('directoryCount')).to.equal(
+            fileCount + 1
+          );
+          expect(spans.every(({ status: state }) => 'endTime' in state)).to.equal(true);
+          return { status: spans.length, commit: commitSpanCount };
+        } finally {
+          await fs.rm(tmp, { recursive: true, force: true });
+        }
+      })
+    );
+    expect(counts[1].status, 'status span count must not grow per file or directory').to.equal(counts[0].status);
+    expect(counts[1].commit, 'commit span count must not grow per file or directory').to.equal(counts[0].commit);
+  });
+
   it('normalizes native Windows symlink separators to Git separators', () => {
     expect(normalizeGitSymlinkTarget('..\\b\\plain.txt', '\\')).to.equal('../b/plain.txt');
   });

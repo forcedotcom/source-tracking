@@ -92,7 +92,7 @@ const inflate = (oid: Oid, bytes: Uint8Array) =>
  *
  * @internal
  */
-export const hashBlob = Effect.fn('hashBlob')(function* (bytes: Uint8Array) {
+export const hashBlob = Effect.fnUntraced(function* (bytes: Uint8Array) {
   return Schema.decodeUnknownSync(Oid)(yield* sha1Hex(frameLooseObject('blob', bytes)));
 });
 
@@ -151,7 +151,7 @@ export const writeLooseObject = Effect.fnUntraced(function* (
  * → ObjectNotFoundError; truncated/malformed → ObjectCorruptError.
  */
 /** @internal */
-export const readLooseObject = Effect.fn('readLooseObject')(function* (gitdir: string, oid: Oid) {
+export const readLooseObject = Effect.fnUntraced(function* (gitdir: string, oid: Oid) {
   const fs = yield* FileSystem;
   const path = yield* Path;
   const { file } = looseObjectPath(path, gitdir, oid);

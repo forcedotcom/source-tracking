@@ -10,7 +10,9 @@
       { "transform": "@salesforce/core/messageTransformer", "import": "messageTransformer" },
       {
         "name": "@effect/language-service",
+        "effectFn": ["inferred-span", "untraced"],
         "diagnosticSeverity": {
+          "effectFnOpportunity": "error",
           "floatingEffect": "error",
           "catchAllToMapError": "error",
           "globalRandom": "error",

@@ -12,6 +12,7 @@
     "effectSucceedWithVoid",
     "unnecessaryFailYieldableError",
     "effectFnIife",
+    "effectFnOpportunity",
     "unnecessaryEffectGen",
     "unnecessaryPipeChain",
     "returnEffectInGen",

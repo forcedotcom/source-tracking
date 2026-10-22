@@ -173,20 +173,19 @@ const byEntryPath: Order.Order<IndexEntry> = Order.mapInput(Order.String, (e: In
  * Extensions are appended verbatim from the optional `extensions` arg
  * (TREE and other index extensions).
  */
-export const writeIndexV2 = (
+export const writeIndexV2 = Effect.fn('writeIndexV2')(function* (
   entries: HashSet.HashSet<IndexEntry>,
   extensions: ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }> = []
-) =>
-  Effect.gen(function* () {
-    const entryBytes = Arr.sortBy(byEntryPath)(entries).map(encodeIndexEntry);
-    const header = new Uint8Array(HEADER_BYTES);
-    const headerView = new DataView(header.buffer);
-    headerView.setUint32(0, 0x44_49_52_43, false); // DIRC
-    headerView.setUint32(4, 2, false); // version 2
-    headerView.setUint32(8, entryBytes.length, false);
-    const body = concatBytes([header, ...entryBytes, ...extensions.map(encodeExtension)]);
-    return concatBytes([body, yield* sha1(body)]);
-  });
+) {
+  const entryBytes = Arr.sortBy(byEntryPath)(entries).map(encodeIndexEntry);
+  const header = new Uint8Array(HEADER_BYTES);
+  const headerView = new DataView(header.buffer);
+  headerView.setUint32(0, 0x44_49_52_43, false); // DIRC
+  headerView.setUint32(4, 2, false); // version 2
+  headerView.setUint32(8, entryBytes.length, false);
+  const body = concatBytes([header, ...entryBytes, ...extensions.map(encodeExtension)]);
+  return concatBytes([body, yield* sha1(body)]);
+});
 
 const encodeExtension = (ext: { readonly signature: string; readonly payload: Uint8Array }): Uint8Array => {
   const out = new Uint8Array(8 + ext.payload.byteLength);
