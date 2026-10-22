@@ -15,6 +15,7 @@
  */
 
 import { Connection, SfError, trimTo15 } from '@salesforce/core';
+import * as Array from 'effect/Array';
 import * as Cache from 'effect/Cache';
 import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
@@ -89,7 +90,7 @@ export const querySourceMembersFrom = Effect.fn('querySourceMembersFrom')(functi
 export const makeUserNameCache = Effect.fn('makeUserNameCache')(function* (conn: Connection) {
   const resolver = RequestResolver.make<UserNameRequest>(
     Effect.fnUntraced(function* (entries) {
-      const userIds = Array.from(new Set(entries.map(({ request }) => request.userId)));
+      const userIds = Array.dedupe(entries.map(({ request }) => request.userId));
       const userQuery = `SELECT Id, Name FROM User WHERE Id IN ('${userIds.join("','")}')`;
       const result = yield* Effect.tryPromise({
         try: () => conn.query<{ Id: string; Name: string }>(userQuery, { autoFetch: true, maxFetch: MAX_FETCH }),
@@ -115,7 +116,7 @@ const resolveUserNames = Effect.fnUntraced(function* (
   queryResult: readonly SourceMember[],
   userNameCache: UserNameCache
 ) {
-  const userIds = Array.from(new Set(queryResult.map((member) => trimTo15(member.ChangedBy))));
+  const userIds = Array.dedupe(queryResult.map((member) => trimTo15(member.ChangedBy)));
   const names = yield* Effect.forEach(userIds, (userId) => Cache.get(userNameCache, UserNameRequest({ userId })), {
     concurrency: 'unbounded',
   });

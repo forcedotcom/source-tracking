@@ -24,6 +24,7 @@ import * as Order from 'effect/Order';
 import { isUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
 import type { PlatformError } from 'effect/PlatformError';
+import { concatBytes } from './bytes.js';
 import { hashLooseObject, sha1, writeLooseObject } from './objects.js';
 import { Oid } from './schemas.js';
 import type { IndexEntry } from './indexV2.js';
@@ -37,17 +38,8 @@ type TreeBodyEntry = {
   readonly isTree: boolean;
 };
 
-const HEX = '0123456789abcdef';
-const oidToBytes = (oid: Oid): Uint8Array => {
-  const out = new Uint8Array(20);
-  // eslint-disable-next-line functional/no-loop-statements, functional/no-let
-  for (let i = 0; i < 20; i += 1) {
-    const hi = HEX.indexOf(oid[i * 2] ?? '0');
-    const lo = HEX.indexOf(oid[i * 2 + 1] ?? '0');
-    out[i] = (hi << 4) | lo;
-  }
-  return out;
-};
+const decodeHex = Schema.decodeUnknownSync(Schema.Uint8ArrayFromHex);
+const oidToBytes = (oid: Oid): Uint8Array => decodeHex(oid);
 
 // =================== TREE WRITER ===================
 
@@ -99,7 +91,7 @@ const buildTreeBody = (
   fileEntries: ReadonlyMap<string, { readonly mode: number; readonly oid: Oid }>,
   subtreeOids: ReadonlyMap<string, Oid>
 ): Uint8Array =>
-  concat(
+  concatBytes(
     Arr.sortBy(byTreeName)(
       Arr.appendAll(
         Arr.fromIterable(fileEntries).map(
@@ -192,8 +184,8 @@ export const writeIndexV2 = (
     headerView.setUint32(0, 0x44_49_52_43, false); // DIRC
     headerView.setUint32(4, 2, false); // version 2
     headerView.setUint32(8, entryBytes.length, false);
-    const body = concat([header, ...entryBytes, ...extensions.map(encodeExtension)]);
-    return concat([body, yield* sha1(body)]);
+    const body = concatBytes([header, ...entryBytes, ...extensions.map(encodeExtension)]);
+    return concatBytes([body, yield* sha1(body)]);
   });
 
 const encodeExtension = (ext: { readonly signature: string; readonly payload: Uint8Array }): Uint8Array => {
@@ -201,18 +193,6 @@ const encodeExtension = (ext: { readonly signature: string; readonly payload: Ui
   out.set(TEXT.encode(ext.signature.padEnd(4, ' ').slice(0, 4)), 0);
   new DataView(out.buffer).setUint32(4, ext.payload.byteLength, false);
   out.set(ext.payload, 8);
-  return out;
-};
-
-const concat = (parts: readonly Uint8Array[]): Uint8Array => {
-  const total = parts.reduce((n, p) => n + p.byteLength, 0);
-  const out = new Uint8Array(total);
-  // eslint-disable-next-line functional/no-let
-  let off = 0;
-  parts.forEach((p) => {
-    out.set(p, off);
-    off += p.byteLength;
-  });
   return out;
 };
 

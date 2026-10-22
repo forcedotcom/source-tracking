@@ -19,6 +19,7 @@ import * as os from 'node:os';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect } from 'chai';
+import sinon from 'sinon';
 import * as Effect from 'effect/Effect';
 import * as Deferred from 'effect/Deferred';
 import * as Layer from 'effect/Layer';
@@ -358,6 +359,8 @@ describe('git/lock (phase 4)', () => {
   it('stale lock older than autoclear threshold is auto-cleared', async () => {
     const { tmp, gitdir } = await mkGitdir();
     process.env.SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS = '1';
+    const consoleLog = sinon.spy(console, 'log');
+    const consoleError = sinon.spy(console, 'error');
     try {
       // Plant a stale lock (mtime well past 1s)
       const stale = path.join(gitdir, 'index.lock');
@@ -366,7 +369,11 @@ describe('git/lock (phase 4)', () => {
 
       const exit = await run(Effect.succeed('ok').pipe(withIndexLock(gitdir)));
       expect(Exit.isSuccess(exit)).to.equal(true);
+      expect(consoleLog.called).to.equal(false);
+      expect(consoleError.called).to.equal(false);
     } finally {
+      consoleLog.restore();
+      consoleError.restore();
       delete process.env.SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS;
       await fs.rm(tmp, { recursive: true, force: true });
     }

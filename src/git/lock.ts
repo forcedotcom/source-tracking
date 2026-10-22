@@ -88,9 +88,6 @@ const acquireLock = Effect.fn('acquireLock')(function* (
     );
     const ageMs = now - mtimeMs;
     if (ageMs <= autoclearMs) return false;
-    yield* Effect.logWarning(
-      `lock auto-clear: ${lockPath} is ${humanReadable(Duration.millis(ageMs))} old (> ${humanReadable(autoclear)})`
-    );
     yield* fs.remove(lockPath).pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.void));
     return true;
   });
@@ -168,7 +165,7 @@ const releaseLock = (lockPath: string, indexPath: string, succeeded: boolean, st
         ? fs.rename(lockPath, indexPath)
         : fs.remove(lockPath).pipe(
             Effect.catchReason('PlatformError', 'NotFound', () => Effect.void),
-            Effect.catch((cause) => Effect.logWarning(`failed to remove ${lockPath}: ${cause.message}`))
+            Effect.ignore
           )
     )
   );

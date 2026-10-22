@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import * as Array from 'effect/Array';
 import { isNotUndefined } from 'effect/Predicate';
 import { getMetadataKey } from '../functions.js';
 import { MemberRevision, SourceMember } from './types.js';
@@ -89,16 +90,13 @@ const resolveDecodedKey = (state: RemoteTrackingState, key: string): string => {
   }
 };
 
-const buildDecodedKeyIndex = (sourceMembers: Map<string, MemberRevision>): Map<string, string> => {
-  const index = new Map<string, string>();
-  for (const key of sourceMembers.keys()) {
-    const decodedKey = tryDecodeURIComponent(key);
-    if (isNotUndefined(decodedKey)) {
-      index.set(decodedKey, key);
-    }
-  }
-  return index;
-};
+const buildDecodedKeyIndex = (sourceMembers: Map<string, MemberRevision>): Map<string, string> =>
+  new Map(
+    Array.flatMap(Array.fromIterable(sourceMembers.keys()), (key) => {
+      const decodedKey = tryDecodeURIComponent(key);
+      return isNotUndefined(decodedKey) ? [[decodedKey, key] as const] : [];
+    })
+  );
 
 const tryDecodeURIComponent = (key: string): string | undefined => {
   try {

@@ -18,6 +18,7 @@ import { Crypto } from 'effect/Crypto';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
+import { concatBytes } from './bytes.js';
 import { ObjectCorruptError, ObjectNotFoundError } from './errors.js';
 import { Oid } from './schemas.js';
 
@@ -50,18 +51,6 @@ const HEX = '0123456789abcdef';
  */
 const toHex = (bytes: Uint8Array): string =>
   Array.from(bytes, (b) => `${HEX[b >>> 4] ?? ''}${HEX[b & 0x0f] ?? ''}`).join('');
-
-const concat = (parts: readonly Uint8Array[]): Uint8Array => {
-  const total = parts.reduce((n, p) => n + p.byteLength, 0);
-  const out = new Uint8Array(total);
-  // eslint-disable-next-line functional/no-let
-  let offset = 0;
-  parts.forEach((p) => {
-    out.set(p, offset);
-    offset += p.byteLength;
-  });
-  return out;
-};
 
 /** Shared Git object/index checksum; the runtime supplies platform cryptography. @internal */
 export const sha1 = Effect.fnUntraced(function* (bytes: Uint8Array) {
@@ -120,7 +109,7 @@ export const hashLooseObject = Effect.fnUntraced(function* (type: LooseObjectTyp
 
 const frameLooseObject = (type: LooseObjectType, content: Uint8Array): Uint8Array => {
   const header = TEXT.encode(`${type} ${content.byteLength}\0`);
-  return concat([header, content]);
+  return concatBytes([header, content]);
 };
 
 const looseObjectPath = (path: Path, gitdir: string, oid: Oid): { dir: string; file: string } => {
