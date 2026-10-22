@@ -19,8 +19,8 @@ import { execSync } from 'node:child_process';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
-import { getGroupedFiles, getComponentSets } from '../../../src/shared/localComponentSetArray';
+import { createShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
+import { getGroupedFiles, getComponentSets } from '../../../src/shared/localComponentSetArray.js';
 
 const findUiBundleDir = (projectDir: string): string => {
   const uiBundlesRoot = path.join(projectDir, 'force-app', 'main', 'default', 'uiBundles');
@@ -55,7 +55,7 @@ describe('reactinternalapp template: getComponentSets dedup check', () => {
   });
 
   it('single pkgDir: no duplicate filenames in groupings', async () => {
-    const repo = await ShadowRepo.getInstance({
+    const repo = await createShadowRepo({
       orgId: 'fakeOrgId-reactapp-single',
       projectPath,
       packageDirs: [{ path: pkgDir, name: pkgDir, fullPath: path.join(projectPath, pkgDir) }],

@@ -16,21 +16,27 @@
 
 import { sep, normalize, isAbsolute, relative } from 'node:path';
 import fs from 'node:fs';
-import { isString } from '@salesforce/ts-types';
+import { isString } from 'effect/Predicate';
+import * as Schema from 'effect/Schema';
 import {
-  FileResponseSuccess,
-  ForceIgnore,
-  MetadataComponent,
-  MetadataMember,
+  type FileResponseSuccess,
+  type ForceIgnore,
+  type MetadataComponent,
+  type MetadataMember,
   NodeFSTreeContainer,
-  RegistryAccess,
-  SourceComponent,
-  TreeContainer,
+  type RegistryAccess,
+  type SourceComponent,
+  type TreeContainer,
 } from '@salesforce/source-deploy-retrieve';
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
 import { ensureArray } from '@salesforce/kit';
-import { RemoteChangeElement, ChangeResult, ChangeResultWithNameAndType, RemoteSyncInput } from './types';
-import { ensureNameAndType } from './remoteChangeIgnoring';
+import {
+  type RemoteChangeElement,
+  type ChangeResult,
+  type ChangeResultWithNameAndType,
+  type RemoteSyncInput,
+} from './types.js';
+import { ensureNameAndType } from './guards.js';
 
 const keySplit = '###';
 const legacyKeySplit = '__';
@@ -39,8 +45,6 @@ export const getMetadataKey = (metadataType: string, metadataName: string): stri
 export const getLegacyMetadataKey = (metadataType: string, metadataName: string): string =>
   `${metadataType}${legacyKeySplit}${metadataName}`;
 
-export const getMetadataTypeFromKey = (key: string): string => decodeURIComponent(key.split(keySplit)[0]);
-export const getMetadataNameFromKey = (key: string): string => decodeURIComponent(key.split(keySplit)[1]);
 export const getMetadataTypeFromLegacyKey = (key: string): string => key.split(legacyKeySplit)[0];
 export const getMetadataNameFromLegacyKey = (key: string): string =>
   decodeURIComponent(key.split(legacyKeySplit).slice(1).join(legacyKeySplit));
@@ -95,18 +99,16 @@ export const folderContainsPath =
 
 const nonEmptyStringFilter = (value: string): boolean => isString(value) && value.length > 0;
 
-// adapted for TS from https://github.com/30-seconds/30-seconds-of-code/blob/master/snippets/chunk.md
-export const chunkArray = <T>(arr: T[], size: number): T[][] =>
-  Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
-
 export const ensureRelative =
   (projectPath: string) =>
   (filePath: string): string =>
     isAbsolute(filePath) ? relative(projectPath, filePath) : filePath;
 
-type ParsedCustomLabels = {
-  CustomLabels: { labels: Array<{ fullName: string }> };
+type ParsedCustomLabels = Record<string, unknown> & {
+  CustomLabels: Record<string, unknown> & { labels: Array<Record<string, unknown> & { fullName: string }> };
 };
+
+const XmlRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
 
 /**
  * A method to help delete custom labels from a file, or the entire file if there are no more labels
@@ -139,7 +141,21 @@ export const deleteCustomLabels = async (
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
   });
-  const cls = parser.parse(fs.readFileSync(filename, 'utf8')) as ParsedCustomLabels;
+  const parsed = Schema.decodeUnknownSync(XmlRecordSchema)(parser.parse(fs.readFileSync(filename, 'utf8')));
+  const parsedCustomLabels = Schema.decodeUnknownSync(XmlRecordSchema)(parsed.CustomLabels);
+  const cls = {
+    ...parsed,
+    CustomLabels: {
+      ...parsedCustomLabels,
+      labels: ensureArray(parsedCustomLabels.labels).map((label) => {
+        const parsedLabel = Schema.decodeUnknownSync(XmlRecordSchema)(label);
+        return {
+          ...parsedLabel,
+          fullName: Schema.decodeUnknownSync(Schema.String)(parsedLabel.fullName),
+        };
+      }),
+    },
+  } satisfies ParsedCustomLabels;
 
   // delete the labels from the json based on their fullName's
   cls.CustomLabels.labels = ensureArray(cls.CustomLabels.labels).filter(
@@ -173,6 +189,8 @@ export const forceIgnoreDenies =
 
 export const sourceComponentIsCustomLabel = (input: SourceComponent): boolean => input.type.name === 'CustomLabel';
 
+export const TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH = new Set(['NavigationMenu', 'Audience']);
+
 export const sourceComponentHasFullNameAndType = (input: SourceComponent): boolean =>
   typeof input.fullName === 'string' && typeof input.type.name === 'string';
 
@@ -196,12 +214,6 @@ export const changeResultToMetadataComponent =
     fullName: cr.name,
     type: registry.getTypeByName(cr.type),
   });
-
-export const TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH = new Set(['NavigationMenu', 'Audience']);
-
-// TODO: use set.union when node 22 is everywhere
-export const uniqueArrayConcat = <T>(arr1: T[] | Set<T>, arr2: T[] | Set<T>): T[] =>
-  Array.from(new Set([...arr1, ...arr2]));
 
 /** for web, where cwd does not existconstruct a TreeContainer with the projectPath to keep SDR MetadataResolver from trying to use cwd  */
 export const maybeGetTreeContainer = (projectPath: string): TreeContainer | undefined =>

@@ -6,6 +6,46 @@
     "skipLibCheck": true,
     "moduleResolution": "Node16",
     "module": "Node16",
-    "types": ["mocha"]
+    "types": ["mocha"],
+    "lib": ["ES2023", "DOM"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "effectFn": ["inferred-span", "untraced"],
+        "diagnosticSeverity": {
+          "effectFnOpportunity": "error",
+          "floatingEffect": "error",
+          "catchAllToMapError": "error",
+          "globalRandom": "error",
+          "globalRandomInEffect": "error",
+          "globalFetchInEffect": "error",
+          "globalTimersInEffect": "error",
+          "missedPipeableOpportunity": "error",
+          "cryptoRandomUUID": "error",
+          "cryptoRandomUUIDInEffect": "error",
+          "serviceNotAsClass": "error",
+          "outdatedApi": "error",
+          "anyUnknownInErrorContext": "error",
+          "deterministicKeys": "error",
+          "effectDoNotation": "error",
+          "extendsNativeError": "error",
+          "globalConsole": "error",
+          "globalConsoleInEffect": "error",
+          "globalDate": "error",
+          "globalDateInEffect": "error",
+          "globalFetch": "error",
+          "globalTimers": "error",
+          "importFromBarrel": "error",
+          "instanceOfSchema": "error",
+          "nestedEffectGenYield": "error",
+          "newPromise": "error",
+          "preferSchemaOverJson": "error",
+          "processEnvInEffect": "error",
+          "strictEffectProvide": "error",
+          "unnecessaryArrowBlock": "error",
+          "unsafeEffectTypeAssertion": "error"
+        }
+      }
+    ]
   }
 }

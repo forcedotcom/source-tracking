@@ -1,0 +1,15 @@
+{
+  "fileCount": 37000,
+  "objectCount": 726,
+  "fieldsPerObject": 50,
+  "timestamp": "2026-05-29T17:00:14.200Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "node": "v24.14.1",
+  "cpu": "Apple M2 Max",
+  "coldStatusMatrixMs": 5223.76,
+  "coldStatusMatrixEventLoopDelayMaxMs": 572.52,
+  "coldStatusMatrixEventLoopDelayP99Ms": 572.52,
+  "applyChanges50kMs": 13435.01,
+  "applyChangesFileCount": 50000
+}

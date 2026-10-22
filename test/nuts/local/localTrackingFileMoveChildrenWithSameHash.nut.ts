@@ -19,7 +19,7 @@ import * as fs from 'node:fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 describe('can match files with the same hash when the have different parents ', () => {
   const registry = new RegistryAccess();
@@ -40,7 +40,7 @@ describe('can match files with the same hash when the have different parents ', 
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
+    repo = await createShadowRepo({
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [
@@ -65,7 +65,7 @@ describe('can match files with the same hash when the have different parents ', 
   it('should show 0 files in git status after moving them', async () => {
     // Commit the existing class files
     filesToSync = await repo.getChangedFilenames();
-    await repo.commitChanges({ deployedFiles: filesToSync });
+    await repo.recordSync({ deployedFiles: filesToSync });
 
     const topDir = path.join(session.project.dir, 'sfdx-source');
     // move all the classes to the new folder

@@ -15,363 +15,340 @@
  */
 
 import path from 'node:path';
-import * as os from 'node:os';
-import * as fs from 'graceful-fs';
-import { NamedPackageDir, Lifecycle, Logger, SfError } from '@salesforce/core';
-import { env } from '@salesforce/kit';
-import git from 'isomorphic-git';
-import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
-import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
-import { StatusRow } from './types';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions';
+import { Lifecycle, Logger } from '@salesforce/core';
+import { FileSystem, type FileSystem as FileSystemService } from 'effect/FileSystem';
+import { type Path } from 'effect/Path';
+import type { Crypto } from 'effect/Crypto';
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodePath from '@effect/platform-node/NodePath';
+import * as Effect from 'effect/Effect';
+import * as Chunk from 'effect/Chunk';
+import * as Config from 'effect/Config';
+import * as ConfigProvider from 'effect/ConfigProvider';
+import * as HashSet from 'effect/HashSet';
+import * as Layer from 'effect/Layer';
+import * as ManagedRuntime from 'effect/ManagedRuntime';
+import * as Match from 'effect/Match';
+import * as Option from 'effect/Option';
+import * as Ref from 'effect/Ref';
+import * as Schema from 'effect/Schema';
+import * as Stream from 'effect/Stream';
+import { type RepoError } from '../../git/errors.js';
+import { Repo } from '../../git/repo.js';
+import { repoErrorToSfError } from '../../git/sfCompatibility.js';
+import { Author as AuthorSchema, RepoPath as RepoPathSchema, type RepoPath, RepoConfig } from '../../git/schemas.js';
+import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
+import { getMatches, ensurePosix, IS_WINDOWS } from './functions.js';
+import { filenameMatchesToMap } from './moveDetection.js';
+import type { LocalChanges, ShadowRepoOptions, SyncRequest } from './types.js';
+import { cryptoLayer } from './crypto.js';
 
-/** returns the full path to where we store the shadow repo */
 const getGitDir = (orgId: string, projectPath: string): string =>
   path.join(projectPath, '.sf', 'orgs', orgId, 'localSourceTracking');
 
-// catch isogit's `InternalError` to avoid people report CLI issues in isogit repo.
-// See: https://github.com/forcedotcom/cli/issues/2416
-const redirectToCliRepoError = (e: unknown): never => {
-  if (e instanceof git.Errors.InternalError) {
-    const error = new SfError(
-      `An internal error caused this command to fail. isomorphic-git error:${os.EOL}${e.data.message}`,
-      e.name
+const SHADOW_AUTHOR = Schema.decodeUnknownSync(AuthorSchema)({
+  name: 'sfdx source tracking',
+  email: 'source-tracking@noreply.salesforce.com',
+});
+
+const EMPTY_CHANGES: LocalChanges = { added: [], modified: [], deleted: [] };
+
+const FD_PERMITS_ENV = 'SF_SOURCE_TRACKING_FD_PERMITS';
+const FD_PERMITS_FALLBACK = IS_WINDOWS ? 64 : 256;
+
+const readNumberEnv = (name: string, fallback: number) =>
+  Config.Number(name)
+    .pipe(Config.withDefault(fallback))
+    .parse(ConfigProvider.fromEnv())
+    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(fallback)));
+
+const readBooleanEnv = (name: string) =>
+  Config.String(name)
+    .pipe(
+      Config.withDefault('false'),
+      Config.map((value) => value.toLowerCase() === 'true' || value === '1')
+    )
+    .parse(ConfigProvider.fromEnv())
+    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(false)));
+
+const buildExclude = (packageDirs: readonly string[]): string =>
+  // .git/info/exclude is gitignore-syntax. Lite's status walk also applies the
+  // package-root and Salesforce-specific exclusions in liteFileFilter below.
+  [
+    '# Written by sfdx source-tracking; do not edit by hand.',
+    '*/.*/**',
+    '.*',
+    '*/node_modules/**',
+    'node_modules/**',
+    '*.gitignore',
+    '',
+    '# package roots:',
+    ...packageDirs.map((p) => `# ${p}`),
+  ].join('\n');
+
+const liteFileFilter =
+  (packageDirs: readonly string[]) =>
+  (file: string): boolean =>
+    !file.includes('/.') &&
+    !file.split('/').includes('node_modules') &&
+    excludeLwcLocalOnlyTest(file) &&
+    !file.endsWith('.gitignore') &&
+    packageDirs.some(folderContainsPath(file));
+
+type ShadowRepoEffects = {
+  readonly gitDir: string;
+  readonly projectPath: string;
+  readonly getStatus: (
+    refresh?: boolean
+  ) => Effect.Effect<LocalChanges, RepoError, Repo | FileSystemService | Path | Crypto>;
+  readonly recordSync: (
+    request?: SyncRequest
+  ) => Effect.Effect<string, RepoError, Repo | FileSystemService | Path | Crypto>;
+  readonly delete: () => Effect.Effect<string, RepoError, Repo | FileSystemService | Path>;
+};
+
+type ApplyChangesArgs = {
+  readonly deployedFiles: Iterable<string>;
+  readonly deletedFiles: Iterable<string>;
+  readonly deployedCount: number;
+  readonly deletedCount: number;
+  readonly message?: string;
+};
+
+const makeRepoConfig = (options: ShadowRepoOptions) =>
+  readNumberEnv(FD_PERMITS_ENV, FD_PERMITS_FALLBACK).pipe(
+    Effect.map((fdPermits) =>
+      Schema.decodeUnknownSync(RepoConfig)({
+        dir: options.projectPath,
+        gitdir: getGitDir(options.orgId, options.projectPath),
+        roots: options.packageDirs.map((directory) =>
+          ensurePosix(path.relative(options.projectPath, directory.fullPath))
+        ),
+        fdPermits,
+      })
+    )
+  );
+
+/** Build one org's local-tracking operations. Git state and the status cache live in this closure. */
+const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (
+  options: ShadowRepoOptions,
+  logger: Logger,
+  cfg: RepoConfig
+) {
+  const repo = yield* Repo;
+  const fs = yield* FileSystem;
+  const { gitdir: gitDir, roots: packageDirs, fdPermits } = cfg;
+  const fileFilter = liteFileFilter(packageDirs);
+  const statusCache = yield* Ref.make<Option.Option<LocalChanges>>(Option.none());
+
+  const scanStatus = Effect.fnUntraced(function* () {
+    const changes = yield* repo.statusMatrix().pipe(
+      Stream.filter((entry) => fileFilter(entry.path)),
+      Stream.runFold(
+        () => ({
+          added: Chunk.empty<string>(),
+          modified: Chunk.empty<string>(),
+          deleted: Chunk.empty<string>(),
+        }),
+        (current, entry) => {
+          const file = IS_WINDOWS ? path.normalize(entry.path) : entry.path;
+          return Match.value(entry.status).pipe(
+            Match.when('added', () => ({ ...current, added: Chunk.append(current.added, file) })),
+            Match.when('modified', () => ({ ...current, modified: Chunk.append(current.modified, file) })),
+            Match.when('deleted', () => ({ ...current, deleted: Chunk.append(current.deleted, file) })),
+            Match.whenOr('unmodified', 'ignored', () => current),
+            Match.exhaustive
+          );
+        }
+      )
     );
-    throw error;
-  }
-  throw e;
-};
+    return {
+      added: Chunk.toReadonlyArray(changes.added),
+      modified: Chunk.toReadonlyArray(changes.modified),
+      deleted: Chunk.toReadonlyArray(changes.deleted),
+    };
+  });
 
-type ShadowRepoOptions = {
-  orgId: string;
-  projectPath: string;
-  packageDirs: NamedPackageDir[];
-  registry: RegistryAccess;
-};
-
-type CommitRequest = {
-  deployedFiles?: string[];
-  deletedFiles?: string[];
-  message?: string;
-  needsUpdatedStatus?: boolean;
-};
-
-/** do not try to add more than this many files at a time through isogit.  You'll hit EMFILE: too many open files */
-const MAX_FILE_ADD = env.getNumber(
-  'SF_SOURCE_TRACKING_BATCH_SIZE',
-  env.getNumber('SFDX_SOURCE_TRACKING_BATCH_SIZE', IS_WINDOWS ? 8000 : 15_000)
-);
-
-export class ShadowRepo {
-  private static instanceMap = new Map<string, ShadowRepo>();
-
-  public gitDir: string;
-  public projectPath: string;
-
-  /**
-   * packageDirs converted to project-relative posix style paths
-   * iso-git uses relative, posix paths
-   * but packageDirs has already resolved / normalized them
-   * so we need to make them project-relative again and convert if windows
-   */
-  private packageDirs: string[];
-  private status!: StatusRow[];
-  private logger!: Logger;
-  private readonly registry: RegistryAccess;
-
-  private constructor(options: ShadowRepoOptions) {
-    this.gitDir = getGitDir(options.orgId, options.projectPath);
-    this.projectPath = options.projectPath;
-    this.packageDirs = options.packageDirs.map(packageDirToRelativePosixPath(options.projectPath));
-    this.registry = options.registry;
-  }
-
-  // think of singleton behavior but unique to the projectPath
-  public static async getInstance(options: ShadowRepoOptions): Promise<ShadowRepo> {
-    if (!ShadowRepo.instanceMap.has(options.projectPath)) {
-      const newInstance = new ShadowRepo(options);
-      await newInstance.init();
-      ShadowRepo.instanceMap.set(options.projectPath, newInstance);
-    }
-    return ShadowRepo.instanceMap.get(options.projectPath) as ShadowRepo;
-  }
-
-  public async init(): Promise<void> {
-    this.logger = await Logger.child('ShadowRepo');
-
-    // initialize the shadow repo if it doesn't exist
-    if (!fs.existsSync(this.gitDir)) {
-      this.logger.debug('initializing git repo');
-      await this.gitInit();
-    }
-  }
-
-  /**
-   * Initialize a new source tracking shadow repo.  Think of git init
-   *
-   */
-  public async gitInit(): Promise<void> {
-    this.logger.trace(`initializing git repo at ${this.gitDir}`);
-    await fs.promises.mkdir(this.gitDir, { recursive: true });
-    try {
-      await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
-    } catch (e) {
-      redirectToCliRepoError(e);
-    }
-  }
-
-  /**
-   * Delete the local tracking files
-   *
-   * @returns the deleted directory
-   */
-  public async delete(): Promise<string> {
-    await fs.promises.rm(this.gitDir, { recursive: true, force: true });
-    return this.gitDir;
-  }
-  /**
-   * If the status already exists, return it.  Otherwise, set the status before returning.
-   * It's kinda like a cache
-   *
-   * @params noCache: if true, force a redo of the status using FS even if it exists
-   *
-   * @returns StatusRow[] (paths are os-specific)
-   */
-  public async getStatus(noCache = false): Promise<StatusRow[]> {
-    this.logger.trace(`start: getStatus (noCache = ${noCache})`);
-
-    if (env.getBoolean('SF_SOURCE_TRACKING_ASSUME_SYNCED')) {
-      if (this.status?.length !== 0) {
-        this.logger.warn(
-          'SF_SOURCE_TRACKING_ASSUME_SYNCED is set. Skipping local status check and assuming local files match the shadow repo.'
-        );
-        void Lifecycle.getInstance().emitTelemetry({ eventName: 'sourceTrackingAssumeSynced' });
-        this.status = [];
-      }
-      return this.status;
-    }
-
-    if (!this.status || noCache) {
-      try {
-        // status hasn't been initialized yet
-        this.status = await git.statusMatrix({
-          fs,
-          dir: this.projectPath,
-          gitdir: this.gitDir,
-          filepaths: this.packageDirs,
-          ignored: true,
-          filter: fileFilter(this.packageDirs),
-        });
-
-        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-        if (IS_WINDOWS) {
-          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
-        }
-
-        if (env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true) {
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
-        } else {
-          // Check for moved files and update local git status accordingly
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
-          await this.detectMovedFiles();
-        }
-      } catch (e) {
-        redirectToCliRepoError(e);
-      }
-    }
-    this.logger.trace(`done: getStatus (noCache = ${noCache})`);
-    return this.status;
-  }
-
-  /**
-   * returns any change (add, modify, delete)
-   */
-  public async getChangedRows(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter((file) => file[HEAD] !== file[WORKDIR]);
-  }
-
-  /**
-   * returns any change (add, modify, delete)
-   */
-  public async getChangedFilenames(): Promise<string[]> {
-    return toFilenames(await this.getChangedRows());
-  }
-
-  public async getDeletes(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter(isDeleted);
-  }
-
-  public async getDeleteFilenames(): Promise<string[]> {
-    return toFilenames(await this.getDeletes());
-  }
-
-  /**
-   * returns adds and modifies but not deletes
-   */
-  public async getNonDeletes(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter((file) => file[WORKDIR] === 2);
-  }
-
-  /**
-   * returns adds and modifies but not deletes
-   */
-  public async getNonDeleteFilenames(): Promise<string[]> {
-    return toFilenames(await this.getNonDeletes());
-  }
-
-  public async getAdds(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter(isAdded);
-  }
-
-  public async getAddFilenames(): Promise<string[]> {
-    return toFilenames(await this.getAdds());
-  }
-
-  /**
-   * returns files that were not added or deleted, but changed locally
-   */
-  public async getModifies(): Promise<StatusRow[]> {
-    return (await this.getStatus()).filter((file) => file[HEAD] === 1 && file[WORKDIR] === 2);
-  }
-
-  public async getModifyFilenames(): Promise<string[]> {
-    return toFilenames(await this.getModifies());
-  }
-
-  /**
-   * Look through status and stage all changes, then commit
-   *
-   * @param fileList list of files to commit (full paths)
-   * @param message: commit message (include org username and id)
-   *
-   * @returns sha (string)
-   */
-  public async commitChanges({
-    deployedFiles = [],
-    deletedFiles = [],
+  const applyChanges = Effect.fn('ShadowRepo.applyChanges')(function* ({
+    deployedFiles,
+    deletedFiles,
+    deployedCount,
+    deletedCount,
     message = 'sfdx source tracking',
-    needsUpdatedStatus = true,
-  }: CommitRequest = {}): Promise<string | undefined> {
-    // if no files are specified, commit all changes
-    if (deployedFiles.length === 0 && deletedFiles.length === 0) {
-      // this is valid, might not be an error
-      return 'no files to commit';
-    }
+  }: ApplyChangesArgs) {
+    if (deployedCount === 0 && deletedCount === 0) return 'no files to commit';
 
-    if (deployedFiles.length) {
-      const chunks = chunkArray(
-        // these are stored in posix/style/path format.  We have to convert inbound stuff from windows
-        [...new Set(IS_WINDOWS ? deployedFiles.map(normalize).map(ensurePosix) : deployedFiles)],
-        MAX_FILE_ADD
-      );
-      for (const chunk of chunks) {
-        try {
-          this.logger.debug(`adding ${chunk.length} files of ${deployedFiles.length} deployedFiles to git`);
-          // these need to be done sequentially (it's already batched) because isogit manages file locking
-          // eslint-disable-next-line no-await-in-loop
-          await git.add({
-            fs,
-            dir: this.projectPath,
-            gitdir: this.gitDir,
-            filepath: chunk,
-            force: true,
-          });
-        } catch (e) {
-          if (e instanceof git.Errors.MultipleGitError) {
-            this.logger.error(`${e.errors.length} errors on git.add, showing the first 5:`, e.errors.slice(0, 5));
-            throw SfError.create({
-              message: e.message,
-              name: e.name,
-              data: e.errors.map((err) => err.message),
-              cause: e,
-              actions: [
-                `One potential reason you're getting this error is that the number of files that source tracking is batching exceeds your user-specific file limits. Increase your hard file limit in the same session by executing 'ulimit -Hn ${MAX_FILE_ADD}'.  Or set the 'SFDX_SOURCE_TRACKING_BATCH_SIZE' environment variable to a value lower than the output of 'ulimit -Hn'.\nNote: Don't set this environment variable too close to the upper limit or your system will still hit it. If you continue to get the error, lower the value of the environment variable even more.`,
-              ],
-            });
-          }
-          redirectToCliRepoError(e);
-        }
-      }
-    }
+    const toRepoPath = (file: string): RepoPath =>
+      Schema.decodeUnknownSync(RepoPathSchema)(IS_WINDOWS ? ensurePosix(file) : file);
+    const adds = Stream.fromIterable(deployedFiles).pipe(Stream.map(toRepoPath));
+    const removes = Stream.fromIterable(deletedFiles).pipe(Stream.map(toRepoPath));
+    yield* Effect.annotateCurrentSpan({ deployedCount, deletedCount });
+    return yield* repo.applyChanges({ adds, removes, message, author: SHADOW_AUTHOR });
+  });
 
-    if (deletedFiles.length) {
-      // Using a cache here speeds up the performance by ~24.4%
-      let cache = {};
+  const detectMovedFiles = Effect.fn('ShadowRepo.detectMovedFiles')(function* (changes: LocalChanges) {
+    const matchingFiles = getMatches(changes);
+    yield* Effect.annotateCurrentSpan({
+      addedCount: HashSet.size(matchingFiles.added),
+      deletedCount: HashSet.size(matchingFiles.deleted),
+    });
+    if (HashSet.isEmpty(matchingFiles.added) || HashSet.isEmpty(matchingFiles.deleted)) return false;
 
-      for (const filepath of [...new Set(IS_WINDOWS ? deletedFiles.map(normalize).map(ensurePosix) : deletedFiles)]) {
-        try {
-          // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
-          // eslint-disable-next-line no-await-in-loop
-          await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
-        } catch (e) {
-          redirectToCliRepoError(e);
-        }
-      }
-      // clear cache
-      cache = {};
-    }
+    const result = yield* filenameMatchesToMap(options.registry)(options.projectPath)(fdPermits)(matchingFiles);
+    yield* Effect.annotateCurrentSpan({ moveCount: result.count });
+    if (result.count === 0) return false;
 
-    try {
-      this.logger.trace('start: commitChanges git.commit');
-
-      const sha = await git.commit({
-        fs,
-        dir: this.projectPath,
-        gitdir: this.gitDir,
-        message,
-        author: { name: 'sfdx source tracking' },
-      });
-      // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
-      if (needsUpdatedStatus) {
-        await this.getStatus(true);
-      }
-      this.logger.trace('done: commitChanges git.commit');
-      return sha;
-    } catch (e) {
-      redirectToCliRepoError(e);
-    }
-  }
-
-  private async detectMovedFiles(): Promise<void> {
-    // get status will return os-specific paths
-    const matchingFiles = getMatches(await this.getStatus());
-    if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
-
-    const matches = await filenameMatchesToMap(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
-
-    if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return;
-
-    this.logger.debug(getLogMessage(matches));
-
-    // Commit the moved files and refresh the status
-    await this.commitChanges({
-      deletedFiles: [...matches.fullMatches.values(), ...matches.deleteOnly.values()],
-      deployedFiles: [...matches.fullMatches.keys()],
+    yield* Effect.sync(() => logger.debug(result.logMessage));
+    yield* applyChanges({
+      deployedFiles: result.deployedFiles,
+      deletedFiles: result.deletedFiles,
+      deployedCount: Chunk.size(result.deployedFiles),
+      deletedCount: Chunk.size(result.deletedFiles),
       message: 'Committing moved files',
     });
-  }
-}
+    return true;
+  });
 
-const packageDirToRelativePosixPath =
-  (projectPath: string) =>
-  (packageDir: NamedPackageDir): string =>
-    IS_WINDOWS
-      ? ensurePosix(path.relative(projectPath, packageDir.fullPath))
-      : path.relative(projectPath, packageDir.fullPath);
+  const refreshStatus = Effect.fn('ShadowRepo.refreshStatus')(function* () {
+    const changes = yield* scanStatus();
+    // Keep the first scan cached if move detection fails, matching the old
+    // behavior: a later non-forced read does not repeat a failed detection.
+    yield* Ref.set(statusCache, Option.some(changes));
 
-const normalize = (filepath: string): string => path.normalize(filepath);
+    const movesDisabled = yield* readBooleanEnv('SF_DISABLE_SOURCE_MOBILITY');
+    yield* Effect.promise(() =>
+      Lifecycle.getInstance().emitTelemetry({
+        eventName: movesDisabled ? 'moveFileDetectionDisabled' : 'moveFileDetectionEnabled',
+      })
+    );
 
-const fileFilter =
-  (packageDirs: string[]) =>
-  (f: string): boolean =>
-    // no hidden files
-    !f.includes(`${path.sep}.`) &&
-    // no node_modules (e.g. uiBundle packages inside force-app)
-    !f.split(path.sep).includes('node_modules') &&
-    // no lwc tests
-    excludeLwcLocalOnlyTest(f) &&
-    // no gitignore files
-    !f.endsWith('.gitignore') &&
-    // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-    packageDirs.some(folderContainsPath(f));
+    const moved = yield* movesDisabled ? Effect.succeed(false) : detectMovedFiles(changes);
+    const finalChanges = moved ? yield* scanStatus() : changes;
+    yield* Ref.set(statusCache, Option.some(finalChanges));
+    yield* Effect.annotateCurrentSpan({
+      addedCount: finalChanges.added.length,
+      modifiedCount: finalChanges.modified.length,
+      deletedCount: finalChanges.deleted.length,
+    });
+    return finalChanges;
+  });
+
+  const getStatus = Effect.fn('ShadowRepo.getStatus')(function* (refresh = false) {
+    yield* Effect.sync(() => logger.trace(`lite start: getStatus (refresh = ${refresh})`));
+    const cached = yield* Ref.get(statusCache);
+    if (yield* readBooleanEnv('SF_SOURCE_TRACKING_ASSUME_SYNCED')) {
+      const shouldWarn =
+        Option.isNone(cached) ||
+        cached.value.added.length + cached.value.modified.length + cached.value.deleted.length > 0;
+      if (shouldWarn) {
+        yield* Effect.sync(() =>
+          logger.warn(
+            'SF_SOURCE_TRACKING_ASSUME_SYNCED is set. Skipping local status check and assuming local files match the shadow repo.'
+          )
+        );
+        yield* Effect.promise(() => Lifecycle.getInstance().emitTelemetry({ eventName: 'sourceTrackingAssumeSynced' }));
+      }
+      yield* Ref.set(statusCache, Option.some(EMPTY_CHANGES));
+      return EMPTY_CHANGES;
+    }
+    const changes = !refresh && Option.isSome(cached) ? cached.value : yield* refreshStatus();
+    yield* Effect.sync(() =>
+      logger.trace(
+        `lite done: getStatus (changeCount = ${
+          changes.added.length + changes.modified.length + changes.deleted.length
+        })`
+      )
+    );
+    return changes;
+  });
+
+  const recordSync = Effect.fn('ShadowRepo.recordSync')(function* (request: SyncRequest = {}) {
+    const hasFiles = (request.deployedFiles?.length ?? 0) > 0 || (request.deletedFiles?.length ?? 0) > 0;
+    const deployedFiles = request.deployedFiles ?? [];
+    const deletedFiles = request.deletedFiles ?? [];
+    const result = yield* applyChanges({
+      deployedFiles,
+      deletedFiles,
+      deployedCount: deployedFiles.length,
+      deletedCount: deletedFiles.length,
+      message: request.message,
+    });
+    if (hasFiles && request.needsUpdatedStatus !== false) {
+      yield* refreshStatus();
+    }
+    return result;
+  });
+
+  const deleteShadowRepo = Effect.fn('ShadowRepo.delete')(function* () {
+    yield* fs.remove(gitDir, { recursive: true, force: true });
+    yield* Ref.set(statusCache, Option.none());
+    return gitDir;
+  });
+
+  // init is idempotent for a valid repo and initializes an existing empty
+  // directory. Merely switching on fs.exists could select a partial gitdir.
+  yield* repo.init();
+  yield* repo.setInfoExclude(buildExclude(packageDirs));
+
+  return {
+    gitDir,
+    projectPath: options.projectPath,
+    getStatus,
+    recordSync,
+    delete: deleteShadowRepo,
+  } satisfies ShadowRepoEffects;
+});
+
+export type ShadowRepo = {
+  readonly gitDir: string;
+  readonly projectPath: string;
+  getStatus: (refresh?: boolean) => Promise<LocalChanges>;
+  getChangedFilenames: () => Promise<string[]>;
+  getDeleteFilenames: () => Promise<string[]>;
+  getNonDeleteFilenames: () => Promise<string[]>;
+  getAddFilenames: () => Promise<string[]>;
+  getModifyFilenames: () => Promise<string[]>;
+  recordSync: (request?: SyncRequest) => Promise<string>;
+  delete: () => Promise<string>;
+};
+
+type ShadowRepoRuntime = ManagedRuntime.ManagedRuntime<Repo | FileSystemService | Path | Crypto, never>;
+
+const runEffect = <A>(
+  runtime: ShadowRepoRuntime,
+  logger: Logger,
+  operation: string,
+  effect: Effect.Effect<A, RepoError, Repo | FileSystemService | Path | Crypto>
+): Promise<A> =>
+  runtime.runPromise(
+    effect.pipe(
+      Effect.tapError((error) => Effect.sync(() => logger.debug(`ShadowRepo.${operation} failed: ${error.message}`))),
+      Effect.mapError(repoErrorToSfError)
+    )
+  );
+
+/** Promise adapter for SourceTracking and CLI callers; the implementation above stays Effect-native. */
+export const createShadowRepo = async (options: ShadowRepoOptions): Promise<ShadowRepo> => {
+  const logger = await Logger.child('ShadowRepo');
+  const cfg = await Effect.runPromise(makeRepoConfig(options));
+  const runtime = ManagedRuntime.make(
+    Repo.layer(cfg).pipe(Layer.provideMerge(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer)))
+  );
+  const effects = await runEffect(runtime, logger, 'init', makeShadowRepo(options, logger, cfg));
+  const getStatus = (refresh = false): Promise<LocalChanges> =>
+    runEffect(runtime, logger, 'getStatus', effects.getStatus(refresh));
+
+  return {
+    gitDir: effects.gitDir,
+    projectPath: effects.projectPath,
+    getStatus,
+    getChangedFilenames: () =>
+      getStatus().then((changes) => [...changes.added, ...changes.modified, ...changes.deleted]),
+    getDeleteFilenames: () => getStatus().then((changes) => Array.from(changes.deleted)),
+    getNonDeleteFilenames: () => getStatus().then((changes) => [...changes.added, ...changes.modified]),
+    getAddFilenames: () => getStatus().then((changes) => Array.from(changes.added)),
+    getModifyFilenames: () => getStatus().then((changes) => Array.from(changes.modified)),
+    recordSync: (request) => runEffect(runtime, logger, 'recordSync', effects.recordSync(request)),
+    delete: () => runEffect(runtime, logger, 'delete', effects.delete()),
+  };
+};

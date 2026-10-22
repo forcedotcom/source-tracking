@@ -17,8 +17,8 @@ import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
-import { calculateExpectedSourceMembers } from '../../../src/shared/remote/expectedSourceMembers';
+import { createShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
+import { calculateExpectedSourceMembers } from '../../../src/shared/remote/expectedSourceMembers.js';
 
 describe('UIBundle excluded from source tracking polling', () => {
   let session: TestSession;
@@ -41,7 +41,7 @@ describe('UIBundle excluded from source tracking polling', () => {
   });
 
   it('local tracking resolves UIBundle files', async () => {
-    const repo = await ShadowRepo.getInstance({
+    const repo = await createShadowRepo({
       orgId: 'fakeOrgId-uibundle-tracking',
       projectPath,
       packageDirs: [{ path: pkgDir, name: pkgDir, fullPath: path.join(projectPath, pkgDir) }],

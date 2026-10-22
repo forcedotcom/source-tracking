@@ -15,16 +15,44 @@
  */
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { StatusRow } from './types';
-export const IS_WINDOWS = os.type() === 'Windows_NT'; // array members for status results
+import * as HashSet from 'effect/HashSet';
+import type { LocalChanges } from './types.js';
+export const IS_WINDOWS = os.type() === 'Windows_NT';
 
-// filenames were normalized when read from isogit
-export const toFilenames = (rows: StatusRow[]): string[] => rows.map((row) => row[FILE]);
-export const isDeleted = (status: StatusRow): boolean => status[WORKDIR] === 0;
-export const isAdded = (status: StatusRow): boolean => status[HEAD] === 0 && status[WORKDIR] === 2;
 export const ensurePosix = (filepath: string): string => filepath.split(path.sep).join(path.posix.sep);
 
-// We don't use STAGE (StatusRow[3]). Changes are added and committed in one step
-export const FILE = 0;
-export const HEAD = 1;
-export const WORKDIR = 2;
+/**
+ * Check for matching added/deleted filenames by basename.
+ * Used by move detection to find potential moved files.
+ */
+export const getMatches = (
+  changes: LocalChanges
+): {
+  added: HashSet.HashSet<string>;
+  deleted: HashSet.HashSet<string>;
+} => {
+  // We check for moved files in incremental steps and exit as early as we can to avoid any performance degradation
+  // Deleted files will be more rare than added files, so we'll check them first and exit early if there are none
+  const emptyResult = { added: HashSet.empty<string>(), deleted: HashSet.empty<string>() };
+  if (changes.deleted.length === 0 || changes.added.length === 0) return emptyResult;
+
+  // Both arrays have contents, look for matching basenames
+  const addedFilenames = changes.added;
+  const deletedFilenames = changes.deleted;
+
+  // Build Sets of basenames for added and deleted files for quick lookups
+  const addedBasenames = HashSet.fromIterable(addedFilenames.map((filename) => path.basename(filename)));
+  const deletedBasenames = HashSet.fromIterable(deletedFilenames.map((filename) => path.basename(filename)));
+  const matchingBasenames = HashSet.intersection(addedBasenames, deletedBasenames);
+  if (HashSet.isEmpty(matchingBasenames)) return emptyResult;
+
+  // Keep only full paths whose basename occurs on both sides.
+  const deletedFilenamesWithMatches = HashSet.fromIterable(deletedFilenames).pipe(
+    HashSet.filter((file) => HashSet.has(matchingBasenames, path.basename(file)))
+  );
+  const addedFilenamesWithMatches = HashSet.fromIterable(addedFilenames).pipe(
+    HashSet.filter((file) => HashSet.has(matchingBasenames, path.basename(file)))
+  );
+
+  return { added: addedFilenamesWithMatches, deleted: deletedFilenamesWithMatches };
+};

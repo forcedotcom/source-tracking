@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/index.ts",
+    "test/**/*.test.ts",
+    "test/**/*.nut.ts",
+    "test/init.cjs",
+    ".mocharc.json",
+    "scripts/**/*.ts",
+    "scripts/**/*.mjs",
+    ".opencode/plugins/**/*.ts",
+    "eslint.config.mjs",
+    "commitlint.config.cjs"
+  ],
+  "ignoreFiles": ["test/git/fixtures/**", "test/nuts/ebikes-lwc/**", "test/nuts/repros/**"],
+  "ignoreDependencies": [
+    "@salesforce/ts-types",
+    "@salesforce/dev-config",
+    "@typescript-eslint/parser",
+    "chai",
+    "sinon",
+    "@opencode/plugin"
+  ],
+  "ignoreBinaries": ["linkinator", "mocha", "nyc", "prettier", "sf-lint", "wireit"],
+  "mocha": true,
+  "wireit": true
+}

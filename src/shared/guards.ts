@@ -13,9 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { FileResponse, ComponentStatus, FileResponseSuccess } from '@salesforce/source-deploy-retrieve';
-import { ChangeResult } from './types';
-import { ChangeResultWithNameAndType } from './types';
+import { type FileResponse, ComponentStatus, type FileResponseSuccess } from '@salesforce/source-deploy-retrieve';
+import { SfError } from '@salesforce/core/sfError';
+import { isNotUndefined } from 'effect/Predicate';
+import { type ChangeResult } from './types.js';
+import { type ChangeResultWithNameAndType } from './types.js';
 
 export const isSdrSuccess = (fileResponse: FileResponse): fileResponse is FileResponseSuccess =>
   fileResponse.state !== ComponentStatus.Failed;
@@ -29,9 +31,12 @@ export const FileResponseIsNotDeleted = (fileResponse: FileResponse): boolean =>
 export const FileResponseHasPath = (
   fileResponse: FileResponseSuccess
 ): fileResponse is FileResponseSuccess & Required<Pick<FileResponseSuccess, 'filePath'>> =>
-  fileResponse.filePath !== undefined;
+  isNotUndefined(fileResponse.filePath);
 
 export const isChangeResultWithNameAndType = (cr?: ChangeResult): cr is ChangeResultWithNameAndType =>
   typeof cr === 'object' && typeof cr.name === 'string' && typeof cr.type === 'string';
 
-export const isDefined = <T>(x: T | undefined): x is T => x !== undefined;
+export const ensureNameAndType = (cr: ChangeResult): ChangeResultWithNameAndType => {
+  if (isChangeResultWithNameAndType(cr)) return cr;
+  throw new SfError(`Change Result is missing name or type: ${JSON.stringify(cr)}`);
+};
