@@ -30,6 +30,23 @@ import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensur
 const getGitDir = (orgId: string, projectPath: string): string =>
   path.join(projectPath, '.sf', 'orgs', orgId, 'localSourceTracking');
 
+// isomorphic-git 1.38.10+ skips symlinked dirs (lstat types them as 'blob', not 'tree').
+// Override lstat to follow dir symlinks so declared packageDirs behind symlinks are walked.
+const symlinkAwareFs = {
+  ...fs,
+  promises: {
+    ...fs.promises,
+    lstat: async (filepath: string): Promise<fs.Stats> => {
+      const lstats = await fs.promises.lstat(filepath);
+      if (lstats.isSymbolicLink()) {
+        const stats = await fs.promises.stat(filepath);
+        if (stats.isDirectory()) return stats;
+      }
+      return lstats;
+    },
+  },
+};
+
 // catch isogit's `InternalError` to avoid people report CLI issues in isogit repo.
 // See: https://github.com/forcedotcom/cli/issues/2416
 const redirectToCliRepoError = (e: unknown): never => {
@@ -115,7 +132,7 @@ export class ShadowRepo {
     this.logger.trace(`initializing git repo at ${this.gitDir}`);
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     try {
-      await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
+      await git.init({ fs: symlinkAwareFs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
     } catch (e) {
       redirectToCliRepoError(e);
     }
@@ -156,7 +173,7 @@ export class ShadowRepo {
       try {
         // status hasn't been initialized yet
         this.status = await git.statusMatrix({
-          fs,
+          fs: symlinkAwareFs,
           dir: this.projectPath,
           gitdir: this.gitDir,
           filepaths: this.packageDirs,
@@ -271,7 +288,7 @@ export class ShadowRepo {
           // these need to be done sequentially (it's already batched) because isogit manages file locking
           // eslint-disable-next-line no-await-in-loop
           await git.add({
-            fs,
+            fs: symlinkAwareFs,
             dir: this.projectPath,
             gitdir: this.gitDir,
             filepath: chunk,
@@ -303,7 +320,7 @@ export class ShadowRepo {
         try {
           // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
           // eslint-disable-next-line no-await-in-loop
-          await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
+          await git.remove({ fs: symlinkAwareFs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
         } catch (e) {
           redirectToCliRepoError(e);
         }
@@ -316,7 +333,7 @@ export class ShadowRepo {
       this.logger.trace('start: commitChanges git.commit');
 
       const sha = await git.commit({
-        fs,
+        fs: symlinkAwareFs,
         dir: this.projectPath,
         gitdir: this.gitDir,
         message,
