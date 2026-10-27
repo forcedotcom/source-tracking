@@ -726,10 +726,10 @@
     undici "^8.5.0"
     xml2js "^0.6.2"
 
-"@jsforce/jsforce-node@^3.10.29":
-  version "3.10.29"
-  resolved "https://registry.yarnpkg.com/@jsforce/jsforce-node/-/jsforce-node-3.10.29.tgz#06708b86b79026c411d9cbf4493dbc5fd9d09ddb"
-  integrity sha512-N3TRPYGSrhEQuAJbxvOo/L4Zz12fhBG8og99SaYER2+3tVw8HeXcf7NlNCn56jbhPIaj8iHpQK+AE+xW1s3KNQ==
+"@jsforce/jsforce-node@^3.12.0":
+  version "3.13.0"
+  resolved "https://registry.yarnpkg.com/@jsforce/jsforce-node/-/jsforce-node-3.13.0.tgz#97b16b2b5f0531d9a0974593af3ef88e60384e6b"
+  integrity sha512-pbEJ3vbxqkOBM3l/rV3fQHR1zaUyI/M2Hsl4cgQGUqhsAHaJ3QvInlX9q5VtWqseqhMi6qGveDM1kCHbA0ELpQ==
   dependencies:
     "@sindresorhus/is" "^4"
     base64url "^3.0.1"
@@ -876,12 +876,12 @@
     ts-retry-promise "^0.8.1"
     zod "^4.1.12"
 
-"@salesforce/core@^9.3.0", "@salesforce/core@^9.3.6":
-  version "9.3.6"
-  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-9.3.6.tgz#d9166f7f36abc048d800e436cac7946f2b462dda"
-  integrity sha512-2LuJVv8b4Yf3o8hKXQXZHfhP8LpyKQL5YRncPzVvE1AwLvbwabzLHc2NrELt2t+vpXiD3UURbP8KVMDjJn1KaA==
+"@salesforce/core@^9.4.1":
+  version "9.4.1"
+  resolved "https://registry.yarnpkg.com/@salesforce/core/-/core-9.4.1.tgz#297591e86038a1050a8bfa91e37a00618aba7cf7"
+  integrity sha512-aE8llAP+uMyWGNB8+FCpkSOql4D9BA9RtrbdG/ha9luqHpWZugiUwNYx50R/GawJW5UGTsHUKHYrCF75muRodg==
   dependencies:
-    "@jsforce/jsforce-node" "^3.10.29"
+    "@jsforce/jsforce-node" "^3.12.0"
     "@salesforce/kit" "^4.0.0"
     "@salesforce/ts-types" "^3.2.0"
     ajv "^8.18.0"
@@ -966,12 +966,12 @@
   resolved "https://registry.yarnpkg.com/@salesforce/schemas/-/schemas-1.10.3.tgz#52c867fdd60679cf216110aa49542b7ad391f5d1"
   integrity sha512-FKfvtrYTcvTXE9advzS25/DEY9yJhEyLvStm++eQFtnAaX1pe4G3oGHgiQ0q55BM5+0AlCh0+0CVtQv1t4oJRA==
 
-"@salesforce/source-deploy-retrieve@^13.4.6":
-  version "13.4.6"
-  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-13.4.6.tgz#58bd4a259fc8f1bf40924948b3a694444ca29659"
-  integrity sha512-ZZWGkV+r86Sr2MY1jf+GI7YsQGI7BLW8Zm5B9J0htSxH6G4GQxNYKXlKpjbPcRROZXW063SBclmwkeGxxhQ5tQ==
+"@salesforce/source-deploy-retrieve@^13.8.3":
+  version "13.8.3"
+  resolved "https://registry.yarnpkg.com/@salesforce/source-deploy-retrieve/-/source-deploy-retrieve-13.8.3.tgz#01c3bd123ec57a5758191cf63e8e85698a38e1f3"
+  integrity sha512-KBjE+zapmCCBEU8BiVG//WwYsbkkq03A/jCTjuMFH+brob8RkDz6a94Nymhtje7uTMmzxlhZRdx+/2i76+DKYQ==
   dependencies:
-    "@salesforce/core" "^9.3.0"
+    "@salesforce/core" "^9.4.1"
     "@salesforce/kit" "^4.0.0"
     "@salesforce/ts-types" "^3.2.0"
     "@salesforce/types" "^1.6.0"
