@@ -1,3 +1,12 @@
+## [8.1.12](https://github.com/forcedotcom/source-tracking/compare/8.1.11...8.1.12) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump brace-expansion from 1.1.11 to 1.1.21 ([d6d4910](https://github.com/forcedotcom/source-tracking/commit/d6d4910aa74ef04ae429fd0e153ceb175e5d2e97))
+
+
+
 ## [8.1.11](https://github.com/forcedotcom/source-tracking/compare/8.1.10...8.1.11) (2026-10-28)
 
 
