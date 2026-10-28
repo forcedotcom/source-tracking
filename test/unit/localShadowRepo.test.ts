@@ -116,6 +116,131 @@ describe('localShadowRepo', () => {
     });
   });
 
+  describe('symlinked packageDirectory', () => {
+    let projectDir: string;
+
+    afterEach(async () => {
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
+    });
+
+    it('detects files inside a symlinked packageDirectory root', async () => {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoSymlink'));
+      // Create the real directory with a file
+      const realDir = path.join(projectDir, 'actual');
+      fs.mkdirSync(path.join(realDir, 'main', 'default', 'classes'), { recursive: true });
+      fs.writeFileSync(path.join(realDir, 'main', 'default', 'classes', 'Foo.cls'), 'public class Foo {}');
+
+      // Create a symlink that points to the real directory
+      const symlinkPath = path.join(projectDir, 'force-app');
+      fs.symlinkSync(realDir, symlinkPath, 'dir');
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D000000000003',
+        registry,
+        projectPath: projectDir,
+        packageDirs: [
+          {
+            name: 'force-app',
+            fullPath: path.join(projectDir, 'force-app'),
+            path: 'force-app',
+          },
+        ],
+      });
+
+      const changed = await shadowRepo.getChangedFilenames();
+      expect(changed).to.be.an('array').with.length.greaterThan(0);
+      expect(changed.some((f) => f.includes('Foo.cls'))).to.be.true;
+    });
+
+    it('survives a symlink cycle inside a packageDirectory', async () => {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoSymlink'));
+      fs.mkdirSync(path.join(projectDir, 'force-app', 'main', 'default', 'classes'), { recursive: true });
+      fs.writeFileSync(
+        path.join(projectDir, 'force-app', 'main', 'default', 'classes', 'Real.cls'),
+        'public class Real {}'
+      );
+      // cycle: force-app/cycle -> force-app (points back to itself)
+      fs.symlinkSync(path.join(projectDir, 'force-app'), path.join(projectDir, 'force-app', 'cycle'), 'dir');
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D000000000005',
+        registry,
+        projectPath: projectDir,
+        packageDirs: [
+          {
+            name: 'force-app',
+            fullPath: path.join(projectDir, 'force-app'),
+            path: 'force-app',
+          },
+        ],
+      });
+
+      const changed = await shadowRepo.getChangedFilenames();
+      expect(changed).to.be.an('array').with.length.greaterThan(0);
+      expect(changed.some((f) => f.includes('Real.cls'))).to.be.true;
+    });
+
+    it('survives a dangling symlink inside a packageDirectory', async () => {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoSymlink'));
+      fs.mkdirSync(path.join(projectDir, 'force-app', 'main', 'default', 'classes'), { recursive: true });
+      fs.writeFileSync(
+        path.join(projectDir, 'force-app', 'main', 'default', 'classes', 'Real.cls'),
+        'public class Real {}'
+      );
+      // dangling: force-app/dangling -> non-existent-target
+      fs.symlinkSync('non-existent-target', path.join(projectDir, 'force-app', 'dangling'), 'file');
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D000000000006',
+        registry,
+        projectPath: projectDir,
+        packageDirs: [
+          {
+            name: 'force-app',
+            fullPath: path.join(projectDir, 'force-app'),
+            path: 'force-app',
+          },
+        ],
+      });
+
+      const changed = await shadowRepo.getChangedFilenames();
+      expect(changed).to.be.an('array').with.length.greaterThan(0);
+      expect(changed.some((f) => f.includes('Real.cls'))).to.be.true;
+    });
+
+    it('detects files inside a packageDirectory with a symlink in the middle of the path', async () => {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoSymlink'));
+      // Create the real shared-lib directory
+      const sharedLib = path.join(projectDir, 'shared-lib');
+      fs.mkdirSync(path.join(sharedLib, 'force-app', 'main', 'default', 'classes'), { recursive: true });
+      fs.writeFileSync(
+        path.join(sharedLib, 'force-app', 'main', 'default', 'classes', 'Linked.cls'),
+        'public class Linked {}'
+      );
+
+      // Create a symlink: links/shared-lib -> ../shared-lib
+      fs.mkdirSync(path.join(projectDir, 'links'));
+      fs.symlinkSync(path.join('..', 'shared-lib'), path.join(projectDir, 'links', 'shared-lib'), 'dir');
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D000000000004',
+        registry,
+        projectPath: projectDir,
+        packageDirs: [
+          {
+            name: 'links/shared-lib/force-app',
+            fullPath: path.join(projectDir, 'links', 'shared-lib', 'force-app'),
+            path: 'links/shared-lib/force-app',
+          },
+        ],
+      });
+
+      const changed = await shadowRepo.getChangedFilenames();
+      expect(changed).to.be.an('array').with.length.greaterThan(0);
+      expect(changed.some((f) => f.includes('Linked.cls'))).to.be.true;
+    });
+  });
+
   it('does not add same file multiple times', async () => {
     let projectDir!: string;
     try {

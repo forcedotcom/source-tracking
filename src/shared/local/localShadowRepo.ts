@@ -30,6 +30,34 @@ import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensur
 const getGitDir = (orgId: string, projectPath: string): string =>
   path.join(projectPath, '.sf', 'orgs', orgId, 'localSourceTracking');
 
+// isomorphic-git 1.38.10+ skips symlinked dirs (lstat types them as 'blob', not 'tree').
+// Only follow symlinks on path segments leading TO a packageDir root — never inside one.
+// This avoids runaway recursion on cycles and side-effects from unrelated symlinks.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+const createSymlinkAwareFs = (projectPath: string, packageDirs: string[]) => ({
+  ...fs,
+  promises: {
+    ...fs.promises,
+    lstat: async (filepath: string): Promise<fs.Stats> => {
+      const lstats = await fs.promises.lstat(filepath);
+      if (lstats.isSymbolicLink()) {
+        const rel = IS_WINDOWS
+          ? ensurePosix(path.relative(projectPath, filepath))
+          : path.relative(projectPath, filepath);
+        if (packageDirs.some((pd) => pd === rel || pd.startsWith(`${rel}/`))) {
+          try {
+            const stats = await fs.promises.stat(filepath);
+            if (stats.isDirectory()) return stats;
+          } catch {
+            // dangling symlink (ENOENT) or cycle (ELOOP) — keep original lstat
+          }
+        }
+      }
+      return lstats;
+    },
+  },
+});
+
 // catch isogit's `InternalError` to avoid people report CLI issues in isogit repo.
 // See: https://github.com/forcedotcom/cli/issues/2416
 const redirectToCliRepoError = (e: unknown): never => {
@@ -79,12 +107,14 @@ export class ShadowRepo {
   private status!: StatusRow[];
   private logger!: Logger;
   private readonly registry: RegistryAccess;
+  private readonly gitFs: ReturnType<typeof createSymlinkAwareFs>;
 
   private constructor(options: ShadowRepoOptions) {
     this.gitDir = getGitDir(options.orgId, options.projectPath);
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs.map(packageDirToRelativePosixPath(options.projectPath));
     this.registry = options.registry;
+    this.gitFs = createSymlinkAwareFs(options.projectPath, this.packageDirs);
   }
 
   // think of singleton behavior but unique to the projectPath
@@ -115,7 +145,7 @@ export class ShadowRepo {
     this.logger.trace(`initializing git repo at ${this.gitDir}`);
     await fs.promises.mkdir(this.gitDir, { recursive: true });
     try {
-      await git.init({ fs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
+      await git.init({ fs: this.gitFs, dir: this.projectPath, gitdir: this.gitDir, defaultBranch: 'main' });
     } catch (e) {
       redirectToCliRepoError(e);
     }
@@ -156,7 +186,7 @@ export class ShadowRepo {
       try {
         // status hasn't been initialized yet
         this.status = await git.statusMatrix({
-          fs,
+          fs: this.gitFs,
           dir: this.projectPath,
           gitdir: this.gitDir,
           filepaths: this.packageDirs,
@@ -271,7 +301,7 @@ export class ShadowRepo {
           // these need to be done sequentially (it's already batched) because isogit manages file locking
           // eslint-disable-next-line no-await-in-loop
           await git.add({
-            fs,
+            fs: this.gitFs,
             dir: this.projectPath,
             gitdir: this.gitDir,
             filepath: chunk,
@@ -303,7 +333,7 @@ export class ShadowRepo {
         try {
           // these need to be done sequentially because isogit manages file locking.  Isogit remove does not support multiple files at once
           // eslint-disable-next-line no-await-in-loop
-          await git.remove({ fs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
+          await git.remove({ fs: this.gitFs, dir: this.projectPath, gitdir: this.gitDir, filepath, cache });
         } catch (e) {
           redirectToCliRepoError(e);
         }
@@ -316,7 +346,7 @@ export class ShadowRepo {
       this.logger.trace('start: commitChanges git.commit');
 
       const sha = await git.commit({
-        fs,
+        fs: this.gitFs,
         dir: this.projectPath,
         gitdir: this.gitDir,
         message,
