@@ -22,6 +22,7 @@ import { env } from '@salesforce/kit';
 import git from 'isomorphic-git';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { chunkArray, excludeLwcLocalOnlyTest, folderContainsPath } from '../functions';
+import { withTrackingLock } from '../trackingLock';
 import { filenameMatchesToMap, getLogMessage, getMatches } from './moveDetection';
 import { StatusRow } from './types';
 import { isDeleted, isAdded, toFilenames, IS_WINDOWS, FILE, HEAD, WORKDIR, ensurePosix } from './functions';
@@ -68,6 +69,7 @@ export class ShadowRepo {
 
   public gitDir: string;
   public projectPath: string;
+  private readonly orgId: string;
 
   /**
    * packageDirs converted to project-relative posix style paths
@@ -81,6 +83,7 @@ export class ShadowRepo {
   private readonly registry: RegistryAccess;
 
   private constructor(options: ShadowRepoOptions) {
+    this.orgId = options.orgId;
     this.gitDir = getGitDir(options.orgId, options.projectPath);
     this.projectPath = options.projectPath;
     this.packageDirs = options.packageDirs.map(packageDirToRelativePosixPath(options.projectPath));
@@ -153,32 +156,9 @@ export class ShadowRepo {
     }
 
     if (!this.status || noCache) {
-      try {
-        // status hasn't been initialized yet
-        this.status = await git.statusMatrix({
-          fs,
-          dir: this.projectPath,
-          gitdir: this.gitDir,
-          filepaths: this.packageDirs,
-          ignored: true,
-          filter: fileFilter(this.packageDirs),
-        });
-
-        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-        if (IS_WINDOWS) {
-          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
-        }
-
-        if (env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true) {
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
-        } else {
-          // Check for moved files and update local git status accordingly
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
-          await this.detectMovedFiles();
-        }
-      } catch (e) {
-        redirectToCliRepoError(e);
-      }
+      await withTrackingLock({ projectPath: this.projectPath, orgId: this.orgId, resource: 'local' }, () =>
+        this.refreshStatus()
+      );
     }
     this.logger.trace(`done: getStatus (noCache = ${noCache})`);
     return this.status;
@@ -248,6 +228,46 @@ export class ShadowRepo {
    * @returns sha (string)
    */
   public async commitChanges({
+    deployedFiles = [],
+    deletedFiles = [],
+    message = 'sfdx source tracking',
+    needsUpdatedStatus = true,
+  }: CommitRequest = {}): Promise<string | undefined> {
+    return withTrackingLock({ projectPath: this.projectPath, orgId: this.orgId, resource: 'local' }, () =>
+      this.commitChangesInternal({ deployedFiles, deletedFiles, message, needsUpdatedStatus })
+    );
+  }
+
+  private async refreshStatus(): Promise<void> {
+    try {
+      // status hasn't been initialized yet
+      this.status = await git.statusMatrix({
+        fs,
+        dir: this.projectPath,
+        gitdir: this.gitDir,
+        filepaths: this.packageDirs,
+        ignored: true,
+        filter: fileFilter(this.packageDirs),
+      });
+
+      // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+      if (IS_WINDOWS) {
+        this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
+      }
+
+      if (env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true) {
+        await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
+      } else {
+        // Check for moved files and update local git status accordingly
+        await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
+        await this.detectMovedFiles();
+      }
+    } catch (e) {
+      redirectToCliRepoError(e);
+    }
+  }
+
+  private async commitChangesInternal({
     deployedFiles = [],
     deletedFiles = [],
     message = 'sfdx source tracking',
@@ -324,7 +344,7 @@ export class ShadowRepo {
       });
       // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
       if (needsUpdatedStatus) {
-        await this.getStatus(true);
+        await this.refreshStatus();
       }
       this.logger.trace('done: commitChanges git.commit');
       return sha;
@@ -345,7 +365,7 @@ export class ShadowRepo {
     this.logger.debug(getLogMessage(matches));
 
     // Commit the moved files and refresh the status
-    await this.commitChanges({
+    await this.commitChangesInternal({
       deletedFiles: [...matches.fullMatches.values(), ...matches.deleteOnly.values()],
       deployedFiles: [...matches.fullMatches.keys()],
       message: 'Committing moved files',

@@ -69,27 +69,27 @@ describe('conflicts functions', () => {
       forceIgnore: forceIgnoreStub,
       projectPath: 'foo',
     };
-    it('works on empty changes', () => {
+    it('works on empty changes', async () => {
       expect(
-        getDedupedConflictsFromChanges({
+        await getDedupedConflictsFromChanges({
           localChanges: [],
           remoteChanges: [],
           ...base,
         })
       ).to.deep.equal([]);
     });
-    it('returns nothing when only 1 side is changed', () => {
+    it('returns nothing when only 1 side is changed', async () => {
       expect(
-        getDedupedConflictsFromChanges({
+        await getDedupedConflictsFromChanges({
           localChanges: [class1Local],
           remoteChanges: [],
           ...base,
         })
       ).to.deep.equal([]);
     });
-    it('does not return non-matching changes', () => {
+    it('does not return non-matching changes', async () => {
       expect(
-        getDedupedConflictsFromChanges({
+        await getDedupedConflictsFromChanges({
           localChanges: [class1Local],
           remoteChanges: [
             {
@@ -104,11 +104,11 @@ describe('conflicts functions', () => {
       ).to.deep.equal([]);
     });
 
-    it('de-dupes local and remote change where names match', () => {
+    it('de-dupes local and remote change where names match', async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { filenames, ...simplifiedResult } = class1Local;
       expect(
-        getDedupedConflictsFromChanges({
+        await getDedupedConflictsFromChanges({
           localChanges: [class1Local],
           remoteChanges: [{ origin: 'remote', name: 'MyClass', type: 'ApexClass' }],
           ...base,

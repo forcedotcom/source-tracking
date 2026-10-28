@@ -520,8 +520,7 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   public async reReadLocalTrackingCache(): Promise<void> {
-    await this.ensureLocalTracking();
-    await this.localRepo.getStatus(true);
+    await (await this.createLocalRepo()).getStatus(true);
   }
   /**
    * If the local tracking shadowRepo doesn't exist, it will be created.
@@ -535,14 +534,9 @@ export class SourceTracking extends AsyncCreatable {
       }
       return;
     }
-    this.localRepo = await ShadowRepo.getInstance({
-      orgId: this.orgId,
-      projectPath: normalize(this.projectPath),
-      packageDirs: this.packagesDirs,
-      registry: this.registry,
-    });
+    const localRepo = await this.createLocalRepo();
     // loads the status from file so that it's cached
-    await this.localRepo.getStatus();
+    await localRepo.getStatus();
   }
 
   /**
@@ -635,7 +629,7 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
 
-    const result = getDedupedConflictsFromChanges({
+    const result = await getDedupedConflictsFromChanges({
       localChanges,
       remoteChanges,
       projectPath: this.projectPath,
@@ -699,6 +693,18 @@ export class SourceTracking extends AsyncCreatable {
    */
   public setIgnoreConflicts(value: boolean): void {
     this.ignoreConflicts = value;
+  }
+
+  private async createLocalRepo(): Promise<ShadowRepo> {
+    if (!this.localRepo) {
+      this.localRepo = await ShadowRepo.getInstance({
+        orgId: this.orgId,
+        projectPath: normalize(this.projectPath),
+        packageDirs: this.packagesDirs,
+        registry: this.registry,
+      });
+    }
+    return this.localRepo;
   }
 
   private async maybeSubscribeLifecycleEvents(): Promise<void> {
@@ -778,9 +784,9 @@ export class SourceTracking extends AsyncCreatable {
     const toOutput = localChangesToOutputRow(this.logger)(this.forceIgnore);
 
     return [
-      ...populateTypesAndNames(base)(adds).flatMap(toOutput('add')),
-      ...populateTypesAndNames(base)(modifies).flatMap(toOutput('modify')),
-      ...populateTypesAndNames({ ...base, resolveDeleted: true })(deletes).flatMap(toOutput('delete')),
+      ...(await populateTypesAndNames(base)(adds)).flatMap(toOutput('add')),
+      ...(await populateTypesAndNames(base)(modifies)).flatMap(toOutput('modify')),
+      ...(await populateTypesAndNames({ ...base, resolveDeleted: true })(deletes)).flatMap(toOutput('delete')),
     ];
   }
 
@@ -886,6 +892,9 @@ export const correctSourceMemberNames = (
   packageDirPaths: string[],
   registry: RegistryAccess
 ): RemoteChangeElement[] => {
+  if (!changes.some((change) => TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(change.type)))
+    return changes.map((change) => change);
+
   const localNamesByType = new Map<string, string[]>();
   for (const component of ComponentSet.fromSource({ fsPaths: packageDirPaths, registry }).getSourceComponents()) {
     const typeName = component.type.name;

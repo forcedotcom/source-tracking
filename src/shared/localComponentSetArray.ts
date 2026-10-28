@@ -89,7 +89,14 @@ const getNonSequential = ({
   ];
 };
 
-export const getComponentSets = ({
+const yieldAfter = async (index: number): Promise<void> => {
+  // Keep VS Code's extension host responsive during large metadata resolves.
+  if (index > 0 && index % 100 === 0) {
+    await new Promise<void>((continueWork) => setImmediate(continueWork));
+  }
+};
+
+export const getComponentSets = async ({
   groupings,
   sourceApiVersion,
   registry,
@@ -100,68 +107,74 @@ export const getComponentSets = ({
   registry: RegistryAccess;
   /** absolute path to the project root */
   projectPath: string;
-}): ComponentSet[] => {
+}): Promise<ComponentSet[]> => {
   const logger = Logger.childFromRoot('localComponentSetArray');
 
   // optimistic resolution...some files may not be possible to resolve
   const resolverForNonDeletes = new MetadataResolver(registry, maybeGetTreeContainer(projectPath));
 
-  return groupings
-    .map((grouping) => {
-      logger.debug(
-        `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
-      );
+  const componentSets: ComponentSet[] = [];
+  for (const grouping of groupings) {
+    logger.debug(
+      `building componentSet for ${grouping.path} (deletes: ${grouping.deletes.length} nonDeletes: ${grouping.nonDeletes.length})`
+    );
 
-      const componentSet = new ComponentSet(undefined, registry);
-      if (sourceApiVersion) {
-        componentSet.sourceApiVersion = sourceApiVersion;
-      }
+    const componentSet = new ComponentSet(undefined, registry);
+    if (sourceApiVersion) {
+      componentSet.sourceApiVersion = sourceApiVersion;
+    }
 
-      // we need virtual components for the deletes.
-      // TODO: could we use the same for the non-deletes?
-      const resolverForDeletes = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(grouping.deletes));
+    // we need virtual components for the deletes.
+    // TODO: could we use the same for the non-deletes?
+    const resolverForDeletes = new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(grouping.deletes));
 
-      grouping.deletes
-        .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-        .filter(isDefined)
-        .map((component) => {
-          // if the component supports partial delete AND there are files that are not deleted,
-          // set the component for deploy, not for delete.
-          if (supportsPartialDelete(component) && component.content && fs.existsSync(component.content)) {
-            // all bundle types have a directory name
-            try {
-              resolverForNonDeletes
-                .getComponentsFromPath(resolve(projectPath, component.content))
-                .filter(isDefined)
-                .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
-            } catch (e) {
-              logger.warn(
-                `unable to find component at ${component.content}.  That's ok if it was supposed to be deleted`
-              );
-            }
-          } else {
-            componentSet.add(component, DestructiveChangesType.POST);
-          }
-        });
-
-      grouping.nonDeletes
-        .flatMap((filename) => {
+    for (const [index, filename] of grouping.deletes.entries()) {
+      for (const component of resolverForDeletes.getComponentsFromPath(filename).filter(isDefined)) {
+        // if the component supports partial delete AND there are files that are not deleted,
+        // set the component for deploy, not for delete.
+        if (supportsPartialDelete(component) && component.content && fs.existsSync(component.content)) {
+          // all bundle types have a directory name
           try {
-            return resolverForNonDeletes.getComponentsFromPath(resolve(projectPath, filename));
+            for (const nonDeletedComponent of resolverForNonDeletes
+              .getComponentsFromPath(resolve(projectPath, component.content))
+              .filter(isDefined)) {
+              componentSet.add(nonDeletedComponent);
+            }
           } catch (e) {
-            logger.warn(`unable to resolve ${filename}`);
-            return undefined;
+            logger.warn(
+              `unable to find component at ${component.content}.  That's ok if it was supposed to be deleted`
+            );
           }
-        })
-        .filter(isDefined)
-        .map((component) => componentSet.add(component));
-      // there may have been ignored files, but componentSet.add doesn't automatically track them.
-      // We'll manually set the ignored paths from what the resolver has been tracking
-      componentSet.forceIgnoredPaths = new Set(
-        [...(componentSet.forceIgnoredPaths ?? [])].concat(Array.from(resolverForNonDeletes.forceIgnoredPaths))
-      );
-      componentSet.projectDirectory = projectPath;
-      return componentSet;
-    })
-    .filter((componentSet) => componentSet.size > 0 || componentSet.forceIgnoredPaths?.size);
+        } else {
+          componentSet.add(component, DestructiveChangesType.POST);
+        }
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await yieldAfter(index);
+    }
+
+    for (const [index, filename] of grouping.nonDeletes.entries()) {
+      try {
+        for (const component of resolverForNonDeletes
+          .getComponentsFromPath(resolve(projectPath, filename))
+          .filter(isDefined)) {
+          componentSet.add(component);
+        }
+      } catch (e) {
+        logger.warn(`unable to resolve ${filename}`);
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await yieldAfter(index);
+    }
+    // there may have been ignored files, but componentSet.add doesn't automatically track them.
+    // We'll manually set the ignored paths from what the resolver has been tracking
+    componentSet.forceIgnoredPaths = new Set(
+      [...(componentSet.forceIgnoredPaths ?? [])].concat(Array.from(resolverForNonDeletes.forceIgnoredPaths))
+    );
+    componentSet.projectDirectory = projectPath;
+    if (componentSet.size > 0 || componentSet.forceIgnoredPaths?.size) {
+      componentSets.push(componentSet);
+    }
+  }
+  return componentSets;
 };

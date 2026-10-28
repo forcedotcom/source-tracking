@@ -18,6 +18,7 @@ import { expect } from 'chai';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { Lifecycle, Org, SfProject } from '@salesforce/core';
 import { SourceTracking } from '../../src/sourceTracking';
+import { ShadowRepo } from '../../src/shared/local/localShadowRepo';
 
 describe('SourceTracking lifecycle events cleanup', () => {
   const $$ = instantiateContext();
@@ -90,5 +91,37 @@ describe('SourceTracking lifecycle events cleanup', () => {
 
     expect(removeAllListenersSpy.calledWith('scopedPreDeploy')).to.equal(false);
     expect(removeAllListenersSpy.calledWith('scopedPreRetrieve')).to.equal(false);
+  });
+});
+
+describe('SourceTracking local tracking initialization', () => {
+  const project = {
+    getPath: (): string => '/test',
+    getPackageDirectories: (): Array<{ name: string; path: string; fullPath: string; default: boolean }> => [],
+  };
+  const org = { getOrgId: (): string => '00D000000000001' };
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('does one forced status scan when rereading a cold local tracking cache', async () => {
+    const getStatus = sinon.stub().resolves([]);
+    sinon.stub(ShadowRepo, 'getInstance').resolves({ getStatus } as unknown as ShadowRepo);
+    const tracking = new SourceTracking({ org: org as Org, project: project as SfProject });
+
+    await tracking.reReadLocalTrackingCache();
+
+    expect(getStatus.calledOnceWithExactly(true)).to.equal(true);
+  });
+
+  it('continues to populate status when ensuring cold local tracking', async () => {
+    const getStatus = sinon.stub().resolves([]);
+    sinon.stub(ShadowRepo, 'getInstance').resolves({ getStatus } as unknown as ShadowRepo);
+    const tracking = new SourceTracking({ org: org as Org, project: project as SfProject });
+
+    await tracking.ensureLocalTracking();
+
+    expect(getStatus.calledOnceWithExactly()).to.equal(true);
   });
 });

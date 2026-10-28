@@ -52,7 +52,7 @@ export const findConflictsInComponentSet = (cs: ComponentSet, conflicts: ChangeR
   return reformattedConflicts;
 };
 
-export const getDedupedConflictsFromChanges = ({
+export const getDedupedConflictsFromChanges = async ({
   localChanges = [],
   remoteChanges = [],
   projectPath,
@@ -64,7 +64,7 @@ export const getDedupedConflictsFromChanges = ({
   projectPath: string;
   forceIgnore: ForceIgnore;
   registry: RegistryAccess;
-}): ChangeResult[] => {
+}): Promise<ChangeResult[]> => {
   const metadataKeyIndex = new Map(
     remoteChanges
       .filter(isChangeResultWithNameAndType)
@@ -74,7 +74,7 @@ export const getDedupedConflictsFromChanges = ({
     remoteChanges.flatMap((change) => (change.filenames ?? []).map((filename) => [filename, change]))
   );
 
-  return populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
+  return (await populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges))
     .filter(isChangeResultWithNameAndType)
     .flatMap((change) => {
       const metadataKey = getMetadataKey(change.name, change.type);

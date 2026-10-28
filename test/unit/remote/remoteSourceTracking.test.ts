@@ -18,7 +18,7 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync, rmSync, mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { sep, dirname, resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { EOL, tmpdir } from 'node:os';
 import { MockTestOrgData, instantiateContext, stubContext, restoreContext } from '@salesforce/core/testSetup';
 import { EnvVars, envVars, Messages, Org } from '@salesforce/core';
 import { expect, config } from 'chai';
@@ -725,6 +725,53 @@ describe('remoteSourceTrackingService', () => {
         },
       });
     });
+    it('preserves members persisted by another process while synchronizing', async () => {
+      const localMember = {
+        ...defaultSourceMemberValues,
+        MemberName: 'MyProfile',
+        MemberType: 'Profile',
+        IsNewMember: false,
+        IsNameObsolete: false,
+        RevisionCounter: 2,
+        lastRetrievedFromServer: undefined,
+      } satisfies MemberRevision;
+      setContents({
+        serverMaxRevisionCounter: 2,
+        sourceMembers: { 'Profile###MyProfile': localMember },
+      });
+      await writeFile(
+        remoteSourceTrackingService.filePath,
+        JSON.stringify({
+          fileVersion: 1,
+          serverMaxRevisionCounter: 3,
+          sourceMembers: {
+            'ApexClass###PersistedElsewhere': {
+              ...defaultSourceMemberValues,
+              MemberName: 'PersistedElsewhere',
+              MemberType: 'ApexClass',
+              IsNewMember: false,
+              IsNameObsolete: false,
+              RevisionCounter: 3,
+              lastRetrievedFromServer: undefined,
+            },
+          },
+        } satisfies ContentsV1)
+      );
+
+      await remoteSourceTrackingService.syncSpecifiedElements(new RegistryAccess(), [
+        {
+          fullName: 'MyProfile',
+          type: 'Profile',
+          filePath: 'MyProfile.profile-meta.xml',
+          state: ComponentStatus.Changed,
+        },
+      ]);
+
+      const contents = getContents();
+      expect(contents.serverMaxRevisionCounter).to.equal(3);
+      expect(contents.sourceMembers['Profile###MyProfile'].lastRetrievedFromServer).to.equal(2);
+      expect(contents.sourceMembers['ApexClass###PersistedElsewhere']).to.exist;
+    });
     it('should sync elements with encoded ampersand (%26) in file path', async () => {
       const contents = {
         serverMaxRevisionCounter: 1,
@@ -860,6 +907,36 @@ describe('remoteSourceTrackingService', () => {
         expect(queryStub.called).to.equal(true);
       }).timeout(10_000);
 
+      it('formats remaining members in encounter order without removing duplicate bundle names', async () => {
+        const outstandingMembers: RemoteSyncInput[] = [
+          { type: 'ApexClass', fullName: 'First', filePath: 'classes/First.cls', state: ComponentStatus.Changed },
+          {
+            type: 'StaticResource',
+            fullName: 'Middle',
+            filePath: 'staticresources/Middle.resource',
+            state: ComponentStatus.Changed,
+          },
+          { type: 'ApexClass', fullName: 'Last', filePath: 'classes/Last.cls', state: ComponentStatus.Changed },
+          {
+            type: 'LightningComponentBundle',
+            fullName: 'Widget',
+            filePath: 'lwc/widget/widget.js',
+            state: ComponentStatus.Changed,
+          },
+        ];
+        $$.SANDBOX.stub(orgQueryMocks, 'querySourceMembersFrom').resolves([]);
+        // @ts-expect-error stubbing private method for testing
+        $$.SANDBOX.stub(remoteSourceTrackingService, 'trackSourceMembers');
+
+        await remoteSourceTrackingService.pollForSourceTracking(new RegistryAccess(), outstandingMembers);
+
+        const expectedBody = [
+          'Missing SourceMembers:',
+          `  - ApexClass: First, Last${EOL}  - StaticResource: Middle${EOL}  - LightningComponentBundle: Widget, Widget`,
+        ].join('\n');
+        expect(Array.from(warns).some((warning) => warning.endsWith(expectedBody))).to.equal(true);
+      }).timeout(10_000);
+
       it('should stop if SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is exceeded', async () => {
         envVars.setString('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT', '3');
         reResolveEnvVars();
@@ -966,6 +1043,16 @@ describe('correctSourceMemberNames', () => {
 
   afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('passes through changes without name-mismatch types without crawling local source', () => {
+    const missingPackageDirectory = join(tempDir, 'does-not-exist');
+    const changes = [makeChange('MyClass', 'ApexClass')];
+
+    const result = correctSourceMemberNames(changes, [missingPackageDirectory], registry);
+
+    expect(result).to.deep.equal(changes);
+    expect(result).to.not.equal(changes);
   });
 
   it('should correct SourceMember name when local file has different MDAPI name', () => {

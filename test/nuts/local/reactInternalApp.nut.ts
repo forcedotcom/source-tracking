@@ -82,6 +82,6 @@ describe('reactinternalapp template: getComponentSets dedup check', () => {
     expect(groupings[0].nonDeletes.length).to.equal(nonDeletes.length);
 
     // Calling getComponentSets triggers the instrumented lines
-    getComponentSets({ groupings, registry, projectPath });
+    await getComponentSets({ groupings, registry, projectPath });
   });
 });

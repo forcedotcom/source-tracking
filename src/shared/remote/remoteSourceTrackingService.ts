@@ -30,6 +30,7 @@ import {
   getMetadataNameFromKey,
   getMetadataTypeFromKey,
 } from '../functions';
+import { withTrackingLock } from '../trackingLock';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers';
 import { SourceMember } from './types';
 import { MemberRevision } from './types';
@@ -112,6 +113,7 @@ export class RemoteSourceTrackingService {
   private sourceMembers = new Map<string, MemberRevision>();
 
   private org: Org;
+  private readonly projectPath: string;
 
   // A short term cache (within the same process) of query results based on a revision.
   // Useful for source:pull, which makes 3 of the same queries; during status, building manifests, after pull success.
@@ -127,6 +129,7 @@ export class RemoteSourceTrackingService {
    */
   private constructor(options: RemoteSourceTrackingServiceOptions) {
     this.org = options.org;
+    this.projectPath = options.projectPath;
     this.filePath = path.join(options.projectPath, '.sf', 'orgs', this.org.getOrgId(), FILENAME);
   }
 
@@ -170,44 +173,7 @@ export class RemoteSourceTrackingService {
    * it sets their last retrieved revision to the current revision counter from the server.
    */
   public async syncSpecifiedElements(registry: RegistryAccess, elements: RemoteSyncInput[]): Promise<void> {
-    if (elements.length === 0) {
-      return;
-    }
-    const quietLogger =
-      elements.length > 100
-        ? this.logger.silent?.bind(this.logger) ?? ((): void => {})
-        : this.logger.debug.bind(this.logger);
-    quietLogger(`Syncing ${elements.length} Revisions by key`);
-
-    // this can be super-repetitive on a large ExperienceBundle where there is an element for each file but only one Revision for the entire bundle
-    // any item in an aura/LWC bundle needs to represent the top (bundle) level and the file itself
-    // so we de-dupe via a set
-    Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(registry)(element)))).map(
-      (metadataKey) => {
-        const match = this.getSourceMember(metadataKey)
-          ? { key: metadataKey, member: this.getSourceMember(metadataKey)! }
-          : this.findSourceMemberFallback(metadataKey);
-        if (!match) {
-          this.logger.warn(`found no matching revision for ${metadataKey}`);
-        } else if (doesNotMatchServer(match.member)) {
-          quietLogger(
-            `Syncing ${match.key} revision from ${match.member.lastRetrievedFromServer ?? 'null'} to ${
-              match.member.RevisionCounter
-            }`
-          );
-          this.setMemberRevision(match.key, {
-            ...match.member,
-            lastRetrievedFromServer: match.member.RevisionCounter,
-          });
-        }
-      }
-    );
-
-    await writeTrackingFile({
-      filePath: this.filePath,
-      maxCounter: this.serverMaxRevisionCounter,
-      members: this.sourceMembers,
-    });
+    return this.withRemoteLock(() => this.syncSpecifiedElementsInternal(registry, elements));
   }
 
   /**
@@ -222,23 +188,7 @@ export class RemoteSourceTrackingService {
    * @param toRevision The `RevisionCounter` number to sync to.
    */
   public async reset(toRevision?: number): Promise<string[]> {
-    // Called during a source:tracking:reset
-    this.serverMaxRevisionCounter = 0;
-    this.sourceMembers = new Map<string, MemberRevision>();
-
-    const members =
-      toRevision !== undefined && toRevision !== null
-        ? await querySourceMembersTo(this.org.getConnection(), toRevision)
-        : await querySourceMembersFrom({
-            fromRevision: 0,
-            logger: this.logger,
-            userQueryCache: this.userQueryCache,
-            queryCache: this.queryCache,
-            conn: this.org.getConnection(),
-          });
-
-    await this.trackSourceMembers(members, true);
-    return members.map((member) => getMetadataKey(member.MemberType, member.MemberName));
+    return this.withRemoteLock(() => this.resetInternal(toRevision));
   }
 
   /**
@@ -260,21 +210,23 @@ export class RemoteSourceTrackingService {
       queryCache: cache ? this.queryCache : undefined,
       conn: this.org.getConnection(),
     });
-    await this.trackSourceMembers(queriedSourceMembers);
+    return this.withRemoteLock(async () => {
+      await this.trackSourceMembers(queriedSourceMembers);
 
-    // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
-    // does not match the serverRevisionCounter.
-    const returnElements = Array.from(this.sourceMembers.values())
-      .filter(doesNotMatchServer)
-      .map(revisionToRemoteChangeElement);
+      // Look for any changed that haven't been synced.  I.e, the lastRetrievedFromServer
+      // does not match the serverRevisionCounter.
+      const returnElements = Array.from(this.sourceMembers.values())
+        .filter(doesNotMatchServer)
+        .map(revisionToRemoteChangeElement);
 
-    this.logger.debug(
-      returnElements.length
-        ? `Found ${returnElements.length} elements not synced with org`
-        : 'Remote source tracking is up to date'
-    );
+      this.logger.debug(
+        returnElements.length
+          ? `Found ${returnElements.length} elements not synced with org`
+          : 'Remote source tracking is up to date'
+      );
 
-    return returnElements;
+      return returnElements;
+    });
   }
 
   /**
@@ -364,7 +316,7 @@ export class RemoteSourceTrackingService {
       );
 
       // update but don't sync
-      await this.trackSourceMembers(queriedMembers, false);
+      await this.withRemoteLock(() => this.trackSourceMembers(queriedMembers, false));
 
       // exit if all have returned
       if (outstandingSourceMembers.size === 0) {
@@ -433,9 +385,12 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
    * Adds the given SourceMembers to the list of tracked MemberRevisions, optionally updating
    * the lastRetrievedFromServer field (sync), and persists the changes to maxRevision.json.
    */
-  private async trackSourceMembers(sourceMembers: SourceMember[], sync = false): Promise<void> {
+  private async trackSourceMembers(sourceMembers: SourceMember[], sync = false, mergeDiskState = true): Promise<void> {
     if (sourceMembers.length === 0) {
       return;
+    }
+    if (mergeDiskState) {
+      await this.mergeDiskState();
     }
     const quietLogger =
       sourceMembers.length > 100
@@ -476,6 +431,66 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
     });
   }
 
+  private async syncSpecifiedElementsInternal(registry: RegistryAccess, elements: RemoteSyncInput[]): Promise<void> {
+    if (elements.length === 0) {
+      return;
+    }
+    await this.mergeDiskState();
+    const quietLogger =
+      elements.length > 100
+        ? this.logger.silent?.bind(this.logger) ?? ((): void => {})
+        : this.logger.debug.bind(this.logger);
+    quietLogger(`Syncing ${elements.length} Revisions by key`);
+
+    // This can be repetitive on bundles, so synchronize each metadata member only once.
+    Array.from(new Set(elements.flatMap((element) => getMetadataKeyFromFileResponse(registry)(element)))).map(
+      (metadataKey) => {
+        const match = this.getSourceMember(metadataKey)
+          ? { key: metadataKey, member: this.getSourceMember(metadataKey)! }
+          : this.findSourceMemberFallback(metadataKey);
+        if (!match) {
+          this.logger.warn(`found no matching revision for ${metadataKey}`);
+        } else if (doesNotMatchServer(match.member)) {
+          quietLogger(
+            `Syncing ${match.key} revision from ${match.member.lastRetrievedFromServer ?? 'null'} to ${
+              match.member.RevisionCounter
+            }`
+          );
+          this.setMemberRevision(match.key, {
+            ...match.member,
+            lastRetrievedFromServer: match.member.RevisionCounter,
+          });
+        }
+      }
+    );
+
+    await writeTrackingFile({
+      filePath: this.filePath,
+      maxCounter: this.serverMaxRevisionCounter,
+      members: this.sourceMembers,
+    });
+  }
+
+  private async resetInternal(toRevision?: number): Promise<string[]> {
+    // Reset deliberately replaces all tracked state with the queried revision.
+    this.serverMaxRevisionCounter = 0;
+    this.sourceMembers = new Map<string, MemberRevision>();
+
+    const members =
+      toRevision !== undefined && toRevision !== null
+        ? await querySourceMembersTo(this.org.getConnection(), toRevision)
+        : await querySourceMembersFrom({
+            fromRevision: 0,
+            logger: this.logger,
+            userQueryCache: this.userQueryCache,
+            queryCache: this.queryCache,
+            conn: this.org.getConnection(),
+          });
+
+    await this.trackSourceMembers(members, true, false);
+    return members.map((member) => getMetadataKey(member.MemberType, member.MemberName));
+  }
+
   /** reads the tracking file and inits the logger and contents */
   private async init(): Promise<RemoteSourceTrackingService> {
     if (!(await this.org.supportsSourceTracking())) {
@@ -500,6 +515,31 @@ ${formatSourceMemberWarnings(outstandingSourceMembers)}`
       });
     }
     return this;
+  }
+
+  private async withRemoteLock<T>(operation: () => Promise<T>): Promise<T> {
+    return withTrackingLock(
+      { projectPath: this.projectPath, orgId: this.org.getOrgId(), resource: 'remote' },
+      operation
+    );
+  }
+
+  /** Preserves local updates while adding disk-only members from another process. */
+  private async mergeDiskState(): Promise<void> {
+    const rawContents = await readFileContents(this.filePath);
+    if (!('serverMaxRevisionCounter' in rawContents) || !rawContents.sourceMembers) {
+      return;
+    }
+    this.serverMaxRevisionCounter = Math.max(this.serverMaxRevisionCounter, rawContents.serverMaxRevisionCounter);
+    for (const [key, diskMember] of Object.entries(rawContents.sourceMembers)) {
+      const localMember = this.sourceMembers.get(key);
+      if (!localMember) {
+        this.sourceMembers.set(key, diskMember);
+      } else if ((diskMember.lastRetrievedFromServer ?? -1) > (localMember.lastRetrievedFromServer ?? -1)) {
+        this.sourceMembers.set(key, { ...localMember, lastRetrievedFromServer: diskMember.lastRetrievedFromServer });
+      }
+    }
+    this.decodedKeyIndex = undefined;
   }
 
   /** Return a tracked element as MemberRevision data.*/
@@ -593,10 +633,14 @@ const resolveDecodedKey = (key: string, index: Map<string, string>, logger: Pino
 
 /** organize by type and format for warning output */
 const formatSourceMemberWarnings = (outstandingSourceMembers: Map<string, RemoteSyncInput>): string => {
-  // TODO: use Map.groupBy when we node22 is minimum
   // ex: CustomObject : [Foo__c, Bar__c]
   const mapByType = Array.from(outstandingSourceMembers.values()).reduce<Map<string, string[]>>((acc, value) => {
-    acc.set(value.type, [...(acc.get(value.type) ?? []), value.fullName]);
+    const names = acc.get(value.type);
+    if (names) {
+      names.push(value.fullName);
+    } else {
+      acc.set(value.type, [value.fullName]);
+    }
     return acc;
   }, new Map());
   return Array.from(mapByType.entries())

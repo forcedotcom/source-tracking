@@ -45,3 +45,4 @@ node_modules
 .idea
 
 testProj*
+/.fastcontext
