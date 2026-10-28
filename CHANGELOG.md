@@ -1,3 +1,43 @@
+## [8.1.12](https://github.com/forcedotcom/source-tracking/compare/8.1.11...8.1.12) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump brace-expansion from 1.1.11 to 1.1.21 ([d6d4910](https://github.com/forcedotcom/source-tracking/commit/d6d4910aa74ef04ae429fd0e153ceb175e5d2e97))
+
+
+
+## [8.1.11](https://github.com/forcedotcom/source-tracking/compare/8.1.10...8.1.11) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump ip-address from 10.7.2 to 10.7.5 ([12fccc3](https://github.com/forcedotcom/source-tracking/commit/12fccc3e752a218b2f0211b4d4bb1cf867fe439f))
+
+
+
+## [8.1.10](https://github.com/forcedotcom/source-tracking/compare/8.1.9...8.1.10) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump zod from 4.6.5 to 4.6.7 ([be72e9f](https://github.com/forcedotcom/source-tracking/commit/be72e9f0883c6b00f2fed319d7fd117e1bef0a89))
+
+
+
+## [8.1.9](https://github.com/forcedotcom/source-tracking/compare/8.1.8...8.1.9) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump undici from 8.11.2 to 8.12.3 ([a8e0693](https://github.com/forcedotcom/source-tracking/commit/a8e0693bf2d73968fcba0d533440e8fa8393d818))
+
+
+
+## [8.1.8](https://github.com/forcedotcom/source-tracking/compare/8.1.7...8.1.8) (2026-10-27)
+
+
+
 ## [8.1.7](https://github.com/forcedotcom/source-tracking/compare/8.1.6...8.1.7) (2026-10-14)
 
 

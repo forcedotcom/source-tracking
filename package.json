@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "8.1.7",
+  "version": "8.1.12",
   "author": "Salesforce",
   "license": "Apache-2.0",
   "main": "lib/index.js",
@@ -52,7 +52,7 @@
   "dependencies": {
     "@salesforce/core": "^9.4.1",
     "@salesforce/kit": "^4.0.0",
-    "@salesforce/source-deploy-retrieve": "^13.8.0",
+    "@salesforce/source-deploy-retrieve": "^13.8.3",
     "@salesforce/ts-types": "^3.2.0",
     "fast-xml-parser": "^5.11.2",
     "graceful-fs": "^4.2.11",
