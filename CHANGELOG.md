@@ -1,3 +1,12 @@
+## [8.1.10](https://github.com/forcedotcom/source-tracking/compare/8.1.9...8.1.10) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump zod from 4.6.5 to 4.6.7 ([be72e9f](https://github.com/forcedotcom/source-tracking/commit/be72e9f0883c6b00f2fed319d7fd117e1bef0a89))
+
+
+
 ## [8.1.9](https://github.com/forcedotcom/source-tracking/compare/8.1.8...8.1.9) (2026-10-28)
 
 
