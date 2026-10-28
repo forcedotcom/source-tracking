@@ -26,3 +26,14 @@ export const concatBytes = (parts: readonly Uint8Array[]): Uint8Array => {
   });
   return out;
 };
+
+const HEX = Array.from({ length: 256 }, (_, byte) => byte.toString(16).padStart(2, '0'));
+
+/** Convert bytes to lowercase hex without allocating an intermediate array per byte. */
+export const bytesToHex = (bytes: Uint8Array): string => {
+  // eslint-disable-next-line functional/no-let -- output is built in one bounded synchronous pass.
+  let hex = '';
+  // eslint-disable-next-line functional/no-loop-statements -- avoids the intermediate array created by Array.from(...).join('').
+  for (const byte of bytes) hex += HEX[byte] ?? '';
+  return hex;
+};

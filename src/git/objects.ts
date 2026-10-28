@@ -18,7 +18,7 @@ import { Crypto } from 'effect/Crypto';
 import * as Schema from 'effect/Schema';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
-import { concatBytes } from './bytes.js';
+import { bytesToHex, concatBytes } from './bytes.js';
 import { ObjectCorruptError, ObjectNotFoundError } from './errors.js';
 import { Oid } from './schemas.js';
 
@@ -43,22 +43,13 @@ const TEXT = new TextEncoder();
 const ASCII_DECODER = new TextDecoder('ascii', { fatal: false });
 const SP = 0x20;
 const NUL = 0x00;
-const HEX = '0123456789abcdef';
-
-/**
- * Lowercase hex encoding of a Uint8Array. Avoids `Buffer` so the same code
- * path works in the web bundle.
- */
-const toHex = (bytes: Uint8Array): string =>
-  Array.from(bytes, (b) => `${HEX[b >>> 4] ?? ''}${HEX[b & 0x0f] ?? ''}`).join('');
-
 /** Shared Git object/index checksum; the runtime supplies platform cryptography. @internal */
 export const sha1 = Effect.fnUntraced(function* (bytes: Uint8Array) {
   const crypto = yield* Crypto;
   return yield* crypto.digest('SHA-1', bytes);
 });
 
-const sha1Hex = (bytes: Uint8Array) => sha1(bytes).pipe(Effect.map(toHex));
+const sha1Hex = (bytes: Uint8Array) => sha1(bytes).pipe(Effect.map(bytesToHex));
 
 /**
  * Stream-API-based zlib deflate using web-platform CompressionStream.

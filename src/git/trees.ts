@@ -26,27 +26,24 @@ import * as Schema from 'effect/Schema';
 import { type FileSystem } from 'effect/FileSystem';
 import { type Path } from 'effect/Path';
 import { ObjectCorruptError, type ObjectNotFoundError, type RefNotFoundError } from './errors.js';
+import { bytesToHex } from './bytes.js';
 import { readLooseObject } from './objects.js';
 import { resolveRef } from './refs.js';
 import { Oid, RefName, RepoPath } from './schemas.js';
 
 const ASCII = new TextDecoder('utf-8', { fatal: false });
-const HEX = '0123456789abcdef';
 const SP = 0x20;
 
 type TreeEntry = {
   /** Posix mode as decimal-encoded ASCII in real-git: 040000, 100644, 100755, 120000, 160000 */
   readonly mode: number;
-  readonly name: string;
+  /** A validated tree-entry basename; valid parents compose to a RepoPath. */
+  readonly name: RepoPath;
   readonly oid: Oid;
 };
 
-const hexNibble = (n: number): string => HEX[n] ?? '';
-
-const oidFromBytes = (bytes: Uint8Array): Oid =>
-  Schema.decodeUnknownSync(Oid)(
-    Array.from(bytes.subarray(0, 20), (b) => `${hexNibble(b >>> 4)}${hexNibble(b & 0x0f)}`).join('')
-  );
+// A bounds-checked 20-byte Git OID always hex-encodes to a valid Oid.
+const oidFromBytes = (bytes: Uint8Array): Oid => bytesToHex(bytes.subarray(0, 20)) as Oid;
 
 /**
  * Decode a tree object body into entries. Real-git's encoding is
@@ -68,7 +65,15 @@ const parseOneTreeEntry = (oid: Oid, content: Uint8Array, offset: number): Parse
   if (nulIx < 0) {
     throw new ObjectCorruptError({ oid, reason: 'no NUL after name', message: `tree ${oid}: malformed entry name` });
   }
-  const name = ASCII.decode(content.subarray(spIx + 1, nulIx));
+  const rawName = ASCII.decode(content.subarray(spIx + 1, nulIx));
+  if (rawName.includes('/')) {
+    throw new ObjectCorruptError({
+      oid,
+      reason: 'slash in tree entry name',
+      message: `tree ${oid}: invalid entry name`,
+    });
+  }
+  const name = Schema.decodeUnknownSync(RepoPath)(rawName);
   const oidStart = nulIx + 1;
   const oidEnd = oidStart + 20;
   if (oidEnd > content.byteLength) {
@@ -148,12 +153,12 @@ const buildStream = (
     return e.mode !== SUBMODULE_MODE && (e.mode & 0o17_0000) === TREE_MODE
       ? readTree(gitdir, e.oid).pipe(
           Stream.map((child) => ({
-            path: Schema.decodeUnknownSync(RepoPath)(`${fullPath}/${child.path}`),
+            path: `${fullPath}/${child.path}` as RepoPath,
             oid: child.oid,
             mode: child.mode,
           }))
         )
-      : Stream.succeed({ path: Schema.decodeUnknownSync(RepoPath)(fullPath), oid: e.oid, mode: e.mode });
+      : Stream.succeed({ path: fullPath as RepoPath, oid: e.oid, mode: e.mode });
   });
 /* eslint-enable local-rules/no-explicit-effect-return-type */
 
