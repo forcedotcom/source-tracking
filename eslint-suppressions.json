@@ -5,9 +5,6 @@
     }
   },
   "src/shared/local/moveDetection.ts": {
-    "@typescript-eslint/await-thenable": {
-      "count": 2
-    },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     }

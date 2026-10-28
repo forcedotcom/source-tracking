@@ -147,4 +147,41 @@ describe('localShadowRepo', () => {
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
   });
+
+  it('serializes overlapping forced status scans', async () => {
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoLockTest'));
+    try {
+      fs.mkdirSync(path.join(projectDir, 'force-app'));
+      fs.writeFileSync(path.join(projectDir, 'force-app', 'Foo.cls'), 'public class Foo {}');
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D000000000003',
+        registry,
+        projectPath: projectDir,
+        packageDirs: [{ name: 'force-app', fullPath: path.join(projectDir, 'force-app'), path: 'force-app' }],
+      });
+      const originalStatusMatrix = git.statusMatrix;
+      let releaseFirst: () => void;
+      const firstCanFinish = new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      let calls = 0;
+      sinon.stub(git, 'statusMatrix').callsFake(async (options) => {
+        calls += 1;
+        if (calls === 1) await firstCanFinish;
+        return originalStatusMatrix(options);
+      });
+
+      const first = shadowRepo.getStatus(true);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const second = shadowRepo.getStatus(true);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(calls).to.equal(1);
+
+      releaseFirst!();
+      await Promise.all([first, second]);
+      expect(calls).to.equal(2);
+    } finally {
+      await fs.promises.rm(projectDir, { recursive: true, force: true });
+    }
+  });
 });

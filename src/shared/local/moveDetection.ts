@@ -30,6 +30,8 @@ import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './func
 import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
 
 const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
+const FILE_INFO_BATCH_SIZE = 32;
+const TYPE_RESOLUTION_YIELD_INTERVAL = 100;
 type AddAndDeleteFileInfos = Readonly<{ addedInfo: DetectionFileInfo[]; deletedInfo: DetectionFileInfo[] }>;
 type AddAndDeleteFileInfosWithTypes = {
   addedInfo: DetectionFileInfoWithType[];
@@ -56,7 +58,7 @@ export const filenameMatchesToMap =
 
     return compareHashes(
       await buildMaps(
-        addTypes(resolver)(
+        await addTypes(resolver)(
           await toFileInfo({
             projectPath,
             gitDir,
@@ -178,12 +180,29 @@ const toFileInfo = async ({
   // Track how long it takes to gather the oid information from the git trees
 
   const headRef = await git.resolveRef({ fs, dir: projectPath, gitdir: gitDir, ref: 'HEAD' });
-  const [addedInfo, deletedInfo] = await Promise.all([
-    await Promise.all(Array.from(added).map(getHashForAddedFile(projectPath))),
-    await Promise.all(Array.from(deleted).map(getHashFromActualFileContents(gitDir)(projectPath)(headRef))),
-  ]);
+  const addedInfo = await inBatches(Array.from(added), getHashForAddedFile(projectPath));
+  const deletedInfo = await inBatches(Array.from(deleted), getHashFromActualFileContents(gitDir)(projectPath)(headRef));
 
   return { addedInfo, deletedInfo };
+};
+
+const yieldToEventLoop = async (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+/**
+ * Bounds simultaneous whole-file reads and hashes while retaining input order.
+ * Each side stays separate so added files finish before deleted blobs begin.
+ */
+const inBatches = async <T, R>(values: T[], operation: (value: T) => Promise<R>): Promise<Array<Awaited<R>>> => {
+  const results: Array<Awaited<R>> = [];
+  const processBatch = async (index: number): Promise<Array<Awaited<R>>> => {
+    results.push(...(await Promise.all(values.slice(index, index + FILE_INFO_BATCH_SIZE).map(operation))));
+    const nextIndex = index + FILE_INFO_BATCH_SIZE;
+    if (nextIndex >= values.length) return results;
+    // Each batch finishes before the next starts to retain bounded concurrency and input order.
+    await yieldToEventLoop();
+    return processBatch(nextIndex);
+  };
+  return values.length ? processBatch(0) : [];
 };
 
 /** returns a map of <hash+basename, filepath>.  If two items result in the same hash+basename, return that in the ignore bucket */
@@ -257,14 +276,31 @@ const removeHashFromKey = (hash: string): string => hash.split(JOIN_CHAR).splice
 /** resolve the metadata types (and possibly parent components) */
 const addTypes =
   (resolver: MetadataResolver) =>
-  (info: AddAndDeleteFileInfos): AddAndDeleteFileInfosWithTypes => {
+  async (info: AddAndDeleteFileInfos): Promise<AddAndDeleteFileInfosWithTypes> => {
     // quick passthrough if we don't have adds and deletes
     if (!info.addedInfo.length || !info.deletedInfo.length) return { addedInfo: [], deletedInfo: [] };
     const applied = getTypesForFileInfo(resolveType(resolver));
-    return {
-      addedInfo: info.addedInfo.flatMap(applied),
-      deletedInfo: info.deletedInfo.flatMap(applied),
+    const addedInfo: DetectionFileInfoWithType[] = [];
+    const deletedInfo: DetectionFileInfoWithType[] = [];
+    const totalFilenames = info.addedInfo.length + info.deletedInfo.length;
+    const applyTypes = async (
+      input: DetectionFileInfo[],
+      output: DetectionFileInfoWithType[],
+      index: number,
+      completedFilenames: number
+    ): Promise<number> => {
+      if (index >= input.length) return completedFilenames;
+      output.push(...applied(input[index]));
+      const nextCompletedFilenames = completedFilenames + 1;
+      if (nextCompletedFilenames % TYPE_RESOLUTION_YIELD_INTERVAL === 0 && nextCompletedFilenames < totalFilenames) {
+        await yieldToEventLoop();
+      }
+      return applyTypes(input, output, index + 1, nextCompletedFilenames);
     };
+
+    const completedAdditions = await applyTypes(info.addedInfo, addedInfo, 0, 0);
+    await applyTypes(info.deletedInfo, deletedInfo, 0, completedAdditions);
+    return { addedInfo, deletedInfo };
   };
 
 const getTypesForFileInfo =

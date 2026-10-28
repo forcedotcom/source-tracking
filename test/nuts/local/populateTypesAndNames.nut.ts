@@ -20,6 +20,7 @@ import { expect } from 'chai';
 import { ForceIgnore, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { populateTypesAndNames } from '../../../src/shared/populateTypesAndNames';
 import { ChangeResult } from '../../../src/shared/types';
+import { measureSharedEventLoop } from '../../perf/sharedEventLoop';
 
 // TestSession stubs process.cwd() to the project dir, which causes maybeGetTreeContainer
 // to return undefined and the resolver to use the real cwd (workspace root) for FS ops.
@@ -44,31 +45,11 @@ describe('populateTypesAndNames', () => {
     fs.rmSync(projectPath, { recursive: true, force: true });
   });
 
-  it('returns an empty array for empty input', () => {
-    expect(populateTypesAndNames({ projectPath, registry })([])).to.deep.equal([]);
+  it('returns an empty array for empty input', async () => {
+    expect(await populateTypesAndNames({ projectPath, registry })([])).to.deep.equal([]);
   });
 
-  it('resolves an Apex class to its type and name', () => {
-    const input: ChangeResult[] = [{ origin: 'local', filenames: [apexMeta] }];
-    const [result] = populateTypesAndNames({ projectPath, registry })(input);
-    expect(result.type).to.equal('ApexClass');
-    expect(result.name).to.equal('OrderController');
-  });
-
-  it('resolves multiple LWC bundle files to the same component type/name', () => {
-    const input: ChangeResult[] = [
-      { origin: 'local', filenames: [path.join(lwcDir, 'accountMap', 'accountMap.js')] },
-      { origin: 'local', filenames: [path.join(lwcDir, 'accountMap', 'accountMap.html')] },
-    ];
-    const results = populateTypesAndNames({ projectPath, registry })(input);
-    expect(results).to.have.length(2);
-    results.forEach((r) => {
-      expect(r.type).to.equal('LightningComponentBundle');
-      expect(r.name).to.equal('accountMap');
-    });
-  });
-
-  it('marks a component as ignored when a content file matches .forceignore', () => {
+  it('marks a component as ignored when a content file matches .forceignore', async () => {
     // **/jsconfig.json is in the ebikes .forceignore. Writing one inside the bundle
     // means forceIgnoreDenies returns true for this component.
     const createCaseDir = path.join(projectPath, lwcDir, 'createCase');
@@ -78,22 +59,74 @@ describe('populateTypesAndNames', () => {
     const input: ChangeResult[] = [
       { origin: 'local', filenames: [path.join(lwcDir, 'createCase', 'createCase.js-meta.xml')] },
     ];
-    const [result] = populateTypesAndNames({ projectPath, registry, forceIgnore })(input);
+    const [result] = await populateTypesAndNames({ projectPath, registry, forceIgnore })(input);
     expect(result.ignored).to.equal(true);
   });
 
-  it('excludes unresolvable filenames when excludeUnresolvable is true', () => {
-    const input: ChangeResult[] = [
-      { origin: 'local', filenames: ['force-app/main/default/classes/DoesNotExist.cls-meta.xml'] },
-    ];
-    expect(populateTypesAndNames({ projectPath, registry, excludeUnresolvable: true })(input)).to.deep.equal([]);
+  it('resolves an Apex class to its type and name', async () => {
+    const input: ChangeResult[] = [{ origin: 'local', filenames: [apexMeta] }];
+    const [result] = await populateTypesAndNames({ projectPath, registry })(input);
+    expect(result.type).to.equal('ApexClass');
+    expect(result.name).to.equal('OrderController');
   });
 
-  it('preserves unresolvable elements when excludeUnresolvable is false', () => {
+  it('resolves multiple LWC bundle files to the same component type/name', async () => {
+    const input: ChangeResult[] = [
+      { origin: 'local', filenames: [path.join(lwcDir, 'accountMap', 'accountMap.js')] },
+      { origin: 'local', filenames: [path.join(lwcDir, 'accountMap', 'accountMap.html')] },
+    ];
+    const results = await populateTypesAndNames({ projectPath, registry })(input);
+    expect(results).to.have.length(2);
+    results.forEach((r) => {
+      expect(r.type).to.equal('LightningComponentBundle');
+      expect(r.name).to.equal('accountMap');
+    });
+  });
+
+  it('allows a same-thread heartbeat during large local enrichment', async () => {
+    const heartbeatProjectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'populateTypesAndNames-heartbeat-'));
+    try {
+      const classesDir = path.join(heartbeatProjectPath, 'force-app', 'main', 'default', 'classes');
+      fs.mkdirSync(classesDir, { recursive: true });
+      const changes = Array.from({ length: 201 }, (_, index) => {
+        const name = `Heartbeat${String(index).padStart(3, '0')}`;
+        fs.writeFileSync(path.join(classesDir, `${name}.cls`), `public class ${name} {}`);
+        fs.writeFileSync(
+          path.join(classesDir, `${name}.cls-meta.xml`),
+          '<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata"><apiVersion>60.0</apiVersion><status>Active</status></ApexClass>'
+        );
+        return {
+          origin: 'local' as const,
+          filenames: [path.join('force-app', 'main', 'default', 'classes', `${name}.cls`)],
+        };
+      });
+
+      const { result, stats } = await measureSharedEventLoop(() =>
+        populateTypesAndNames({
+          projectPath: heartbeatProjectPath,
+          registry: new RegistryAccess(),
+          excludeUnresolvable: true,
+        })(changes)
+      );
+      expect(result).to.have.length(201);
+      expect(stats.operationHeartbeatCount).to.be.greaterThan(0);
+    } finally {
+      fs.rmSync(heartbeatProjectPath, { recursive: true, force: true });
+    }
+  });
+
+  it('excludes unresolvable filenames when excludeUnresolvable is true', async () => {
     const input: ChangeResult[] = [
       { origin: 'local', filenames: ['force-app/main/default/classes/DoesNotExist.cls-meta.xml'] },
     ];
-    const [result] = populateTypesAndNames({ projectPath, registry })(input);
+    expect(await populateTypesAndNames({ projectPath, registry, excludeUnresolvable: true })(input)).to.deep.equal([]);
+  });
+
+  it('preserves unresolvable elements when excludeUnresolvable is false', async () => {
+    const input: ChangeResult[] = [
+      { origin: 'local', filenames: ['force-app/main/default/classes/DoesNotExist.cls-meta.xml'] },
+    ];
+    const [result] = await populateTypesAndNames({ projectPath, registry })(input);
     expect(result.origin).to.equal('local');
     expect(result.type).to.equal(undefined);
     expect(result.name).to.equal(undefined);

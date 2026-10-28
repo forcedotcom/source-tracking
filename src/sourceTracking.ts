@@ -635,7 +635,7 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
 
-    const result = getDedupedConflictsFromChanges({
+    const result = await getDedupedConflictsFromChanges({
       localChanges,
       remoteChanges,
       projectPath: this.projectPath,
@@ -778,9 +778,9 @@ export class SourceTracking extends AsyncCreatable {
     const toOutput = localChangesToOutputRow(this.logger)(this.forceIgnore);
 
     return [
-      ...populateTypesAndNames(base)(adds).flatMap(toOutput('add')),
-      ...populateTypesAndNames(base)(modifies).flatMap(toOutput('modify')),
-      ...populateTypesAndNames({ ...base, resolveDeleted: true })(deletes).flatMap(toOutput('delete')),
+      ...(await populateTypesAndNames(base)(adds)).flatMap(toOutput('add')),
+      ...(await populateTypesAndNames(base)(modifies)).flatMap(toOutput('modify')),
+      ...(await populateTypesAndNames({ ...base, resolveDeleted: true })(deletes)).flatMap(toOutput('delete')),
     ];
   }
 
@@ -886,6 +886,9 @@ export const correctSourceMemberNames = (
   packageDirPaths: string[],
   registry: RegistryAccess
 ): RemoteChangeElement[] => {
+  if (!changes.some((change) => TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(change.type)))
+    return changes.map((change) => change);
+
   const localNamesByType = new Map<string, string[]>();
   for (const component of ComponentSet.fromSource({ fsPaths: packageDirPaths, registry }).getSourceComponents()) {
     const typeName = component.type.name;

@@ -55,7 +55,7 @@ export const populateTypesAndNames =
     resolveDeleted?: boolean;
     registry: RegistryAccess;
   }) =>
-  (elements: ChangeResult[]): ChangeResult[] => {
+  async (elements: ChangeResult[]): Promise<ChangeResult[]> => {
     if (elements.length === 0) {
       return [];
     }
@@ -76,32 +76,33 @@ export const populateTypesAndNames =
     // Deduplicate by fullName+type: all files in the same bundle component (e.g. uiBundles)
     // resolve to the same SourceComponent, so without dedup getAllFiles/walkContent is called
     // once per input file rather than once per unique component (O(N) walks instead of O(1)).
-    const uniqueSourceComponents = [
-      ...new Map(
-        filenames
-          .flatMap((filename) => {
-            try {
-              return resolver.getComponentsFromPath(filename);
-            } catch (e) {
-              logger.warn(`unable to resolve ${filename}`);
-              return undefined;
-            }
-          })
-          .filter(isDefined)
-          .filter(sourceComponentHasFullNameAndType)
-          .map((sc) => [`${sc.fullName}:${sc.type.name}`, sc] as const)
-      ).values(),
-    ];
+    const uniqueSourceComponents = new Map<string, ReturnType<typeof resolver.getComponentsFromPath>[number]>();
+    for (const [index, filename] of filenames.entries()) {
+      try {
+        for (const component of resolver.getComponentsFromPath(filename)) {
+          if (isDefined(component) && sourceComponentHasFullNameAndType(component)) {
+            uniqueSourceComponents.set(`${component.fullName}:${component.type.name}`, component);
+          }
+        }
+      } catch (e) {
+        logger.warn(`unable to resolve ${filename}`);
+      }
+      if (index > 0 && index % 100 === 0) {
+        // Yield only after completing one filename's resolution and deduplication.
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((continueWork) => setImmediate(continueWork));
+      }
+    }
 
-    logger.debug(`populateTypesAndNames resolved ${uniqueSourceComponents.length} unique components`);
+    logger.debug(`populateTypesAndNames resolved ${uniqueSourceComponents.size} unique components`);
 
     // iterates the local components and sets their filenames
-    uniqueSourceComponents.map((matchingComponent) => {
+    for (const [index, matchingComponent] of [...uniqueSourceComponents.values()].entries()) {
       const filenamesFromMatchingComponent = getAllFiles(matchingComponent);
       const ignored = filenamesFromMatchingComponent
         .filter(excludeLwcLocalOnlyTest)
         .some(forceIgnoreDenies(forceIgnore));
-      filenamesFromMatchingComponent.map((filename) => {
+      filenamesFromMatchingComponent.forEach((filename) => {
         if (filename && elementMap.has(filename)) {
           // add the type/name from the componentSet onto the element
           elementMap.set(filename, {
@@ -113,7 +114,12 @@ export const populateTypesAndNames =
           });
         }
       });
-    });
+      if (index > 0 && index % 100 === 0) {
+        // Yield only after all paths belonging to this component are enriched.
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((continueWork) => setImmediate(continueWork));
+      }
+    }
     return excludeUnresolvable
       ? Array.from(new Set(elementMap.values())).filter(isChangeResultWithNameAndType)
       : Array.from(new Set(elementMap.values()));

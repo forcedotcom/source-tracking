@@ -91,10 +91,11 @@ export const populateFilePaths = ({
     .toArray()
     .filter(sourceComponentHasFullNameAndType)
     .map((matchingComponent) => {
+      const filenames = getAllFiles(matchingComponent);
       logger.debug(
         `${matchingComponent.fullName}|${matchingComponent.type.name} matches ${
           matchingComponent.xml ?? '<no xml>'
-        } and maybe ${matchingComponent.walkContent().toString()}`
+        } and maybe ${filenames.toString()}`
       );
       // Decode the key since local components can have encoded fullNames, but results from querying
       // SourceMembers have fullNames that are not encoded. See:  https://github.com/forcedotcom/cli/issues/1683
@@ -103,7 +104,7 @@ export const populateFilePaths = ({
         ...elementMap.get(key),
         modified: true,
         origin: 'remote',
-        filenames: getAllFiles(matchingComponent),
+        filenames,
       });
     });
 

@@ -47,13 +47,13 @@ describe('Bundle-like types delete', () => {
     sandbox.restore();
   });
 
-  it('returns components for deploy with partial LWC delete', () => {
+  it('returns components for deploy with partial LWC delete', async () => {
     const lwcTestCompDir = path.join(session.project.dir, 'force-app', 'lwc', 'testComp');
     const lwcHtmlFile = path.join(lwcTestCompDir, 'myComp.html');
     const lwcJsFile = path.join(lwcTestCompDir, 'myComp.js');
     const lwcMetaFile = path.join(lwcTestCompDir, 'myComp.js-meta.xml');
 
-    const compSets = getComponentSets({
+    const compSets = await getComponentSets({
       groupings: [
         {
           path: path.join(session.project.dir, 'force-app', 'lwc'),
@@ -73,7 +73,7 @@ describe('Bundle-like types delete', () => {
     });
   });
 
-  it('returns components for delete for full LWC delete', () => {
+  it('returns components for delete for full LWC delete', async () => {
     // We stub this so it appears that we deleted all the LWC files
     sandbox.stub(fs, 'existsSync').returns(false);
     const lwcTestCompDir = path.join(session.project.dir, 'force-app', 'lwc', 'testComp');
@@ -81,7 +81,7 @@ describe('Bundle-like types delete', () => {
     const lwcJsFile = path.join(lwcTestCompDir, 'myComp.js');
     const lwcMetaFile = path.join(lwcTestCompDir, 'myComp.js-meta.xml');
 
-    const compSets = getComponentSets({
+    const compSets = await getComponentSets({
       groupings: [
         {
           path: path.join(session.project.dir, 'force-app', 'lwc'),
@@ -101,13 +101,13 @@ describe('Bundle-like types delete', () => {
     });
   });
 
-  it('returns components for deploy with partial StaticResource delete', () => {
+  it('returns components for deploy with partial StaticResource delete', async () => {
     const srDir = path.join(session.project.dir, 'force-app', 'staticresources');
     const srFile1 = path.join(srDir, 'ZippedResource', 'file1.json');
     const srFile2 = path.join(srDir, 'ZippedResource', 'file2.json');
     const srMetaFile = path.join(srDir, 'ZippedResource.resource-meta.xml');
 
-    const compSets = getComponentSets({
+    const compSets = await getComponentSets({
       groupings: [
         {
           path: srDir,
@@ -127,7 +127,7 @@ describe('Bundle-like types delete', () => {
     });
   });
 
-  it('returns components for delete for full StaticResource delete', () => {
+  it('returns components for delete for full StaticResource delete', async () => {
     // We stub this so it appears that we deleted all the ZippedResource static resource files
     sandbox.stub(fs, 'existsSync').returns(false);
     const srDir = path.join(session.project.dir, 'force-app', 'staticresources');
@@ -135,7 +135,7 @@ describe('Bundle-like types delete', () => {
     const srFile2 = path.join(srDir, 'ZippedResource', 'file2.json');
     const srMetaFile = path.join(srDir, 'ZippedResource.resource-meta.xml');
 
-    const compSets = getComponentSets({
+    const compSets = await getComponentSets({
       groupings: [
         {
           path: srDir,
@@ -155,11 +155,11 @@ describe('Bundle-like types delete', () => {
     });
   });
 
-  it('returns components for deploy with partial DigitalExperienceBundle delete', () => {
+  it('returns components for deploy with partial DigitalExperienceBundle delete', async () => {
     const debDir = path.join(session.project.dir, 'force-app', 'digitalExperiences', 'site', 'Xcel_Energy1');
     const deFile1 = path.join(debDir, 'sfdc_cms__view', 'home', 'content.json');
 
-    const compSets = getComponentSets({
+    const compSets = await getComponentSets({
       groupings: [
         {
           path: debDir,
@@ -179,12 +179,12 @@ describe('Bundle-like types delete', () => {
     });
   });
 
-  it('returns components for deploy with partial ExperienceBundle delete', () => {
+  it('returns components for deploy with partial ExperienceBundle delete', async () => {
     const ebDir = path.join(session.project.dir, 'force-app', 'experiences', 'fooEB');
     const eFile1 = path.join(ebDir, 'views', 'login.json');
     const eFile2 = path.join(ebDir, 'routes', 'login.json');
 
-    const compSets = getComponentSets({
+    const compSets = await getComponentSets({
       groupings: [
         {
           path: ebDir,

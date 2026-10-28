@@ -16,13 +16,23 @@
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
+import * as gracefulFs from 'graceful-fs';
 import git from 'isomorphic-git';
 import { expect, config } from 'chai';
 import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../src/shared/local/localShadowRepo';
+import { filenameMatchesToMap } from '../../src/shared/local/moveDetection';
 
 config.truncateThreshold = 0;
+
+const deferred = <T>(): { promise: Promise<T>; resolve: (value: T) => void } => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+};
 afterEach(() => {
   // Restore the default sandbox here
   sinon.restore();
@@ -81,6 +91,152 @@ describe('local detect moved files', () => {
       // Moved file should have been detected and committed
       expect(gitAdd.calledTwice).to.be.true;
       expect(await shadowRepo.getChangedRows()).to.be.empty;
+    } finally {
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
+    }
+  });
+
+  it('normalizes moves that cross internal candidate and type-resolution boundaries', async () => {
+    let projectDir!: string;
+    try {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoBatchedMoveTest'));
+      const sourceDir = path.join(projectDir, 'force-app', 'labels');
+      const destinationDir = path.join(projectDir, 'force-app', 'new', 'labels');
+      fs.mkdirSync(sourceDir, { recursive: true });
+      fs.mkdirSync(destinationDir, { recursive: true });
+      const files = Array.from({ length: 51 }, (_unused, index) =>
+        path.join('force-app', 'labels', `CustomLabels${String(index).padStart(2, '0')}.labels-meta.xml`)
+      );
+      files.forEach((file) => fs.writeFileSync(path.join(projectDir, file), `<xml>${file}</xml>`));
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D456789012346',
+        projectPath: projectDir,
+        packageDirs: [
+          { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
+        ],
+        registry,
+      });
+      await shadowRepo.commitChanges({ deployedFiles: files });
+      files.forEach((file) =>
+        fs.renameSync(path.join(projectDir, file), path.join(destinationDir, path.basename(file)))
+      );
+
+      await shadowRepo.getStatus(true);
+      expect(await shadowRepo.getChangedRows()).to.be.empty;
+    } finally {
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
+    }
+  });
+
+  it('limits complete candidate operations to one internal batch before starting the next', async () => {
+    const candidates = Array.from({ length: 33 }, (_unused, index) => `Class${String(index).padStart(2, '0')}.cls`);
+    const added = new Set(candidates.map((filename) => `force-app/new/${filename}`));
+    const deleted = new Set(candidates.map((filename) => `force-app/old/${filename}`));
+    const gates = Array.from({ length: 32 }, () => deferred<{ oid: string }>());
+    const first31HashesComplete = deferred<void>();
+    const addedStarts: string[] = [];
+    let activeHashes = 0;
+    let completedHashes = 0;
+    let highWaterMark = 0;
+
+    sinon.stub(git, 'resolveRef').resolves('head');
+    sinon.stub(gracefulFs.promises, 'readFile').callsFake(async (filepath) => {
+      const filename = path.basename(typeof filepath === 'string' ? filepath : '');
+      addedStarts.push(filename);
+      return Buffer.from(filename);
+    });
+    sinon.stub(git, 'hashBlob').callsFake(async ({ object }) => {
+      const filename = object.toString();
+      activeHashes += 1;
+      highWaterMark = Math.max(highWaterMark, activeHashes);
+      const gate = gates[addedStarts.indexOf(filename)];
+      const result = gate ? await gate.promise : { oid: filename };
+      activeHashes -= 1;
+      completedHashes += 1;
+      if (completedHashes === 31) first31HashesComplete.resolve();
+      return result as unknown as Awaited<ReturnType<typeof git.hashBlob>>;
+    });
+    sinon
+      .stub(git, 'readBlob')
+      .callsFake(
+        async ({ filepath }) =>
+          ({ oid: path.basename(filepath as string) } as unknown as Awaited<ReturnType<typeof git.readBlob>>)
+      );
+
+    const matching = filenameMatchesToMap(registry)('/project')('/git')({ added, deleted });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(highWaterMark).to.equal(32);
+    expect(addedStarts).to.have.lengthOf(32);
+
+    gates.slice(0, 31).forEach((gate, index) => gate.resolve({ oid: `Class${String(index).padStart(2, '0')}.cls` }));
+    await first31HashesComplete.promise;
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(addedStarts).to.have.lengthOf(32);
+    gates[31].resolve({ oid: 'Class31.cls' });
+
+    const matches = await matching;
+    expect(highWaterMark).to.equal(32);
+    expect(addedStarts).to.have.lengthOf(33);
+    expect(Array.from(matches.fullMatches.keys())).to.deep.equal(Array.from(added));
+  });
+
+  it('stops later candidate batches and normalization when an added file operation fails', async () => {
+    let projectDir!: string;
+    const expectedError = new Error('expected candidate read failure');
+    try {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoBatchedFailureTest'));
+      const sourceDir = path.join(projectDir, 'force-app', 'classes');
+      const destinationDir = path.join(projectDir, 'force-app', 'new', 'classes');
+      fs.mkdirSync(sourceDir, { recursive: true });
+      fs.mkdirSync(destinationDir, { recursive: true });
+      const files = Array.from({ length: 65 }, (_unused, index) => {
+        const name = `BatchedFailure${String(index).padStart(2, '0')}`;
+        return [
+          path.join('force-app', 'classes', `${name}.cls`),
+          path.join('force-app', 'classes', `${name}.cls-meta.xml`),
+        ];
+      }).flat();
+      files.forEach((file) => fs.writeFileSync(path.join(projectDir, file), '<xml></xml>'));
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D456789012347',
+        projectPath: projectDir,
+        packageDirs: [
+          { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
+        ],
+        registry,
+      });
+      await shadowRepo.commitChanges({ deployedFiles: files });
+      files.forEach((file) =>
+        fs.renameSync(path.join(projectDir, file), path.join(destinationDir, path.basename(file)))
+      );
+
+      const originalReadFile = gracefulFs.promises.readFile.bind(gracefulFs.promises);
+      let candidateReadCount = 0;
+      sinon.stub(gracefulFs.promises, 'readFile').callsFake(async (filepath, options) => {
+        if (typeof filepath === 'string' && filepath.startsWith(destinationDir)) {
+          candidateReadCount += 1;
+          if (candidateReadCount === 64) throw expectedError;
+        }
+        return originalReadFile(filepath, options);
+      });
+      const gitAdd = sinon.spy(git, 'add');
+      const gitCommit = sinon.spy(git, 'commit');
+      const readBlob = sinon.spy(git, 'readBlob');
+
+      let caughtError: unknown;
+      try {
+        await shadowRepo.getStatus(true);
+      } catch (error) {
+        caughtError = error;
+      }
+      expect(caughtError).to.equal(expectedError);
+      expect(candidateReadCount).to.equal(64);
+      expect(readBlob.called).to.equal(false);
+      expect(gitAdd.called).to.equal(false);
+      expect(gitCommit.called).to.equal(false);
     } finally {
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
