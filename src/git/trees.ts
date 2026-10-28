@@ -118,51 +118,18 @@ const SUBMODULE_MODE = 0o16_0000;
 const TREE_MODE = 0o04_0000;
 export type HeadTreeEntry = { readonly path: RepoPath; readonly oid: Oid; readonly mode: number };
 
-type TreeProfile = {
-  treeObjects: number;
-  treeContentBytes: number;
-  readInflateVerifyMs: number;
-  parseMs: number;
-};
-
 // These two helpers recurse through each other; annotations break TypeScript's
 // return-type inference cycle for that recursive pair.
 /* eslint-disable local-rules/no-explicit-effect-return-type */
 const readTree = (
   gitdir: string,
-  treeOid: Oid,
-  profile?: TreeProfile
+  treeOid: Oid
 ): Stream.Stream<HeadTreeEntry, ObjectNotFoundError | ObjectCorruptError | PlatformError, FileSystem | Path | Crypto> =>
   Stream.unwrap(
-    (profile
-      ? Effect.suspend(() => {
-          const start = performance.now();
-          return readLooseObject(gitdir, treeOid).pipe(
-            Effect.tap((obj) =>
-              Effect.sync(() => {
-                profile.treeObjects += 1;
-                profile.treeContentBytes += obj.content.byteLength;
-                profile.readInflateVerifyMs += performance.now() - start;
-              })
-            )
-          );
-        })
-      : readLooseObject(gitdir, treeOid)
-    ).pipe(
+    readLooseObject(gitdir, treeOid).pipe(
       Effect.flatMap((obj) =>
         obj.type === 'tree'
-          ? profile
-            ? Effect.suspend(() => {
-                const start = performance.now();
-                return parseTreeObject(treeOid, obj.content).pipe(
-                  Effect.tap(() =>
-                    Effect.sync(() => {
-                      profile.parseMs += performance.now() - start;
-                    })
-                  )
-                );
-              })
-            : parseTreeObject(treeOid, obj.content)
+          ? parseTreeObject(treeOid, obj.content)
           : Effect.fail(
               new ObjectCorruptError({
                 oid: treeOid,
@@ -171,21 +138,20 @@ const readTree = (
               })
             )
       ),
-      Effect.map((entries) => buildStream(gitdir, entries, '', profile))
+      Effect.map((entries) => buildStream(gitdir, entries, ''))
     )
   );
 
 const buildStream = (
   gitdir: string,
   entries: readonly TreeEntry[],
-  prefix: string,
-  profile?: TreeProfile
+  prefix: string
 ): Stream.Stream<HeadTreeEntry, ObjectNotFoundError | ObjectCorruptError | PlatformError, FileSystem | Path | Crypto> =>
   Stream.flatMap(Stream.fromIterable(entries), (e) => {
     const fullPath = prefix.length === 0 ? e.name : `${prefix}/${e.name}`;
     // Submodules (mode 160000) are emitted but not recursed (per spec).
     return e.mode !== SUBMODULE_MODE && (e.mode & 0o17_0000) === TREE_MODE
-      ? readTree(gitdir, e.oid, profile).pipe(
+      ? readTree(gitdir, e.oid).pipe(
           Stream.map((child) => ({
             path: `${fullPath}/${child.path}` as RepoPath,
             oid: child.oid,
@@ -199,8 +165,7 @@ const buildStream = (
 /** Resolve HEAD to a commit oid, then to its tree, preserving file modes. */
 /* eslint-disable local-rules/no-explicit-effect-return-type -- keep the package declaration portable for consumers. */
 export const streamHeadTreeWithMode = (
-  gitdir: string,
-  profile?: TreeProfile
+  gitdir: string
 ): Stream.Stream<
   HeadTreeEntry,
   ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | PlatformError,
@@ -228,7 +193,7 @@ export const streamHeadTreeWithMode = (
             message: `streamHeadTree: commit ${headOid} has no tree header`,
           })
       );
-      return readTree(gitdir, Schema.decodeUnknownSync(Oid)(matched[1] ?? ''), profile);
+      return readTree(gitdir, Schema.decodeUnknownSync(Oid)(matched[1] ?? ''));
     })
   ).pipe(Stream.withSpan('streamHeadTree'));
 
