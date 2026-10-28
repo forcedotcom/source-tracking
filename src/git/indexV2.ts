@@ -18,11 +18,11 @@ import { Path } from 'effect/Path';
 import type { Crypto } from 'effect/Crypto';
 import * as Effect from 'effect/Effect';
 import { isUndefined } from 'effect/Predicate';
-import * as Schema from 'effect/Schema';
 import type { PlatformError } from 'effect/PlatformError';
 import { IndexCorruptError } from './errors.js';
+import { bytesToHex } from './bytes.js';
 import { sha1 } from './objects.js';
-import { Oid } from './schemas.js';
+import type { Oid } from './schemas.js';
 
 /**
  * Git index v2 layout (from `Documentation/technical/index-format.txt`).
@@ -66,13 +66,8 @@ export type IndexEntry = {
 const EMPTY_ENTRIES: readonly IndexEntry[] = [];
 const EMPTY_EXTENSIONS: ReadonlyArray<{ readonly signature: string; readonly payload: Uint8Array }> = [];
 
-const HEX_CHARS = '0123456789abcdef';
-const hexNibble = (n: number): string => HEX_CHARS[n] ?? '';
-
-const oidFromBytes = (bytes: Uint8Array): Oid =>
-  Schema.decodeUnknownSync(Oid)(
-    Array.from(bytes.subarray(0, 20), (b) => `${hexNibble(b >>> 4)}${hexNibble(b & 0x0f)}`).join('')
-  );
+// Index v2 reserves exactly 20 bytes for each SHA-1 OID, which always hex-encode validly.
+const oidFromBytes = (bytes: Uint8Array): Oid => bytesToHex(bytes.subarray(0, 20)) as Oid;
 
 const ASCII = new TextDecoder('utf-8', { fatal: false });
 

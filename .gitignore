@@ -55,3 +55,4 @@ testProj*
 
 .claude/.edit-marker
 .claude/settings.local.json
+/.fastcontext

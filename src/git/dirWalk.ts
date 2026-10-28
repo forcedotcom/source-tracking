@@ -27,6 +27,15 @@ import { gitModeFromStat, lstat } from './workdir.js';
 const GITIGNORE = '.gitignore';
 const TEXT = new TextDecoder('utf-8', { fatal: false });
 
+type WalkProfile = {
+  visitedDirectories: number;
+  childEntries: number;
+  lstatOperations: number;
+  gitignoreFiles: number;
+  maxChildCohort: number;
+  maxDepth: number;
+};
+
 /**
  * One directory's snapshot, taken non-recursively. Returned by
  * [[walkOneDir]] and consumed by the cold status scan. Subdir entries
@@ -45,8 +54,14 @@ type DirSnapshot = {
   readonly subdirNames: readonly string[];
 };
 
-const statOptional = (abs: string, ioSemaphore: Semaphore.Semaphore) =>
-  lstat(abs).pipe(
+const statOptional = (abs: string, ioSemaphore: Semaphore.Semaphore, profile?: WalkProfile) =>
+  (profile
+    ? Effect.suspend(() => {
+        profile.lstatOperations += 1;
+        return lstat(abs);
+      })
+    : lstat(abs)
+  ).pipe(
     Semaphore.withPermits(ioSemaphore, 1),
     Effect.map(Option.some),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed(Option.none<Stats>()))
@@ -60,26 +75,41 @@ const statOptional = (abs: string, ioSemaphore: Semaphore.Semaphore) =>
  * span would dominate the trace stream; the parent operation's
  * aggregate-count annotation is the right granularity.
  */
-const walkOneDir = Effect.fnUntraced(function* (workdir: string, dirRel: string, ioSemaphore: Semaphore.Semaphore) {
+const walkOneDir = Effect.fnUntraced(function* (
+  workdir: string,
+  dirRel: string,
+  ioSemaphore: Semaphore.Semaphore,
+  profile?: WalkProfile
+) {
   const fs = yield* FileSystem;
   const path = yield* Path;
   const abs = dirRel === '' ? workdir : path.join(workdir, dirRel);
 
-  const dirInfo = yield* statOptional(abs, ioSemaphore);
+  const dirInfo = yield* statOptional(abs, ioSemaphore, profile);
   if (Option.isNone(dirInfo) || !dirInfo.value.isDirectory()) return Option.none<DirSnapshot>();
+  if (profile) {
+    profile.visitedDirectories += 1;
+    profile.maxDepth = Math.max(profile.maxDepth, dirRel === '' ? 0 : dirRel.split('/').length);
+  }
 
   // All roots and descendants share the same I/O permits. ENOENT is silently dropped.
   const realChildren = yield* fs.readDirectory(abs).pipe(
     Semaphore.withPermits(ioSemaphore, 1),
     Effect.catchReason('PlatformError', 'NotFound', () => Effect.succeed([])),
-    Effect.flatMap((names) =>
-      Effect.forEach(
+    Effect.flatMap((names) => {
+      if (profile) {
+        profile.childEntries += names.length;
+        profile.maxChildCohort = Math.max(profile.maxChildCohort, names.length);
+      }
+      return Effect.forEach(
         names,
         (name) =>
-          statOptional(path.join(abs, name), ioSemaphore).pipe(Effect.map(Option.map((info) => ({ name, info })))),
+          statOptional(path.join(abs, name), ioSemaphore, profile).pipe(
+            Effect.map(Option.map((info) => ({ name, info })))
+          ),
         { concurrency: 'unbounded' }
-      )
-    ),
+      );
+    }),
     Effect.map((children) => children.flatMap((c) => Option.match(c, { onNone: () => [], onSome: (s) => [s] })))
   );
   const files = realChildren.filter((c) => !c.info.isDirectory() && c.name !== GITIGNORE);
@@ -87,8 +117,9 @@ const walkOneDir = Effect.fnUntraced(function* (workdir: string, dirRel: string,
   const fileModes = new Map(files.map((c) => [c.name, gitModeFromStat(c.info)] satisfies readonly [string, number]));
   const subdirNames = realChildren.filter((c) => c.info.isDirectory()).map((c) => c.name);
   const hasGitignore = realChildren.some((c) => !c.info.isDirectory() && c.name === GITIGNORE);
+  if (profile && hasGitignore) profile.gitignoreFiles += 1;
   const gitignoreContent = hasGitignore
-    ? yield* readGitignoreSnapshot(path.join(abs, GITIGNORE), ioSemaphore)
+    ? yield* readGitignoreSnapshot(path.join(abs, GITIGNORE), ioSemaphore, profile)
     : Option.none<string>();
 
   return Option.some<DirSnapshot>({
@@ -100,9 +131,13 @@ const walkOneDir = Effect.fnUntraced(function* (workdir: string, dirRel: string,
   });
 });
 
-const readGitignoreSnapshot = Effect.fnUntraced(function* (giAbs: string, ioSemaphore: Semaphore.Semaphore) {
+const readGitignoreSnapshot = Effect.fnUntraced(function* (
+  giAbs: string,
+  ioSemaphore: Semaphore.Semaphore,
+  profile?: WalkProfile
+) {
   const fs = yield* FileSystem;
-  const info = yield* statOptional(giAbs, ioSemaphore);
+  const info = yield* statOptional(giAbs, ioSemaphore, profile);
   if (Option.isNone(info)) return Option.none<string>();
   return yield* fs.readFile(giAbs).pipe(
     Semaphore.withPermits(ioSemaphore, 1),
@@ -145,15 +180,17 @@ const walkRecursive: (
   rootRel: string,
   baseChain: IgnoreChain,
   fdPermits: number,
-  ioSemaphore: Semaphore.Semaphore
+  ioSemaphore: Semaphore.Semaphore,
+  profile?: WalkProfile
 ) => Effect.Effect<readonly WalkNode[], PlatformError, FileSystem | Path> = Effect.fnUntraced(function* (
   workdir,
   rootRel,
   baseChain,
   fdPermits,
-  ioSemaphore
+  ioSemaphore,
+  profile
 ) {
-  const snap = yield* walkOneDir(workdir, rootRel, ioSemaphore);
+  const snap = yield* walkOneDir(workdir, rootRel, ioSemaphore, profile);
   if (Option.isNone(snap)) return [];
   const localChain = Option.match(snap.value.gitignoreContent, {
     onNone: () => baseChain,
@@ -161,9 +198,13 @@ const walkRecursive: (
   });
   const here: WalkNode = { snapshot: snap.value, chain: localChain };
   const childRels = snap.value.subdirNames.map((n) => (snap.value.dir === '' ? n : `${snap.value.dir}/${n}`));
-  return yield* Effect.forEach(childRels, (c) => walkRecursive(workdir, c, localChain, fdPermits, ioSemaphore), {
-    concurrency: fdPermits,
-  }).pipe(Effect.map((subResults) => [here, ...subResults.flat()]));
+  return yield* Effect.forEach(
+    childRels,
+    (c) => walkRecursive(workdir, c, localChain, fdPermits, ioSemaphore, profile),
+    {
+      concurrency: fdPermits,
+    }
+  ).pipe(Effect.map((subResults) => [here, ...subResults.flat()]));
 });
 
 /**
@@ -188,7 +229,8 @@ export const nodeIgnores = (node: WalkNode, fullPath: string): boolean => chainI
 
 export const walkAllRoots = Effect.fn('walkAllRoots')(function* (
   cfg: { readonly dir: string; readonly roots: readonly RepoPath[]; readonly fdPermits: number },
-  excludeContent: string
+  excludeContent: string,
+  profile?: WalkProfile
 ) {
   const ioSemaphore = yield* Semaphore.make(cfg.fdPermits);
   const baseChain: IgnoreChain = excludeContent === '' ? emptyChain() : [buildLink('', excludeContent)];
@@ -196,9 +238,13 @@ export const walkAllRoots = Effect.fn('walkAllRoots')(function* (
   // Cold's bare-file-roots use the root-level chain because they're not
   // attached to any DirSnapshot.
   const isIgnoredAtRoot = (p: string): boolean => chainIgnores(baseChain, p);
-  return yield* Effect.forEach(cfg.roots, (r) => walkRecursive(cfg.dir, r, baseChain, cfg.fdPermits, ioSemaphore), {
-    concurrency: cfg.fdPermits,
-  }).pipe(
+  return yield* Effect.forEach(
+    cfg.roots,
+    (r) => walkRecursive(cfg.dir, r, baseChain, cfg.fdPermits, ioSemaphore, profile),
+    {
+      concurrency: cfg.fdPermits,
+    }
+  ).pipe(
     Effect.map((nested) => ({ nodes: nested.flat(), isIgnoredAtRoot } satisfies WalkResult)),
     Effect.tap(({ nodes }) => Effect.annotateCurrentSpan({ rootCount: cfg.roots.length, directoryCount: nodes.length }))
   );

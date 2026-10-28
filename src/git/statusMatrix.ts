@@ -249,29 +249,61 @@ export const cold = (cfg: {
 }) =>
   Stream.unwrap(
     Effect.gen(function* () {
+      // @effect-diagnostics-next-line processEnvInEffect:off -- profiler opt-in, not application configuration.
+      const profile =
+        process.env.SF_STL_STATUS_PROFILE === 'true'
+          ? {
+              start: performance.now(),
+              last: 0,
+              phasesMs: {} as Record<string, number>,
+              head: { treeObjects: 0, treeContentBytes: 0, readInflateVerifyMs: 0, parseMs: 0 },
+              workspace: {
+                visitedDirectories: 0,
+                childEntries: 0,
+                lstatOperations: 0,
+                gitignoreFiles: 0,
+                maxChildCohort: 0,
+                maxDepth: 0,
+              },
+            }
+          : undefined;
+      if (profile) profile.last = profile.start;
+      const mark = (phase: string): void => {
+        if (profile) {
+          const now = performance.now();
+          profile.phasesMs[phase] = now - profile.last;
+          profile.last = now;
+        }
+      };
       const excludeContent = yield* readInfoExclude(cfg.gitdir);
+      mark('exclude');
       const idx = yield* readIndex(cfg.gitdir);
+      mark('indexRead');
       const indexByPath = HashMap.fromIterable(
         idx.entries.map((e) => [e.path, e] satisfies readonly [string, IndexEntry])
       );
+      mark('indexMap');
 
-      const headByPath = HashMap.fromIterable(
-        yield* streamHeadTreeWithMode(cfg.gitdir).pipe(
-          Stream.map(
-            (entry) => [entry.path, { oid: entry.oid, mode: entry.mode }] satisfies readonly [string, HeadFile]
-          ),
-          Stream.runCollect
-        )
+      const headEntries = yield* streamHeadTreeWithMode(cfg.gitdir, profile?.head).pipe(
+        Stream.map((entry) => [entry.path, { oid: entry.oid, mode: entry.mode }] satisfies readonly [string, HeadFile]),
+        Stream.runCollect
       );
+      mark('head');
+      const headByPath = HashMap.fromIterable(headEntries);
+      mark('headMap');
 
       const walk = yield* walkAllRoots(
         { dir: cfg.dir, roots: cfg.roots, fdPermits: cfg.fdPermits ?? 256 },
-        excludeContent
+        excludeContent,
+        profile?.workspace
       );
+      mark('walk');
       const { workdirSet: fileRootPaths, workdirModes: fileRootModes } = yield* collectBareFileRoots(
         cfg.dir,
         cfg.roots
       );
+      if (profile) profile.workspace.lstatOperations += cfg.roots.length;
+      mark('bareRoots');
       const { workdirSet: walked, workdirModes: walkedModes, untracked } = collectFromWalk(walk, indexByPath);
       // Bare file roots don't show up via dir-walk; merge them in.
       const workdirSet = HashSet.union(walked, fileRootPaths);
@@ -286,15 +318,34 @@ export const cold = (cfg: {
         )
       );
       const untrackedAll = HashMap.union(untracked, bareFileUntracked);
+      mark('workdirIndex');
 
-      return yield* evaluateMatrix({
+      const matrix = yield* evaluateMatrix({
         cfg,
         headByPath,
         indexByPath,
         workdirSet,
         workdirModes,
         untracked: untrackedAll,
-      }).pipe(Effect.map(Stream.fromIterable));
+      });
+      mark('matrix');
+      if (profile) {
+        const totalMs = profile.last - profile.start;
+        // @effect-diagnostics-next-line preferSchemaOverJson:off -- disposable aggregate diagnostic, not persisted data.
+        process.stderr.write(
+          `[status-profile] ${JSON.stringify({
+            totalMs,
+            phasesMs: profile.phasesMs,
+            head: profile.head,
+            workspace: profile.workspace,
+            indexEntries: idx.entries.length,
+            headFiles: headEntries.length,
+            workdirFiles: HashSet.size(workdirSet),
+            matrixEntries: matrix.length,
+          })}\n`
+        );
+      }
+      return Stream.fromIterable(matrix);
     })
   );
 

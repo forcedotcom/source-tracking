@@ -34,7 +34,9 @@
     "test:nuts:local:moved:image": "mocha \"**/nuts/local/localTrackingFileMovesImage.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved:scale": "mocha \"**/nuts/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:only": "wireit",
-    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel"
+    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel",
+    "experiment:remote-profile": "TS_NODE_PROJECT=test/tsconfig.json node --loader ts-node/esm test/perf/remoteProfileScenario.ts",
+    "experiment:local-profile": "TS_NODE_PROJECT=test/tsconfig.json node --loader ts-node/esm test/perf/localProfileScenario.ts"
   },
   "keywords": [
     "force",

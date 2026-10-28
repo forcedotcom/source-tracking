@@ -26,27 +26,24 @@ import * as Schema from 'effect/Schema';
 import { type FileSystem } from 'effect/FileSystem';
 import { type Path } from 'effect/Path';
 import { ObjectCorruptError, type ObjectNotFoundError, type RefNotFoundError } from './errors.js';
+import { bytesToHex } from './bytes.js';
 import { readLooseObject } from './objects.js';
 import { resolveRef } from './refs.js';
 import { Oid, RefName, RepoPath } from './schemas.js';
 
 const ASCII = new TextDecoder('utf-8', { fatal: false });
-const HEX = '0123456789abcdef';
 const SP = 0x20;
 
 type TreeEntry = {
   /** Posix mode as decimal-encoded ASCII in real-git: 040000, 100644, 100755, 120000, 160000 */
   readonly mode: number;
-  readonly name: string;
+  /** A validated tree-entry basename; valid parents compose to a RepoPath. */
+  readonly name: RepoPath;
   readonly oid: Oid;
 };
 
-const hexNibble = (n: number): string => HEX[n] ?? '';
-
-const oidFromBytes = (bytes: Uint8Array): Oid =>
-  Schema.decodeUnknownSync(Oid)(
-    Array.from(bytes.subarray(0, 20), (b) => `${hexNibble(b >>> 4)}${hexNibble(b & 0x0f)}`).join('')
-  );
+// A bounds-checked 20-byte Git OID always hex-encodes to a valid Oid.
+const oidFromBytes = (bytes: Uint8Array): Oid => bytesToHex(bytes.subarray(0, 20)) as Oid;
 
 /**
  * Decode a tree object body into entries. Real-git's encoding is
@@ -68,7 +65,15 @@ const parseOneTreeEntry = (oid: Oid, content: Uint8Array, offset: number): Parse
   if (nulIx < 0) {
     throw new ObjectCorruptError({ oid, reason: 'no NUL after name', message: `tree ${oid}: malformed entry name` });
   }
-  const name = ASCII.decode(content.subarray(spIx + 1, nulIx));
+  const rawName = ASCII.decode(content.subarray(spIx + 1, nulIx));
+  if (rawName.includes('/')) {
+    throw new ObjectCorruptError({
+      oid,
+      reason: 'slash in tree entry name',
+      message: `tree ${oid}: invalid entry name`,
+    });
+  }
+  const name = Schema.decodeUnknownSync(RepoPath)(rawName);
   const oidStart = nulIx + 1;
   const oidEnd = oidStart + 20;
   if (oidEnd > content.byteLength) {
@@ -113,18 +118,51 @@ const SUBMODULE_MODE = 0o16_0000;
 const TREE_MODE = 0o04_0000;
 export type HeadTreeEntry = { readonly path: RepoPath; readonly oid: Oid; readonly mode: number };
 
+type TreeProfile = {
+  treeObjects: number;
+  treeContentBytes: number;
+  readInflateVerifyMs: number;
+  parseMs: number;
+};
+
 // These two helpers recurse through each other; annotations break TypeScript's
 // return-type inference cycle for that recursive pair.
 /* eslint-disable local-rules/no-explicit-effect-return-type */
 const readTree = (
   gitdir: string,
-  treeOid: Oid
+  treeOid: Oid,
+  profile?: TreeProfile
 ): Stream.Stream<HeadTreeEntry, ObjectNotFoundError | ObjectCorruptError | PlatformError, FileSystem | Path | Crypto> =>
   Stream.unwrap(
-    readLooseObject(gitdir, treeOid).pipe(
+    (profile
+      ? Effect.suspend(() => {
+          const start = performance.now();
+          return readLooseObject(gitdir, treeOid).pipe(
+            Effect.tap((obj) =>
+              Effect.sync(() => {
+                profile.treeObjects += 1;
+                profile.treeContentBytes += obj.content.byteLength;
+                profile.readInflateVerifyMs += performance.now() - start;
+              })
+            )
+          );
+        })
+      : readLooseObject(gitdir, treeOid)
+    ).pipe(
       Effect.flatMap((obj) =>
         obj.type === 'tree'
-          ? parseTreeObject(treeOid, obj.content)
+          ? profile
+            ? Effect.suspend(() => {
+                const start = performance.now();
+                return parseTreeObject(treeOid, obj.content).pipe(
+                  Effect.tap(() =>
+                    Effect.sync(() => {
+                      profile.parseMs += performance.now() - start;
+                    })
+                  )
+                );
+              })
+            : parseTreeObject(treeOid, obj.content)
           : Effect.fail(
               new ObjectCorruptError({
                 oid: treeOid,
@@ -133,34 +171,36 @@ const readTree = (
               })
             )
       ),
-      Effect.map((entries) => buildStream(gitdir, entries, ''))
+      Effect.map((entries) => buildStream(gitdir, entries, '', profile))
     )
   );
 
 const buildStream = (
   gitdir: string,
   entries: readonly TreeEntry[],
-  prefix: string
+  prefix: string,
+  profile?: TreeProfile
 ): Stream.Stream<HeadTreeEntry, ObjectNotFoundError | ObjectCorruptError | PlatformError, FileSystem | Path | Crypto> =>
   Stream.flatMap(Stream.fromIterable(entries), (e) => {
     const fullPath = prefix.length === 0 ? e.name : `${prefix}/${e.name}`;
     // Submodules (mode 160000) are emitted but not recursed (per spec).
     return e.mode !== SUBMODULE_MODE && (e.mode & 0o17_0000) === TREE_MODE
-      ? readTree(gitdir, e.oid).pipe(
+      ? readTree(gitdir, e.oid, profile).pipe(
           Stream.map((child) => ({
-            path: Schema.decodeUnknownSync(RepoPath)(`${fullPath}/${child.path}`),
+            path: `${fullPath}/${child.path}` as RepoPath,
             oid: child.oid,
             mode: child.mode,
           }))
         )
-      : Stream.succeed({ path: Schema.decodeUnknownSync(RepoPath)(fullPath), oid: e.oid, mode: e.mode });
+      : Stream.succeed({ path: fullPath as RepoPath, oid: e.oid, mode: e.mode });
   });
 /* eslint-enable local-rules/no-explicit-effect-return-type */
 
 /** Resolve HEAD to a commit oid, then to its tree, preserving file modes. */
 /* eslint-disable local-rules/no-explicit-effect-return-type -- keep the package declaration portable for consumers. */
 export const streamHeadTreeWithMode = (
-  gitdir: string
+  gitdir: string,
+  profile?: TreeProfile
 ): Stream.Stream<
   HeadTreeEntry,
   ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | PlatformError,
@@ -188,7 +228,7 @@ export const streamHeadTreeWithMode = (
             message: `streamHeadTree: commit ${headOid} has no tree header`,
           })
       );
-      return readTree(gitdir, Schema.decodeUnknownSync(Oid)(matched[1] ?? ''));
+      return readTree(gitdir, Schema.decodeUnknownSync(Oid)(matched[1] ?? ''), profile);
     })
   ).pipe(Stream.withSpan('streamHeadTree'));
 

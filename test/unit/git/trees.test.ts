@@ -86,6 +86,16 @@ describe('git/trees (phase 7)', () => {
     });
   });
 
+  it('rejects a tree entry whose name is not a valid repository path segment', async () => {
+    const exit = await readSyntheticTree(Buffer.concat([Buffer.from('100644 .\0'), Buffer.alloc(20)]));
+    expect(Exit.isFailure(exit)).to.equal(true);
+    if (Exit.isFailure(exit)) {
+      const error = Cause.findErrorOption(exit.cause);
+      expect(Option.isSome(error)).to.equal(true);
+      if (Option.isSome(error)) expect(error.value).to.have.property('_tag', 'ObjectCorruptError');
+    }
+  });
+
   it('streamHeadTree on nested-dirs/ emits expected (path, oid) pairs', async () => {
     const gitdir = path.join(FixtureRoot, 'nested-dirs', 'dot-git');
     const collected = await Effect.runPromise(
@@ -97,8 +107,7 @@ describe('git/trees (phase 7)', () => {
         TestLayer
       )
     );
-    const paths = collected.map((c) => c.path).sort();
-    expect(paths).to.deep.equal(['a/b/plain.txt', 'a/b/run.sh', 'a/link-to-plain', 'c/two.txt']);
+    expect(collected.map((c) => c.path)).to.deep.equal(['a/b/plain.txt', 'a/b/run.sh', 'a/link-to-plain', 'c/two.txt']);
     // every emitted oid should be 40 hex chars (validated through Oid brand)
     collected.forEach((c) => {
       expect(c.oid).to.match(/^[0-9a-f]{40}$/);
