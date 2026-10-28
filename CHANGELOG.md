@@ -1,3 +1,13 @@
+## [8.1.13](https://github.com/forcedotcom/source-tracking/compare/8.1.12...8.1.13) (2026-10-28)
+
+
+### Bug Fixes
+
+* follow symlinks in packageDirectory paths during local source tracking ([d4e64e5](https://github.com/forcedotcom/source-tracking/commit/d4e64e560354c2fd190ed6d207c1ac3931a9df18))
+* scope symlink-following to packageDir path segments ([e0affb9](https://github.com/forcedotcom/source-tracking/commit/e0affb92ab914164f1d1ddb07c273d3552d7b807))
+
+
+
 ## [8.1.12](https://github.com/forcedotcom/source-tracking/compare/8.1.11...8.1.12) (2026-10-28)
 
 
