@@ -34,6 +34,8 @@
     "experiment:local-enrichment": "TS_NODE_PROJECT=test/tsconfig.json node --require ts-node/register test/perf/localEnrichmentScenario.ts",
     "experiment:local-move-detection": "TS_NODE_PROJECT=test/tsconfig.json node --require ts-node/register test/perf/localMoveDetectionScenario.ts",
     "experiment:remote-path-enrichment": "TS_NODE_PROJECT=test/tsconfig.json node --require ts-node/register test/perf/remotePathEnrichmentScenario.ts",
+    "experiment:status-matrix-iteration": "TS_NODE_PROJECT=test/tsconfig.json node --require ts-node/register test/perf/statusMatrixIterationScenario.ts",
+    "experiment:status-profile": "TS_NODE_PROJECT=test/tsconfig.json node --require ts-node/register test/perf/statusProfileScenario.ts",
     "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel"
   },
   "keywords": [
@@ -55,9 +57,9 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "@salesforce/core": "^9.4.1",
+    "@salesforce/core": "9.3.6",
     "@salesforce/kit": "^4.0.0",
-    "@salesforce/source-deploy-retrieve": "^13.8.3",
+    "@salesforce/source-deploy-retrieve": "13.5.0",
     "@salesforce/ts-types": "^3.2.0",
     "fast-xml-parser": "^5.11.2",
     "graceful-fs": "^4.2.11",

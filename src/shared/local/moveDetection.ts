@@ -195,7 +195,14 @@ const yieldToEventLoop = async (): Promise<void> => new Promise((resolve) => set
 const inBatches = async <T, R>(values: T[], operation: (value: T) => Promise<R>): Promise<Array<Awaited<R>>> => {
   const results: Array<Awaited<R>> = [];
   const processBatch = async (index: number): Promise<Array<Awaited<R>>> => {
-    results.push(...(await Promise.all(values.slice(index, index + FILE_INFO_BATCH_SIZE).map(operation))));
+    const batch = values.slice(index, index + FILE_INFO_BATCH_SIZE).map(operation);
+    try {
+      results.push(...(await Promise.all(batch)));
+    } catch (error) {
+      // The tracking lock must outlive every read/hash started by this batch.
+      await Promise.allSettled(batch);
+      throw error;
+    }
     const nextIndex = index + FILE_INFO_BATCH_SIZE;
     if (nextIndex >= values.length) return results;
     // Each batch finishes before the next starts to retain bounded concurrency and input order.

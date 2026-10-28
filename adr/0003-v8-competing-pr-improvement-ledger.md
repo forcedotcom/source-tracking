@@ -25,6 +25,52 @@ base: origin/main v8.1.12 (f795703)
 | V8-05 | Build SourceMember timeout-warning groups with mutable per-type buckets.                                      | Replaces repeated copying of each growing same-type names array with one append per member. The regression proves first-seen type order, within-type name order, duplicate LWC bundle names, exact punctuation, and platform `EOL` separators are unchanged.                                                                                             | This record                                   |
 | V8-06 | Bound local move-detection candidate operations and yield between complete work units.                        | Limits added/deleted read-or-blob/hash operations to 32 at a time, preserves global matching state and phase ordering, and yields after 100 complete metadata resolutions. On the 400-candidate-path workload, longest heartbeat gaps fell from the 18.1–24.5 ms baseline range to 7.6–12.1 ms across six post-change samples, with clean normalization. | This record                                   |
 
+## Extension-Host Attribution Note
+
+The EDA/EDO cold-start experiment separates intrinsic STL status work from
+extension-host startup contention. EDA has 6,408 status rows. With the broader
+extension set, the first `STL.GetStatus` span was consistently 2.4–2.7 s while
+`STL.ReReadLocalTrackingCache` and `STL.ReReadRemoteTracking` ran concurrently
+and each completed in about 0.4–0.65 s. A standalone EDA profile measured
+`getStatus()` at 0.66–0.73 s.
+
+A controlled extension host with only Services, Core, and Metadata reduced the
+first EDA `STL.GetStatus` span from 2,489 ms to 750 ms and the complete status
+operation from 3,124 ms to 1,322 ms. Local and remote rereads remained about
+0.55 s. This is strong evidence that the earlier multi-second span was inflated
+by competing extension/workspace startup activity; it is not evidence that STL
+alone blocks the event loop for the whole span duration. This finding does not
+rule out focused improvements to isomorphic-git's status traversal.
+
+## Isomorphic-Git Status Traversal Decision
+
+STL already calls `statusMatrix()` with package-directory `filepaths`. In
+isomorphic-git, the `filepaths` predicate runs in the `map` callback before
+recursing into a directory's children. This prunes non-package directory trees
+while preserving all paths under each package root, including untracked files,
+tracked deletions, and the complete added/deleted candidate sets used by move
+detection. No narrower STL-owned `filepaths` input is correct for a full local
+status refresh.
+
+The default `_walk()` iterator recursively starts all sibling paths with
+`Promise.all`. A local isomorphic-git experiment that exposed its existing
+`WalkerIterate` callback through `statusMatrix()` allowed a batch-of-32 iterator
+with `setImmediate` yields. On EDA, its status-matrix digest matched the default
+digest (`cdedc38dba76093639551f5b4f31481edb64cd74e0163510c5685634e1c3a997`).
+One matched direct run reduced wall time from 144.5 ms to 82.3 ms and the
+largest heartbeat gap from 38.5 ms to 20.5 ms. The broader extension-host probe
+did not show a repeatable benefit: both the batched and control local rereads
+continued to run timer callbacks, and host-startup contention dominated their
+gap measurements.
+
+Therefore, do not ship an STL environment flag or a patched isomorphic-git
+dependency. The focused API proposal is upstream-only: add the optional existing
+`WalkerIterate` contract to `statusMatrix()` and forward it to `_walk()`, with
+the default behavior unchanged. The proposal is independently useful because
+public `walk()` already documents the same scheduling hook. If maintainers
+accept it, revisit an STL integration only with repeated consumer-level
+responsiveness evidence.
+
 ## V8-03 Alternatives Declined
 
 V8-03 yields only at STL-owned unit boundaries: after a complete filename
@@ -358,9 +404,12 @@ production threshold.
 V8-06 hardening adds deterministic direct tests that prove a high-water mark of
 32 complete added-file read/hash operations and prove that a second-batch
 added-file failure propagates unchanged without starting later candidate batches,
-deleted blobs, staging, or commit. Already-started sibling operations are not
-cancelled; this is preserved `Promise.all` fail-fast behavior rather than a
-drain guarantee.
+deleted blobs, staging, or commit. A failed batch now waits for every
+already-started sibling read/hash to settle before rethrowing the original error
+and releasing the local tracking lock. It does not cancel those operations,
+start later work, or normalize moves. The lifecycle regression gates 31 sibling
+reads after one first-batch failure and proves both the failed status refresh and
+a same-project/org local-lock contender remain blocked until all siblings settle.
 
 The scale, binary/image, move-and-edit, same-hash/different-parent, and
 decomposed-child move NUTs all pass with V8-06. Five additional fresh-process
@@ -372,14 +421,11 @@ conditions, not a production service-level objective.
 
 ### Follow-Up Decisions
 
-The only accepted engineering follow-up is **failure-drain semantics for
-candidate read/hash operations**. V8-06 intentionally retains fail-fast
-`Promise.all` behavior: when one operation fails, later batches do not start,
-but already-started sibling reads or hashes can settle after the tracking lock
-is released. A future change may drain the active batch before rethrowing only
-if it preserves the original error, prevents normalization, bounds added lock
-time, and proves its behavior with deterministic failure tests. This is not a
-customer-facing setting.
+Failure-drain semantics for candidate read/hash operations are implemented as
+part of V8-06. Draining necessarily delays error propagation and lock release
+until the slowest already-started sibling settles. It does not introduce a
+timeout, cancellation, or customer-facing setting: such policy would require a
+separate filesystem/Git-operation cancellation and lock-timeout design.
 
 IDE-host validation is required separately to evaluate the overall hypothesis
 that STL was materially hogging the shared extension-host event loop. It is not

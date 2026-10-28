@@ -520,8 +520,7 @@ export class SourceTracking extends AsyncCreatable {
   }
 
   public async reReadLocalTrackingCache(): Promise<void> {
-    await this.ensureLocalTracking();
-    await this.localRepo.getStatus(true);
+    await (await this.createLocalRepo()).getStatus(true);
   }
   /**
    * If the local tracking shadowRepo doesn't exist, it will be created.
@@ -535,14 +534,9 @@ export class SourceTracking extends AsyncCreatable {
       }
       return;
     }
-    this.localRepo = await ShadowRepo.getInstance({
-      orgId: this.orgId,
-      projectPath: normalize(this.projectPath),
-      packageDirs: this.packagesDirs,
-      registry: this.registry,
-    });
+    const localRepo = await this.createLocalRepo();
     // loads the status from file so that it's cached
-    await this.localRepo.getStatus();
+    await localRepo.getStatus();
   }
 
   /**
@@ -699,6 +693,18 @@ export class SourceTracking extends AsyncCreatable {
    */
   public setIgnoreConflicts(value: boolean): void {
     this.ignoreConflicts = value;
+  }
+
+  private async createLocalRepo(): Promise<ShadowRepo> {
+    if (!this.localRepo) {
+      this.localRepo = await ShadowRepo.getInstance({
+        orgId: this.orgId,
+        projectPath: normalize(this.projectPath),
+        packageDirs: this.packagesDirs,
+        registry: this.registry,
+      });
+    }
+    return this.localRepo;
   }
 
   private async maybeSubscribeLifecycleEvents(): Promise<void> {

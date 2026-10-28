@@ -23,15 +23,18 @@ import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../src/shared/local/localShadowRepo';
 import { filenameMatchesToMap } from '../../src/shared/local/moveDetection';
+import { withTrackingLock } from '../../src/shared/trackingLock';
 
 config.truncateThreshold = 0;
 
-const deferred = <T>(): { promise: Promise<T>; resolve: (value: T) => void } => {
+const deferred = <T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void } => {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 };
 afterEach(() => {
   // Restore the default sandbox here
@@ -237,6 +240,82 @@ describe('local detect moved files', () => {
       expect(readBlob.called).to.equal(false);
       expect(gitAdd.called).to.equal(false);
       expect(gitCommit.called).to.equal(false);
+    } finally {
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
+    }
+  });
+
+  it('drains failed candidate read siblings before releasing the local tracking lock', async () => {
+    let projectDir!: string;
+    const expectedError = new Error('expected candidate read failure');
+    try {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoFailureDrainTest'));
+      const sourceDir = path.join(projectDir, 'force-app', 'classes');
+      const destinationDir = path.join(projectDir, 'force-app', 'new', 'classes');
+      fs.mkdirSync(sourceDir, { recursive: true });
+      fs.mkdirSync(destinationDir, { recursive: true });
+      const files = Array.from({ length: 16 }, (_unused, index) => {
+        const name = `FailureDrain${String(index).padStart(2, '0')}`;
+        return [
+          path.join('force-app', 'classes', `${name}.cls`),
+          path.join('force-app', 'classes', `${name}.cls-meta.xml`),
+        ];
+      }).flat();
+      files.forEach((file) => fs.writeFileSync(path.join(projectDir, file), '<xml></xml>'));
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D456789012348',
+        projectPath: projectDir,
+        packageDirs: [
+          { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
+        ],
+        registry,
+      });
+      await shadowRepo.commitChanges({ deployedFiles: files });
+      files.forEach((file) =>
+        fs.renameSync(path.join(projectDir, file), path.join(destinationDir, path.basename(file)))
+      );
+
+      const originalReadFile = gracefulFs.promises.readFile.bind(gracefulFs.promises);
+      const readGates = Array.from({ length: 32 }, () => deferred<Buffer>());
+      const allReadsStarted = deferred<void>();
+      let candidateReadCount = 0;
+      sinon.stub(gracefulFs.promises, 'readFile').callsFake(async (filepath, options) => {
+        if (typeof filepath === 'string' && filepath.startsWith(destinationDir)) {
+          const gate = readGates[candidateReadCount++];
+          if (candidateReadCount === 32) allReadsStarted.resolve();
+          return gate.promise;
+        }
+        return originalReadFile(filepath, options);
+      });
+      const readBlob = sinon.spy(git, 'readBlob');
+
+      let statusSettled = false;
+      const status = shadowRepo.getStatus(true).catch((error: unknown) => {
+        statusSettled = true;
+        return error;
+      });
+      await allReadsStarted.promise;
+      readGates[0].reject(expectedError);
+      await Promise.resolve();
+
+      let contenderEntered = false;
+      const contender = withTrackingLock(
+        { projectPath: projectDir, orgId: '00D456789012348', resource: 'local' },
+        async () => {
+          contenderEntered = true;
+        }
+      );
+      await new Promise((resolve) => setTimeout(resolve, 75));
+      expect(statusSettled).to.equal(false);
+      expect(contenderEntered).to.equal(false);
+      expect(readBlob.called).to.equal(false);
+
+      readGates.slice(1).forEach((gate) => gate.resolve(Buffer.from('candidate')));
+      expect(await status).to.equal(expectedError);
+      await contender;
+      expect(contenderEntered).to.equal(true);
+      expect(readBlob.called).to.equal(false);
     } finally {
       if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
     }
