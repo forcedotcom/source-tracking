@@ -1,3 +1,12 @@
+## [8.1.11](https://github.com/forcedotcom/source-tracking/compare/8.1.10...8.1.11) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump ip-address from 10.7.2 to 10.7.5 ([12fccc3](https://github.com/forcedotcom/source-tracking/commit/12fccc3e752a218b2f0211b4d4bb1cf867fe439f))
+
+
+
 ## [8.1.10](https://github.com/forcedotcom/source-tracking/compare/8.1.9...8.1.10) (2026-10-28)
 
 
