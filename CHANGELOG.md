@@ -1,3 +1,12 @@
+## [8.1.9](https://github.com/forcedotcom/source-tracking/compare/8.1.8...8.1.9) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump undici from 8.11.2 to 8.12.3 ([a8e0693](https://github.com/forcedotcom/source-tracking/commit/a8e0693bf2d73968fcba0d533440e8fa8393d818))
+
+
+
 ## [8.1.8](https://github.com/forcedotcom/source-tracking/compare/8.1.7...8.1.8) (2026-10-27)
 
 
