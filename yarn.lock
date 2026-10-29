@@ -991,10 +991,10 @@
   resolved "https://registry.npmjs.org/@salesforce/ts-types/-/ts-types-2.0.12.tgz"
   integrity sha512-BIJyduJC18Kc8z+arUm5AZ9VkPRyw1KKAm+Tk+9LT99eOzhNilyfKzhZ4t+tG2lIGgnJpmytZfVDZ0e2kFul8g==
 
-"@salesforce/ts-types@^3.2.0":
-  version "3.2.0"
-  resolved "https://registry.yarnpkg.com/@salesforce/ts-types/-/ts-types-3.2.0.tgz#9e0393cab10d763b89562f0f94515e3cf1efbbe7"
-  integrity sha512-3xdKt4nlthDC8nCHVWpVDwM5mmPlk8kDyJ1E3dWMk7FLRdQqhLgaHZgS+AMqcowWiKUC1l1d5YIhGhQM7dw3Bw==
+"@salesforce/ts-types@^3.2.0", "@salesforce/ts-types@^3.2.3":
+  version "3.2.3"
+  resolved "https://registry.yarnpkg.com/@salesforce/ts-types/-/ts-types-3.2.3.tgz#ba7055b4f3fbcf546bd7b9b9288f95c3640d1ea6"
+  integrity sha512-re+ceqPAgBXdgml1bTPoetNb6UfDwh54Gi6USRvPLK6/iV5P9rrLp4d7Ee2UDs/rw80V3nCjfASacpARRDaLRw==
 
 "@salesforce/types@^1.6.0":
   version "1.8.0"
