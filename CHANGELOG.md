@@ -1,3 +1,12 @@
+## [8.1.14](https://github.com/forcedotcom/source-tracking/compare/8.1.13...8.1.14) (2026-10-29)
+
+
+### Bug Fixes
+
+* **deps:** bump fast-uri from 3.1.8 to 3.1.9 ([3dfc34c](https://github.com/forcedotcom/source-tracking/commit/3dfc34cb07c60d96a581bc713ac69351236d64b0))
+
+
+
 ## [8.1.13](https://github.com/forcedotcom/source-tracking/compare/8.1.12...8.1.13) (2026-10-28)
 
 
