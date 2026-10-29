@@ -24,6 +24,7 @@ import * as Schema from 'effect/Schema';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodeCrypto from '@effect/platform-node/NodeCrypto';
 import * as Crypto from 'effect/Crypto';
+import { FileSystem } from 'effect/FileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { Repo } from '../../../src/git/repo.js';
 import { RefName, RepoPath, type RepoConfig } from '../../../src/git/schemas.js';
@@ -36,6 +37,66 @@ const cfg = (gitdir: string): RepoConfig => ({
 });
 
 describe('git/Repo configuration', () => {
+  for (const fdPermits of [1, 4, 64]) {
+    it(`limits tracked-file status reads to ${fdPermits} configured I/O permits`, async () => {
+      const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'git-repo-status-concurrency-'));
+      try {
+        const packageDir = path.join(tmp, 'force-app');
+        await fs.mkdir(packageDir);
+        const files = Array.from({ length: fdPermits + 1 }, (_, index) =>
+          Schema.decodeUnknownSync(RepoPath)(`force-app/file-${index}.txt`)
+        );
+        await Promise.all(files.map((file) => fs.writeFile(path.join(tmp, file), 'tracked content\n')));
+
+        let activeReads = 0;
+        let maxActiveReads = 0;
+        const measuredFileSystem = Layer.effect(
+          FileSystem,
+          Effect.map(FileSystem, (fileSystem) => ({
+            ...fileSystem,
+            readFile: (file: string) =>
+              file.startsWith(`${packageDir}${path.sep}`)
+                ? Effect.acquireUseRelease(
+                    Effect.sync(() => {
+                      activeReads++;
+                      maxActiveReads = Math.max(maxActiveReads, activeReads);
+                    }),
+                    () => fileSystem.readFile(file),
+                    () => Effect.sync(() => activeReads--)
+                  )
+                : fileSystem.readFile(file),
+          }))
+        ).pipe(Layer.provide(NodeFileSystem.layer));
+
+        await Effect.gen(function* () {
+          const repo = yield* Repo;
+          yield* repo.init();
+          yield* repo.applyChanges({
+            adds: Stream.fromIterable(files),
+            removes: Stream.empty,
+            message: 'track files',
+            author: { name: 'Test', email: 'test@example.com' },
+          });
+          maxActiveReads = 0;
+          const entries = yield* repo.statusMatrix().pipe(Stream.runCollect);
+          expect(entries).to.have.length(files.length);
+          expect(entries.every((entry) => entry.status === 'unmodified')).to.equal(true);
+          expect(activeReads).to.equal(0);
+          expect(maxActiveReads).to.be.greaterThan(0).and.at.most(fdPermits);
+        }).pipe(
+          Effect.provide(
+            Repo.layer({ ...cfg(path.join(tmp, '.git')), fdPermits }).pipe(
+              Layer.provide(Layer.mergeAll(measuredFileSystem, NodePath.layer, NodeCrypto.layer))
+            )
+          ),
+          Effect.runPromise
+        );
+      } finally {
+        await fs.rm(tmp, { recursive: true, force: true });
+      }
+    });
+  }
+
   it('initializes and reads the repository configured by its layer', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'git-repo-config-'));
     try {

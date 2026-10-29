@@ -158,7 +158,7 @@ const evaluateMatrix = Effect.fn('evaluateMatrix')(function* ({
   workdirModes,
   untracked,
 }: {
-  readonly cfg: { readonly dir: string; readonly roots: readonly RepoPath[] };
+  readonly cfg: { readonly dir: string; readonly roots: readonly RepoPath[]; readonly fdPermits?: number };
   readonly headByPath: HashMap.HashMap<string, HeadFile>;
   readonly indexByPath: HashMap.HashMap<string, IndexEntry>;
   readonly workdirSet: HashSet.HashSet<string>;
@@ -197,7 +197,7 @@ const evaluateMatrix = Effect.fn('evaluateMatrix')(function* ({
         Option.getOrUndefined(HashMap.get(workdirModes, p)) ?? GIT_FILE_MODE,
         untracked
       ),
-    { concurrency: 256 }
+    { concurrency: cfg.fdPermits ?? 256 }
   ).pipe(Effect.map((hashed) => [...pure, ...hashed].flatMap((c) => (Option.isSome(c) ? [c.value] : []))));
 });
 
