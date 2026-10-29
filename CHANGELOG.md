@@ -1,3 +1,12 @@
+## [8.1.16](https://github.com/forcedotcom/source-tracking/compare/8.1.15...8.1.16) (2026-10-29)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/ts-types from 3.2.0 to 3.2.3 ([f2808d8](https://github.com/forcedotcom/source-tracking/commit/f2808d890c716074857f03b1d785377b4e659795))
+
+
+
 ## [8.1.15](https://github.com/forcedotcom/source-tracking/compare/8.1.14...8.1.15) (2026-10-29)
 
 
