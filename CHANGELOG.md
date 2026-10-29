@@ -1,3 +1,12 @@
+## [8.1.15](https://github.com/forcedotcom/source-tracking/compare/8.1.14...8.1.15) (2026-10-29)
+
+
+### Bug Fixes
+
+* **deps:** bump @salesforce/kit from 4.0.0 to 4.0.7 ([fdb1246](https://github.com/forcedotcom/source-tracking/commit/fdb12461a1c384bbae732f9b5904be4586470d8f))
+
+
+
 ## [8.1.14](https://github.com/forcedotcom/source-tracking/compare/8.1.13...8.1.14) (2026-10-29)
 
 
