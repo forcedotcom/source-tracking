@@ -2574,10 +2574,10 @@ eslint-plugin-jsdoc@^63.3.2:
     spdx-expression-parse "^5.0.0"
     to-valid-identifier "^1.0.0"
 
-eslint-plugin-sf-plugin@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/eslint-plugin-sf-plugin/-/eslint-plugin-sf-plugin-3.0.0.tgz#b97e02fa482b13991ecca83e48d50938d153031a"
-  integrity sha512-38S/HF1etacvkVp2uD0xqF4jclr3kIGbCpd7ccUTGnMh6MM6GFaVDX3WoQBJ28S1xAyBBPF5cZrKzgWsEJizOA==
+eslint-plugin-sf-plugin@^3.0.4:
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-sf-plugin/-/eslint-plugin-sf-plugin-3.0.4.tgz#91004b5240a38d92479445897d9a0cdf39fb13cb"
+  integrity sha512-3wLqmwRaDbsGlSfooHNl2x/j6WL5MWu81JELziTb2GxxbiEvn+9g0ACHoTBti5JDjHPbCCiLv9TQOnzwl4O6wg==
   dependencies:
     "@salesforce/core" "^8.23.1"
     "@typescript-eslint/utils" "^8.33.1"
