@@ -71,7 +71,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "eslint-config-salesforce-typescript": "^7.0.0",
-    "eslint-plugin-sf-plugin": "^3.0.0",
+    "eslint-plugin-sf-plugin": "^3.0.4",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.3.0",
     "typescript": "^6.0.3"
