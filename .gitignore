@@ -43,6 +43,7 @@ oclif.lock
 .eslintcache
 .wireit
 node_modules
+.circular-deps.json
 
 # --
 # put files here you don't want cleaned with sf-clean
