@@ -175,9 +175,9 @@ describe('git/statusMatrix (phase 8)', () => {
       expect(byPath.get(repoPath('tracked-modified.txt'))).to.equal('modified');
       expect(byPath.get(repoPath('tracked-deleted.txt'))).to.equal('deleted');
       expect(byPath.get(repoPath('untracked.txt'))).to.equal('added');
-      // staged-add was committed only to the index, but lite reads the
-      // shadow's commit form so it's "added" from HEAD-tree's perspective.
-      expect(byPath.get(repoPath('staged-add.txt'))).to.be.oneOf(['added', 'modified', 'unmodified']);
+      // A staged addition is absent from HEAD but present in the workdir, so
+      // classify it the same way as any other added file.
+      expect(byPath.get(repoPath('staged-add.txt'))).to.equal('added');
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }

@@ -96,15 +96,15 @@ const collapse = (
     Match.when({ tracked: true, hasWorkdir: true }, () =>
       Option.some<StatusEntry>({
         path,
-        status:
-          isNotUndefined(head) &&
-          isNotUndefined(index) &&
-          head.oid === workdir &&
-          index.oid === workdir &&
-          head.mode === workdirMode &&
-          index.mode === workdirMode
+        status: isNotUndefined(head)
+          ? isNotUndefined(index) &&
+            head.oid === workdir &&
+            index.oid === workdir &&
+            head.mode === workdirMode &&
+            index.mode === workdirMode
             ? 'unmodified'
-            : 'modified',
+            : 'modified'
+          : 'added',
       })
     ),
     Match.exhaustive
