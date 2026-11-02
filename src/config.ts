@@ -22,6 +22,7 @@ import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
+import * as SchemaGetter from 'effect/SchemaGetter';
 import { Lifecycle } from '@salesforce/core';
 
 const DEFAULT_FD_PERMITS = process.platform === 'win32' ? 64 : 256;
@@ -71,9 +72,16 @@ export const SourceTrackingConfig = Context.Reference<SourceTrackingSettings>('@
   defaultValue: () => DEFAULT_SOURCE_TRACKING_SETTINGS,
 });
 
-const positiveNumber = Schema.Number.check(Schema.isFinite(), Schema.isGreaterThan(0));
-const positiveInteger = Schema.Int.check(Schema.isGreaterThan(0));
-const nonNegativeInteger = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+const strictNumberFromString = Schema.String.pipe(
+  Schema.check(Schema.isPattern(/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/)),
+  Schema.decodeTo(Schema.Finite, { decode: SchemaGetter.Number(), encode: SchemaGetter.String() })
+);
+const positiveNumberFromString = strictNumberFromString.check(Schema.isGreaterThan(0));
+const positiveIntegerFromString = strictNumberFromString.check(Schema.isInt(), Schema.isGreaterThan(0));
+const naturalFromString = Schema.String.pipe(
+  Schema.check(Schema.isPattern(/^[+]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/)),
+  Schema.decodeTo(Schema.Natural, { decode: SchemaGetter.Number(), encode: SchemaGetter.String() })
+);
 
 const emitConfigWarning = (warning: string): Effect.Effect<void> =>
   Effect.tryPromise({
@@ -81,43 +89,45 @@ const emitConfigWarning = (warning: string): Effect.Effect<void> =>
     catch: () => undefined,
   }).pipe(Effect.ignore);
 
-const kitNumber = (raw: string): number =>
-  // Kit's toNumber accepts JavaScript numeric forms (including hex and Infinity).
-  // Empty strings are treated as missing by Env.getNumber.
-  Number(raw);
-const readNumber = <A>(
-  name: string,
-  value: Option.Option<string>,
-  schema: Schema.ConstraintCodec<A, number>,
-  fallback: A
-): Effect.Effect<A> =>
-  Option.match(value, {
+const readNumber = (
+  warningName: string,
+  raw: Option.Option<string>,
+  config: Config.Config<number>,
+  provider: ConfigProvider.ConfigProvider,
+  fallback: number
+): Effect.Effect<number> =>
+  Option.match(raw, {
     onNone: () => Effect.succeed(fallback),
-    onSome: (raw) => {
-      const parsed = raw === '' ? Number.NaN : kitNumber(raw);
-      const decoded = Schema.decodeUnknownOption(schema)(parsed);
-      return Option.match(decoded, {
-        onSome: Effect.succeed,
-        onNone: () =>
-          emitConfigWarning(`${name}=${JSON.stringify(raw)} is invalid; using ${String(fallback)}`).pipe(
-            Effect.as(fallback)
-          ),
-      });
-    },
+    onSome: (rawValue) =>
+      config
+        .parse(provider)
+        .pipe(
+          Effect.catchTag('ConfigError', () =>
+            emitConfigWarning(`${warningName}=${JSON.stringify(rawValue)} is invalid; using ${String(fallback)}`).pipe(
+              Effect.as(fallback)
+            )
+          )
+        ),
   });
 
-const readOptionalNumber = (name: string, value: Option.Option<string>): Effect.Effect<number | undefined> =>
-  Option.match(value, {
-    onNone: () => Effect.sync(() => undefined),
-    onSome: (raw) => {
-      const parsed = raw === '' ? Number.NaN : kitNumber(raw);
-      const decoded = Schema.decodeUnknownOption(positiveNumber)(parsed);
-      return Option.match(decoded, {
-        onSome: (seconds) => Effect.succeed(seconds),
-        onNone: () =>
-          emitConfigWarning(`${name}=${JSON.stringify(raw)} is invalid; ignoring it`).pipe(Effect.as(undefined)),
-      });
-    },
+const readOptionalNumber = (
+  warningName: string,
+  raw: Option.Option<string>,
+  config: Config.Config<number>,
+  provider: ConfigProvider.ConfigProvider
+): Effect.Effect<number | undefined> =>
+  Option.match(raw, {
+    onNone: () => Effect.as(Effect.void, undefined),
+    onSome: (rawValue) =>
+      config
+        .parse(provider)
+        .pipe(
+          Effect.catchTag('ConfigError', () =>
+            emitConfigWarning(`${warningName}=${JSON.stringify(rawValue)} is invalid; ignoring it`).pipe(
+              Effect.as(undefined)
+            )
+          )
+        ),
   });
 
 const kitBoolean = (name: string, value: Option.Option<string>): Effect.Effect<boolean> =>
@@ -131,34 +141,38 @@ const kitBoolean = (name: string, value: Option.Option<string>): Effect.Effect<b
     },
   });
 
+const emitAliasWarnings = Effect.fnUntraced(function* (raw: Config.Success<typeof RawConfig>) {
+  if (Option.isNone(raw.disableSourceMemberPolling) && Option.isSome(raw.legacyDisableSourceMemberPolling)) {
+    yield* emitConfigWarning('SFDX_DISABLE_SOURCE_MEMBER_POLLING is deprecated; use SF_DISABLE_SOURCE_MEMBER_POLLING.');
+  }
+  if (Option.isNone(raw.sourceMemberPollingTimeout) && Option.isSome(raw.legacySourceMemberPollingTimeout)) {
+    yield* emitConfigWarning('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is deprecated; use SF_SOURCE_MEMBER_POLLING_TIMEOUT.');
+  }
+  const legacyBatchSize = Option.orElse(raw.batchSize, () => raw.legacyBatchSize);
+  const legacyBatchName = Option.isSome(raw.batchSize)
+    ? 'SF_SOURCE_TRACKING_BATCH_SIZE'
+    : 'SFDX_SOURCE_TRACKING_BATCH_SIZE';
+  const fdPermitsRaw = Option.isSome(raw.fdPermits) ? raw.fdPermits : legacyBatchSize;
+  if (Option.isSome(fdPermitsRaw) && Option.isNone(raw.fdPermits)) {
+    yield* emitConfigWarning(`${legacyBatchName} is deprecated; use SF_SOURCE_TRACKING_FD_PERMITS.`);
+  }
+  if (Option.isSome(raw.fdPermits) && Option.isSome(legacyBatchSize)) {
+    yield* emitConfigWarning(`${legacyBatchName} is ignored because SF_SOURCE_TRACKING_FD_PERMITS is set.`);
+  }
+});
+
 export const loadSourceTrackingSettings = (
   provider: ConfigProvider.ConfigProvider = ConfigProvider.fromEnv()
 ): Effect.Effect<SourceTrackingSettings, Config.ConfigError> =>
   Effect.gen(function* () {
     const raw = yield* RawConfig.parse(provider);
+    yield* emitAliasWarnings(raw);
     const disablePollingRaw = Option.orElse(raw.disableSourceMemberPolling, () => raw.legacyDisableSourceMemberPolling);
-    const pollingTimeoutRaw = Option.orElse(raw.sourceMemberPollingTimeout, () => raw.legacySourceMemberPollingTimeout);
-    if (Option.isNone(raw.disableSourceMemberPolling) && Option.isSome(raw.legacyDisableSourceMemberPolling)) {
-      yield* emitConfigWarning(
-        'SFDX_DISABLE_SOURCE_MEMBER_POLLING is deprecated; use SF_DISABLE_SOURCE_MEMBER_POLLING.'
-      );
-    }
-    if (Option.isNone(raw.sourceMemberPollingTimeout) && Option.isSome(raw.legacySourceMemberPollingTimeout)) {
-      yield* emitConfigWarning(
-        'SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is deprecated; use SF_SOURCE_MEMBER_POLLING_TIMEOUT.'
-      );
-    }
     const legacyBatchSize = Option.orElse(raw.batchSize, () => raw.legacyBatchSize);
     const legacyBatchName = Option.isSome(raw.batchSize)
       ? 'SF_SOURCE_TRACKING_BATCH_SIZE'
       : 'SFDX_SOURCE_TRACKING_BATCH_SIZE';
     const fdPermitsRaw = Option.isSome(raw.fdPermits) ? raw.fdPermits : legacyBatchSize;
-    if (Option.isSome(fdPermitsRaw) && Option.isNone(raw.fdPermits)) {
-      yield* emitConfigWarning(`${legacyBatchName} is deprecated; use SF_SOURCE_TRACKING_FD_PERMITS.`);
-    }
-    if (Option.isSome(raw.fdPermits) && Option.isSome(legacyBatchSize)) {
-      yield* emitConfigWarning(`${legacyBatchName} is ignored because SF_SOURCE_TRACKING_FD_PERMITS is set.`);
-    }
     const [
       rawFdPermits,
       lockTimeoutSeconds,
@@ -172,29 +186,50 @@ export const loadSourceTrackingSettings = (
     ] = yield* Effect.all([
       readNumber(
         Option.isSome(raw.fdPermits) ? 'SF_SOURCE_TRACKING_FD_PERMITS' : legacyBatchName,
-        fdPermitsRaw,
-        positiveInteger,
+        Option.isSome(raw.fdPermits) ? raw.fdPermits : legacyBatchSize,
+        Config.schema(
+          positiveIntegerFromString,
+          Option.isSome(raw.fdPermits) ? 'SF_SOURCE_TRACKING_FD_PERMITS' : legacyBatchName
+        ),
+        provider,
         DEFAULT_FD_PERMITS
       ),
       readNumber(
         'SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS',
         raw.lockTimeoutSeconds,
-        positiveNumber,
+        Config.schema(positiveNumberFromString, 'SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS'),
+        provider,
         DEFAULT_LOCK_TIMEOUT_SECONDS
       ),
       readNumber(
         'SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS',
         raw.lockAutoclearSeconds,
-        positiveNumber,
+        Config.schema(positiveNumberFromString, 'SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS'),
+        provider,
         DEFAULT_LOCK_AUTOCLEAR_SECONDS
       ),
       readOptionalNumber(
         Option.isSome(raw.sourceMemberPollingTimeout)
           ? 'SF_SOURCE_MEMBER_POLLING_TIMEOUT'
           : 'SFDX_SOURCE_MEMBER_POLLING_TIMEOUT',
-        pollingTimeoutRaw
+        Option.isSome(raw.sourceMemberPollingTimeout)
+          ? raw.sourceMemberPollingTimeout
+          : raw.legacySourceMemberPollingTimeout,
+        Config.schema(
+          positiveNumberFromString,
+          Option.isSome(raw.sourceMemberPollingTimeout)
+            ? 'SF_SOURCE_MEMBER_POLLING_TIMEOUT'
+            : 'SFDX_SOURCE_MEMBER_POLLING_TIMEOUT'
+        ),
+        provider
       ),
-      readNumber('SF_SOURCE_TRACKING_FILE_VERSION', raw.fileVersion, nonNegativeInteger, 0),
+      readNumber(
+        'SF_SOURCE_TRACKING_FILE_VERSION',
+        raw.fileVersion,
+        Config.schema(naturalFromString, 'SF_SOURCE_TRACKING_FILE_VERSION'),
+        provider,
+        0
+      ),
       kitBoolean('SF_DISABLE_SOURCE_MOBILITY', raw.disableSourceMobility),
       kitBoolean('SF_SOURCE_TRACKING_ASSUME_SYNCED', raw.assumeSynced),
       kitBoolean(

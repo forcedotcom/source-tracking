@@ -91,4 +91,30 @@ describe('source tracking config', () => {
     expect(warnings).to.have.length(4);
     expect(warnings.join('\n')).to.contain('SF_SOURCE_TRACKING_BATCH_SIZE is ignored');
   });
+
+  it('uses defaults for unsupported numeric forms', async () => {
+    const warnings: string[] = [];
+    sinon.stub(Lifecycle.getInstance(), 'emitWarning').callsFake(async (warning) => void warnings.push(warning));
+    const settings = await loadSourceTrackingSettings(
+      ConfigProvider.fromEnvRecord(
+        {
+          SF_SOURCE_TRACKING_FD_PERMITS: '0x10',
+          SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS: 'Infinity',
+          SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS: 'NaN',
+          SF_SOURCE_TRACKING_FILE_VERSION: '',
+          SF_SOURCE_MEMBER_POLLING_TIMEOUT: '',
+        },
+        { preserveEmptyStrings: true }
+      )
+    ).pipe(Effect.runPromise);
+
+    expect(settings).to.include({
+      fdPermits: process.platform === 'win32' ? 64 : 256,
+      lockTimeoutSeconds: 600,
+      lockAutoclearSeconds: 300,
+      fileVersion: 0,
+    });
+    expect(settings.sourceMemberPollingTimeout).to.equal(undefined);
+    expect(warnings).to.have.length(5);
+  });
 });
