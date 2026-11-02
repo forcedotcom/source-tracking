@@ -37,7 +37,7 @@ import { repoErrorToSfError } from '../../git/sfCompatibility.js';
 import { Author as AuthorSchema, RepoPath as RepoPathSchema, type RepoPath, RepoConfig } from '../../git/schemas.js';
 import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
 import {
-  getProcessSourceTrackingSettings,
+  getProcessSourceTrackingRuntime,
   SourceTrackingConfig,
   sourceTrackingConfigLayer,
   type SourceTrackingSettings,
@@ -308,13 +308,10 @@ const runEffect = <A>(
     )
   );
 
-/** Promise adapter for SourceTracking and CLI callers; the implementation above stays Effect-native. */
-export const createShadowRepo = async (
-  options: ShadowRepoOptions,
-  testSettings?: SourceTrackingSettings
-): Promise<ShadowRepo> => {
-  const logger = await Logger.child('ShadowRepo');
-  const settings = testSettings ?? (await getProcessSourceTrackingSettings());
+/** @internal Build a local repo using SourceTrackingConfig from the Effect context. */
+export const createShadowRepoEffect = Effect.fn('createShadowRepoEffect')(function* (options: ShadowRepoOptions) {
+  const logger = yield* Effect.promise(() => Logger.child('ShadowRepo'));
+  const settings = yield* SourceTrackingConfig;
   const cfg = makeRepoConfig(options, settings);
   const runtime = ManagedRuntime.make(
     Repo.layer(cfg).pipe(
@@ -323,7 +320,7 @@ export const createShadowRepo = async (
       )
     )
   );
-  const effects = await runEffect(runtime, logger, 'init', makeShadowRepo(options, logger, cfg));
+  const effects = yield* Effect.promise(() => runEffect(runtime, logger, 'init', makeShadowRepo(options, logger, cfg)));
   const getStatus = (refresh = false): Promise<LocalChanges> =>
     runEffect(runtime, logger, 'getStatus', effects.getStatus(refresh));
 
@@ -337,7 +334,11 @@ export const createShadowRepo = async (
     getNonDeleteFilenames: () => getStatus().then((changes) => [...changes.added, ...changes.modified]),
     getAddFilenames: () => getStatus().then((changes) => Array.from(changes.added)),
     getModifyFilenames: () => getStatus().then((changes) => Array.from(changes.modified)),
-    recordSync: (request) => runEffect(runtime, logger, 'recordSync', effects.recordSync(request)),
+    recordSync: (request?: SyncRequest) => runEffect(runtime, logger, 'recordSync', effects.recordSync(request)),
     delete: () => runEffect(runtime, logger, 'delete', effects.delete()),
   };
-};
+});
+
+/** Promise adapter for SourceTracking and CLI callers; the implementation above stays Effect-native. */
+export const createShadowRepo = (options: ShadowRepoOptions): Promise<ShadowRepo> =>
+  getProcessSourceTrackingRuntime().runPromise(createShadowRepoEffect(options));
