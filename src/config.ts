@@ -23,8 +23,6 @@ import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
-import * as SchemaGetter from 'effect/SchemaGetter';
-import * as SchemaTransformation from 'effect/SchemaTransformation';
 import { Lifecycle } from '@salesforce/core';
 
 const DEFAULT_FD_PERMITS = process.platform === 'win32' ? 64 : 256;
@@ -80,16 +78,21 @@ export const SourceTrackingConfig = Context.Reference<SourceTrackingSettings>('@
   defaultValue: () => DEFAULT_SOURCE_TRACKING_SETTINGS,
 });
 
-const positiveNumber = Schema.Finite.check(Schema.isGreaterThan(0));
-const positiveInteger = Schema.Int.check(Schema.isGreaterThan(0));
-const kitBoolean = Schema.String.pipe(
-  Schema.decode(SchemaTransformation.toLowerCase()),
-  Schema.decodeTo(Schema.Literals(['true', 'false', '1', '0'])),
-  Schema.decodeTo(Schema.Boolean, {
-    decode: SchemaGetter.transform((value) => value === 'true' || value === '1'),
-    encode: SchemaGetter.transform((value) => (value ? 'true' : 'false')),
-  })
-);
+const positiveNumber = (name: string): Config.Config<number> =>
+  Config.schema(Schema.Finite.check(Schema.isGreaterThan(0)), name);
+const positiveInteger = (name: string): Config.Config<number> =>
+  Config.schema(Schema.Int.check(Schema.isGreaterThan(0)), name);
+const natural = (name: string): Config.Config<number> => Config.schema(Schema.Natural, name);
+const decodeBoolean = Schema.decodeUnknownEffect(Schema.Literals(['true', 'false', '1', '0']));
+const kitBoolean = (name: string): Config.Config<boolean> =>
+  Config.String(name).pipe(
+    Config.mapEffect((raw) =>
+      decodeBoolean(raw.toLowerCase()).pipe(
+        Effect.map((value) => value === 'true' || value === '1'),
+        Effect.mapError((cause) => new Config.ConfigError(cause))
+      )
+    )
+  );
 
 const emitConfigWarning = Effect.fnUntraced(function* (warning: string) {
   yield* Effect.tryPromise({
@@ -98,8 +101,8 @@ const emitConfigWarning = Effect.fnUntraced(function* (warning: string) {
   }).pipe(Effect.ignore);
 });
 
-const setting = <A>(name: string, schema: Schema.ConstraintCodec<A, unknown>, fallback: A): Config.Config<A> =>
-  Config.schema(schema, name).pipe(
+const setting = <A>(name: string, makeConfig: (name: string) => Config.Config<A>, fallback: A): Config.Config<A> =>
+  makeConfig(name).pipe(
     Config.withDefault(fallback),
     Config.orElse((error) =>
       Schema.isSchemaError(error.cause)
@@ -116,7 +119,7 @@ const setting = <A>(name: string, schema: Schema.ConstraintCodec<A, unknown>, fa
 const aliasedSetting = <A>(
   name: string,
   alias: string,
-  schema: Schema.ConstraintCodec<A, unknown>,
+  makeConfig: (name: string) => Config.Config<A>,
   fallback: A
 ): Config.Config<A> =>
   Config.all({
@@ -124,8 +127,8 @@ const aliasedSetting = <A>(
     legacyValue: Config.option(Config.String(alias)),
   }).pipe(
     Config.flatMap(({ value, legacyValue }) => {
-      if (Option.isSome(value) || Option.isNone(legacyValue)) return setting(name, schema, fallback);
-      return setting(alias, schema, fallback).pipe(
+      if (Option.isSome(value) || Option.isNone(legacyValue)) return setting(name, makeConfig, fallback);
+      return setting(alias, makeConfig, fallback).pipe(
         Config.mapEffect((decoded) =>
           emitConfigWarning(`${alias} is deprecated; use ${name}.`).pipe(Effect.as(decoded))
         )
@@ -183,7 +186,7 @@ const settingsConfig = Config.all({
     positiveNumber,
     undefined
   ),
-  fileVersion: setting('SF_SOURCE_TRACKING_FILE_VERSION', Schema.Natural, 0),
+  fileVersion: setting('SF_SOURCE_TRACKING_FILE_VERSION', natural, 0),
   integrityCheck: setting('SF_SOURCE_TRACKING_INTEGRITY_CHECK', kitBoolean, false),
 }).pipe(
   Config.map(({ sourceMemberPollingTimeout, ...settings }) => ({
