@@ -48,13 +48,13 @@ describe('source tracking config', () => {
     }
   });
 
-  it('uses defaults and Kit-compatible boolean parsing', async () => {
+  it('uses Effect boolean literals and warns on invalid values', async () => {
     const warnings: string[] = [];
     sinon.stub(Lifecycle.getInstance(), 'emitWarning').callsFake(async (warning) => void warnings.push(warning));
     const provider = ConfigProvider.fromEnvRecord({
-      SF_DISABLE_SOURCE_MOBILITY: 'TrUe',
+      SF_DISABLE_SOURCE_MOBILITY: 'yes',
       SF_SOURCE_TRACKING_ASSUME_SYNCED: '1',
-      SF_DISABLE_SOURCE_MEMBER_POLLING: 'yes',
+      SF_DISABLE_SOURCE_MEMBER_POLLING: 'on',
       SF_SOURCE_TRACKING_INTEGRITY_CHECK: 'TRUE',
     });
     const settings = await loadSourceTrackingSettings(provider).pipe(Effect.runPromise);
@@ -62,12 +62,12 @@ describe('source tracking config', () => {
     expect(settings).to.include({
       disableSourceMobility: true,
       assumeSynced: true,
-      disableSourceMemberPolling: false,
-      integrityCheck: true,
+      disableSourceMemberPolling: true,
+      integrityCheck: false,
       fileVersion: 0,
       lockTimeoutSeconds: 600,
     });
-    expect(warnings).to.deep.equal(['SF_DISABLE_SOURCE_MEMBER_POLLING is invalid; using false']);
+    expect(warnings).to.deep.equal(['SF_SOURCE_TRACKING_INTEGRITY_CHECK is invalid; using false']);
   });
 
   it('uses validated aliases and warns on deprecated batch-size variables', async () => {
@@ -189,7 +189,7 @@ describe('source tracking config', () => {
       SF_SOURCE_TRACKING_FILE_VERSION: '2',
       SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS: '1.5',
       SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS: '2.5',
-      SF_DISABLE_SOURCE_MOBILITY: 'FALSE',
+      SF_DISABLE_SOURCE_MOBILITY: 'false',
       SF_SOURCE_TRACKING_ASSUME_SYNCED: '0',
     }).pipe(loadSourceTrackingSettings, Effect.runPromise);
     expect(settings).to.include({

@@ -83,16 +83,7 @@ const positiveNumber = (name: string): Config.Config<number> =>
 const positiveInteger = (name: string): Config.Config<number> =>
   Config.schema(Schema.Int.check(Schema.isGreaterThan(0)), name);
 const natural = (name: string): Config.Config<number> => Config.schema(Schema.Natural, name);
-const decodeBoolean = Schema.decodeUnknownEffect(Schema.Literals(['true', 'false', '1', '0']));
-const kitBoolean = (name: string): Config.Config<boolean> =>
-  Config.String(name).pipe(
-    Config.mapEffect((raw) =>
-      decodeBoolean(raw.toLowerCase()).pipe(
-        Effect.map((value) => value === 'true' || value === '1'),
-        Effect.mapError((cause) => new Config.ConfigError(cause))
-      )
-    )
-  );
+const boolean = (name: string): Config.Config<boolean> => Config.Boolean(name);
 
 const emitConfigWarning = Effect.fnUntraced(function* (warning: string) {
   yield* Effect.tryPromise({
@@ -166,8 +157,8 @@ const fdPermitsConfig = Config.all({
 
 const settingsConfig = Config.all({
   fdPermits: fdPermitsConfig,
-  disableSourceMobility: setting('SF_DISABLE_SOURCE_MOBILITY', kitBoolean, false),
-  assumeSynced: setting('SF_SOURCE_TRACKING_ASSUME_SYNCED', kitBoolean, false),
+  disableSourceMobility: setting('SF_DISABLE_SOURCE_MOBILITY', boolean, false),
+  assumeSynced: setting('SF_SOURCE_TRACKING_ASSUME_SYNCED', boolean, false),
   lockTimeoutSeconds: setting('SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS', positiveNumber, DEFAULT_LOCK_TIMEOUT_SECONDS),
   lockAutoclearSeconds: setting(
     'SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS',
@@ -177,7 +168,7 @@ const settingsConfig = Config.all({
   disableSourceMemberPolling: aliasedSetting(
     'SF_DISABLE_SOURCE_MEMBER_POLLING',
     'SFDX_DISABLE_SOURCE_MEMBER_POLLING',
-    kitBoolean,
+    boolean,
     false
   ),
   sourceMemberPollingTimeout: aliasedSetting<number | undefined>(
@@ -187,7 +178,7 @@ const settingsConfig = Config.all({
     undefined
   ),
   fileVersion: setting('SF_SOURCE_TRACKING_FILE_VERSION', natural, 0),
-  integrityCheck: setting('SF_SOURCE_TRACKING_INTEGRITY_CHECK', kitBoolean, false),
+  integrityCheck: setting('SF_SOURCE_TRACKING_INTEGRITY_CHECK', boolean, false),
 }).pipe(
   Config.map(({ sourceMemberPollingTimeout, ...settings }) => ({
     ...settings,
