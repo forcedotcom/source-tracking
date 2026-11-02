@@ -6,6 +6,7 @@ import functionalPlugin from 'eslint-plugin-functional';
 const effectFiles = [
   '**/populateTypesAndNames.ts',
   '**/populateTypesAndNamesPerf.nut.ts',
+  'test/perf-utils/**/*.ts',
   'src/git/**/*.ts',
   'src/shared/remote/fileOperations.ts',
   'src/shared/remote/orgQueries.ts',
