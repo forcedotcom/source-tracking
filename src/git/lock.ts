@@ -56,8 +56,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (
   const indexPath = path.join(gitdir, 'index');
   const timeout = Duration.seconds(config.lockTimeoutSeconds);
   const autoclear = Duration.seconds(config.lockAutoclearSeconds);
-  const timeoutMs = Duration.toMillis(timeout);
-  const autoclearMs = Duration.toMillis(autoclear);
+  const autoclearThresholdMs = Duration.toMillis(autoclear);
   const startMs = yield* Clock.currentTimeMillis;
 
   const tryAutoclear = Effect.fnUntraced(function* () {
@@ -71,7 +70,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (
       () => now
     );
     const ageMs = now - mtimeMs;
-    if (ageMs <= autoclearMs) return false;
+    if (ageMs <= autoclearThresholdMs) return false;
     yield* fs.remove(lockPath).pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.void));
     return true;
   });
@@ -131,7 +130,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (
       Effect.fail(
         new RepoLockedError({
           lockPath,
-          ageMs: timeoutMs,
+          ageMs: Duration.toMillis(timeout),
           ageHumanReadable: humanReadable(timeout),
           message: `index.lock at ${lockPath} not acquired within ${humanReadable(
             timeout
