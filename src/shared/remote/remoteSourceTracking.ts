@@ -306,12 +306,11 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
 
   const expectedSourceMembers = calculateExpectedSourceMembers(registry, elements);
   const originalOutstandingSize = expectedSourceMembers.size;
-  const overriddenTimeout = config.sourceMemberPollingTimeout ?? 0;
   const consecutiveEmptyPollLimit =
     config.sourceMemberPollingTimeout === undefined
       ? DEFAULT_EMPTY_POLLING_RESULT_LIMIT
       : config.sourceMemberPollingTimeout / Duration.toSeconds(Duration.millis(POLLING_DELAY_MS));
-  const pollingTimeout = calculateTimeout(logger)(expectedSourceMembers.size, overriddenTimeout);
+  const pollingTimeout = calculateTimeout(logger)(expectedSourceMembers.size, config.sourceMemberPollingTimeout);
   const pollState = yield* Ref.make<PollState>({
     highestRevisionSoFar: state.serverMaxRevisionCounter,
     pollAttempts: 0,

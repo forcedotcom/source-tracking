@@ -15,12 +15,15 @@
  */
 
 import { expect } from 'chai';
+import { Lifecycle } from '@salesforce/core';
 import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Effect from 'effect/Effect';
-import * as Logger from 'effect/Logger';
+import sinon from 'sinon';
 import { loadSourceTrackingSettings, makeSourceTrackingRuntime, SourceTrackingConfig } from '../../src/config.js';
 
 describe('source tracking config', () => {
+  afterEach(() => sinon.restore());
+
   it('provides one injected config snapshot through a reusable runtime', async () => {
     const runtime = makeSourceTrackingRuntime(
       ConfigProvider.fromEnvRecord({ SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS: '12' })
@@ -39,6 +42,8 @@ describe('source tracking config', () => {
   });
 
   it('uses defaults and Kit-compatible boolean parsing', async () => {
+    const warnings: string[] = [];
+    sinon.stub(Lifecycle.getInstance(), 'emitWarning').callsFake(async (warning) => void warnings.push(warning));
     const provider = ConfigProvider.fromEnvRecord({
       SF_DISABLE_SOURCE_MOBILITY: 'TrUe',
       SF_SOURCE_TRACKING_ASSUME_SYNCED: '1',
@@ -55,16 +60,15 @@ describe('source tracking config', () => {
       fileVersion: 0,
       lockTimeoutSeconds: 600,
     });
+    expect(warnings).to.deep.equal(['SF_DISABLE_SOURCE_MEMBER_POLLING="yes" is invalid; using false']);
   });
 
   it('uses validated aliases and warns on deprecated batch-size variables', async () => {
     const warnings: string[] = [];
-    const logger = Logger.make<unknown, void>((entry) => {
-      if (entry.logLevel === 'Warn') warnings.push(String(entry.message));
-    });
+    sinon.stub(Lifecycle.getInstance(), 'emitWarning').callsFake(async (warning) => void warnings.push(warning));
     const settings = await loadSourceTrackingSettings(
       ConfigProvider.fromEnvRecord({ SFDX_SOURCE_TRACKING_BATCH_SIZE: '2000' })
-    ).pipe(Effect.provide(Logger.layer([logger])), Effect.runPromise);
+    ).pipe(Effect.runPromise);
 
     expect(settings.fdPermits).to.equal(process.platform === 'win32' ? 64 : 256);
     expect(warnings).to.have.length(1);
@@ -73,9 +77,7 @@ describe('source tracking config', () => {
 
   it('warns and falls back on invalid values; canonical batch config wins', async () => {
     const warnings: string[] = [];
-    const logger = Logger.make<unknown, void>((entry) => {
-      if (entry.logLevel === 'Warn') warnings.push(String(entry.message));
-    });
+    sinon.stub(Lifecycle.getInstance(), 'emitWarning').callsFake(async (warning) => void warnings.push(warning));
     const provider = ConfigProvider.fromEnvRecord({
       SF_SOURCE_TRACKING_FD_PERMITS: '0',
       SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS: 'NaN',
@@ -83,10 +85,7 @@ describe('source tracking config', () => {
       SFDX_SOURCE_TRACKING_BATCH_SIZE: '200',
       SF_SOURCE_TRACKING_FILE_VERSION: '-1',
     });
-    const settings = await loadSourceTrackingSettings(provider).pipe(
-      Effect.provide(Logger.layer([logger])),
-      Effect.runPromise
-    );
+    const settings = await loadSourceTrackingSettings(provider).pipe(Effect.runPromise);
 
     expect(settings).to.include({ fdPermits: process.platform === 'win32' ? 64 : 256, lockTimeoutSeconds: 600 });
     expect(warnings).to.have.length(4);

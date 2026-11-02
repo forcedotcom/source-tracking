@@ -22,6 +22,7 @@ import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
+import { Lifecycle } from '@salesforce/core';
 
 const DEFAULT_FD_PERMITS = process.platform === 'win32' ? 64 : 256;
 const DEFAULT_LOCK_TIMEOUT_SECONDS = 600;
@@ -74,6 +75,12 @@ const positiveNumber = Schema.Number.check(Schema.isFinite(), Schema.isGreaterTh
 const positiveInteger = Schema.Int.check(Schema.isGreaterThan(0));
 const nonNegativeInteger = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
+const emitConfigWarning = (warning: string): Effect.Effect<void> =>
+  Effect.tryPromise({
+    try: () => Lifecycle.getInstance().emitWarning(warning),
+    catch: () => undefined,
+  }).pipe(Effect.ignore);
+
 const kitNumber = (raw: string): number =>
   // Kit's toNumber accepts JavaScript numeric forms (including hex and Infinity).
   // Empty strings are treated as missing by Env.getNumber.
@@ -92,7 +99,7 @@ const readNumber = <A>(
       return Option.match(decoded, {
         onSome: Effect.succeed,
         onNone: () =>
-          Effect.logWarning(`${name}=${JSON.stringify(raw)} is invalid; using ${String(fallback)}`).pipe(
+          emitConfigWarning(`${name}=${JSON.stringify(raw)} is invalid; using ${String(fallback)}`).pipe(
             Effect.as(fallback)
           ),
       });
@@ -108,7 +115,7 @@ const readOptionalNumber = (name: string, value: Option.Option<string>): Effect.
       return Option.match(decoded, {
         onSome: (seconds) => Effect.succeed(seconds),
         onNone: () =>
-          Effect.logWarning(`${name}=${JSON.stringify(raw)} is invalid; ignoring it`).pipe(Effect.as(undefined)),
+          emitConfigWarning(`${name}=${JSON.stringify(raw)} is invalid; ignoring it`).pipe(Effect.as(undefined)),
       });
     },
   });
@@ -120,7 +127,7 @@ const kitBoolean = (name: string, value: Option.Option<string>): Effect.Effect<b
       const normalized = raw.toLowerCase();
       if (normalized === 'true' || raw === '1') return Effect.succeed(true);
       if (normalized === 'false' || raw === '0') return Effect.succeed(false);
-      return Effect.logWarning(`${name}=${JSON.stringify(raw)} is invalid; using false`).pipe(Effect.as(false));
+      return emitConfigWarning(`${name}=${JSON.stringify(raw)} is invalid; using false`).pipe(Effect.as(false));
     },
   });
 
@@ -132,12 +139,12 @@ export const loadSourceTrackingSettings = (
     const disablePollingRaw = Option.orElse(raw.disableSourceMemberPolling, () => raw.legacyDisableSourceMemberPolling);
     const pollingTimeoutRaw = Option.orElse(raw.sourceMemberPollingTimeout, () => raw.legacySourceMemberPollingTimeout);
     if (Option.isNone(raw.disableSourceMemberPolling) && Option.isSome(raw.legacyDisableSourceMemberPolling)) {
-      yield* Effect.logWarning(
+      yield* emitConfigWarning(
         'SFDX_DISABLE_SOURCE_MEMBER_POLLING is deprecated; use SF_DISABLE_SOURCE_MEMBER_POLLING.'
       );
     }
     if (Option.isNone(raw.sourceMemberPollingTimeout) && Option.isSome(raw.legacySourceMemberPollingTimeout)) {
-      yield* Effect.logWarning(
+      yield* emitConfigWarning(
         'SFDX_SOURCE_MEMBER_POLLING_TIMEOUT is deprecated; use SF_SOURCE_MEMBER_POLLING_TIMEOUT.'
       );
     }
@@ -147,10 +154,10 @@ export const loadSourceTrackingSettings = (
       : 'SFDX_SOURCE_TRACKING_BATCH_SIZE';
     const fdPermitsRaw = Option.isSome(raw.fdPermits) ? raw.fdPermits : legacyBatchSize;
     if (Option.isSome(fdPermitsRaw) && Option.isNone(raw.fdPermits)) {
-      yield* Effect.logWarning(`${legacyBatchName} is deprecated; use SF_SOURCE_TRACKING_FD_PERMITS.`);
+      yield* emitConfigWarning(`${legacyBatchName} is deprecated; use SF_SOURCE_TRACKING_FD_PERMITS.`);
     }
     if (Option.isSome(raw.fdPermits) && Option.isSome(legacyBatchSize)) {
-      yield* Effect.logWarning(`${legacyBatchName} is ignored because SF_SOURCE_TRACKING_FD_PERMITS is set.`);
+      yield* emitConfigWarning(`${legacyBatchName} is ignored because SF_SOURCE_TRACKING_FD_PERMITS is set.`);
     }
     const [
       rawFdPermits,

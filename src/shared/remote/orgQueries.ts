@@ -40,8 +40,8 @@ export type UserNameCache = Cache.Cache<UserNameRequest, Option.Option<string>, 
 
 export const calculateTimeout =
   (logger: PinoLogger) =>
-  (memberCount: number, overriddenTimeout = 0): Duration.Duration => {
-    if (overriddenTimeout > 0) {
+  (memberCount: number, overriddenTimeout?: number): Duration.Duration => {
+    if (overriddenTimeout !== undefined) {
       logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
       return Duration.seconds(overriddenTimeout);
     }

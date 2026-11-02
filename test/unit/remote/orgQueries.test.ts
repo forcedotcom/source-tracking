@@ -109,18 +109,14 @@ describe('calculateTimeout', () => {
   const functionUnderTest = calculateTimeout(logger);
 
   it('defaults to five seconds with no members', () => {
-    expect(Duration.toSeconds(functionUnderTest(0, 0))).to.equal(5);
+    expect(Duration.toSeconds(functionUnderTest(0))).to.equal(5);
   });
 
   it('allocates fifty seconds per thousand members plus five seconds', () => {
-    expect(Duration.toSeconds(functionUnderTest(10_000, 0))).to.equal(505);
+    expect(Duration.toSeconds(functionUnderTest(10_000))).to.equal(505);
   });
 
   it('uses a positive override', () => {
     expect(Duration.toSeconds(functionUnderTest(10_000, 60))).to.equal(60);
-  });
-
-  it('ignores a zero override', () => {
-    expect(Duration.toSeconds(functionUnderTest(10_000, 0))).to.equal(505);
   });
 });
