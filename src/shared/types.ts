@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
+import type { FileResponse, SourceComponent } from '@salesforce/source-deploy-retrieve';
 import { SfError } from '@salesforce/core/sfError';
 
 export type ChangeOptions = {
@@ -47,13 +47,19 @@ export type RemoteChangeElement = {
   memberIdOrName: string;
 };
 
-/**
- * Summary type that supports both local and remote change types
- */
-export type ChangeResult = Partial<RemoteChangeElement> & {
+/** Summary type that supports both local and remote change types. */
+export type ChangeResult = {
   origin: 'local' | 'remote';
   filenames?: string[];
   ignored?: boolean;
+  name?: string;
+  type?: string;
+  deleted?: boolean;
+  modified?: boolean;
+  changedBy?: string;
+  revisionCounter?: number;
+  lastModifiedDate?: string;
+  memberIdOrName?: string;
 };
 
 export type ConflictResponse = {

@@ -1,5 +1,6 @@
 {
-  "require": "test/init.js, ts-node/register, source-map-support/register",
+  "require": ["test/init.cjs", "ts-node/register"],
+  "node-option": ["loader=ts-node/esm"],
   "watch-extensions": "ts",
   "watch-files": ["src", "test"],
   "recursive": true,

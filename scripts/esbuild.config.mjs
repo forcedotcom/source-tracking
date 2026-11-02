@@ -14,5 +14,5 @@ await build({
     'unsupported-dynamic-import': 'error',
   },
   entryPoints: ['./lib/index.js'],
-  outdir: 'dist',
+  outfile: 'dist/index.cjs',
 });

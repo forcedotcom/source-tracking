@@ -19,11 +19,11 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { Lifecycle, Org, SfProject } from '@salesforce/core';
 import { ComponentSet } from '@salesforce/source-deploy-retrieve';
-import { SourceTracking } from '../../src/sourceTracking';
+import { SourceTracking } from '../../src/sourceTracking.js';
 
 describe('platform event source tracking after deploy (@W-21612413@)', () => {
   let session: TestSession;
-  let stl: SourceTracking;
+  let sourceTracking: SourceTracking;
   const warnings: string[] = [];
 
   before(async () => {
@@ -44,10 +44,10 @@ describe('platform event source tracking after deploy (@W-21612413@)', () => {
 
     const org = await Org.create({ aliasOrUsername: session.orgs.get('default')?.username });
     const project = await SfProject.resolve(session.project.dir);
-    stl = await SourceTracking.create({ org, project });
+    sourceTracking = await SourceTracking.create({ org, project });
 
-    Lifecycle.getInstance().onWarning((w) => {
-      warnings.push(w);
+    Lifecycle.getInstance().onWarning((warning) => {
+      warnings.push(warning);
       return Promise.resolve();
     });
   });
@@ -56,7 +56,7 @@ describe('platform event source tracking after deploy (@W-21612413@)', () => {
     await session?.clean();
   });
 
-  it('deploys a platform event with a custom field and updates source tracking without timeout', async () => {
+  it('deploys a platform event with a custom field and tracks it without polling timeout', async () => {
     const componentSet = ComponentSet.fromSource(
       path.join(session.project.dir, 'force-app', 'main', 'default', 'objects', 'TestEvent__e')
     );
@@ -65,13 +65,19 @@ describe('platform event source tracking after deploy (@W-21612413@)', () => {
     const deployResult = await deploy.pollStatus();
 
     expect(deployResult.response.success, 'deploy should succeed').to.equal(true);
+    expect(deployResult.getFileResponses()).not.to.be.empty;
 
-    const fileResponses = deployResult.getFileResponses();
-    expect(fileResponses.length).to.be.greaterThan(0);
+    await sourceTracking.updateTrackingFromDeploy(deployResult);
 
-    await stl.updateTrackingFromDeploy(deployResult);
-
-    const pollingTimeoutWarnings = warnings.filter((w) => w.includes('SourceMembers timed out'));
-    expect(pollingTimeoutWarnings, 'source tracking should not time out polling for SourceMembers').to.have.length(0);
+    const pollingTimeoutWarnings = warnings.filter((warning) => warning.includes('SourceMembers timed out'));
+    expect(pollingTimeoutWarnings, 'source tracking should match the platform-event field SourceMember').to.have.length(
+      0
+    );
+    expect(
+      (await sourceTracking.getChanges({ origin: 'remote', state: 'nondelete', format: 'ChangeResult' })).filter(
+        ({ name }) => name?.startsWith('TestEvent')
+      ),
+      'deployed platform-event members should be marked synced'
+    ).to.be.empty;
   });
 });
