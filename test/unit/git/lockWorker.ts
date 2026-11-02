@@ -15,11 +15,14 @@
  */
 import { access, appendFile } from 'node:fs/promises';
 import * as Effect from 'effect/Effect';
+import * as ManagedRuntime from 'effect/ManagedRuntime';
+import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Layer from 'effect/Layer';
 import { isNotUndefined } from 'effect/Predicate';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { withIndexLock } from '../../../src/git/lock.js';
+import { sourceTrackingConfigLayerFromProvider } from '../../../src/config.js';
 
 const role = process.env.LOCK_TEST_ROLE;
 const gitdir = process.env.LOCK_TEST_GITDIR;
@@ -55,4 +58,13 @@ const action = withIndexLock(gitdir)(
 );
 
 if (role === 'second') process.stdout.write('second-attempting\n');
-await Effect.runPromise(Effect.provide(action, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)));
+const provider = ConfigProvider.fromEnv();
+const runtime = ManagedRuntime.make(
+  Layer.mergeAll(
+    ConfigProvider.layer(provider),
+    sourceTrackingConfigLayerFromProvider(provider),
+    NodeFileSystem.layer,
+    NodePath.layer
+  )
+);
+await runtime.runPromise(action);

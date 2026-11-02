@@ -29,8 +29,7 @@ import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 import { readFileContents, writeTrackingFile } from '../../../src/shared/remote/fileOperations.js';
 import { ContentsJsonSchema, type MemberRevision } from '../../../src/shared/remote/types.js';
-
-const FILE_VERSION_ENV = 'SF_SOURCE_TRACKING_FILE_VERSION';
+import { DEFAULT_SOURCE_TRACKING_SETTINGS, SourceTrackingConfig } from '../../../src/config.js';
 
 const member: MemberRevision = {
   MemberType: 'ApexClass',
@@ -53,15 +52,17 @@ describe('remote tracking file operations', () => {
 
   afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
-    delete process.env[FILE_VERSION_ENV];
   });
 
   it('writes and reads the current Schema format', async () => {
-    process.env[FILE_VERSION_ENV] = '1';
     const filePath = path.join(directory, 'maxRevision.json');
 
     await Effect.runPromise(
-      writeTrackingFile({ filePath, maxCounter: 3, members: new Map([['ApexClass###MyClass', member]]) })
+      writeTrackingFile({
+        filePath,
+        maxCounter: 3,
+        members: new Map([['ApexClass###MyClass', member]]),
+      }).pipe(Effect.provideService(SourceTrackingConfig, { ...DEFAULT_SOURCE_TRACKING_SETTINGS, fileVersion: 1 }))
     );
 
     const fileContents = Schema.decodeUnknownSync(ContentsJsonSchema)(await readFile(filePath, 'utf8'));
@@ -74,11 +75,12 @@ describe('remote tracking file operations', () => {
   });
 
   it('reads and upgrades the legacy Schema format to the current in-memory format', async () => {
-    delete process.env[FILE_VERSION_ENV];
     const filePath = path.join(directory, 'maxRevision.json');
 
     await Effect.runPromise(
-      writeTrackingFile({ filePath, maxCounter: 3, members: new Map([['ApexClass###MyClass', member]]) })
+      writeTrackingFile({ filePath, maxCounter: 3, members: new Map([['ApexClass###MyClass', member]]) }).pipe(
+        Effect.provideService(SourceTrackingConfig, DEFAULT_SOURCE_TRACKING_SETTINGS)
+      )
     );
 
     const fileContents = Schema.decodeUnknownSync(ContentsJsonSchema)(await readFile(filePath, 'utf8'));

@@ -23,8 +23,6 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import * as Effect from 'effect/Effect';
 import * as Chunk from 'effect/Chunk';
-import * as Config from 'effect/Config';
-import * as ConfigProvider from 'effect/ConfigProvider';
 import * as HashSet from 'effect/HashSet';
 import * as Layer from 'effect/Layer';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
@@ -38,6 +36,7 @@ import { Repo } from '../../git/repo.js';
 import { repoErrorToSfError } from '../../git/sfCompatibility.js';
 import { Author as AuthorSchema, RepoPath as RepoPathSchema, type RepoPath, RepoConfig } from '../../git/schemas.js';
 import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
+import { SourceTrackingConfig, sourceTrackingConfigLayer, type SourceTrackingSettings } from '../../config.js';
 import { getMatches, ensurePosix, IS_WINDOWS } from './functions.js';
 import { filenameMatchesToMap } from './moveDetection.js';
 import type { LocalChanges, ShadowRepoOptions, SyncRequest } from './types.js';
@@ -52,24 +51,6 @@ const SHADOW_AUTHOR = Schema.decodeUnknownSync(AuthorSchema)({
 });
 
 const EMPTY_CHANGES: LocalChanges = { added: [], modified: [], deleted: [] };
-
-const FD_PERMITS_ENV = 'SF_SOURCE_TRACKING_FD_PERMITS';
-const FD_PERMITS_FALLBACK = IS_WINDOWS ? 64 : 256;
-
-const readNumberEnv = (name: string, fallback: number) =>
-  Config.Number(name)
-    .pipe(Config.withDefault(fallback))
-    .parse(ConfigProvider.fromEnv())
-    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(fallback)));
-
-const readBooleanEnv = (name: string) =>
-  Config.String(name)
-    .pipe(
-      Config.withDefault('false'),
-      Config.map((value) => value.toLowerCase() === 'true' || value === '1')
-    )
-    .parse(ConfigProvider.fromEnv())
-    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(false)));
 
 const buildExclude = (packageDirs: readonly string[]): string =>
   // .git/info/exclude is gitignore-syntax. Lite's status walk also applies the
@@ -115,19 +96,13 @@ type ApplyChangesArgs = {
   readonly message?: string;
 };
 
-const makeRepoConfig = (options: ShadowRepoOptions) =>
-  readNumberEnv(FD_PERMITS_ENV, FD_PERMITS_FALLBACK).pipe(
-    Effect.map((fdPermits) =>
-      Schema.decodeUnknownSync(RepoConfig)({
-        dir: options.projectPath,
-        gitdir: getGitDir(options.orgId, options.projectPath),
-        roots: options.packageDirs.map((directory) =>
-          ensurePosix(path.relative(options.projectPath, directory.fullPath))
-        ),
-        fdPermits,
-      })
-    )
-  );
+const makeRepoConfig = (options: ShadowRepoOptions, settings: SourceTrackingSettings) =>
+  Schema.decodeUnknownSync(RepoConfig)({
+    dir: options.projectPath,
+    gitdir: getGitDir(options.orgId, options.projectPath),
+    roots: options.packageDirs.map((directory) => ensurePosix(path.relative(options.projectPath, directory.fullPath))),
+    fdPermits: settings.fdPermits,
+  });
 
 /** Build one org's local-tracking operations. Git state and the status cache live in this closure. */
 const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (
@@ -137,6 +112,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (
 ) {
   const repo = yield* Repo;
   const fs = yield* FileSystem;
+  const settings = yield* SourceTrackingConfig;
   const { gitdir: gitDir, roots: packageDirs, fdPermits } = cfg;
   const fileFilter = liteFileFilter(packageDirs);
   const statusCache = yield* Ref.make<Option.Option<LocalChanges>>(Option.none());
@@ -215,7 +191,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (
     // behavior: a later non-forced read does not repeat a failed detection.
     yield* Ref.set(statusCache, Option.some(changes));
 
-    const movesDisabled = yield* readBooleanEnv('SF_DISABLE_SOURCE_MOBILITY');
+    const movesDisabled = settings.disableSourceMobility;
     yield* Effect.promise(() =>
       Lifecycle.getInstance().emitTelemetry({
         eventName: movesDisabled ? 'moveFileDetectionDisabled' : 'moveFileDetectionEnabled',
@@ -236,7 +212,7 @@ const makeShadowRepo = Effect.fn('ShadowRepo.make')(function* (
   const getStatus = Effect.fn('ShadowRepo.getStatus')(function* (refresh = false) {
     yield* Effect.sync(() => logger.trace(`lite start: getStatus (refresh = ${refresh})`));
     const cached = yield* Ref.get(statusCache);
-    if (yield* readBooleanEnv('SF_SOURCE_TRACKING_ASSUME_SYNCED')) {
+    if (settings.assumeSynced) {
       const shouldWarn =
         Option.isNone(cached) ||
         cached.value.added.length + cached.value.modified.length + cached.value.deleted.length > 0;
@@ -327,12 +303,17 @@ const runEffect = <A>(
     )
   );
 
-/** Build a local repo. SourceTracking owns the Promise boundary for its callers. */
+/** @internal Build a local repo using SourceTrackingConfig from the Effect context. */
 export const createShadowRepo = Effect.fn('createShadowRepo')(function* (options: ShadowRepoOptions) {
   const logger = yield* Effect.promise(() => Logger.child('ShadowRepo'));
-  const cfg = yield* makeRepoConfig(options);
+  const settings = yield* SourceTrackingConfig;
+  const cfg = makeRepoConfig(options, settings);
   const runtime = ManagedRuntime.make(
-    Repo.layer(cfg).pipe(Layer.provideMerge(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer)))
+    Repo.layer(cfg).pipe(
+      Layer.provideMerge(
+        Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer, sourceTrackingConfigLayer(settings))
+      )
+    )
   );
   const effects = yield* Effect.promise(() => runEffect(runtime, logger, 'init', makeShadowRepo(options, logger, cfg)));
   const getStatus = (refresh = false): Promise<LocalChanges> =>

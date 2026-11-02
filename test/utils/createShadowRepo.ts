@@ -15,11 +15,19 @@
  */
 
 import * as Effect from 'effect/Effect';
+import {
+  DEFAULT_SOURCE_TRACKING_SETTINGS,
+  sourceTrackingConfigLayer,
+  type SourceTrackingSettings,
+} from '../../src/config.js';
 import { createShadowRepo as createShadowRepoEffect, type ShadowRepo } from '../../src/shared/local/localShadowRepo.js';
 import type { ShadowRepoOptions } from '../../src/shared/local/types.js';
 
 export type { ShadowRepo };
 
-/** Test adapter for direct local-repo tests; production callers go through SourceTracking. */
-export const createShadowRepo = (options: ShadowRepoOptions): Promise<ShadowRepo> =>
-  Effect.runPromise(createShadowRepoEffect(options));
+/** Run the Effect factory with an injected config layer for local-tracking tests. */
+export const createShadowRepo = (
+  options: ShadowRepoOptions,
+  settings: SourceTrackingSettings = DEFAULT_SOURCE_TRACKING_SETTINGS
+): Promise<ShadowRepo> =>
+  Effect.runPromise(Effect.provide(createShadowRepoEffect(options), sourceTrackingConfigLayer(settings)));

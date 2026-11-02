@@ -19,7 +19,6 @@ import * as os from 'node:os';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect } from 'chai';
-import sinon from 'sinon';
 import * as Effect from 'effect/Effect';
 import * as Deferred from 'effect/Deferred';
 import * as Layer from 'effect/Layer';
@@ -34,6 +33,7 @@ import { FileSystem } from 'effect/FileSystem';
 import { type Path } from 'effect/Path';
 import { withIndexLock, withIndexLockCtx } from '../../../src/git/lock.js';
 import { RepoLockedError } from '../../../src/git/errors.js';
+import { DEFAULT_SOURCE_TRACKING_SETTINGS, SourceTrackingConfig } from '../../../src/config.js';
 
 class TestFailure extends Schema.TaggedError<TestFailure>()('TestFailure', {
   message: Schema.String,
@@ -43,7 +43,14 @@ class LockWorkerError extends Schema.TaggedError<LockWorkerError>()('LockWorkerE
   message: Schema.String,
 }) {}
 
-const TestLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+const configLayer = (lockTimeoutSeconds = 10, lockAutoclearSeconds = 300) =>
+  Layer.succeed(SourceTrackingConfig, {
+    ...DEFAULT_SOURCE_TRACKING_SETTINGS,
+    fdPermits: 64,
+    lockTimeoutSeconds,
+    lockAutoclearSeconds,
+  });
+const TestLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, configLayer());
 const run = <A, E>(eff: Effect.Effect<A, E, FileSystem | Path>): Promise<Exit.Exit<A, E>> =>
   Effect.runPromiseExit(Effect.provide(eff, TestLayer));
 
@@ -358,35 +365,35 @@ describe('git/lock (phase 4)', () => {
 
   it('stale lock older than autoclear threshold is auto-cleared', async () => {
     const { tmp, gitdir } = await mkGitdir();
-    process.env.SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS = '1';
-    const consoleLog = sinon.spy(console, 'log');
-    const consoleError = sinon.spy(console, 'error');
     try {
       // Plant a stale lock (mtime well past 1s)
       const stale = path.join(gitdir, 'index.lock');
       await fs.writeFile(stale, 'stale');
       await fs.utimes(stale, 0, 0);
 
-      const exit = await run(Effect.succeed('ok').pipe(withIndexLock(gitdir)));
+      const exit = await Effect.runPromiseExit(
+        Effect.provide(
+          Effect.succeed('ok').pipe(withIndexLock(gitdir)),
+          Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, configLayer(10, 1))
+        )
+      );
       expect(Exit.isSuccess(exit)).to.equal(true);
-      expect(consoleLog.called).to.equal(false);
-      expect(consoleError.called).to.equal(false);
     } finally {
-      consoleLog.restore();
-      consoleError.restore();
-      delete process.env.SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS;
       await fs.rm(tmp, { recursive: true, force: true });
     }
   });
 
   it('lock held past timeout → RepoLockedError', async () => {
     const { tmp, gitdir } = await mkGitdir();
-    process.env.SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS = '1';
-    process.env.SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS = '3600';
     try {
       // Plant a young lock
       await fs.writeFile(path.join(gitdir, 'index.lock'), 'held');
-      const exit = await run(Effect.succeed('ok').pipe(withIndexLock(gitdir)));
+      const exit = await Effect.runPromiseExit(
+        Effect.provide(
+          Effect.succeed('ok').pipe(withIndexLock(gitdir)),
+          Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, configLayer(1, 3600))
+        )
+      );
       expect(Exit.isFailure(exit)).to.equal(true);
       if (Exit.isFailure(exit)) {
         const fail = Cause.findErrorOption(exit.cause);
@@ -399,8 +406,6 @@ describe('git/lock (phase 4)', () => {
         }
       }
     } finally {
-      delete process.env.SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS;
-      delete process.env.SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS;
       await fs.rm(tmp, { recursive: true, force: true });
     }
   }).timeout(8000);

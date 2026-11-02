@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 import * as Clock from 'effect/Clock';
-import * as Config from 'effect/Config';
-import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
@@ -24,21 +22,8 @@ import * as Schedule from 'effect/Schedule';
 import { FileSystem } from 'effect/FileSystem';
 import { Path } from 'effect/Path';
 import type { PlatformError } from 'effect/PlatformError';
+import { SourceTrackingConfig } from '../config.js';
 import { RepoLockedError } from './errors.js';
-
-const DEFAULT_TIMEOUT = Duration.seconds(600); // 10 minutes
-const DEFAULT_AUTOCLEAR = Duration.seconds(300); // 5 minutes
-const ENV_TIMEOUT = 'SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS';
-const ENV_AUTOCLEAR = 'SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS';
-
-const envDurationSeconds = (name: string, fallback: Duration.Duration) =>
-  Config.Number(name)
-    .pipe(Config.withDefault(Duration.toSeconds(fallback)))
-    .parse(ConfigProvider.fromEnv())
-    .pipe(
-      Effect.map((seconds) => (Number.isFinite(seconds) && seconds > 0 ? Duration.seconds(seconds) : fallback)),
-      Effect.catchTag('ConfigError', () => Effect.succeed(fallback))
-    );
 
 const statSentinel = Symbol('stat-not-found');
 
@@ -66,14 +51,12 @@ const acquireLock = Effect.fn('acquireLock')(function* (
 ) {
   const fs = yield* FileSystem;
   const path = yield* Path;
+  const config = yield* SourceTrackingConfig;
   const lockPath = path.join(gitdir, 'index.lock');
   const indexPath = path.join(gitdir, 'index');
-  const [timeout, autoclear] = yield* Effect.all([
-    envDurationSeconds(ENV_TIMEOUT, DEFAULT_TIMEOUT),
-    envDurationSeconds(ENV_AUTOCLEAR, DEFAULT_AUTOCLEAR),
-  ]);
-  const timeoutMs = Duration.toMillis(timeout);
-  const autoclearMs = Duration.toMillis(autoclear);
+  const timeout = Duration.seconds(config.lockTimeoutSeconds);
+  const autoclear = Duration.seconds(config.lockAutoclearSeconds);
+  const autoclearThresholdMs = Duration.toMillis(autoclear);
   const startMs = yield* Clock.currentTimeMillis;
 
   const tryAutoclear = Effect.fnUntraced(function* () {
@@ -87,7 +70,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (
       () => now
     );
     const ageMs = now - mtimeMs;
-    if (ageMs <= autoclearMs) return false;
+    if (ageMs <= autoclearThresholdMs) return false;
     yield* fs.remove(lockPath).pipe(Effect.catchReason('PlatformError', 'NotFound', () => Effect.void));
     return true;
   });
@@ -147,7 +130,7 @@ const acquireLock = Effect.fn('acquireLock')(function* (
       Effect.fail(
         new RepoLockedError({
           lockPath,
-          ageMs: timeoutMs,
+          ageMs: Duration.toMillis(timeout),
           ageHumanReadable: humanReadable(timeout),
           message: `index.lock at ${lockPath} not acquired within ${humanReadable(
             timeout
