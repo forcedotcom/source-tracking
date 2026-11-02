@@ -19,16 +19,10 @@ import fs from 'node:fs';
 import { expect, config } from 'chai';
 import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import * as Effect from 'effect/Effect';
-import { createShadowRepoEffect, type ShadowRepo } from '../../src/shared/local/localShadowRepo.js';
-import { DEFAULT_SOURCE_TRACKING_SETTINGS, sourceTrackingConfigLayer } from '../../src/config.js';
+import { createShadowRepo, type ShadowRepo } from '../utils/createShadowRepo.js';
+import { DEFAULT_SOURCE_TRACKING_SETTINGS } from '../../src/config.js';
 
 config.truncateThreshold = 0;
-const createShadowRepo = (
-  options: Parameters<typeof createShadowRepoEffect>[0],
-  settings = DEFAULT_SOURCE_TRACKING_SETTINGS
-) => Effect.runPromise(Effect.provide(createShadowRepoEffect(options), sourceTrackingConfigLayer(settings)));
-
 afterEach(() => {
   sinon.restore();
 });

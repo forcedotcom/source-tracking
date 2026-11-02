@@ -36,12 +36,7 @@ import { Repo } from '../../git/repo.js';
 import { repoErrorToSfError } from '../../git/sfCompatibility.js';
 import { Author as AuthorSchema, RepoPath as RepoPathSchema, type RepoPath, RepoConfig } from '../../git/schemas.js';
 import { excludeLwcLocalOnlyTest, folderContainsPath } from '../functions.js';
-import {
-  getProcessSourceTrackingRuntime,
-  SourceTrackingConfig,
-  sourceTrackingConfigLayer,
-  type SourceTrackingSettings,
-} from '../../config.js';
+import { SourceTrackingConfig, sourceTrackingConfigLayer, type SourceTrackingSettings } from '../../config.js';
 import { getMatches, ensurePosix, IS_WINDOWS } from './functions.js';
 import { filenameMatchesToMap } from './moveDetection.js';
 import type { LocalChanges, ShadowRepoOptions, SyncRequest } from './types.js';
@@ -309,7 +304,7 @@ const runEffect = <A>(
   );
 
 /** @internal Build a local repo using SourceTrackingConfig from the Effect context. */
-export const createShadowRepoEffect = Effect.fn('createShadowRepoEffect')(function* (options: ShadowRepoOptions) {
+export const createShadowRepo = Effect.fn('createShadowRepo')(function* (options: ShadowRepoOptions) {
   const logger = yield* Effect.promise(() => Logger.child('ShadowRepo'));
   const settings = yield* SourceTrackingConfig;
   const cfg = makeRepoConfig(options, settings);
@@ -338,7 +333,3 @@ export const createShadowRepoEffect = Effect.fn('createShadowRepoEffect')(functi
     delete: () => runEffect(runtime, logger, 'delete', effects.delete()),
   };
 });
-
-/** Promise adapter for SourceTracking and CLI callers; the implementation above stays Effect-native. */
-export const createShadowRepo = (options: ShadowRepoOptions): Promise<ShadowRepo> =>
-  getProcessSourceTrackingRuntime().runPromise(createShadowRepoEffect(options));

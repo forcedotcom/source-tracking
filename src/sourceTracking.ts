@@ -562,12 +562,14 @@ export class SourceTracking extends AsyncCreatable {
       return;
     }
     const initialization = (this.localTrackingInitialization ??= (async (): Promise<void> => {
-      const localRepo = await createShadowRepo({
-        orgId: this.orgId,
-        projectPath: normalize(this.projectPath),
-        packageDirs: this.packagesDirs,
-        registry: this.registry,
-      });
+      const localRepo = await runWithProcessSourceTrackingRuntime(
+        createShadowRepo({
+          orgId: this.orgId,
+          projectPath: normalize(this.projectPath),
+          packageDirs: this.packagesDirs,
+          registry: this.registry,
+        })
+      );
       // Load status before publishing the repo so concurrent callers await
       // the same initialized handle and cache.
       await localRepo.getStatus();

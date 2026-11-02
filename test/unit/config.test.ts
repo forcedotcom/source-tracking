@@ -54,20 +54,18 @@ describe('source tracking config', () => {
     const provider = ConfigProvider.fromEnvRecord({
       SF_DISABLE_SOURCE_MOBILITY: 'yes',
       SF_SOURCE_TRACKING_ASSUME_SYNCED: '1',
-      SF_DISABLE_SOURCE_MEMBER_POLLING: 'on',
-      SF_SOURCE_TRACKING_INTEGRITY_CHECK: 'TRUE',
+      SF_DISABLE_SOURCE_MEMBER_POLLING: 'TRUE',
     });
     const settings = await loadSourceTrackingSettings(provider).pipe(Effect.runPromise);
 
     expect(settings).to.include({
       disableSourceMobility: true,
       assumeSynced: true,
-      disableSourceMemberPolling: true,
-      integrityCheck: false,
+      disableSourceMemberPolling: false,
       fileVersion: 0,
       lockTimeoutSeconds: 600,
     });
-    expect(warnings).to.deep.equal(['SF_SOURCE_TRACKING_INTEGRITY_CHECK is invalid; using false']);
+    expect(warnings).to.deep.equal(['SF_DISABLE_SOURCE_MEMBER_POLLING is invalid; using false']);
   });
 
   it('uses validated aliases and warns on deprecated batch-size variables', async () => {

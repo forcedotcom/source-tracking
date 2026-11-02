@@ -19,7 +19,7 @@ import { execSync } from 'node:child_process';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { createShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
+import { createShadowRepo } from '../../utils/createShadowRepo.js';
 import { getGroupedFiles, getComponentSets } from '../../../src/shared/localComponentSetArray.js';
 
 const findUiBundleDir = (projectDir: string): string => {

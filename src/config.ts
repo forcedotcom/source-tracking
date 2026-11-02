@@ -59,7 +59,6 @@ export type SourceTrackingSettings = {
   readonly sourceMemberPollingIntervalMs: number;
   readonly sourceMemberPollingEmptyResultLimit: number;
   readonly fileVersion: number;
-  readonly integrityCheck: boolean;
 };
 
 export const DEFAULT_SOURCE_TRACKING_SETTINGS: SourceTrackingSettings = {
@@ -71,7 +70,6 @@ export const DEFAULT_SOURCE_TRACKING_SETTINGS: SourceTrackingSettings = {
   disableSourceMemberPolling: false,
   ...sourceMemberPollingSettings(),
   fileVersion: 0,
-  integrityCheck: false,
 };
 
 export const SourceTrackingConfig = Context.Reference<SourceTrackingSettings>('@salesforce/source-tracking/config', {
@@ -82,8 +80,6 @@ const positiveNumber = (name: string): Config.Config<number> =>
   Config.schema(Schema.Finite.check(Schema.isGreaterThan(0)), name);
 const positiveInteger = (name: string): Config.Config<number> =>
   Config.schema(Schema.Int.check(Schema.isGreaterThan(0)), name);
-const natural = (name: string): Config.Config<number> => Config.schema(Schema.Natural, name);
-const boolean = (name: string): Config.Config<boolean> => Config.Boolean(name);
 
 const emitConfigWarning = Effect.fnUntraced(function* (warning: string) {
   yield* Effect.tryPromise({
@@ -157,8 +153,8 @@ const fdPermitsConfig = Config.all({
 
 const settingsConfig = Config.all({
   fdPermits: fdPermitsConfig,
-  disableSourceMobility: setting('SF_DISABLE_SOURCE_MOBILITY', boolean, false),
-  assumeSynced: setting('SF_SOURCE_TRACKING_ASSUME_SYNCED', boolean, false),
+  disableSourceMobility: setting('SF_DISABLE_SOURCE_MOBILITY', Config.Boolean, false),
+  assumeSynced: setting('SF_SOURCE_TRACKING_ASSUME_SYNCED', Config.Boolean, false),
   lockTimeoutSeconds: setting('SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS', positiveNumber, DEFAULT_LOCK_TIMEOUT_SECONDS),
   lockAutoclearSeconds: setting(
     'SF_SOURCE_TRACKING_LOCK_AUTOCLEAR_SECONDS',
@@ -168,7 +164,7 @@ const settingsConfig = Config.all({
   disableSourceMemberPolling: aliasedSetting(
     'SF_DISABLE_SOURCE_MEMBER_POLLING',
     'SFDX_DISABLE_SOURCE_MEMBER_POLLING',
-    boolean,
+    Config.Boolean,
     false
   ),
   sourceMemberPollingTimeout: aliasedSetting<number | undefined>(
@@ -177,8 +173,7 @@ const settingsConfig = Config.all({
     positiveNumber,
     undefined
   ),
-  fileVersion: setting('SF_SOURCE_TRACKING_FILE_VERSION', natural, 0),
-  integrityCheck: setting('SF_SOURCE_TRACKING_INTEGRITY_CHECK', boolean, false),
+  fileVersion: setting('SF_SOURCE_TRACKING_FILE_VERSION', (name) => Config.schema(Schema.Natural, name), 0),
 }).pipe(
   Config.map(({ sourceMemberPollingTimeout, ...settings }) => ({
     ...settings,
