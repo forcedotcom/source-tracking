@@ -120,6 +120,7 @@ export type HeadTreeEntry = { readonly path: RepoPath; readonly oid: Oid; readon
 
 // These two helpers recurse through each other; annotations break TypeScript's
 // return-type inference cycle for that recursive pair.
+/* eslint-disable local-rules/no-explicit-effect-return-type */
 const readTree = (
   gitdir: string,
   treeOid: Oid
@@ -159,8 +160,10 @@ const buildStream = (
         )
       : Stream.succeed({ path: fullPath as RepoPath, oid: e.oid, mode: e.mode });
   });
+/* eslint-enable local-rules/no-explicit-effect-return-type */
 
 /** Resolve HEAD to a commit oid, then to its tree, preserving file modes. */
+/* eslint-disable local-rules/no-explicit-effect-return-type -- keep the package declaration portable for consumers. */
 export const streamHeadTreeWithMode = (
   gitdir: string
 ): Stream.Stream<
@@ -168,6 +171,7 @@ export const streamHeadTreeWithMode = (
   ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | PlatformError,
   FileSystem | Path | Crypto
 > =>
+  /* eslint-enable local-rules/no-explicit-effect-return-type */
   Stream.unwrap(
     Effect.gen(function* () {
       const headOid = yield* resolveRef(gitdir, Schema.decodeUnknownSync(RefName)('HEAD'));

@@ -2,6 +2,7 @@ import tsconfigs from 'eslint-config-salesforce-typescript';
 import plugin from 'eslint-plugin-sf-plugin';
 import * as effectPlugin from '@effect/eslint-plugin/plugin';
 import functionalPlugin from 'eslint-plugin-functional';
+import localRules from './eslint-local-rules/index.js';
 
 const effectFiles = [
   '**/populateTypesAndNames.ts',
@@ -26,6 +27,7 @@ const configs = [
     plugins: {
       '@effect': effectPlugin,
       functional: functionalPlugin,
+      'local-rules': { rules: localRules },
     },
     rules: {
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
@@ -50,6 +52,7 @@ const configs = [
       'functional/no-throw-statements': 'error',
       'functional/no-try-statements': 'error',
       'functional/prefer-property-signatures': 'error',
+      'local-rules/no-explicit-effect-return-type': 'error',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/require-await': 'off',

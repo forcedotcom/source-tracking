@@ -116,6 +116,7 @@ const buildTreeBody = (
 const writeTreeRecursive = (
   gitdir: string,
   node: TreeMapNode
+  // eslint-disable-next-line local-rules/no-explicit-effect-return-type
 ): Effect.Effect<Oid, PlatformError, FileSystem | Path | Crypto> =>
   Effect.gen(function* () {
     const childOids = yield* Effect.forEach(
