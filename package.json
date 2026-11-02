@@ -23,7 +23,7 @@
     "prepack": "sf-prepack",
     "prepare": "sf-install",
     "test": "wireit",
-    "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts": "c8 mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local": "mocha \"**/local/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved": "mocha \"**/nuts/local/localTrackingFileMoves*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved:child": "mocha \"**/nuts/local/localTrackingFileMovesDecomposedChild.nut.ts\" --slow 4500 --timeout 600000 --parallel",
@@ -31,7 +31,10 @@
     "test:nuts:local:moved:scale": "mocha \"**/nuts/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:only": "wireit",
     "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel",
-    "test:bundle": "wireit"
+    "test:bundle": "wireit",
+    "check:effect": "wireit",
+    "check:circular-deps": "wireit",
+    "knip": "knip --no-config-hints"
   },
   "keywords": [
     "force",
@@ -65,6 +68,18 @@
   },
   "devDependencies": {
     "@effect/eslint-plugin": "^0.3.2",
+    "@effect/language-service": "^0.87.5",
+    "@effect/opentelemetry": "4.0.5",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.223.0",
+    "@opentelemetry/core": "^2.12.0",
+    "@opentelemetry/resources": "^2.12.0",
+    "@opentelemetry/sdk-logs": "^0.223.0",
+    "@opentelemetry/sdk-metrics": "^2.12.0",
+    "@opentelemetry/sdk-trace-base": "^2.12.0",
+    "@opentelemetry/sdk-trace-node": "^2.12.0",
+    "@opentelemetry/sdk-trace-web": "^2.12.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
     "@salesforce/cli-plugins-testkit": "^5.3.81",
     "@salesforce/dev-scripts": "^14.0.0",
     "@salesforce/schemas": "^1.10.3",
@@ -73,11 +88,14 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^26",
     "@types/sinon": "^22.0.0",
+    "c8": "^12.0.0",
+    "dpdm": "^4.3.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "eslint-config-salesforce-typescript": "^7.0.0",
     "eslint-plugin-functional": "^10.0.1",
     "eslint-plugin-sf-plugin": "^3.0.4",
+    "knip": "^6.42.1",
     "ts-node": "^10.9.2",
     "ts-patch": "^4.0.1",
     "typescript": "^6.0.3"
@@ -178,7 +196,35 @@
         "scripts/esbuild.config.mjs"
       ],
       "output": [
-        "dist/index.cjs"
+        "dist/index.cjs",
+        "dist/node-metafile.json"
+      ]
+    },
+    "check:effect": {
+      "command": "node scripts/effect-diagnostics.mjs",
+      "dependencies": [
+        "compile"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "scripts/**/*.ts",
+        "tsconfig.json",
+        "test/tsconfig.json",
+        "package.json",
+        "config/effect-diagnostics.json",
+        "scripts/effect-diagnostics.mjs"
+      ],
+      "output": []
+    },
+    "check:circular-deps": {
+      "command": "dpdm --no-warning --no-tree --exit-code circular:1 -o .circular-deps.json src",
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": [
+        ".circular-deps.json"
       ]
     }
   }

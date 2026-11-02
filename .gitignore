@@ -23,19 +23,27 @@ dist
 coverage
 test_session*
 
-# generated docs
-docs
+# generated docs (sf-docs / typedoc output; sf-docs wipes docs/ on every run
+# except docs/perf*, so authored ADRs / glossaries belong outside docs/).
+# Ignore docs/ contents but keep authored perf write-ups under docs/perf/.
+docs/*
+!docs/perf/
 
 # ignore sfdx-trust files
 *.tgz
 *.sig
 package.json.bak.
 
+
+npm-shrinkwrap.json
+oclif.lock
+
 # -- CLEAN ALL
 *.tsbuildinfo
 .eslintcache
 .wireit
 node_modules
+.circular-deps.json
 
 # --
 # put files here you don't want cleaned with sf-clean
@@ -45,3 +53,7 @@ node_modules
 .idea
 
 testProj*
+
+.claude/.edit-marker
+.claude/settings.local.json
+/.fastcontext
