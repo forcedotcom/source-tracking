@@ -142,7 +142,6 @@ const parseExtensionsFrom = (
   end: number,
   gitdir: string,
   acc: readonly ParsedExtension[] = []
-  // eslint-disable-next-line local-rules/no-explicit-effect-return-type
 ): Effect.Effect<readonly ParsedExtension[], IndexCorruptError> =>
   Effect.gen(function* () {
     if (start === end) return acc;
