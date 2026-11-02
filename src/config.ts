@@ -19,6 +19,7 @@ import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
+import * as ManagedRuntime from 'effect/ManagedRuntime';
 import * as Option from 'effect/Option';
 import * as Schema from 'effect/Schema';
 
@@ -218,11 +219,24 @@ export const loadSourceTrackingSettings = (
     } satisfies SourceTrackingSettings;
   });
 
-let processSettings: Promise<SourceTrackingSettings> | undefined;
+export type SourceTrackingRuntime = ManagedRuntime.ManagedRuntime<never, Config.ConfigError>;
 
-/** Resolve one immutable environment snapshot for this Node process. */
+/** Create an isolated config runtime. Tests can inject a ConfigProvider here. */
+export const makeSourceTrackingRuntime = (
+  provider: ConfigProvider.ConfigProvider = ConfigProvider.fromEnv()
+): SourceTrackingRuntime =>
+  ManagedRuntime.make(
+    provider.pipe(ConfigProvider.layer, Layer.provideMerge(sourceTrackingConfigLayerFromProvider(provider)))
+  );
+
+let processRuntime: SourceTrackingRuntime | undefined;
+
+/** Resolve the one process-wide runtime and its immutable environment snapshot. */
+export const getProcessSourceTrackingRuntime = (): SourceTrackingRuntime =>
+  (processRuntime ??= makeSourceTrackingRuntime());
+
 export const getProcessSourceTrackingSettings = (): Promise<SourceTrackingSettings> =>
-  (processSettings ??= Effect.runPromise(loadSourceTrackingSettings().pipe(Effect.orDie)));
+  getProcessSourceTrackingRuntime().runPromise(SourceTrackingConfig);
 
 export const sourceTrackingConfigLayer = (settings: SourceTrackingSettings): Layer.Layer<never, never, never> =>
   Layer.succeed(SourceTrackingConfig, settings);
@@ -232,9 +246,5 @@ export const sourceTrackingConfigLayerFromProvider = (
 ): Layer.Layer<never, Config.ConfigError, never> =>
   Layer.effect(SourceTrackingConfig, loadSourceTrackingSettings(provider));
 
-/** Run Effect code with the process-wide settings snapshot; tests may provide a different service directly. */
-export const provideProcessSourceTrackingConfig = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, E> =>
-  effect.pipe(Effect.provideServiceEffect(SourceTrackingConfig, Effect.promise(getProcessSourceTrackingSettings)));
-
-export const runWithProcessSourceTrackingConfig = <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
-  provideProcessSourceTrackingConfig(effect).pipe(Effect.orDie, Effect.runPromise);
+export const runWithProcessSourceTrackingRuntime = <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
+  getProcessSourceTrackingRuntime().runPromise(effect);

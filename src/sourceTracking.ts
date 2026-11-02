@@ -41,7 +41,7 @@ import * as Schema from 'effect/Schema';
 import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js';
 import * as Effect from 'effect/Effect';
 import { isNotUndefined } from 'effect/Predicate';
-import { runWithProcessSourceTrackingConfig } from './config.js';
+import { runWithProcessSourceTrackingRuntime } from './config.js';
 import {
   deleteRemoteTracking,
   initializeRemoteTracking,
@@ -343,7 +343,7 @@ export class SourceTracking extends AsyncCreatable {
 
     if (options?.origin === 'remote') {
       await this.ensureRemoteTracking();
-      const remoteChanges = await runWithProcessSourceTrackingConfig(
+      const remoteChanges = await runWithProcessSourceTrackingRuntime(
         retrieveRemoteChanges({
           org: this.org,
           identity: this.remoteTrackingIdentity(),
@@ -523,7 +523,7 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async updateRemoteTracking(fileResponses: RemoteSyncInput[], skipPolling = false): Promise<void> {
     await this.ensureRemoteTracking(false);
-    await runWithProcessSourceTrackingConfig(
+    await runWithProcessSourceTrackingRuntime(
       updateRemoteTrackingEffect({
         org: this.org,
         identity: this.remoteTrackingIdentity(),
@@ -536,7 +536,7 @@ export class SourceTracking extends AsyncCreatable {
 
   public async reReadRemoteTracking(): Promise<void> {
     await this.ensureRemoteTracking(false);
-    await runWithProcessSourceTrackingConfig(
+    await runWithProcessSourceTrackingRuntime(
       retrieveRemoteChanges({
         org: this.org,
         identity: this.remoteTrackingIdentity(),
@@ -585,18 +585,18 @@ export class SourceTracking extends AsyncCreatable {
    * Useful before parallel operations
    */
   public async ensureRemoteTracking(initializeWithQuery = false): Promise<void> {
-    this.remoteTrackingInitialization ??= runWithProcessSourceTrackingConfig(
+    this.remoteTrackingInitialization ??= runWithProcessSourceTrackingRuntime(
       initializeRemoteTracking({ org: this.org, identity: this.remoteTrackingIdentity() })
     ).catch((error: unknown) => {
       this.remoteTrackingInitialization = undefined;
       throw error;
     });
     await this.remoteTrackingInitialization;
-    this.remoteTrackingCaches ??= await runWithProcessSourceTrackingConfig(
+    this.remoteTrackingCaches ??= await runWithProcessSourceTrackingRuntime(
       makeRemoteTrackingCaches({ org: this.org, identity: this.remoteTrackingIdentity() })
     );
     if (initializeWithQuery) {
-      await runWithProcessSourceTrackingConfig(
+      await runWithProcessSourceTrackingRuntime(
         retrieveRemoteChanges({
           org: this.org,
           identity: this.remoteTrackingIdentity(),
@@ -636,7 +636,7 @@ export class SourceTracking extends AsyncCreatable {
    * Deletes the remote tracking files
    */
   public async clearRemoteTracking(): Promise<string> {
-    const filePath = await runWithProcessSourceTrackingConfig(deleteRemoteTracking(this.remoteTrackingIdentity()));
+    const filePath = await runWithProcessSourceTrackingRuntime(deleteRemoteTracking(this.remoteTrackingIdentity()));
     this.remoteTrackingInitialization = undefined;
     this.remoteTrackingCaches = undefined;
     return filePath;
@@ -647,7 +647,7 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async resetRemoteTracking(serverRevision?: number): Promise<number> {
     await this.ensureRemoteTracking();
-    const resetMembers = await runWithProcessSourceTrackingConfig(
+    const resetMembers = await runWithProcessSourceTrackingRuntime(
       resetRemoteTrackingEffect({
         org: this.org,
         identity: this.remoteTrackingIdentity(),
@@ -656,7 +656,7 @@ export class SourceTracking extends AsyncCreatable {
       })
     );
     if (this.remoteTrackingCaches) {
-      await runWithProcessSourceTrackingConfig(this.remoteTrackingCaches.sourceMembers.pipe(Cache.invalidateAll));
+      await runWithProcessSourceTrackingRuntime(this.remoteTrackingCaches.sourceMembers.pipe(Cache.invalidateAll));
     }
     return resetMembers.length;
   }
@@ -824,7 +824,7 @@ export class SourceTracking extends AsyncCreatable {
     const toOutput = localChangesToOutputRow(this.logger)(this.forceIgnore);
 
     // Resolve adds/modifies from the filesystem and deletes from a virtual tree.
-    const [resolvedAdds, resolvedModifies, resolvedDeletes] = await runWithProcessSourceTrackingConfig(
+    const [resolvedAdds, resolvedModifies, resolvedDeletes] = await runWithProcessSourceTrackingRuntime(
       Effect.all(
         [
           populateTypesAndNames(base)(adds),

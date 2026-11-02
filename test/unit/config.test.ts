@@ -18,9 +18,26 @@ import { expect } from 'chai';
 import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Effect from 'effect/Effect';
 import * as Logger from 'effect/Logger';
-import { loadSourceTrackingSettings } from '../../src/config.js';
+import { loadSourceTrackingSettings, makeSourceTrackingRuntime, SourceTrackingConfig } from '../../src/config.js';
 
 describe('source tracking config', () => {
+  it('provides one injected config snapshot through a reusable runtime', async () => {
+    const runtime = makeSourceTrackingRuntime(
+      ConfigProvider.fromEnvRecord({ SF_SOURCE_TRACKING_LOCK_TIMEOUT_SECONDS: '12' })
+    );
+    try {
+      const [first, second] = await Promise.all([
+        runtime.runPromise(SourceTrackingConfig),
+        runtime.runPromise(SourceTrackingConfig),
+      ]);
+
+      expect(first).to.equal(second);
+      expect(first.lockTimeoutSeconds).to.equal(12);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('uses defaults and Kit-compatible boolean parsing', async () => {
     const provider = ConfigProvider.fromEnvRecord({
       SF_DISABLE_SOURCE_MOBILITY: 'TrUe',
