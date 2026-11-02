@@ -15,11 +15,11 @@
  */
 
 import path from 'node:path';
-import * as fs from 'graceful-fs';
+import fs from 'graceful-fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 describe('ignores moved files that are children of a decomposed metadata type', () => {
   const FIELD = path.join('fields', 'Account__c.field-meta.xml');
@@ -42,7 +42,7 @@ describe('ignores moved files that are children of a decomposed metadata type', 
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
+    repo = await createShadowRepo({
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
@@ -53,7 +53,7 @@ describe('ignores moved files that are children of a decomposed metadata type', 
   it('should ignore moved child metadata', async () => {
     // Commit the existing files
     const filesToSync = await repo.getChangedFilenames();
-    await repo.commitChanges({ deployedFiles: filesToSync });
+    await repo.recordSync({ deployedFiles: filesToSync });
     // move the field from one object to another
     const objectFieldOld = path.join(objectsDir, 'Order__c', FIELD);
     const objectFieldNew = path.join(objectsDir, 'Product__c', FIELD);

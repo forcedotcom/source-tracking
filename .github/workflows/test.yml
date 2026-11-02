@@ -41,6 +41,7 @@ jobs:
       externalProjectGitUrl: 'https://github.com/salesforcecli/plugin-deploy-retrieve'
       command: ${{matrix.command}}
       os: ${{matrix.os}}
-      preSwapCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest; npx yarn-deduplicate; yarn install'
+      preSwapCommands: 'yarn upgrade @salesforce/source-deploy-retrieve@latest @salesforce/core@latest; npx yarn-deduplicate; yarn install'
+      preBuildCommands: 'shx rm -rf node_modules/@salesforce/core node_modules/@salesforce/source-deploy-retrieve'
       useCache: false
     secrets: inherit

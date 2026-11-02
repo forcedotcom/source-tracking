@@ -15,16 +15,16 @@
  */
 import fs from 'node:fs';
 import { resolve } from 'node:path';
-import { NamedPackageDir, Logger } from '@salesforce/core';
+import { type NamedPackageDir, Logger } from '@salesforce/core';
 import {
   ComponentSet,
   MetadataResolver,
   VirtualTreeContainer,
   DestructiveChangesType,
-  RegistryAccess,
+  type RegistryAccess,
 } from '@salesforce/source-deploy-retrieve';
-import { isDefined } from './guards';
-import { supportsPartialDelete, pathIsInFolder, maybeGetTreeContainer } from './functions';
+import { isNotUndefined } from 'effect/Predicate';
+import { supportsPartialDelete, pathIsInFolder, maybeGetTreeContainer } from './functions.js';
 
 type GroupedFileInput = {
   packageDirs: NamedPackageDir[];
@@ -123,7 +123,7 @@ export const getComponentSets = ({
 
       grouping.deletes
         .flatMap((filename) => resolverForDeletes.getComponentsFromPath(filename))
-        .filter(isDefined)
+        .filter(isNotUndefined)
         .map((component) => {
           // if the component supports partial delete AND there are files that are not deleted,
           // set the component for deploy, not for delete.
@@ -132,9 +132,9 @@ export const getComponentSets = ({
             try {
               resolverForNonDeletes
                 .getComponentsFromPath(resolve(projectPath, component.content))
-                .filter(isDefined)
+                .filter(isNotUndefined)
                 .map((nonDeletedComponent) => componentSet.add(nonDeletedComponent));
-            } catch (e) {
+            } catch {
               logger.warn(
                 `unable to find component at ${component.content}.  That's ok if it was supposed to be deleted`
               );
@@ -148,12 +148,12 @@ export const getComponentSets = ({
         .flatMap((filename) => {
           try {
             return resolverForNonDeletes.getComponentsFromPath(resolve(projectPath, filename));
-          } catch (e) {
+          } catch {
             logger.warn(`unable to resolve ${filename}`);
             return undefined;
           }
         })
-        .filter(isDefined)
+        .filter(isNotUndefined)
         .map((component) => componentSet.add(component));
       // there may have been ignored files, but componentSet.add doesn't automatically track them.
       // We'll manually set the ignored paths from what the resolver has been tracking

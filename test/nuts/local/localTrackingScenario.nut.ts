@@ -20,7 +20,7 @@ import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { shouldThrow } from '@salesforce/core/testSetup';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 describe('end-to-end-test for local tracking', () => {
   let session: TestSession;
@@ -40,7 +40,7 @@ describe('end-to-end-test for local tracking', () => {
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
+    repo = await createShadowRepo({
       orgId: 'fakeOrgId',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'force-app', name: 'force-app', fullPath: path.join(session.project.dir, 'force-app') }],
@@ -58,7 +58,7 @@ describe('end-to-end-test for local tracking', () => {
 
   it('should commit the project with session-relative filenames and a message', async () => {
     expect(
-      await repo.commitChanges({
+      await repo.recordSync({
         deployedFiles: await repo.getChangedFilenames(),
         message: 'test commit message',
       })
@@ -67,7 +67,7 @@ describe('end-to-end-test for local tracking', () => {
 
   it('commits no changes when there are none to commit', async () => {
     expect(
-      await repo.commitChanges({
+      await repo.recordSync({
         deployedFiles: await repo.getChangedFilenames(),
         message: 'test commit message',
       })
@@ -88,12 +88,13 @@ describe('end-to-end-test for local tracking', () => {
     const newContent = `${await fs.promises.readFile(filePath, 'utf8')}${EOL}<!--testcode-->`;
     await fs.promises.writeFile(filePath, newContent);
     await repo.getStatus(true);
-    expect(await repo.getChangedRows()).to.have.lengthOf(1);
+    expect(await repo.getChangedFilenames()).to.have.lengthOf(1);
     expect(await repo.getModifyFilenames()).to.deep.equal([filename]);
     expect(await repo.getChangedFilenames()).to.deep.equal([path.normalize(filename)]);
-    expect(await repo.getNonDeletes()).to.have.lengthOf(1);
+    const modifiedChanges = await repo.getStatus();
+    expect(modifiedChanges.added.length + modifiedChanges.modified.length).to.equal(1);
     expect(await repo.getNonDeleteFilenames()).to.deep.equal([path.normalize(filename)]);
-    expect(await repo.getDeletes()).to.have.lengthOf(0);
+    expect(modifiedChanges.deleted).to.have.lengthOf(0);
   });
 
   it('should also see deleted file in changes', async () => {
@@ -102,8 +103,8 @@ describe('end-to-end-test for local tracking', () => {
     const filePath = path.normalize(path.join(session.project.dir, filename));
     await fs.promises.unlink(filePath);
     await repo.getStatus(true);
-    expect(await repo.getChangedRows()).to.have.lengthOf(2);
-    expect(await repo.getDeletes()).to.have.lengthOf(1);
+    expect(await repo.getChangedFilenames()).to.have.lengthOf(2);
+    expect((await repo.getStatus()).deleted).to.have.lengthOf(1);
     expect(await repo.getDeleteFilenames()).to.deep.equal([path.normalize(filename)]);
   });
 
@@ -113,35 +114,33 @@ describe('end-to-end-test for local tracking', () => {
     const newContent = '<!--testcode-->';
     await fs.promises.writeFile(filePath, newContent);
     await repo.getStatus(true);
-    expect(await repo.getChangedRows()).to.have.lengthOf(3);
+    expect(await repo.getChangedFilenames()).to.have.lengthOf(3);
     expect(await repo.getChangedFilenames()).to.include(path.normalize(filename));
-    expect(await repo.getDeletes()).to.have.lengthOf(1);
-    expect(await repo.getAdds()).to.have.lengthOf(1);
+    expect((await repo.getStatus()).deleted).to.have.lengthOf(1);
+    expect((await repo.getStatus()).added).to.have.lengthOf(1);
     expect(await repo.getAddFilenames()).to.deep.equals([filename]);
   });
 
   it('changes remain after bad commit (simulate a failed deploy)', async () => {
     try {
-      await shouldThrow(repo.commitChanges({ deployedFiles: ['badFilename'] }));
-    } catch (err) {
+      await shouldThrow(repo.recordSync({ deployedFiles: ['badFilename'] }));
+    } catch {
       await repo.getStatus(true);
-      expect(await repo.getChangedRows()).to.have.lengthOf(3);
       expect(await repo.getChangedFilenames()).to.have.lengthOf(3);
-      expect(await repo.getDeletes()).to.have.lengthOf(1);
-      expect(await repo.getNonDeletes()).to.have.lengthOf(2);
+      const failedCommitChanges = await repo.getStatus();
+      expect(failedCommitChanges.deleted).to.have.lengthOf(1);
+      expect(failedCommitChanges.added.length + failedCommitChanges.modified.length).to.equal(2);
     }
   });
   it('changes are gone after a good commit (simulate a successful deploy)', async () => {
-    expect(
-      await repo.commitChanges({
-        deployedFiles: await repo.getNonDeleteFilenames(),
-        deletedFiles: await repo.getDeleteFilenames(),
-        message: 'test commit message',
-      })
-    ).to.be.a('string');
+    await repo.recordSync({
+      deployedFiles: await repo.getNonDeleteFilenames(),
+      deletedFiles: await repo.getDeleteFilenames(),
+      message: 'test commit message',
+    });
     await repo.getStatus(true);
 
-    expect(await repo.getChangedRows()).to.have.lengthOf(0);
+    expect(await repo.getChangedFilenames()).to.have.lengthOf(0);
   });
 
   it('can delete the local change files', async () => {

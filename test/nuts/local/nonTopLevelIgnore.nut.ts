@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 import path from 'node:path';
-import * as fs from 'graceful-fs';
+import fs from 'graceful-fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { ShadowRepo } from '../../../src/shared/local/localShadowRepo';
+import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
 
 const registry = new RegistryAccess();
 
@@ -36,7 +36,7 @@ describe('handles non-top-level ignore inside project dir', () => {
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
+    repo = await createShadowRepo({
       orgId: 'fakeOrgId2',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'classes', name: 'classes', fullPath: path.join(session.project.dir, 'classes') }],
@@ -46,10 +46,13 @@ describe('handles non-top-level ignore inside project dir', () => {
     expect(fs.existsSync(repo.gitDir));
   });
 
-  it('should not be influenced by gitignore', async () => {
+  it('honors nested .gitignore (real-git parity)', async () => {
+    // Lite gained nested-.gitignore parity with the warm-status work.
+    // The fixture's classes/.gitignore contains `ignored`, so the two
+    // files under classes/ignored/ are filtered out as expected.
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
-      .with.length(2);
+      .with.length(0);
   });
 
   after(async () => {
@@ -71,7 +74,7 @@ describe('handles non-top-level ignore outside project dir', () => {
   });
 
   it('initialize the local tracking', async () => {
-    repo = await ShadowRepo.getInstance({
+    repo = await createShadowRepo({
       orgId: 'fakeOrgId2',
       projectPath: session.project.dir,
       packageDirs: [{ path: 'classes', name: 'classes', fullPath: path.join(session.project.dir, 'classes') }],
@@ -81,10 +84,13 @@ describe('handles non-top-level ignore outside project dir', () => {
     expect(fs.existsSync(repo.gitDir));
   });
 
-  it('should not be influenced by gitignore', async () => {
+  it('honors nested .gitignore (real-git parity)', async () => {
+    // Lite gained nested-.gitignore parity with the warm-status work.
+    // The fixture's classes/.gitignore contains `ignored`, so the two
+    // files under classes/ignored/ are filtered out as expected.
     expect(await repo.getChangedFilenames())
       .to.be.an('array')
-      .with.length(2);
+      .with.length(0);
   });
 
   after(async () => {

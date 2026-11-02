@@ -15,58 +15,68 @@
  */
 import * as fs from 'node:fs';
 import { sep, normalize } from 'node:path';
-import { NamedPackageDir, Logger, Org, SfProject, Lifecycle } from '@salesforce/core';
+import { type NamedPackageDir, Logger, type Org, type SfProject, Lifecycle } from '@salesforce/core';
 import { AsyncCreatable } from '@salesforce/kit';
-import { isString } from '@salesforce/ts-types';
+import { isString } from 'effect/Predicate';
+import * as Cache from 'effect/Cache';
 import {
   ComponentSet,
   MetadataResolver,
   ComponentStatus,
-  SourceComponent,
-  FileResponse,
+  type SourceComponent,
+  type FileResponse,
   ForceIgnore,
   VirtualTreeContainer,
-  DeployResult,
-  ScopedPreDeploy,
-  ScopedPostRetrieve,
-  ScopedPreRetrieve,
-  ScopedPostDeploy,
-  RetrieveResult,
+  type DeployResult,
+  type ScopedPreDeploy,
+  type ScopedPostRetrieve,
+  type ScopedPreRetrieve,
+  type ScopedPostDeploy,
+  type RetrieveResult,
   RegistryAccess,
-  FileResponseSuccess,
+  type FileResponseSuccess,
 } from '@salesforce/source-deploy-retrieve';
+import * as Schema from 'effect/Schema';
 // this is not exported by SDR (see the comments in SDR regarding its limitations)
-import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator';
+import { filePathsFromMetadataComponent } from '@salesforce/source-deploy-retrieve/lib/src/utils/filePathGenerator.js';
+import * as Effect from 'effect/Effect';
+import { isNotUndefined } from 'effect/Predicate';
 import {
-  RemoteSourceTrackingService,
+  deleteRemoteTracking,
+  initializeRemoteTracking,
+  makeRemoteTrackingCaches,
   remoteChangeElementToChangeResult,
-} from './shared/remote/remoteSourceTrackingService';
-import { ShadowRepo } from './shared/local/localShadowRepo';
-import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts';
+  resetRemoteTracking as resetRemoteTrackingEffect,
+  retrieveRemoteChanges,
+  updateRemoteTracking as updateRemoteTrackingEffect,
+} from './shared/remote/remoteSourceTracking.js';
+import type { RemoteTrackingCaches } from './shared/remote/remoteSourceTracking.js';
+import type { RemoteTrackingIdentity } from './shared/remote/fileOperations.js';
+import { createShadowRepo, type ShadowRepo } from './shared/local/localShadowRepo.js';
+import { throwIfConflicts, findConflictsInComponentSet, getDedupedConflictsFromChanges } from './shared/conflicts.js';
 import {
-  RemoteSyncInput,
-  StatusOutputRow,
-  ChangeOptions,
-  ChangeResult,
-  ChangeOptionType,
-  LocalUpdateOptions,
-  RemoteChangeElement,
-} from './shared/types';
+  type RemoteSyncInput,
+  type StatusOutputRow,
+  type ChangeOptions,
+  type ChangeResult,
+  type ChangeOptionType,
+  type LocalUpdateOptions,
+  type RemoteChangeElement,
+} from './shared/types.js';
 import {
   FileResponseHasPath,
   FileResponseIsDeleted,
   FileResponseIsNotDeleted,
   isChangeResultWithNameAndType,
-  isDefined,
   isSdrSuccess,
-} from './shared/guards';
-import { removeIgnored } from './shared/remoteChangeIgnoring';
+} from './shared/guards.js';
+import { removeIgnored } from './shared/remoteChangeIgnoring.js';
 import {
   FileResponseSuccessToRemoteSyncInput,
   changeResultToMetadataComponent,
   maybeGetTreeContainer,
   remoteChangeToMetadataMember,
-} from './shared/functions';
+} from './shared/functions.js';
 import {
   supportsPartialDelete,
   ensureRelative,
@@ -74,12 +84,12 @@ import {
   getAllFiles,
   folderContainsPath,
   forceIgnoreDenies,
-} from './shared/functions';
-import { registrySupportsType } from './shared/metadataKeys';
-import { populateFilePaths } from './shared/populateFilePaths';
-import { populateTypesAndNames } from './shared/populateTypesAndNames';
-import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray';
-import { TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH, sourceComponentIsCustomLabel } from './shared/functions';
+} from './shared/functions.js';
+import { registrySupportsType } from './shared/metadataKeys.js';
+import { populateFilePaths } from './shared/populateFilePaths.js';
+import { populateTypesAndNames } from './shared/populateTypesAndNames.js';
+import { getComponentSets, getGroupedFiles } from './shared/localComponentSetArray.js';
+import { sourceComponentIsCustomLabel, TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH } from './shared/functions.js';
 export type SourceTrackingOptions = {
   org: Org;
   project: SfProject;
@@ -104,6 +114,11 @@ export type SourceTrackingOptions = {
   registry?: RegistryAccess;
 };
 
+const ResolvedProjectConfigSchema = Schema.Struct({
+  sourceApiVersion: Schema.optional(Schema.String),
+  pushPackageDirectoriesSequentially: Schema.optional(Schema.Boolean),
+});
+
 type RemoteChangesResults = {
   componentSetFromNonDeletes: ComponentSet;
   fileResponsesFromDelete: FileResponse[];
@@ -125,7 +140,9 @@ export class SourceTracking extends AsyncCreatable {
   private logger: Logger;
   // remote and local tracking may not exist if not initialized
   private localRepo!: ShadowRepo;
-  private remoteSourceTrackingService!: RemoteSourceTrackingService;
+  private localTrackingInitialization?: Promise<void>;
+  private remoteTrackingInitialization?: Promise<void>;
+  private remoteTrackingCaches?: RemoteTrackingCaches;
   private forceIgnore!: ForceIgnore;
   private ignoreConflicts: boolean;
   private subscribeSDREvents: boolean;
@@ -158,13 +175,8 @@ export class SourceTracking extends AsyncCreatable {
    * @returns ComponentSet[]
    */
   public async localChangesAsComponentSet(byPackageDir?: boolean): Promise<ComponentSet[]> {
-    const [projectConfig] = await Promise.all([
-      this.project.resolveProjectConfig() as {
-        sourceApiVersion?: string;
-        pushPackageDirectoriesSequentially?: boolean;
-      },
-      this.ensureLocalTracking(),
-    ]);
+    const [rawProjectConfig] = await Promise.all([this.project.resolveProjectConfig(), this.ensureLocalTracking()]);
+    const projectConfig = Schema.decodeUnknownSync(ResolvedProjectConfigSchema)(rawProjectConfig);
     const sourceApiVersion = projectConfig.sourceApiVersion;
 
     const [nonDeletes, deletes] = await Promise.all([
@@ -193,7 +205,7 @@ export class SourceTracking extends AsyncCreatable {
     if (applyIgnore) {
       this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
     }
-    const [changeResults, sourceBackedComponents, projectConfig] = await Promise.all([
+    const [changeResults, sourceBackedComponents, rawProjectConfig] = await Promise.all([
       // all changes based on remote tracking
       this.getChanges({
         origin: 'remote',
@@ -206,10 +218,9 @@ export class SourceTracking extends AsyncCreatable {
         state: 'nondelete',
         format: 'SourceComponent',
       }),
-      this.project.resolveProjectConfig() as {
-        sourceApiVersion?: string;
-      },
+      this.project.resolveProjectConfig(),
     ]);
+    const projectConfig = Schema.decodeUnknownSync(ResolvedProjectConfigSchema)(rawProjectConfig);
     const componentSet = new ComponentSet(
       applyIgnore ? sourceBackedComponents.filter(noFileIsIgnored(this.forceIgnore)) : sourceBackedComponents,
       this.registry
@@ -290,7 +301,6 @@ export class SourceTracking extends AsyncCreatable {
   /**
    * @deprecated omit the type parameter <ChangeResult>.
    */
-  // eslint-disable-next-line @typescript-eslint/unified-signatures
   public async getChanges<T extends ChangeResult>(options: ChangeOptions & { format: 'ChangeResult' }): Promise<T[]>;
   public async getChanges(
     options: ChangeOptions & { format: 'ChangeResultWithPaths' }
@@ -321,23 +331,29 @@ export class SourceTracking extends AsyncCreatable {
           .flatMap((filename) => {
             try {
               return resolver.getComponentsFromPath(filename);
-            } catch (e) {
+            } catch {
               this.logger.warn(`unable to resolve ${filename}`);
               return undefined;
             }
           })
-          .filter(isDefined);
+          .filter(isNotUndefined);
       }
     }
 
     if (options?.origin === 'remote') {
       await this.ensureRemoteTracking();
-      const remoteChanges = await this.remoteSourceTrackingService.retrieveUpdates();
+      const remoteChanges = await Effect.runPromise(
+        retrieveRemoteChanges({
+          org: this.org,
+          identity: this.remoteTrackingIdentity(),
+          queryCache: this.remoteTrackingCaches,
+        })
+      );
       this.logger.debug('remoteChanges', remoteChanges);
       const filteredChanges = correctSourceMemberNames(
         remoteChanges
           .filter(remoteFilterByState[options.state])
-          // skip any remote types not in the registry.  Will emit warnings
+          // skip any remote types not in the registry. Will emit warnings
           .filter((rce) => registrySupportsType(this.registry)(rce.type)),
         this.project.getPackageDirectories().map((pkgDir) => pkgDir.fullPath),
         this.registry
@@ -377,7 +393,7 @@ export class SourceTracking extends AsyncCreatable {
   /**
    *
    * Convenience method to reduce duplicated steps required to do a fka pull
-   * It's full of side effects: retrieving remote deletes, deleting those files locall, and then updating tracking files
+   * It's full of side effects: retrieving remote deletes, deleting those files locally, and then updating tracking files
    * Most bizarrely, it then returns a ComponentSet of the remote nonDeletes and the FileResponses from the delete
    *
    * @returns the ComponentSet for what you would retrieve now that the deletes are done, and optionally, a FileResponses array for the deleted files
@@ -460,7 +476,7 @@ export class SourceTracking extends AsyncCreatable {
     await this.ensureLocalTracking();
 
     this.logger.trace('files', options.files);
-    // relative paths make smaller trees AND isogit wants them relative
+    // relative paths make smaller trees
     const relativeOptions = {
       files: (options.files ?? []).map(ensureRelative(this.projectPath)),
       deletedFiles: (options.deletedFiles ?? []).map(ensureRelative(this.projectPath)),
@@ -485,7 +501,7 @@ export class SourceTracking extends AsyncCreatable {
       .map((cmp) => cmp.content)
       .filter(isString);
 
-    await this.localRepo.commitChanges({
+    await this.localRepo.recordSync({
       deployedFiles: relativeOptions.files,
       deletedFiles: relativeOptions.deletedFiles.concat(
         (
@@ -505,18 +521,27 @@ export class SourceTracking extends AsyncCreatable {
    * Optional skip polling for the SourceMembers to exist on the server and be updated in local files
    */
   public async updateRemoteTracking(fileResponses: RemoteSyncInput[], skipPolling = false): Promise<void> {
-    // false to explicitly NOT query until we do the polling
     await this.ensureRemoteTracking(false);
-    if (!skipPolling) {
-      // poll to make sure we have the updates before syncing the ones from metadataKeys
-      await this.remoteSourceTrackingService.pollForSourceTracking(this.registry, fileResponses);
-    }
-    await this.remoteSourceTrackingService.syncSpecifiedElements(this.registry, fileResponses);
+    await Effect.runPromise(
+      updateRemoteTrackingEffect({
+        org: this.org,
+        identity: this.remoteTrackingIdentity(),
+        registry: this.registry,
+        elements: fileResponses,
+        skipPolling,
+      })
+    );
   }
 
   public async reReadRemoteTracking(): Promise<void> {
     await this.ensureRemoteTracking(false);
-    await this.remoteSourceTrackingService.retrieveUpdates(false);
+    await Effect.runPromise(
+      retrieveRemoteChanges({
+        org: this.org,
+        identity: this.remoteTrackingIdentity(),
+        userNameCache: this.remoteTrackingCaches?.userNames,
+      })
+    );
   }
 
   public async reReadLocalTrackingCache(): Promise<void> {
@@ -535,14 +560,22 @@ export class SourceTracking extends AsyncCreatable {
       }
       return;
     }
-    this.localRepo = await ShadowRepo.getInstance({
-      orgId: this.orgId,
-      projectPath: normalize(this.projectPath),
-      packageDirs: this.packagesDirs,
-      registry: this.registry,
-    });
-    // loads the status from file so that it's cached
-    await this.localRepo.getStatus();
+    const initialization = (this.localTrackingInitialization ??= (async (): Promise<void> => {
+      const localRepo = await createShadowRepo({
+        orgId: this.orgId,
+        projectPath: normalize(this.projectPath),
+        packageDirs: this.packagesDirs,
+        registry: this.registry,
+      });
+      // Load status before publishing the repo so concurrent callers await
+      // the same initialized handle and cache.
+      await localRepo.getStatus();
+      this.localRepo = localRepo;
+    })().catch((error: unknown) => {
+      this.localTrackingInitialization = undefined;
+      throw error;
+    }));
+    await initialization;
   }
 
   /**
@@ -551,17 +584,24 @@ export class SourceTracking extends AsyncCreatable {
    * Useful before parallel operations
    */
   public async ensureRemoteTracking(initializeWithQuery = false): Promise<void> {
-    if (this.remoteSourceTrackingService) {
-      this.logger.debug('ensureRemoteTracking: remote tracking already exists');
-      return;
-    }
-    this.logger.debug('ensureRemoteTracking: remote tracking does not exist yet; getting instance');
-    this.remoteSourceTrackingService = await RemoteSourceTrackingService.getInstance({
-      org: this.org,
-      projectPath: this.projectPath,
+    this.remoteTrackingInitialization ??= Effect.runPromise(
+      initializeRemoteTracking({ org: this.org, identity: this.remoteTrackingIdentity() })
+    ).catch((error: unknown) => {
+      this.remoteTrackingInitialization = undefined;
+      throw error;
     });
+    await this.remoteTrackingInitialization;
+    this.remoteTrackingCaches ??= await Effect.runPromise(
+      makeRemoteTrackingCaches({ org: this.org, identity: this.remoteTrackingIdentity() })
+    );
     if (initializeWithQuery) {
-      await this.remoteSourceTrackingService.retrieveUpdates(false);
+      await Effect.runPromise(
+        retrieveRemoteChanges({
+          org: this.org,
+          identity: this.remoteTrackingIdentity(),
+          userNameCache: this.remoteTrackingCaches.userNames,
+        })
+      );
     }
   }
 
@@ -583,7 +623,7 @@ export class SourceTracking extends AsyncCreatable {
       this.localRepo.getDeleteFilenames(),
       this.localRepo.getNonDeleteFilenames(),
     ]);
-    await this.localRepo.commitChanges({
+    await this.localRepo.recordSync({
       deletedFiles: deletes,
       deployedFiles: nonDeletes,
       message: 'via resetLocalTracking',
@@ -595,7 +635,10 @@ export class SourceTracking extends AsyncCreatable {
    * Deletes the remote tracking files
    */
   public async clearRemoteTracking(): Promise<string> {
-    return RemoteSourceTrackingService.delete(this.orgId);
+    const filePath = await Effect.runPromise(deleteRemoteTracking(this.remoteTrackingIdentity()));
+    this.remoteTrackingInitialization = undefined;
+    this.remoteTrackingCaches = undefined;
+    return filePath;
   }
 
   /**
@@ -603,7 +646,17 @@ export class SourceTracking extends AsyncCreatable {
    */
   public async resetRemoteTracking(serverRevision?: number): Promise<number> {
     await this.ensureRemoteTracking();
-    const resetMembers = await this.remoteSourceTrackingService.reset(serverRevision);
+    const resetMembers = await Effect.runPromise(
+      resetRemoteTrackingEffect({
+        org: this.org,
+        identity: this.remoteTrackingIdentity(),
+        toRevision: serverRevision,
+        userNameCache: this.remoteTrackingCaches?.userNames,
+      })
+    );
+    if (this.remoteTrackingCaches) {
+      await Effect.runPromise(this.remoteTrackingCaches.sourceMembers.pipe(Cache.invalidateAll));
+    }
     return resetMembers.length;
   }
 
@@ -635,15 +688,13 @@ export class SourceTracking extends AsyncCreatable {
     }
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath);
 
-    const result = getDedupedConflictsFromChanges({
+    return getDedupedConflictsFromChanges({
       localChanges,
       remoteChanges,
       projectPath: this.projectPath,
       forceIgnore: this.forceIgnore,
       registry: this.registry,
     });
-
-    return result;
   }
 
   /**
@@ -691,14 +742,8 @@ export class SourceTracking extends AsyncCreatable {
     ]);
   }
 
-  /**
-   * If you've already got an instance of STL, but need to change the conflicts setting
-   * normally you set this on instantiation
-   *
-   * @param value true/false
-   */
-  public setIgnoreConflicts(value: boolean): void {
-    this.ignoreConflicts = value;
+  private remoteTrackingIdentity(): RemoteTrackingIdentity {
+    return { projectPath: this.projectPath, orgId: this.orgId };
   }
 
   private async maybeSubscribeLifecycleEvents(): Promise<void> {
@@ -769,7 +814,7 @@ export class SourceTracking extends AsyncCreatable {
     this.forceIgnore ??= ForceIgnore.findAndCreate(this.project.getDefaultPackage().fullPath); // ensure forceignore is initialized
 
     const [adds, modifies, deletes] = await Promise.all(
-      (['add', 'modify', 'delete'] as const).map((state) =>
+      (['add', 'modify', 'delete'] satisfies readonly ['add', 'modify', 'delete']).map((state) =>
         this.getChanges({ origin: 'local', state, format: 'ChangeResult' })
       )
     );
@@ -777,10 +822,22 @@ export class SourceTracking extends AsyncCreatable {
     const base = { projectPath: this.projectPath, registry: this.registry, excludeUnresolvable: true };
     const toOutput = localChangesToOutputRow(this.logger)(this.forceIgnore);
 
+    // Resolve adds/modifies from the filesystem and deletes from a virtual tree.
+    const [resolvedAdds, resolvedModifies, resolvedDeletes] = await Effect.runPromise(
+      Effect.all(
+        [
+          populateTypesAndNames(base)(adds),
+          populateTypesAndNames(base)(modifies),
+          populateTypesAndNames({ ...base, resolveDeleted: true })(deletes),
+        ],
+        { concurrency: 'unbounded' }
+      )
+    );
+
     return [
-      ...populateTypesAndNames(base)(adds).flatMap(toOutput('add')),
-      ...populateTypesAndNames(base)(modifies).flatMap(toOutput('modify')),
-      ...populateTypesAndNames({ ...base, resolveDeleted: true })(deletes).flatMap(toOutput('delete')),
+      ...resolvedAdds.flatMap(toOutput('add')),
+      ...resolvedModifies.flatMap(toOutput('modify')),
+      ...resolvedDeletes.flatMap(toOutput('delete')),
     ];
   }
 
@@ -826,6 +883,32 @@ const remoteFilterByState = {
   modify: (change: RemoteChangeElement): boolean => change.modified === true,
   delete: (change: RemoteChangeElement): boolean => change.deleted === true,
   nondelete: (change: RemoteChangeElement): boolean => !change.deleted,
+};
+
+/** Correct SourceMember names that don't match Metadata API fullName by matching local components. */
+const correctSourceMemberNames = (
+  changes: RemoteChangeElement[],
+  packageDirPaths: string[],
+  registry: RegistryAccess
+): RemoteChangeElement[] => {
+  const localNamesByType = new Map<string, string[]>();
+  for (const component of ComponentSet.fromSource({ fsPaths: packageDirPaths, registry }).getSourceComponents()) {
+    const typeName = component.type.name;
+    const localNames = localNamesByType.get(typeName);
+    if (localNames) {
+      localNames.push(component.fullName);
+    } else {
+      localNamesByType.set(typeName, [component.fullName]);
+    }
+  }
+
+  return changes.map((change) => {
+    if (!TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(change.type)) return change;
+    const localNames = localNamesByType.get(change.type);
+    if (!localNames || localNames.includes(change.name)) return change;
+    const matches = localNames.filter((localName) => localName.includes(change.name));
+    return matches.length === 1 ? { ...change, name: matches[0] } : change;
+  });
 };
 
 const stateFromChangeResult = (input: ChangeResult): 'add' | 'delete' | 'modify' => {
@@ -879,33 +962,3 @@ const localChangesToOutputRow =
     }
     throw new Error('no filenames found for local ChangeResult');
   };
-
-/** Correct SourceMember names that don't match the Metadata API fullName by matching against local files. */
-export const correctSourceMemberNames = (
-  changes: RemoteChangeElement[],
-  packageDirPaths: string[],
-  registry: RegistryAccess
-): RemoteChangeElement[] => {
-  const localNamesByType = new Map<string, string[]>();
-  for (const component of ComponentSet.fromSource({ fsPaths: packageDirPaths, registry }).getSourceComponents()) {
-    const typeName = component.type.name;
-    const existing = localNamesByType.get(typeName);
-    if (existing) {
-      existing.push(component.fullName);
-    } else {
-      localNamesByType.set(typeName, [component.fullName]);
-    }
-  }
-
-  return changes.map((change) => {
-    if (!TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH.has(change.type)) return change;
-    const localNames = localNamesByType.get(change.type);
-    if (!localNames || localNames.includes(change.name)) return change;
-
-    const matches = localNames.filter((localName) => localName.includes(change.name));
-    if (matches.length === 1) {
-      return { ...change, name: matches[0] };
-    }
-    return change;
-  });
-};

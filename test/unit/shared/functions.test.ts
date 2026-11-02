@@ -15,7 +15,7 @@
  */
 
 import { expect } from 'chai';
-import { ensureRelative } from '../../../src/shared/functions';
+import { ensureRelative } from '../../../src/shared/functions.js';
 
 describe('ensureRelative', () => {
   it('should handle relative paths', () => {

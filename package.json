@@ -1,7 +1,8 @@
 {
   "name": "@salesforce/source-tracking",
   "description": "API for tracking local and remote Salesforce metadata changes",
-  "version": "8.1.16",
+  "version": "9.0.1-qa.2",
+  "type": "module",
   "author": "Salesforce",
   "license": "Apache-2.0",
   "main": "lib/index.js",
@@ -29,7 +30,8 @@
     "test:nuts:local:moved:image": "mocha \"**/nuts/local/localTrackingFileMovesImage.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:nuts:local:moved:scale": "mocha \"**/nuts/local/localTrackingFileMovesScale.nut.ts\" --slow 4500 --timeout 600000 --parallel",
     "test:only": "wireit",
-    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel"
+    "test:unit:local:moved": "mocha \"test/unit/localDetectMovedFiles.test.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:bundle": "wireit"
   },
   "keywords": [
     "force",
@@ -50,30 +52,34 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "@salesforce/core": "^9.4.1",
-    "@salesforce/kit": "^4.0.7",
-    "@salesforce/source-deploy-retrieve": "^13.8.3",
-    "@salesforce/ts-types": "^3.2.3",
+    "@effect/platform-browser": "^4.0.5",
+    "@effect/platform-node": "^4.0.5",
+    "@salesforce/core": "^9.4.0",
+    "@salesforce/kit": "^4.0.1",
+    "@salesforce/source-deploy-retrieve": "^13.6.0",
+    "@salesforce/ts-types": "^3.2.2",
+    "effect": "^4.0.5",
     "fast-xml-parser": "^5.11.2",
     "graceful-fs": "^4.2.11",
-    "isomorphic-git": "^1.44.2",
-    "ts-retry-promise": "^0.8.1"
+    "ignore": "^7.0.12"
   },
   "devDependencies": {
-    "@salesforce/cli-plugins-testkit": "^5.3.81",
-    "@salesforce/dev-scripts": "^14.0.0",
+    "@effect/eslint-plugin": "^0.3.2",
+    "@salesforce/cli-plugins-testkit": "^5.3.75",
+    "@salesforce/dev-scripts": "^15.0.0",
     "@salesforce/schemas": "^1.10.3",
-    "@types/chai": "^4.3.17",
+    "@types/chai": "^5.2.3",
     "@types/graceful-fs": "^4.1.9",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^18",
-    "@types/sinon": "^10.0.20",
+    "@types/node": "^26",
+    "@types/sinon": "^22.0.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
-    "eslint-config-salesforce-typescript": "^7.0.0",
-    "eslint-plugin-sf-plugin": "^3.0.4",
+    "eslint-config-salesforce-typescript": "^7.0.1",
+    "eslint-plugin-functional": "^10.0.1",
+    "eslint-plugin-sf-plugin": "^3.0.1",
     "ts-node": "^10.9.2",
-    "ts-patch": "^3.3.0",
+    "ts-patch": "^4.0.1",
     "typescript": "^6.0.3"
   },
   "config": {},
@@ -123,18 +129,6 @@
       ],
       "output": []
     },
-    "test:bundle": {
-      "command": "node scripts/esbuild.config.mjs",
-      "dependencies": [
-        "compile"
-      ],
-      "files": [
-        "lib/**/*"
-      ],
-      "output": [
-        "dist/index.js"
-      ]
-    },
     "test:compile": {
       "command": "tsc -p \"./test\" --pretty",
       "files": [
@@ -173,6 +167,19 @@
         "messages/**/*.md"
       ],
       "output": []
+    },
+    "test:bundle": {
+      "command": "node scripts/esbuild.config.mjs",
+      "dependencies": [
+        "compile"
+      ],
+      "files": [
+        "lib/**/*",
+        "scripts/esbuild.config.mjs"
+      ],
+      "output": [
+        "dist/index.cjs"
+      ]
     }
   }
 }

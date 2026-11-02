@@ -13,266 +13,345 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/*
+ * Lite move-detection. Same algorithm as the iso path: match adds against
+ * deletes by basename + content hash + metadata type. The whole pipeline is
+ * Effect-native and pipes start to end:
+ *
+ *   parallel { drain HEAD oids;  hash workdir adds }
+ *     -> bucket each side by composite key
+ *     -> emit telemetry for collisions
+ *     -> intersect on full key  -> fullMatches
+ *     -> intersect on hashless key over the leftovers -> deleteOnly
+ *
+ * Key perf delta vs. iso: iso did N `git.readBlob` calls (one per deleted
+ * file). Lite drains `Repo.streamHeadTree()` ONCE into a HashMap and looks
+ * up. With thousands of deletes that's one stream pass instead of N.
+ */
+
 import path from 'node:path';
-import { EOL } from 'node:os';
-import * as fs from 'graceful-fs';
 import { Logger, Lifecycle } from '@salesforce/core';
 import {
   MetadataResolver,
-  SourceComponent,
-  RegistryAccess,
+  type RegistryAccess,
+  type SourceComponent,
   VirtualTreeContainer,
 } from '@salesforce/source-deploy-retrieve';
-import git from 'isomorphic-git';
-import { isDefined } from '../guards';
-import { uniqueArrayConcat } from '../functions';
-import { isDeleted, isAdded, toFilenames, IS_WINDOWS, ensurePosix } from './functions';
-import { AddAndDeleteMaps, DetectionFileInfo, DetectionFileInfoWithType, StatusRow, StringMap } from './types';
+import { type FileSystem } from 'effect/FileSystem';
+import type { Crypto } from 'effect/Crypto';
+import type { PlatformError } from 'effect/PlatformError';
+import * as Chunk from 'effect/Chunk';
+import * as Effect from 'effect/Effect';
+import * as Filter from 'effect/Filter';
+import * as HashMap from 'effect/HashMap';
+import * as HashSet from 'effect/HashSet';
+import * as Option from 'effect/Option';
+import * as Stream from 'effect/Stream';
+import { Repo } from '../../git/repo.js';
+import type { ObjectCorruptError, ObjectNotFoundError, RefNotFoundError } from '../../git/errors.js';
+import { hashBlob } from '../../git/objects.js';
+import { gitModeFromStat, lstat, readWorkdirBytes } from '../../git/workdir.js';
+import { ensurePosix, IS_WINDOWS } from './functions.js';
+import type { DetectionFileInfo, DetectionFileInfoWithType } from './types.js';
 
-const JOIN_CHAR = '#__#'; // the __ makes it unlikely to be used in metadata names
-type AddAndDeleteFileInfos = Readonly<{ addedInfo: DetectionFileInfo[]; deletedInfo: DetectionFileInfo[] }>;
-type AddAndDeleteFileInfosWithTypes = {
-  addedInfo: DetectionFileInfoWithType[];
-  deletedInfo: DetectionFileInfoWithType[];
+// =============================== types ====================================
+
+/**
+ * What the consumer actually needs to act on detected moves: a count, the
+ * two file lists for `commitChanges`, and a pre-formatted log line.
+ * HashMap stays internal to this module.
+ */
+type MoveDetectionResult = {
+  readonly count: number;
+  readonly deployedFiles: Chunk.Chunk<string>;
+  readonly deletedFiles: Chunk.Chunk<string>;
+  readonly logMessage: string;
 };
-type AddedAndDeletedFilenames = { added: Set<string>; deleted: Set<string> };
+
+const emptyResult: MoveDetectionResult = {
+  count: 0,
+  deployedFiles: Chunk.empty(),
+  deletedFiles: Chunk.empty(),
+  logMessage: '',
+};
+
 type StringMapsForMatches = {
-  /** these matches filename=>basename, metadata type/name, and git object hash */
-  fullMatches: StringMap;
-  /** these did not match the hash.  They *probably* are matches where the "add" is also modified */
-  deleteOnly: StringMap;
+  readonly fullMatches: HashMap.HashMap<string, string>;
+  readonly deleteOnly: HashMap.HashMap<string, string>;
 };
 
-/** composed functions to simplified use by the shadowRepo class */
-export const filenameMatchesToMap =
-  (registry: RegistryAccess) =>
-  (projectPath: string) =>
-  (gitDir: string) =>
-  async ({ added, deleted }: AddedAndDeletedFilenames): Promise<StringMapsForMatches> => {
-    const resolver = new MetadataResolver(
-      registry,
-      VirtualTreeContainer.fromFilePaths(uniqueArrayConcat(added, deleted))
-    );
-
-    return compareHashes(
-      await buildMaps(
-        addTypes(resolver)(
-          await toFileInfo({
-            projectPath,
-            gitDir,
-            added,
-            deleted,
-          })
-        )
-      )
-    );
-  };
-
-/** compare delete and adds from git.status, matching basenames of the files.  returns early when there's nothing to match */
-export const getMatches = (status: StatusRow[]): AddedAndDeletedFilenames => {
-  // We check for moved files in incremental steps and exit as early as we can to avoid any performance degradation
-  // Deleted files will be more rare than added files, so we'll check them first and exit early if there are none
-  const emptyResult = { added: new Set<string>(), deleted: new Set<string>() };
-  const deletedFiles = status.filter(isDeleted);
-  if (!deletedFiles.length) return emptyResult;
-
-  const addedFiles = status.filter(isAdded);
-  if (!addedFiles.length) return emptyResult;
-
-  // Both arrays have contents, look for matching basenames
-  const addedFilenames = toFilenames(addedFiles);
-  const deletedFilenames = toFilenames(deletedFiles);
-
-  // Build Sets of basenames for added and deleted files for quick lookups
-  const addedBasenames = new Set(addedFilenames.map((filename) => path.basename(filename)));
-  const deletedBasenames = new Set(deletedFilenames.map((filename) => path.basename(filename)));
-
-  // TODO: when node 22 is everywhere, we can use Set.prototype.intersection
-  // Again, we filter over the deleted files first and exit early if there are no filename matches
-  const deletedFilenamesWithMatches = new Set(deletedFilenames.filter((f) => addedBasenames.has(path.basename(f))));
-  if (!deletedFilenamesWithMatches.size) return emptyResult;
-
-  const addedFilenamesWithMatches = new Set(addedFilenames.filter((f) => deletedBasenames.has(path.basename(f))));
-  if (!addedFilenamesWithMatches.size) return emptyResult;
-
-  return { added: addedFilenamesWithMatches, deleted: deletedFilenamesWithMatches };
-};
-
-export const getLogMessage = (matches: StringMapsForMatches): string =>
-  [
-    'Files have moved. Committing moved files:',
-    ...[...matches.fullMatches.entries()].map(([add, del]) => `- File ${del} was moved to ${add}`),
-    ...[...matches.deleteOnly.entries()].map(([add, del]) => `- File ${del} was moved to ${add} and modified`),
-  ].join(EOL);
-
-/** build maps of the add/deletes with filenames, returning the matches  Logs if we can't make a match because buildMap puts them in the ignored bucket */
-const buildMaps = async ({ addedInfo, deletedInfo }: AddAndDeleteFileInfosWithTypes): Promise<AddAndDeleteMaps> => {
-  const [addedMap, addedIgnoredMap] = buildMap(addedInfo);
-  const [deletedMap, deletedIgnoredMap] = buildMap(deletedInfo);
-
-  // If we detected any files that have the same basename and hash, emit a warning and send telemetry
-  // These files will still show up as expected in the `sf project deploy preview` output
-  // We could add more logic to determine and display filepaths that we ignored...
-  // but this is likely rare enough to not warrant the added complexity
-  // Telemetry will help us determine how often this occurs
-  if (addedIgnoredMap.size || deletedIgnoredMap.size) {
-    const message =
-      'Files were found that have the same basename, hash, metadata type, and parent. Skipping the commit of these files';
-    const logger = Logger.childFromRoot('ShadowRepo.compareHashes');
-    logger.warn(message);
-    const lifecycle = Lifecycle.getInstance();
-    await Promise.all([
-      lifecycle.emitWarning(message),
-      lifecycle.emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' }),
-    ]);
-  }
-  return { addedMap, deletedMap };
+type AddAndDeleteHashMaps = {
+  readonly addedMap: HashMap.HashMap<string, string>;
+  readonly deletedMap: HashMap.HashMap<string, string>;
 };
 
 /**
- * builds a map of the values from both maps
- * side effect: mutates the passed-in maps!
+ * Bucket = the result of grouping one side (adds OR deletes) by composite
+ * key. `map` is `key -> filename` for keys seen exactly once. `ignored` is
+ * `key -> filename` for keys we hit more than once: when two files on the
+ * same side share basename + hash + type + parent, we can't tell which is
+ * which, so we drop both candidates and surface a telemetry event.
+ *
+ * The match phase intersects the two sides' `map`s; `ignored` exists
+ * solely so the telemetry tap can count collisions before it's dropped.
  */
-const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteMaps): StringMapsForMatches => {
-  const matches = new Map<string, string>(
-    [...addedMap.entries()]
-      .map(([addedKey, addedValue]) => {
-        const deletedValue = deletedMap.get(addedKey);
-        if (deletedValue) {
-          // these are an exact basename + hash match + parent + type
-          deletedMap.delete(addedKey);
-          addedMap.delete(addedKey);
-          return [addedValue, deletedValue] as const;
-        }
-      })
-      .filter(isDefined)
+type Bucket = {
+  readonly map: HashMap.HashMap<string, string>;
+  readonly ignored: HashMap.HashMap<string, string>;
+};
+
+// =============================== entry point ==============================
+
+const emptyBucket: Bucket = { map: HashMap.empty(), ignored: HashMap.empty() };
+
+/**
+ * Run the lite move-detection pipeline. Stream-shaped end to end: each side
+ * is one Stream<DetectionFileInfoWithType> that runs into a Bucket via
+ * `Stream.runFold` (single materialization point). The HEAD-tree drain
+ * runs in parallel with workdir hashing; bucketing runs in parallel for
+ * each side; collision telemetry is a Tap on the bucket struct.
+ *
+ * Empty-side fast path: if either side has no candidates, no commit is
+ * possible — return an empty result without touching the filesystem.
+ *
+ * Returns a `MoveDetectionResult` shaped for the caller's `commitChanges`
+ * call: file lists + count + a pre-formatted log line. The internal
+ * HashMaps don't leak across the module boundary.
+ */
+export const filenameMatchesToMap: (
+  registry: RegistryAccess
+) => (
+  projectPath: string
+) => (
+  fdPermits: number
+) => (changes: {
+  added: HashSet.HashSet<string>;
+  deleted: HashSet.HashSet<string>;
+}) => Effect.Effect<
+  MoveDetectionResult,
+  ObjectNotFoundError | ObjectCorruptError | RefNotFoundError | PlatformError,
+  Repo | FileSystem | Crypto
+> =
+  (registry: RegistryAccess) =>
+  (projectPath: string) =>
+  (fdPermits: number) =>
+  ({ added, deleted }: { added: HashSet.HashSet<string>; deleted: HashSet.HashSet<string> }) => {
+    if (HashSet.isEmpty(added) || HashSet.isEmpty(deleted)) return Effect.succeed(emptyResult);
+    const enrich = enrichStream(
+      new MetadataResolver(registry, VirtualTreeContainer.fromFilePaths(Array.from(HashSet.union(added, deleted))))
+    );
+    // Both bucket Effects sit at the same level so Effect.all races them.
+    // The deleted side's stream waits on drainHeadOids; the added side
+    // doesn't, so it can start hashing while HEAD is still being walked.
+    const addedBucket = addedInfoStream(projectPath, fdPermits, added).pipe(
+      enrich,
+      Stream.runFold(() => emptyBucket, accumulateBucket)
+    );
+    const deletedBucket = drainHeadOids().pipe(
+      Effect.flatMap((headOids) =>
+        deletedInfoStream(headOids, deleted).pipe(
+          enrich,
+          Stream.runFold(() => emptyBucket, accumulateBucket)
+        )
+      )
+    );
+    return Effect.all({ added: addedBucket, deleted: deletedBucket }, { concurrency: 'unbounded' }).pipe(
+      Effect.tap((b) => emitCollisionTelemetry(HashMap.size(b.added.ignored) + HashMap.size(b.deleted.ignored))),
+      Effect.map(({ added: a, deleted: d }) => ({ addedMap: a.map, deletedMap: d.map } satisfies AddAndDeleteHashMaps)),
+      Effect.map(compareHashes),
+      Effect.map(toMoveDetectionResult)
+    );
+  };
+
+/**
+ * Project the internal HashMap-shaped match result onto the consumer's
+ * `MoveDetectionResult` shape: count + file lists + log line.
+ */
+const toMoveDetectionResult = ({ fullMatches, deleteOnly }: StringMapsForMatches): MoveDetectionResult => {
+  const count = HashMap.size(fullMatches) + HashMap.size(deleteOnly);
+  if (count === 0) return emptyResult;
+  const deployedFiles = fullMatches.pipe(HashMap.keys, Chunk.fromIterable);
+  const fullDeletedFiles = fullMatches.pipe(HashMap.values, Chunk.fromIterable);
+  const deleteOnlyFiles = deleteOnly.pipe(HashMap.values, Chunk.fromIterable);
+  return {
+    count,
+    deployedFiles,
+    deletedFiles: fullDeletedFiles.pipe(Chunk.appendAll(deleteOnlyFiles)),
+    logMessage: [
+      'Files have moved. Committing moved files:',
+      ...Array.from(HashMap.entries(fullMatches), ([add, del]) => `- File ${del} was moved to ${add}`),
+      ...Array.from(HashMap.entries(deleteOnly), ([add, del]) => `- File ${del} was moved to ${add} and modified`),
+    ].join('\n'),
+  };
+};
+
+// =============================== gather streams ==========================
+
+/**
+ * Stream<DetectionFileInfo> for workdir adds. fdPermits caps the read+hash
+ * concurrency; backpressure flows through to bucketing downstream.
+ */
+const addedInfoStream = (projectPath: string, fdPermits: number, added: HashSet.HashSet<string>) =>
+  Stream.fromIterable(added).pipe(
+    Stream.mapEffect(
+      (filepath) =>
+        Effect.gen(function* () {
+          const abs = path.join(projectPath, filepath);
+          return yield* lstat(abs).pipe(
+            Effect.map(gitModeFromStat),
+            Effect.flatMap((mode) => readWorkdirBytes(abs, mode)),
+            Effect.flatMap(hashBlob),
+            Effect.map(
+              (hash) => ({ filename: filepath, basename: path.basename(filepath), hash } satisfies DetectionFileInfo)
+            )
+          );
+        }),
+      { concurrency: fdPermits }
+    )
   );
 
-  if (addedMap.size && deletedMap.size) {
-    // the remaining deletes didn't match the basename+hash of an add, and vice versa.
-    // They *might* match the basename,type,parent of an add, in which case we *could* have the "move, then edit" case.
-    const addedMapNoHash = new Map([...addedMap.entries()].map(removeHashFromEntry));
-    const deletedMapNoHash = new Map([...deletedMap.entries()].map(removeHashFromEntry));
-    const deleteOnly = new Map<string, string>(
-      Array.from(deletedMapNoHash.entries())
-        .filter(([k]) => addedMapNoHash.has(k))
-        .map(([k, v]) => [addedMapNoHash.get(k) as string, v])
+/**
+ * Stream<DetectionFileInfo> for deletes. The file is gone on disk, so we
+ * look up the oid recorded in HEAD; paths absent from HEAD drop via
+ * filterMap.
+ */
+const deletedInfoStream = (headOids: HashMap.HashMap<string, string>, deleted: HashSet.HashSet<string>) =>
+  Stream.fromIterable(deleted).pipe(Stream.filterMap(Filter.fromPredicateOption(lookupDeleted(headOids))));
+
+/** Drain HEAD tree once into a path→oid HashMap. Replaces N readBlob calls. */
+const drainHeadOids = Effect.fn('moveDetection.drainHeadOids')(function* () {
+  return yield* Repo.pipe(
+    Effect.flatMap((repo) =>
+      repo.streamHeadTree().pipe(
+        Stream.map((p) => [p.path, p.oid] satisfies readonly [string, string]),
+        Stream.runCollect,
+        Effect.map(HashMap.fromIterable)
+      )
+    ),
+    Effect.tap((oids) => Effect.annotateCurrentSpan('fileCount', HashMap.size(oids)))
+  );
+});
+
+const lookupDeleted =
+  (headOids: HashMap.HashMap<string, string>) =>
+  (filepath: string): Option.Option<DetectionFileInfo> =>
+    HashMap.get(headOids, IS_WINDOWS ? ensurePosix(filepath) : filepath).pipe(
+      Option.map((hash) => ({ filename: filepath, basename: path.basename(filepath), hash }))
     );
-    return { fullMatches: matches, deleteOnly };
+
+// =============================== type-resolution stream ==================
+
+/**
+ * Resolve a single filename through SDR's MetadataResolver. SDR can throw
+ * on unresolvable paths; wrap once and convert to an empty array so the
+ * stream just emits nothing for that filename.
+ */
+const resolveOne = (resolver: MetadataResolver, filename: string): SourceComponent[] => {
+  // eslint-disable-next-line functional/no-try-statements -- SDR throws on unresolvable; log and emit nothing.
+  try {
+    return resolver.getComponentsFromPath(filename);
+  } catch {
+    Logger.childFromRoot('ShadowRepo.compareTypes').warn(`unable to resolve ${filename}`);
+    return [];
   }
-  return { fullMatches: matches, deleteOnly: new Map<string, string>() };
 };
 
-/** enrich the filenames with basename and oid (hash)  */
-const toFileInfo = async ({
-  projectPath,
-  gitDir,
-  added,
-  deleted,
-}: {
-  projectPath: string;
-  gitDir: string;
-  added: Set<string>;
-  deleted: Set<string>;
-}): Promise<AddAndDeleteFileInfos> => {
-  // Track how long it takes to gather the oid information from the git trees
-
-  const headRef = await git.resolveRef({ fs, dir: projectPath, gitdir: gitDir, ref: 'HEAD' });
-  const [addedInfo, deletedInfo] = await Promise.all([
-    await Promise.all(Array.from(added).map(getHashForAddedFile(projectPath))),
-    await Promise.all(Array.from(deleted).map(getHashFromActualFileContents(gitDir)(projectPath)(headRef))),
-  ]);
-
-  return { addedInfo, deletedInfo };
-};
-
-/** returns a map of <hash+basename, filepath>.  If two items result in the same hash+basename, return that in the ignore bucket */
-const buildMap = (info: DetectionFileInfoWithType[]): StringMap[] => {
-  const map: StringMap = new Map();
-  const ignore: StringMap = new Map();
-
-  info.map((i) => {
-    const key = toKey(i);
-    // If we find a duplicate key, we need to remove it and ignore it in the future.
-    // Finding duplicate hash#basename means that we cannot accurately determine where it was moved to or from
-    if (map.has(key) || ignore.has(key)) {
-      map.delete(key);
-      ignore.set(key, i.filename);
-    } else {
-      map.set(key, i.filename);
-    }
-  });
-
-  return [map, ignore];
-};
-
-const getHashForAddedFile =
-  (projectPath: string) =>
-  async (filepath: string): Promise<DetectionFileInfo> => ({
-    filename: filepath,
-    basename: path.basename(filepath),
-    hash: (
-      await git.hashBlob({
-        object: await fs.promises.readFile(path.join(projectPath, filepath)),
-      })
-    ).oid,
-  });
-
-const resolveType =
+/**
+ * Stream operator: for each `DetectionFileInfo`, emit one
+ * `DetectionFileInfoWithType` per resolved metadata component (0..N).
+ */
+const enrichStream =
   (resolver: MetadataResolver) =>
-  (filenames: string[]): SourceComponent[] =>
-    filenames
-      .flatMap((filename) => {
-        try {
-          return resolver.getComponentsFromPath(filename);
-        } catch (e) {
-          const logger = Logger.childFromRoot('ShadowRepo.compareTypes');
-          logger.warn(`unable to resolve ${filename}`);
-          return undefined;
-        }
-      })
-      .filter(isDefined);
+  <E, R>(s: Stream.Stream<DetectionFileInfo, E, R>) =>
+    Stream.flattenIterable(
+      Stream.map(s, (info) =>
+        resolveOne(resolver, info.filename).map((c) => ({
+          ...info,
+          type: c.type.name,
+          parentType: c.parent?.type.name ?? '',
+          parentFullName: c.parent?.fullName ?? '',
+        }))
+      )
+    );
 
-/** where we don't have git objects to use, read the file contents to generate the hash */
-const getHashFromActualFileContents =
-  (gitdir: string) =>
-  (projectPath: string) =>
-  (oid: string) =>
-  async (filepath: string): Promise<DetectionFileInfo> => ({
-    filename: filepath,
-    basename: path.basename(filepath),
-    hash: (
-      await git.readBlob({ fs, dir: projectPath, gitdir, filepath: IS_WINDOWS ? ensurePosix(filepath) : filepath, oid })
-    ).oid,
-  });
+// =============================== bucket fold =============================
+
+/**
+ * `Stream.runFold` step: accumulate one entry into the bucket. Duplicate
+ * keys go to `ignored`; unique keys land in `map`.
+ */
+const accumulateBucket = ({ map, ignored }: Bucket, i: DetectionFileInfoWithType): Bucket => {
+  const key = toKey(i);
+  return HashMap.has(map, key) || HashMap.has(ignored, key)
+    ? { map: HashMap.remove(map, key), ignored: HashMap.set(ignored, key, i.filename) }
+    : { map: HashMap.set(map, key, i.filename), ignored };
+};
+
+// =============================== telemetry side effect ===================
+
+const COLLISION_MESSAGE =
+  'Files were found that have the same basename, hash, metadata type, and parent. Skipping the commit of these files';
+
+const emitCollisionTelemetry = Effect.fn('moveDetection.emitCollisionTelemetry')(function* (collisions: number) {
+  if (collisions === 0) return;
+  Logger.childFromRoot('ShadowRepo.compareHashes').warn(COLLISION_MESSAGE);
+  const lifecycle = Lifecycle.getInstance();
+  yield* Effect.promise(() =>
+    Promise.all([
+      lifecycle.emitWarning(COLLISION_MESSAGE),
+      lifecycle.emitTelemetry({ eventName: 'moveFileHashBasenameCollisionsDetected' }),
+    ])
+  );
+});
+
+// =============================== match phase =============================
+
+/**
+ * Intersect two HashMaps on their keys; retain those keys for removal and
+ * build an `add->del` filename map for commitChanges. Used twice: once on
+ * the full key, once on the hashless key after dropping exact matches.
+ */
+const intersectByKey = (
+  a: HashMap.HashMap<string, string>,
+  b: HashMap.HashMap<string, string>
+): { matchedKeys: HashSet.HashSet<string>; matches: HashMap.HashMap<string, string> } => {
+  const keysAIterable = HashMap.keys(a);
+  const keysBIterable = HashMap.keys(b);
+  const keysA = HashSet.fromIterable(keysAIterable);
+  const keysB = HashSet.fromIterable(keysBIterable);
+  const matchedKeys = HashSet.intersection(keysA, keysB);
+  const matches = matchedKeys.pipe(
+    HashSet.map(
+      (k) =>
+        [Option.getOrThrow(HashMap.get(a, k)), Option.getOrThrow(HashMap.get(b, k))] satisfies readonly [string, string]
+    ),
+    HashMap.fromIterable
+  );
+  return { matchedKeys, matches };
+};
+
+const reKey = (m: HashMap.HashMap<string, string>): HashMap.HashMap<string, string> =>
+  m.pipe(HashMap.reduce(HashMap.empty<string, string>(), (acc, v, k) => HashMap.set(acc, removeHashFromKey(k), v)));
+
+const compareHashes = ({ addedMap, deletedMap }: AddAndDeleteHashMaps): StringMapsForMatches => {
+  const { matchedKeys, matches: fullMatches } = intersectByKey(addedMap, deletedMap);
+  const remainingAdds = HashMap.removeMany(addedMap, matchedKeys);
+  const remainingDeletes = HashMap.removeMany(deletedMap, matchedKeys);
+  // Remove exact matches by composite key, not by added filename. Strip
+  // hashes only from the leftovers before the second intersection.
+  return HashMap.size(remainingAdds) === 0 || HashMap.size(remainingDeletes) === 0
+    ? { fullMatches, deleteOnly: HashMap.empty() }
+    : { fullMatches, deleteOnly: intersectByKey(reKey(remainingAdds), reKey(remainingDeletes)).matches };
+};
+
+// =============================== key serialization =======================
+
+const JOIN_CHAR = '#__#';
 
 const toKey = (input: DetectionFileInfoWithType): string =>
   [input.hash, input.basename, input.type, input.type, input.parentType ?? '', input.parentFullName ?? ''].join(
     JOIN_CHAR
   );
 
-const removeHashFromEntry = ([k, v]: [string, string]): [string, string] => [removeHashFromKey(k), v];
 const removeHashFromKey = (hash: string): string => hash.split(JOIN_CHAR).splice(1).join(JOIN_CHAR);
-
-/** resolve the metadata types (and possibly parent components) */
-const addTypes =
-  (resolver: MetadataResolver) =>
-  (info: AddAndDeleteFileInfos): AddAndDeleteFileInfosWithTypes => {
-    // quick passthrough if we don't have adds and deletes
-    if (!info.addedInfo.length || !info.deletedInfo.length) return { addedInfo: [], deletedInfo: [] };
-    const applied = getTypesForFileInfo(resolveType(resolver));
-    return {
-      addedInfo: info.addedInfo.flatMap(applied),
-      deletedInfo: info.deletedInfo.flatMap(applied),
-    };
-  };
-
-const getTypesForFileInfo =
-  (appliedResolver: (filenames: string[]) => SourceComponent[]) =>
-  (fileInfo: DetectionFileInfo): DetectionFileInfoWithType[] =>
-    appliedResolver([fileInfo.filename]).map((c) => ({
-      ...fileInfo,
-      type: c.type.name,
-      parentType: c.parent?.type.name ?? '',
-      parentFullName: c.parent?.fullName ?? '',
-    }));
