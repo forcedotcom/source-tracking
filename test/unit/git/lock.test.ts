@@ -33,7 +33,7 @@ import { FileSystem } from 'effect/FileSystem';
 import { type Path } from 'effect/Path';
 import { withIndexLock, withIndexLockCtx } from '../../../src/git/lock.js';
 import { RepoLockedError } from '../../../src/git/errors.js';
-import { SourceTrackingConfig } from '../../../src/config.js';
+import { DEFAULT_SOURCE_TRACKING_SETTINGS, SourceTrackingConfig } from '../../../src/config.js';
 
 class TestFailure extends Schema.TaggedError<TestFailure>()('TestFailure', {
   message: Schema.String,
@@ -45,14 +45,10 @@ class LockWorkerError extends Schema.TaggedError<LockWorkerError>()('LockWorkerE
 
 const configLayer = (lockTimeoutSeconds = 10, lockAutoclearSeconds = 300) =>
   Layer.succeed(SourceTrackingConfig, {
+    ...DEFAULT_SOURCE_TRACKING_SETTINGS,
     fdPermits: 64,
-    disableSourceMobility: false,
-    assumeSynced: false,
     lockTimeoutSeconds,
     lockAutoclearSeconds,
-    disableSourceMemberPolling: false,
-    fileVersion: 0,
-    integrityCheck: false,
   });
 const TestLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, configLayer());
 const run = <A, E>(eff: Effect.Effect<A, E, FileSystem | Path>): Promise<Exit.Exit<A, E>> =>

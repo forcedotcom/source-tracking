@@ -14,13 +14,10 @@
  * limitations under the License.
  */
 
-import { Logger } from '@salesforce/core';
 import type { Connection } from '@salesforce/core';
 import { expect } from 'chai';
-import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
 import {
-  calculateTimeout,
   makeUserNameCache,
   querySourceMembersFrom,
   querySourceMembersTo,
@@ -101,22 +98,5 @@ describe('remote SourceMember queries', () => {
 
     expect(query).to.include('FROM SourceMember WHERE RevisionCounter <= 9');
     expect(results[0].MemberType).to.equal('QuickAction');
-  });
-});
-
-describe('calculateTimeout', () => {
-  const logger = new Logger({ useMemoryLogger: true, name: 'test' }).getRawLogger();
-  const functionUnderTest = calculateTimeout(logger);
-
-  it('defaults to five seconds with no members', () => {
-    expect(Duration.toSeconds(functionUnderTest(0))).to.equal(5);
-  });
-
-  it('allocates fifty seconds per thousand members plus five seconds', () => {
-    expect(Duration.toSeconds(functionUnderTest(10_000))).to.equal(505);
-  });
-
-  it('uses a positive override', () => {
-    expect(Duration.toSeconds(functionUnderTest(10_000, 60))).to.equal(60);
   });
 });

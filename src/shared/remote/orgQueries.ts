@@ -38,20 +38,6 @@ const UserNameRequest = Request.tagged<UserNameRequest>('UserNameRequest');
 /** Per-org user-name cache with no TTL for successful names. */
 export type UserNameCache = Cache.Cache<UserNameRequest, Option.Option<string>, SfError>;
 
-export const calculateTimeout =
-  (logger: PinoLogger) =>
-  (memberCount: number, overriddenTimeout?: number): Duration.Duration => {
-    if (overriddenTimeout !== undefined) {
-      logger.debug(`Overriding SourceMember polling timeout to ${overriddenTimeout}`);
-      return Duration.seconds(overriddenTimeout);
-    }
-
-    // Calculate 50s per 1000 members, plus a 5s buffer.
-    const pollingTimeout = Math.ceil(memberCount * 0.05) + 5;
-    logger.debug(`Computed SourceMember polling timeout of ${pollingTimeout}s`);
-    return Duration.seconds(pollingTimeout);
-  };
-
 /** @internal */
 export const querySourceMembersTo = Effect.fn('querySourceMembersTo')(function* (conn: Connection, toRevision: number) {
   const query = `SELECT ${SOURCE_MEMBER_FIELDS.join(', ')} FROM SourceMember WHERE RevisionCounter <= ${toRevision}`;

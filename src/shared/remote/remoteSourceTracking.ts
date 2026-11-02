@@ -50,7 +50,7 @@ import {
   trackingFileExists,
   writeTrackingFile,
 } from './fileOperations.js';
-import { calculateTimeout, makeUserNameCache, sourceMemberQueries } from './orgQueries.js';
+import { makeUserNameCache, sourceMemberQueries } from './orgQueries.js';
 import type { UserNameCache } from './orgQueries.js';
 import {
   emptyRemoteTrackingState,
@@ -61,9 +61,6 @@ import {
   stripSourceMemberEntitySuffix,
   trackSourceMembers,
 } from './remoteTrackingState.js';
-
-const POLLING_DELAY_MS = 1000;
-const DEFAULT_EMPTY_POLLING_RESULT_LIMIT = 120;
 
 export type RemoteTrackingOptions = {
   org: Org;
@@ -306,11 +303,7 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
 
   const expectedSourceMembers = calculateExpectedSourceMembers(registry, elements);
   const originalOutstandingSize = expectedSourceMembers.size;
-  const consecutiveEmptyPollLimit =
-    config.sourceMemberPollingTimeout === undefined
-      ? DEFAULT_EMPTY_POLLING_RESULT_LIMIT
-      : config.sourceMemberPollingTimeout / Duration.toSeconds(Duration.millis(POLLING_DELAY_MS));
-  const pollingTimeout = calculateTimeout(logger)(expectedSourceMembers.size, config.sourceMemberPollingTimeout);
+  const pollingTimeout = config.sourceMemberPollingTimeout(expectedSourceMembers.size);
   const pollState = yield* Ref.make<PollState>({
     highestRevisionSoFar: state.serverMaxRevisionCounter,
     pollAttempts: 0,
@@ -392,7 +385,8 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
       } of ${originalOutstandingSize} expected SourceMembers`
     );
     const complete = HashMap.size(current.outstandingSourceMembers) === 0;
-    const stopped = current.someResultsReturned && current.consecutiveEmptyResults >= consecutiveEmptyPollLimit;
+    const stopped =
+      current.someResultsReturned && current.consecutiveEmptyResults >= config.sourceMemberPollingEmptyResultLimit;
 
     if (!complete && !stopped) {
       logger.debug(
@@ -404,7 +398,7 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
     return { members: queriedMembers, continuePolling: !complete && !stopped } satisfies PollBatch;
   });
 
-  const pollingSchedule = Schedule.spaced(Duration.millis(POLLING_DELAY_MS)).pipe(
+  const pollingSchedule = Schedule.spaced(Duration.millis(config.sourceMemberPollingIntervalMs)).pipe(
     Schedule.upTo({ duration: pollingTimeout }),
     Schedule.while(({ input }: Schedule.Metadata<unknown, PollBatch>) => input.continuePolling)
   );

@@ -22,6 +22,7 @@ import { MockTestOrgData, instantiateContext, restoreContext, stubContext } from
 import { Lifecycle, Org } from '@salesforce/core';
 import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
+import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Effect from 'effect/Effect';
 import {
   deleteRemoteTracking,
@@ -42,7 +43,11 @@ import {
 import type { RemoteTrackingIdentity } from '../../../src/shared/remote/fileOperations.js';
 import type { ContentsV1, MemberRevision, SourceMember } from '../../../src/shared/remote/types.js';
 import type { RemoteChangeElement, RemoteSyncInput } from '../../../src/shared/types.js';
-import { DEFAULT_SOURCE_TRACKING_SETTINGS, SourceTrackingConfig } from '../../../src/config.js';
+import {
+  DEFAULT_SOURCE_TRACKING_SETTINGS,
+  loadSourceTrackingSettings,
+  SourceTrackingConfig,
+} from '../../../src/config.js';
 
 const defaultSourceMember: SourceMember = {
   IsNewMember: false,
@@ -401,10 +406,13 @@ describe('remote source tracking Effects', () => {
             { fullName: 'site_Default_Navigation', type: 'NavigationMenu', state: ComponentStatus.Changed },
           ],
         }).pipe(
-          Effect.provideService(SourceTrackingConfig, {
-            ...DEFAULT_SOURCE_TRACKING_SETTINGS,
-            sourceMemberPollingTimeout: 1,
-          })
+          Effect.provideService(
+            SourceTrackingConfig,
+            await ConfigProvider.fromEnvRecord({ SF_SOURCE_MEMBER_POLLING_TIMEOUT: '1' }).pipe(
+              loadSourceTrackingSettings,
+              Effect.runPromise
+            )
+          )
         )
       );
       expect(queryStub.callCount).to.equal(1);
@@ -495,10 +503,13 @@ describe('remote source tracking Effects', () => {
 
     await Effect.runPromise(
       updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }).pipe(
-        Effect.provideService(SourceTrackingConfig, {
-          ...DEFAULT_SOURCE_TRACKING_SETTINGS,
-          sourceMemberPollingTimeout: 1,
-        })
+        Effect.provideService(
+          SourceTrackingConfig,
+          await ConfigProvider.fromEnvRecord({ SF_SOURCE_MEMBER_POLLING_TIMEOUT: '1' }).pipe(
+            loadSourceTrackingSettings,
+            Effect.runPromise
+          )
+        )
       )
     );
 
@@ -525,10 +536,13 @@ describe('remote source tracking Effects', () => {
 
     await Effect.runPromise(
       updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }).pipe(
-        Effect.provideService(SourceTrackingConfig, {
-          ...DEFAULT_SOURCE_TRACKING_SETTINGS,
-          sourceMemberPollingTimeout: 1,
-        })
+        Effect.provideService(
+          SourceTrackingConfig,
+          await ConfigProvider.fromEnvRecord({ SF_SOURCE_MEMBER_POLLING_TIMEOUT: '1' }).pipe(
+            loadSourceTrackingSettings,
+            Effect.runPromise
+          )
+        )
       )
     );
 
@@ -539,6 +553,31 @@ describe('remote source tracking Effects', () => {
     const contents = await readSnapshot();
     expect(contents.serverMaxRevisionCounter).to.equal(4);
     expect(contents.sourceMembers['ApexClass###ArrivedBeforeTimeout']).to.be.an('object');
+  });
+
+  it('uses the resolved empty-result limit independently of the overall timeout', async () => {
+    const queryStub = $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom');
+    queryStub.onFirstCall().returns(Effect.succeed([sourceMember(4, 'ArrivedBeforeTimeout')]));
+    queryStub.returns(Effect.succeed([]));
+    const warning = $$.SANDBOX.stub(Lifecycle.getInstance(), 'emitWarning').resolves();
+
+    await Effect.runPromise(
+      updateRemoteTracking({
+        org,
+        identity,
+        registry: new RegistryAccess(),
+        elements: [{ fullName: 'MyClass', type: 'ApexClass', state: ComponentStatus.Changed }],
+      }).pipe(
+        Effect.provideService(SourceTrackingConfig, {
+          ...DEFAULT_SOURCE_TRACKING_SETTINGS,
+          sourceMemberPollingIntervalMs: 1,
+          sourceMemberPollingEmptyResultLimit: 1,
+        })
+      )
+    );
+
+    expect(queryStub.callCount).to.equal(2);
+    expect(warning.calledWithMatch('after 2 attempts (last 1 were empty)')).to.equal(true);
   });
 
   it('does not query while polling is disabled', async () => {
