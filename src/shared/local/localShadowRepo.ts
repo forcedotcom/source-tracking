@@ -327,14 +327,14 @@ const runEffect = <A>(
     )
   );
 
-/** Promise adapter for SourceTracking and CLI callers; the implementation above stays Effect-native. */
-export const createShadowRepo = async (options: ShadowRepoOptions): Promise<ShadowRepo> => {
-  const logger = await Logger.child('ShadowRepo');
-  const cfg = await Effect.runPromise(makeRepoConfig(options));
+/** Build a local repo. SourceTracking owns the Promise boundary for its callers. */
+export const createShadowRepo = Effect.fn('createShadowRepo')(function* (options: ShadowRepoOptions) {
+  const logger = yield* Effect.promise(() => Logger.child('ShadowRepo'));
+  const cfg = yield* makeRepoConfig(options);
   const runtime = ManagedRuntime.make(
     Repo.layer(cfg).pipe(Layer.provideMerge(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, cryptoLayer)))
   );
-  const effects = await runEffect(runtime, logger, 'init', makeShadowRepo(options, logger, cfg));
+  const effects = yield* Effect.promise(() => runEffect(runtime, logger, 'init', makeShadowRepo(options, logger, cfg)));
   const getStatus = (refresh = false): Promise<LocalChanges> =>
     runEffect(runtime, logger, 'getStatus', effects.getStatus(refresh));
 
@@ -348,7 +348,7 @@ export const createShadowRepo = async (options: ShadowRepoOptions): Promise<Shad
     getNonDeleteFilenames: () => getStatus().then((changes) => [...changes.added, ...changes.modified]),
     getAddFilenames: () => getStatus().then((changes) => Array.from(changes.added)),
     getModifyFilenames: () => getStatus().then((changes) => Array.from(changes.modified)),
-    recordSync: (request) => runEffect(runtime, logger, 'recordSync', effects.recordSync(request)),
+    recordSync: (request?: SyncRequest) => runEffect(runtime, logger, 'recordSync', effects.recordSync(request)),
     delete: () => runEffect(runtime, logger, 'delete', effects.delete()),
   };
-};
+});

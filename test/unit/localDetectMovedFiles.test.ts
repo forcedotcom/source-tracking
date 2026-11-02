@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import { expect, config } from 'chai';
 import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { createShadowRepo, type ShadowRepo } from '../../src/shared/local/localShadowRepo.js';
+import { createShadowRepo, type ShadowRepo } from '../utils/createShadowRepo.js';
 
 config.truncateThreshold = 0;
 afterEach(() => {

@@ -19,7 +19,7 @@ import fs from 'graceful-fs';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
+import { createShadowRepo, type ShadowRepo } from '../../utils/createShadowRepo.js';
 
 describe('ignores moved files that are children of a decomposed metadata type', () => {
   const FIELD = path.join('fields', 'Account__c.field-meta.xml');

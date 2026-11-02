@@ -17,7 +17,7 @@ import path from 'node:path';
 import { TestSession } from '@salesforce/cli-plugins-testkit';
 import { expect } from 'chai';
 import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import { createShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
+import { createShadowRepo } from '../../utils/createShadowRepo.js';
 import { calculateExpectedSourceMembers } from '../../../src/shared/remote/expectedSourceMembers.js';
 
 describe('UIBundle excluded from source tracking polling', () => {

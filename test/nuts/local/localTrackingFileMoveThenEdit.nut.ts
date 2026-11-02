@@ -22,7 +22,7 @@ import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { type ProjectJson } from '@salesforce/schemas';
 import { type NamedPackageDir } from '@salesforce/core';
 import { type PackageDir } from '@salesforce/schemas';
-import { createShadowRepo, type ShadowRepo } from '../../../src/shared/local/localShadowRepo.js';
+import { createShadowRepo, type ShadowRepo } from '../../utils/createShadowRepo.js';
 
 describe('handles local files moves that also change the file', () => {
   let session: TestSession;
