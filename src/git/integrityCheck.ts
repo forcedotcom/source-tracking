@@ -13,16 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as Config from 'effect/Config';
-import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Effect from 'effect/Effect';
 import * as Schema from 'effect/Schema';
+import { SourceTrackingConfig } from '../config.js';
 import { IndexCorruptError } from './errors.js';
 import { readIndex } from './indexV2.js';
 import { readDirectRef, readHead } from './refs.js';
 import { RefName } from './schemas.js';
-
-const ENV_FLAG = 'SF_SOURCE_TRACKING_INTEGRITY_CHECK';
 
 /**
  * Optional startup integrity check, gated by SF_SOURCE_TRACKING_INTEGRITY_CHECK
@@ -34,14 +31,7 @@ const ENV_FLAG = 'SF_SOURCE_TRACKING_INTEGRITY_CHECK';
  * is set. Fails closed with IndexCorruptError so the caller can prompt the
  * user to delete + re-init the shadow.
  */
-export const isEnabled = () =>
-  Config.String(ENV_FLAG)
-    .pipe(
-      Config.withDefault('false'),
-      Config.map((value) => value === 'true')
-    )
-    .parse(ConfigProvider.fromEnv())
-    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(false)));
+export const isEnabled = Effect.map(SourceTrackingConfig, (config) => config.integrityCheck);
 
 const MAIN_REF: RefName = Schema.decodeUnknownSync(RefName)('refs/heads/main');
 

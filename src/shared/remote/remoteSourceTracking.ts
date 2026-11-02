@@ -20,8 +20,6 @@ import fs from 'graceful-fs';
 import { Logger, Lifecycle, Messages, type Org, SfError } from '@salesforce/core';
 import * as Cache from 'effect/Cache';
 import * as Chunk from 'effect/Chunk';
-import * as Config from 'effect/Config';
-import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
@@ -41,6 +39,7 @@ import {
 } from '../types.js';
 import { getMetadataKeyFromFileResponse, getMappingsForSourceMemberTypesToMetadataType } from '../metadataKeys.js';
 import { getMetadataKey, TYPES_WITH_SOURCEMEMBER_NAME_MISMATCH } from '../functions.js';
+import { SourceTrackingConfig } from '../../config.js';
 import { calculateExpectedSourceMembers } from './expectedSourceMembers.js';
 import type { MemberRevision, PinoLogger, SourceMember } from './types.js';
 import {
@@ -64,8 +63,6 @@ import {
 } from './remoteTrackingState.js';
 
 const POLLING_DELAY_MS = 1000;
-const SOURCE_MEMBER_POLLING_TIMEOUT = 'SF_SOURCE_MEMBER_POLLING_TIMEOUT';
-const DISABLE_SOURCE_MEMBER_POLLING = 'SF_DISABLE_SOURCE_MEMBER_POLLING';
 const DEFAULT_EMPTY_POLLING_RESULT_LIMIT = 120;
 
 export type RemoteTrackingOptions = {
@@ -300,14 +297,8 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
   state: RemoteTrackingState;
   logger: PinoLogger;
 }) {
-  const pollingDisabled = yield* Config.String(DISABLE_SOURCE_MEMBER_POLLING)
-    .pipe(
-      Config.withDefault('false'),
-      Config.map((value) => value.toLowerCase() === 'true' || value === '1')
-    )
-    .parse(ConfigProvider.fromEnv())
-    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(false)));
-  if (pollingDisabled) {
+  const config = yield* SourceTrackingConfig;
+  if (config.disableSourceMemberPolling) {
     logger.warn('Not polling for SourceMembers since SF_DISABLE_SOURCE_MEMBER_POLLING = true.');
     return;
   }
@@ -315,14 +306,11 @@ const pollForSourceTracking = Effect.fn('pollForSourceTracking')(function* ({
 
   const expectedSourceMembers = calculateExpectedSourceMembers(registry, elements);
   const originalOutstandingSize = expectedSourceMembers.size;
-  const timeoutOverride = yield* Config.option(Config.Number(SOURCE_MEMBER_POLLING_TIMEOUT))
-    .parse(ConfigProvider.fromEnv())
-    .pipe(Effect.catchTag('ConfigError', () => Effect.succeed(Option.none<number>())));
-  const overriddenTimeout = Option.getOrElse(timeoutOverride, () => 0);
-  const consecutiveEmptyPollLimit = Option.getOrElse(
-    Option.map(timeoutOverride, (seconds) => seconds / Duration.toSeconds(Duration.millis(POLLING_DELAY_MS))),
-    () => DEFAULT_EMPTY_POLLING_RESULT_LIMIT
-  );
+  const overriddenTimeout = config.sourceMemberPollingTimeout ?? 0;
+  const consecutiveEmptyPollLimit =
+    config.sourceMemberPollingTimeout === undefined
+      ? DEFAULT_EMPTY_POLLING_RESULT_LIMIT
+      : config.sourceMemberPollingTimeout / Duration.toSeconds(Duration.millis(POLLING_DELAY_MS));
   const pollingTimeout = calculateTimeout(logger)(expectedSourceMembers.size, overriddenTimeout);
   const pollState = yield* Ref.make<PollState>({
     highestRevisionSoFar: state.serverMaxRevisionCounter,

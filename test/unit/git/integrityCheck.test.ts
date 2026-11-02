@@ -29,6 +29,7 @@ import { applyChanges } from '../../../src/git/applyChanges.js';
 import { init } from '../../../src/git/init.js';
 import { isEnabled, runIntegrityCheck } from '../../../src/git/integrityCheck.js';
 import { type Author, RepoPath, type RepoConfig } from '../../../src/git/schemas.js';
+import { DEFAULT_SOURCE_TRACKING_SETTINGS, SourceTrackingConfig } from '../../../src/config.js';
 
 const Layered = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer);
 const FIXED_TS = Date.parse('2026-01-01T00:00:00Z');
@@ -44,17 +45,24 @@ const cfg = (dir: string, gitdir: string): RepoConfig => ({
 describe('git/integrityCheck (phase 13)', () => {
   describe('isEnabled', () => {
     it('default off', async () => {
-      delete process.env.SF_SOURCE_TRACKING_INTEGRITY_CHECK;
-      expect(await Effect.runPromise(isEnabled())).to.equal(false);
+      expect(
+        await Effect.runPromise(
+          isEnabled.pipe(Effect.provideService(SourceTrackingConfig, DEFAULT_SOURCE_TRACKING_SETTINGS))
+        )
+      ).to.equal(false);
     });
 
     it('on for "true"', async () => {
-      process.env.SF_SOURCE_TRACKING_INTEGRITY_CHECK = 'true';
-      try {
-        expect(await Effect.runPromise(isEnabled())).to.equal(true);
-      } finally {
-        delete process.env.SF_SOURCE_TRACKING_INTEGRITY_CHECK;
-      }
+      expect(
+        await Effect.runPromise(
+          isEnabled.pipe(
+            Effect.provideService(SourceTrackingConfig, {
+              ...DEFAULT_SOURCE_TRACKING_SETTINGS,
+              integrityCheck: true,
+            })
+          )
+        )
+      ).to.equal(true);
     });
   });
 

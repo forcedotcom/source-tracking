@@ -15,7 +15,7 @@
  */
 import { resolve } from 'node:path';
 import { type ComponentSet, type ForceIgnore, type RegistryAccess } from '@salesforce/source-deploy-retrieve';
-import * as Effect from 'effect/Effect';
+import { runWithProcessSourceTrackingConfig } from '../config.js';
 import { type ConflictResponse, type ChangeResult, SourceConflictError } from './types.js';
 import { getMetadataKey } from './functions.js';
 import { populateTypesAndNames } from './populateTypesAndNames.js';
@@ -76,7 +76,7 @@ export const getDedupedConflictsFromChanges = async ({
   );
 
   return (
-    await Effect.runPromise(
+    await runWithProcessSourceTrackingConfig(
       populateTypesAndNames({ excludeUnresolvable: true, projectPath, forceIgnore, registry })(localChanges)
     )
   )

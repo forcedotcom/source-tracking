@@ -17,8 +17,6 @@
 import path from 'node:path';
 import fs from 'graceful-fs';
 import { lockInit, Logger, SfError } from '@salesforce/core';
-import * as Config from 'effect/Config';
-import * as ConfigProvider from 'effect/ConfigProvider';
 import * as Effect from 'effect/Effect';
 import { isNotUndefined } from 'effect/Predicate';
 import * as Schema from 'effect/Schema';
@@ -29,11 +27,11 @@ import {
   getMetadataTypeFromLegacyKey,
 } from '../functions.js';
 import { type RemoteChangeElement } from '../types.js';
+import { SourceTrackingConfig } from '../../config.js';
 import { ContentsJsonSchema } from './types.js';
 import type { ContentsV0, ContentsV1, MemberRevision, MemberRevisionLegacy } from './types.js';
 
 const FILENAME = 'maxRevision.json';
-const FILE_VERSION_ENV = 'SF_SOURCE_TRACKING_FILE_VERSION';
 
 export type RemoteTrackingIdentity = {
   projectPath: string;
@@ -121,11 +119,8 @@ export const writeTrackingFile = Effect.fnUntraced(function* ({
   /** Reset replaces the snapshot instead of merging it with the previous contents. */
   replace?: boolean;
 }) {
-  const provider = ConfigProvider.fromEnv();
-  const currentFileVersion = yield* Config.Number(FILE_VERSION_ENV)
-    .pipe(Config.withDefault(0))
-    .parse(provider)
-    .pipe(Effect.orDie);
+  const config = yield* SourceTrackingConfig;
+  const currentFileVersion = config.fileVersion;
 
   const incoming: ContentsV1 = {
     fileVersion: 1,

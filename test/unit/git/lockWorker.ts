@@ -20,6 +20,7 @@ import { isNotUndefined } from 'effect/Predicate';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { withIndexLock } from '../../../src/git/lock.js';
+import { getProcessSourceTrackingSettings, SourceTrackingConfig } from '../../../src/config.js';
 
 const role = process.env.LOCK_TEST_ROLE;
 const gitdir = process.env.LOCK_TEST_GITDIR;
@@ -55,4 +56,9 @@ const action = withIndexLock(gitdir)(
 );
 
 if (role === 'second') process.stdout.write('second-attempting\n');
-await Effect.runPromise(Effect.provide(action, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)));
+await Effect.runPromise(
+  Effect.promise(getProcessSourceTrackingSettings).pipe(
+    Effect.flatMap((settings) => Effect.provideService(action, SourceTrackingConfig, settings)),
+    Effect.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))
+  )
+);

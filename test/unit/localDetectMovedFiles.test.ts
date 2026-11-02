@@ -20,6 +20,7 @@ import { expect, config } from 'chai';
 import sinon from 'sinon';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { createShadowRepo, type ShadowRepo } from '../../src/shared/local/localShadowRepo.js';
+import { DEFAULT_SOURCE_TRACKING_SETTINGS } from '../../src/config.js';
 
 config.truncateThreshold = 0;
 afterEach(() => {
@@ -38,11 +39,6 @@ describe('local detect moved files (lite)', () => {
   after(() => {
     // No backend choice to reset
   });
-  afterEach(() => {
-    delete process.env.SF_DISABLE_SOURCE_MOBILITY;
-    delete process.env.SF_SOURCE_TRACKING_ASSUME_SYNCED;
-  });
-
   it('initializes an existing empty local tracking directory', async () => {
     let projectDir!: string;
     try {
@@ -53,14 +49,17 @@ describe('local detect moved files (lite)', () => {
       fs.writeFileSync(path.join(projectDir, filename), 'public class Recovery {}');
       fs.mkdirSync(path.join(projectDir, '.sf', 'orgs', orgId, 'localSourceTracking'), { recursive: true });
 
-      const shadowRepo = await createShadowRepo({
-        orgId,
-        projectPath: projectDir,
-        packageDirs: [
-          { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
-        ],
-        registry,
-      });
+      const shadowRepo = await createShadowRepo(
+        {
+          orgId,
+          projectPath: projectDir,
+          packageDirs: [
+            { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
+          ],
+          registry,
+        },
+        DEFAULT_SOURCE_TRACKING_SETTINGS
+      );
 
       expect(await shadowRepo.recordSync({ deployedFiles: [filename] })).to.match(/^[a-f0-9]{40}$/);
       expect(await shadowRepo.getChangedFilenames()).to.be.empty;
@@ -78,14 +77,17 @@ describe('local detect moved files (lite)', () => {
       fs.writeFileSync(path.join(projectDir, 'force-app', 'labels', 'CustomLabels.labels-meta.xml'), '<xml></xml>');
       fs.writeFileSync(path.join(projectDir, 'force-app', 'labels', 'CustomLabelsTwo.labels-meta.xml'), '<xml></xml>');
 
-      const shadowRepo: ShadowRepo = await createShadowRepo({
-        orgId: '00D456789012345',
-        projectPath: projectDir,
-        packageDirs: [
-          { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
-        ],
-        registry,
-      });
+      const shadowRepo: ShadowRepo = await createShadowRepo(
+        {
+          orgId: '00D456789012345',
+          projectPath: projectDir,
+          packageDirs: [
+            { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
+          ],
+          registry,
+        },
+        DEFAULT_SOURCE_TRACKING_SETTINGS
+      );
 
       const labelsFile = path.join('force-app', 'labels', 'CustomLabels.labels-meta.xml');
       const labelsFileTwo = path.join('force-app', 'labels', 'CustomLabelsTwo.labels-meta.xml');
@@ -109,7 +111,6 @@ describe('local detect moved files (lite)', () => {
   });
 
   it('skips moved file detection when opt-out is enabled', async () => {
-    process.env.SF_DISABLE_SOURCE_MOBILITY = 'true';
     let projectDir!: string;
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
@@ -117,14 +118,17 @@ describe('local detect moved files (lite)', () => {
       fs.mkdirSync(path.join(projectDir, 'force-app', 'labels'), { recursive: true });
       fs.writeFileSync(path.join(projectDir, 'force-app', 'labels', 'CustomLabels.labels-meta.xml'), '<xml></xml>');
 
-      const shadowRepo: ShadowRepo = await createShadowRepo({
-        orgId: '00D456789012345',
-        projectPath: projectDir,
-        packageDirs: [
-          { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
-        ],
-        registry,
-      });
+      const shadowRepo: ShadowRepo = await createShadowRepo(
+        {
+          orgId: '00D456789012345',
+          projectPath: projectDir,
+          packageDirs: [
+            { name: 'dummy', fullPath: path.join(projectDir, 'force-app'), path: path.join(projectDir, 'force-app') },
+          ],
+          registry,
+        },
+        { ...DEFAULT_SOURCE_TRACKING_SETTINGS, disableSourceMobility: true }
+      );
 
       const labelsFile = path.join('force-app', 'labels', 'CustomLabels.labels-meta.xml');
       await shadowRepo.recordSync({ deployedFiles: [labelsFile] });
@@ -316,18 +320,20 @@ describe('local detect moved files (lite)', () => {
 
   it('returns no local changes when assume-synced mode is enabled', async () => {
     let projectDir!: string;
-    process.env.SF_SOURCE_TRACKING_ASSUME_SYNCED = 'true';
     try {
       projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoTest'));
       const packageDir = path.join(projectDir, 'force-app');
       fs.mkdirSync(packageDir, { recursive: true });
       fs.writeFileSync(path.join(packageDir, 'untracked.cls'), 'class Untracked {}');
-      const shadowRepo = await createShadowRepo({
-        orgId: '00D456789012345',
-        projectPath: projectDir,
-        packageDirs: [{ name: 'dummy', fullPath: packageDir, path: packageDir }],
-        registry,
-      });
+      const shadowRepo = await createShadowRepo(
+        {
+          orgId: '00D456789012345',
+          projectPath: projectDir,
+          packageDirs: [{ name: 'dummy', fullPath: packageDir, path: packageDir }],
+          registry,
+        },
+        { ...DEFAULT_SOURCE_TRACKING_SETTINGS, assumeSynced: true }
+      );
 
       expect(await shadowRepo.getChangedFilenames()).to.deep.equal([]);
     } finally {

@@ -19,11 +19,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { MockTestOrgData, instantiateContext, restoreContext, stubContext } from '@salesforce/core/testSetup';
-import { envVars, Lifecycle, Org } from '@salesforce/core';
+import { Lifecycle, Org } from '@salesforce/core';
 import { ComponentStatus, RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { expect } from 'chai';
 import * as Effect from 'effect/Effect';
-import { isUndefined } from 'effect/Predicate';
 import {
   deleteRemoteTracking,
   initializeRemoteTracking,
@@ -43,6 +42,7 @@ import {
 import type { RemoteTrackingIdentity } from '../../../src/shared/remote/fileOperations.js';
 import type { ContentsV1, MemberRevision, SourceMember } from '../../../src/shared/remote/types.js';
 import type { RemoteChangeElement, RemoteSyncInput } from '../../../src/shared/types.js';
+import { DEFAULT_SOURCE_TRACKING_SETTINGS, SourceTrackingConfig } from '../../../src/config.js';
 
 const defaultSourceMember: SourceMember = {
   IsNewMember: false,
@@ -66,11 +66,6 @@ const memberRevision = (revision: number, lastRetrievedFromServer?: number): Mem
   lastRetrievedFromServer,
 });
 
-const reResolveEnvVars = (): void => {
-  // @ts-expect-error test setup forces EnvVars to resolve updated process values
-  envVars.resolve(); // eslint-disable-line @typescript-eslint/no-unsafe-call
-};
-
 describe('remote source tracking Effects', () => {
   const $$ = instantiateContext();
   let org: Org;
@@ -86,7 +81,7 @@ describe('remote source tracking Effects', () => {
         filePath: getFilePath(identity),
         maxCounter: serverMaxRevisionCounter,
         members: new Map(Object.entries(sourceMembers)),
-      })
+      }).pipe(Effect.provideService(SourceTrackingConfig, DEFAULT_SOURCE_TRACKING_SETTINGS))
     );
   };
 
@@ -110,11 +105,6 @@ describe('remote source tracking Effects', () => {
   });
 
   afterEach(async () => {
-    envVars.unset('SF_DISABLE_SOURCE_MEMBER_POLLING');
-    envVars.unset('SFDX_DISABLE_SOURCE_MEMBER_POLLING');
-    envVars.unset('SF_SOURCE_MEMBER_POLLING_TIMEOUT');
-    envVars.unset('SFDX_SOURCE_MEMBER_POLLING_TIMEOUT');
-    reResolveEnvVars();
     restoreContext($$);
     await rm(projectPath, { recursive: true, force: true });
   });
@@ -242,36 +232,41 @@ describe('remote source tracking Effects', () => {
 
   it('syncs encoded stored keys through decoded-key resolution', async () => {
     const encodedKey = 'Layout###Broker__c-v1%2E1 Broker Layout';
-    const fileVersion = process.env.SF_SOURCE_TRACKING_FILE_VERSION;
-    process.env.SF_SOURCE_TRACKING_FILE_VERSION = '1';
-    try {
-      await writeSnapshot(2, {
-        [encodedKey]: {
-          ...memberRevision(2, 1),
-          MemberType: 'Layout',
-          MemberName: 'Broker__c-v1.1 Broker Layout',
-        },
-      });
+    const currentConfig = { ...DEFAULT_SOURCE_TRACKING_SETTINGS, fileVersion: 1 };
+    await Effect.runPromise(
+      writeTrackingFile({
+        filePath: getFilePath(identity),
+        maxCounter: 2,
+        members: new Map([
+          [
+            encodedKey,
+            {
+              ...memberRevision(2, 1),
+              MemberType: 'Layout',
+              MemberName: 'Broker__c-v1.1 Broker Layout',
+            },
+          ],
+        ]),
+      }).pipe(Effect.provideService(SourceTrackingConfig, currentConfig))
+    );
 
-      const elements: RemoteSyncInput[] = [
-        {
-          fullName: 'Broker__c-v1.1 Broker Layout',
-          type: 'Layout',
-          filePath: 'Broker__c-v1.1 Broker Layout.layout-meta.xml',
-          state: ComponentStatus.Changed,
-        },
-      ];
-      await Effect.runPromise(
-        updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements, skipPolling: true })
-      );
+    const elements: RemoteSyncInput[] = [
+      {
+        fullName: 'Broker__c-v1.1 Broker Layout',
+        type: 'Layout',
+        filePath: 'Broker__c-v1.1 Broker Layout.layout-meta.xml',
+        state: ComponentStatus.Changed,
+      },
+    ];
+    await Effect.runPromise(
+      updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements, skipPolling: true }).pipe(
+        Effect.provideService(SourceTrackingConfig, currentConfig)
+      )
+    );
 
-      const contents = await readSnapshot();
-      expect(contents.sourceMembers).to.have.all.keys(encodedKey);
-      expect(contents.sourceMembers[encodedKey].lastRetrievedFromServer).to.equal(2);
-    } finally {
-      if (isUndefined(fileVersion)) delete process.env.SF_SOURCE_TRACKING_FILE_VERSION;
-      else process.env.SF_SOURCE_TRACKING_FILE_VERSION = fileVersion;
-    }
+    const contents = await readSnapshot();
+    expect(contents.sourceMembers).to.have.all.keys(encodedKey);
+    expect(contents.sourceMembers[encodedKey].lastRetrievedFromServer).to.equal(2);
   });
 
   it('syncs a NavigationMenu whose Metadata API name includes the SourceMember name', async () => {
@@ -386,8 +381,6 @@ describe('remote source tracking Effects', () => {
     ['Default_Navigation', 'Default'],
   ]) {
     it(`finishes polling overlapping names returned in order ${names.join(', ')}`, async () => {
-      envVars.setString('SF_SOURCE_MEMBER_POLLING_TIMEOUT', '1');
-      reResolveEnvVars();
       const queryStub = $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom').returns(Effect.succeed([]));
       queryStub.onFirstCall().returns(
         Effect.succeed(
@@ -407,7 +400,12 @@ describe('remote source tracking Effects', () => {
             { fullName: 'site_Default', type: 'NavigationMenu', state: ComponentStatus.Changed },
             { fullName: 'site_Default_Navigation', type: 'NavigationMenu', state: ComponentStatus.Changed },
           ],
-        })
+        }).pipe(
+          Effect.provideService(SourceTrackingConfig, {
+            ...DEFAULT_SOURCE_TRACKING_SETTINGS,
+            sourceMemberPollingTimeout: 1,
+          })
+        )
       );
       expect(queryStub.callCount).to.equal(1);
       expect(warnings.called).to.equal(false);
@@ -469,8 +467,6 @@ describe('remote source tracking Effects', () => {
   });
 
   it('matches platform-event custom-field SourceMembers when the server omits the __e suffix', async () => {
-    envVars.setString('SF_SOURCE_MEMBER_POLLING_TIMEOUT', '1');
-    reResolveEnvVars();
     const queryStub = $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom');
     queryStub.onFirstCall().returns(
       Effect.succeed([
@@ -497,7 +493,14 @@ describe('remote source tracking Effects', () => {
       },
     ];
 
-    await Effect.runPromise(updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }));
+    await Effect.runPromise(
+      updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }).pipe(
+        Effect.provideService(SourceTrackingConfig, {
+          ...DEFAULT_SOURCE_TRACKING_SETTINGS,
+          sourceMemberPollingTimeout: 1,
+        })
+      )
+    );
 
     expect(queryStub.callCount).to.equal(1);
     expect(warnings.some((warning) => warning.includes('SourceMembers timed out'))).to.equal(false);
@@ -507,8 +510,6 @@ describe('remote source tracking Effects', () => {
   });
 
   it('emits a warning and persists partial state when polling times out', async () => {
-    envVars.setString('SF_SOURCE_MEMBER_POLLING_TIMEOUT', '1');
-    reResolveEnvVars();
     const warnings: string[] = [];
     Lifecycle.getInstance().onWarning((warning) => {
       warnings.push(warning);
@@ -522,7 +523,14 @@ describe('remote source tracking Effects', () => {
       { fullName: 'MyClass', type: 'ApexClass', filePath: 'MyClass.cls', state: ComponentStatus.Changed },
     ];
 
-    await Effect.runPromise(updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }));
+    await Effect.runPromise(
+      updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }).pipe(
+        Effect.provideService(SourceTrackingConfig, {
+          ...DEFAULT_SOURCE_TRACKING_SETTINGS,
+          sourceMemberPollingTimeout: 1,
+        })
+      )
+    );
 
     expect(queryStub.called).to.equal(true);
     expect(warnings.some((warning) => warning.includes('Polling for 1 SourceMembers timed out'))).to.equal(true);
@@ -534,14 +542,19 @@ describe('remote source tracking Effects', () => {
   });
 
   it('does not query while polling is disabled', async () => {
-    envVars.setString('SF_DISABLE_SOURCE_MEMBER_POLLING', 'true');
-    reResolveEnvVars();
     const queryStub = $$.SANDBOX.stub(sourceMemberQueries, 'querySourceMembersFrom').returns(Effect.succeed([]));
     const elements: RemoteSyncInput[] = [
       { fullName: 'MyClass', type: 'ApexClass', filePath: 'MyClass.cls', state: ComponentStatus.Changed },
     ];
 
-    await Effect.runPromise(updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }));
+    await Effect.runPromise(
+      updateRemoteTracking({ org, identity, registry: new RegistryAccess(), elements }).pipe(
+        Effect.provideService(SourceTrackingConfig, {
+          ...DEFAULT_SOURCE_TRACKING_SETTINGS,
+          disableSourceMemberPolling: true,
+        })
+      )
+    );
 
     expect(queryStub.called).to.equal(false);
   });
