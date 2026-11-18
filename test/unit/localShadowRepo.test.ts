@@ -241,6 +241,65 @@ describe('localShadowRepo', () => {
     });
   });
 
+  describe('node_modules', () => {
+    let projectDir: string;
+
+    afterEach(async () => {
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
+    });
+
+    it('detects files inside a packageDirectory located under node_modules', async () => {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoNodeModules'));
+      const pkgDir = path.join(projectDir, 'node_modules', '@scope', 'pkg', 'force-app');
+      fs.mkdirSync(path.join(pkgDir, 'main', 'default', 'classes'), { recursive: true });
+      fs.writeFileSync(path.join(pkgDir, 'main', 'default', 'classes', 'FromNpm.cls'), 'public class FromNpm {}');
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D000000000007',
+        registry,
+        projectPath: projectDir,
+        packageDirs: [
+          {
+            name: 'node_modules/@scope/pkg/force-app',
+            fullPath: pkgDir,
+            path: 'node_modules/@scope/pkg/force-app',
+          },
+        ],
+      });
+
+      const changed = await shadowRepo.getChangedFilenames();
+      expect(changed).to.be.an('array').with.length.greaterThan(0);
+      expect(changed.some((f) => f.includes('FromNpm.cls'))).to.be.true;
+    });
+
+    it('ignores node_modules inside a packageDirectory', async () => {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoNodeModules'));
+      const pkgDir = path.join(projectDir, 'force-app');
+      fs.mkdirSync(path.join(pkgDir, 'main', 'default', 'classes'), { recursive: true });
+      fs.writeFileSync(path.join(pkgDir, 'main', 'default', 'classes', 'Real.cls'), 'public class Real {}');
+      const depDir = path.join(pkgDir, 'main', 'default', 'uiBundles', 'myApp', 'node_modules', 'some-dep');
+      fs.mkdirSync(depDir, { recursive: true });
+      fs.writeFileSync(path.join(depDir, 'index.js'), 'module.exports = {};');
+
+      const shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D000000000008',
+        registry,
+        projectPath: projectDir,
+        packageDirs: [
+          {
+            name: 'force-app',
+            fullPath: pkgDir,
+            path: 'force-app',
+          },
+        ],
+      });
+
+      const changed = await shadowRepo.getChangedFilenames();
+      expect(changed.some((f) => f.includes('Real.cls'))).to.be.true;
+      expect(changed.some((f) => f.includes('node_modules'))).to.be.false;
+    });
+  });
+
   it('does not add same file multiple times', async () => {
     let projectDir!: string;
     try {

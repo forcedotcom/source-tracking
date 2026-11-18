@@ -392,16 +392,22 @@ const packageDirToRelativePosixPath =
 
 const normalize = (filepath: string): string => path.normalize(filepath);
 
+/** true when a node_modules folder sits between the packageDir and the file */
+const hasNodeModulesBelow =
+  (packageDir: string) =>
+  (filePath: string): boolean =>
+    path.relative(packageDir, filePath).split(/[\\/]/).includes('node_modules');
+
 const fileFilter =
   (packageDirs: string[]) =>
   (f: string): boolean =>
     // no hidden files
     !f.includes(`${path.sep}.`) &&
-    // no node_modules (e.g. uiBundle packages inside force-app)
-    !f.split(path.sep).includes('node_modules') &&
     // no lwc tests
     excludeLwcLocalOnlyTest(f) &&
     // no gitignore files
     !f.endsWith('.gitignore') &&
     // isogit uses `startsWith` for filepaths so it's possible to get a false positive
-    packageDirs.some(folderContainsPath(f));
+    // no node_modules inside a packageDir (e.g. uiBundle packages inside force-app),
+    // but a packageDir that itself lives under node_modules is still tracked
+    packageDirs.some((packageDir) => folderContainsPath(f)(packageDir) && !hasNodeModulesBelow(packageDir)(f));
