@@ -82,6 +82,7 @@ type CommitRequest = {
   deployedFiles?: string[];
   deletedFiles?: string[];
   message?: string;
+  /** true (default): scan the files again after the commit. false: drop the cached status; the next getStatus() scans */
   needsUpdatedStatus?: boolean;
 };
 
@@ -104,7 +105,11 @@ export class ShadowRepo {
    * so we need to make them project-relative again and convert if windows
    */
   private packageDirs: string[];
-  private status!: StatusRow[];
+  private status?: StatusRow[];
+  /** a cache-miss scan in progress, so parallel readers share it */
+  private pendingScan?: Promise<StatusRow[]>;
+  /** incremented by each commit, so a scan that started before the commit does not cache its rows */
+  private statusVersion = 0;
   private logger!: Logger;
   private readonly registry: RegistryAccess;
   private readonly gitFs: ReturnType<typeof createSymlinkAwareFs>;
@@ -162,9 +167,9 @@ export class ShadowRepo {
   }
   /**
    * If the status already exists, return it.  Otherwise, set the status before returning.
-   * It's kinda like a cache
+   * It's kinda like a cache.  Parallel reads that miss the cache share one scan.
    *
-   * @params noCache: if true, force a redo of the status using FS even if it exists
+   * @params noCache: if true, force a redo of the status using FS even if it exists.  It always starts a new scan.
    *
    * @returns StatusRow[] (paths are os-specific)
    */
@@ -182,36 +187,19 @@ export class ShadowRepo {
       return this.status;
     }
 
-    if (!this.status || noCache) {
-      try {
-        // status hasn't been initialized yet
-        this.status = await git.statusMatrix({
-          fs: this.gitFs,
-          dir: this.projectPath,
-          gitdir: this.gitDir,
-          filepaths: this.packageDirs,
-          ignored: true,
-          filter: fileFilter(this.packageDirs),
-        });
-
-        // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
-        if (IS_WINDOWS) {
-          this.status = this.status.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]]);
-        }
-
-        if (env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true) {
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
-        } else {
-          // Check for moved files and update local git status accordingly
-          await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
-          await this.detectMovedFiles();
-        }
-      } catch (e) {
-        redirectToCliRepoError(e);
-      }
+    if (this.status && !noCache) {
+      this.logger.trace('done: getStatus (cached)');
+      return this.status;
     }
-    this.logger.trace(`done: getStatus (noCache = ${noCache})`);
-    return this.status;
+    if (noCache) return this.scanStatus();
+    if (!this.pendingScan) {
+      const scan = this.scanStatus().finally(() => {
+        // a commit can replace the pending scan; clear only this one
+        if (this.pendingScan === scan) this.pendingScan = undefined;
+      });
+      this.pendingScan = scan;
+    }
+    return this.pendingScan;
   }
 
   /**
@@ -352,6 +340,10 @@ export class ShadowRepo {
         message,
         author: { name: 'sfdx source tracking' },
       });
+      // the commit makes the cached status and any scan in progress stale
+      this.status = undefined;
+      this.pendingScan = undefined;
+      this.statusVersion++;
       // status changed as a result of the commit.  This prevents users from having to run getStatus(true) to avoid cache
       if (needsUpdatedStatus) {
         await this.getStatus(true);
@@ -363,23 +355,59 @@ export class ShadowRepo {
     }
   }
 
-  private async detectMovedFiles(): Promise<void> {
-    // get status will return os-specific paths
-    const matchingFiles = getMatches(await this.getStatus());
-    if (!matchingFiles.added.size || !matchingFiles.deleted.size) return;
+  private async scanStatus(): Promise<StatusRow[]> {
+    const version = this.statusVersion;
+    try {
+      const scanned = await git.statusMatrix({
+        fs: this.gitFs,
+        dir: this.projectPath,
+        gitdir: this.gitDir,
+        filepaths: this.packageDirs,
+        ignored: true,
+        filter: fileFilter(this.packageDirs),
+      });
+
+      // isomorphic-git stores things in unix-style tree.  Convert to windows-style if necessary
+      const rows: StatusRow[] = IS_WINDOWS
+        ? scanned.map((row) => [path.normalize(row[FILE]), row[HEAD], row[WORKDIR], row[3]])
+        : scanned;
+      // a commit during the scan makes these rows stale: give them to this caller, but do not cache them
+      if (version !== this.statusVersion) return rows;
+      this.status = rows;
+
+      if (env.getBoolean('SF_DISABLE_SOURCE_MOBILITY') === true) {
+        await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionDisabled' });
+        return rows;
+      }
+      // Check for moved files and update local git status accordingly
+      await Lifecycle.getInstance().emitTelemetry({ eventName: 'moveFileDetectionEnabled' });
+      return await this.detectMovedFiles(rows);
+    } catch (e) {
+      return redirectToCliRepoError(e);
+    } finally {
+      this.logger.trace('done: getStatus (scanned)');
+    }
+  }
+
+  /** @returns the status after any moves are committed (paths are os-specific) */
+  private async detectMovedFiles(rows: StatusRow[]): Promise<StatusRow[]> {
+    const matchingFiles = getMatches(rows);
+    if (!matchingFiles.added.size || !matchingFiles.deleted.size) return rows;
 
     const matches = await filenameMatchesToMap(this.registry)(this.projectPath)(this.gitDir)(matchingFiles);
 
-    if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return;
+    if (matches.deleteOnly.size === 0 && matches.fullMatches.size === 0) return rows;
 
     this.logger.debug(getLogMessage(matches));
 
-    // Commit the moved files and refresh the status
+    // Commit the moved files, then scan again for the status after the commit
     await this.commitChanges({
       deletedFiles: [...matches.fullMatches.values(), ...matches.deleteOnly.values()],
       deployedFiles: [...matches.fullMatches.keys()],
       message: 'Committing moved files',
+      needsUpdatedStatus: false,
     });
+    return this.scanStatus();
   }
 }
 

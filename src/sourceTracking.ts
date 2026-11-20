@@ -496,6 +496,8 @@ export class SourceTracking extends AsyncCreatable {
             !relativeOptions.files.includes(deployedFile)
         )
       ),
+      // deploy and retrieve do not read the status after this; getStatus() scans on demand
+      needsUpdatedStatus: false,
     });
     this.logger.trace('done: updateLocalTracking', options);
   }
