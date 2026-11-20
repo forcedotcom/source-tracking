@@ -19,8 +19,18 @@ import fs from 'node:fs';
 import git from 'isomorphic-git';
 import { expect } from 'chai';
 import sinon from 'sinon';
+import { Lifecycle } from '@salesforce/core';
 import { RegistryAccess } from '@salesforce/source-deploy-retrieve';
 import { ShadowRepo } from '../../src/shared/local/localShadowRepo';
+
+/** a promise the test resolves by hand, to hold an async step at a known point */
+const gate = (): { promise: Promise<void>; open: () => void } => {
+  let open = (): void => {};
+  const promise = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { promise, open };
+};
 
 afterEach(() => {
   // Restore the default sandbox here
@@ -238,6 +248,136 @@ describe('localShadowRepo', () => {
       const changed = await shadowRepo.getChangedFilenames();
       expect(changed).to.be.an('array').with.length.greaterThan(0);
       expect(changed.some((f) => f.includes('Linked.cls'))).to.be.true;
+    });
+  });
+
+  describe('commitChanges status refresh', () => {
+    let projectDir: string;
+    let shadowRepo: ShadowRepo;
+    const foo = path.join('force-app', 'Foo.cls');
+    const bar = path.join('force-app', 'Bar.cls');
+
+    beforeEach(async () => {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'localShadowRepoCommit'));
+      fs.mkdirSync(path.join(projectDir, 'force-app'));
+      fs.writeFileSync(path.join(projectDir, foo), 'public class Foo {}');
+      fs.writeFileSync(path.join(projectDir, bar), 'public class Bar {}');
+      shadowRepo = await ShadowRepo.getInstance({
+        orgId: '00D000000000007',
+        registry,
+        projectPath: projectDir,
+        packageDirs: [{ name: 'force-app', fullPath: path.join(projectDir, 'force-app'), path: 'force-app' }],
+      });
+      // fill the status cache, as a deploy does before it commits
+      await shadowRepo.getStatus();
+    });
+
+    afterEach(async () => {
+      if (projectDir) await fs.promises.rm(projectDir, { recursive: true });
+    });
+
+    it('does not scan the files when needsUpdatedStatus is false', async () => {
+      const statusMatrixSpy = sinon.spy(git, 'statusMatrix');
+      await shadowRepo.commitChanges({ deployedFiles: [foo], needsUpdatedStatus: false });
+      expect(statusMatrixSpy.callCount).to.equal(0);
+    });
+
+    it('returns the status after the commit on the next getStatus when needsUpdatedStatus is false', async () => {
+      await shadowRepo.commitChanges({ deployedFiles: [foo], needsUpdatedStatus: false });
+      expect(await shadowRepo.getStatus()).to.deep.equal([
+        [bar, 0, 2, 0],
+        [foo, 1, 1, 1],
+      ]);
+    });
+
+    it('shares one scan between parallel status reads after a commit with needsUpdatedStatus false', async () => {
+      await shadowRepo.commitChanges({ deployedFiles: [foo], needsUpdatedStatus: false });
+      const statusMatrixSpy = sinon.spy(git, 'statusMatrix');
+      const [deletes, nonDeletes] = await Promise.all([
+        shadowRepo.getDeleteFilenames(),
+        shadowRepo.getNonDeleteFilenames(),
+      ]);
+      expect(statusMatrixSpy.callCount).to.equal(1);
+      expect([deletes, nonDeletes]).to.deep.equal([[], [bar]]);
+    });
+
+    it('gives the error of a failed shared scan to each reader and scans again on the next read', async () => {
+      await shadowRepo.commitChanges({ deployedFiles: [foo], needsUpdatedStatus: false });
+      sinon.stub(git, 'statusMatrix').onFirstCall().rejects(new Error('scan failed')).callThrough();
+      const results = await Promise.allSettled([shadowRepo.getStatus(), shadowRepo.getStatus()]);
+      expect(results.map((r) => (r.status === 'rejected' ? (r.reason as Error).message : r.status))).to.deep.equal([
+        'scan failed',
+        'scan failed',
+      ]);
+      expect(await shadowRepo.getStatus()).to.deep.equal([
+        [bar, 0, 2, 0],
+        [foo, 1, 1, 1],
+      ]);
+    });
+
+    it('does not cache or share the rows of a scan that a commit overtakes', async () => {
+      await shadowRepo.commitChanges({ deployedFiles: [bar], needsUpdatedStatus: false });
+      const scanned = gate();
+      const release = gate();
+      const statusMatrix = git.statusMatrix;
+      sinon
+        .stub(git, 'statusMatrix')
+        .onFirstCall()
+        .callsFake(async (args: Parameters<typeof git.statusMatrix>[0]) => {
+          const rows = await statusMatrix(args);
+          scanned.open();
+          await release.promise;
+          return rows;
+        })
+        .callThrough();
+
+      const overtaken = shadowRepo.getStatus();
+      await scanned.promise;
+      await shadowRepo.commitChanges({ deployedFiles: [foo], needsUpdatedStatus: false });
+      const afterCommit = [
+        [bar, 1, 1, 1],
+        [foo, 1, 1, 1],
+      ];
+      const readAfterCommit = shadowRepo.getStatus();
+      release.open();
+      expect(await readAfterCommit).to.deep.equal(afterCommit);
+      // the overtaken reader gets the rows of its own scan, from before the commit
+      expect(await overtaken).to.deep.equal([
+        [bar, 1, 1, 1],
+        [foo, 0, 2, 0],
+      ]);
+      expect(await shadowRepo.getStatus()).to.deep.equal(afterCommit);
+    });
+
+    it('returns the scanned rows when a commit clears the status during move detection', async () => {
+      await shadowRepo.commitChanges({ deployedFiles: [bar], needsUpdatedStatus: false });
+      const inMoveDetection = gate();
+      const release = gate();
+      sinon
+        .stub(Lifecycle.getInstance(), 'emitTelemetry')
+        .onFirstCall()
+        .callsFake(async () => {
+          inMoveDetection.open();
+          await release.promise;
+        });
+
+      const reading = shadowRepo.getDeleteFilenames();
+      await inMoveDetection.promise;
+      await shadowRepo.commitChanges({ deployedFiles: [foo], needsUpdatedStatus: false });
+      release.open();
+      // a scan that waits on itself never settles
+      const hung = new Promise((resolve) => setTimeout(() => resolve('scan did not finish'), 2000));
+      expect(await Promise.race([reading, hung])).to.deep.equal([]);
+    });
+
+    it('scans the files once after the commit by default', async () => {
+      const statusMatrixSpy = sinon.spy(git, 'statusMatrix');
+      await shadowRepo.commitChanges({ deployedFiles: [foo] });
+      expect(statusMatrixSpy.callCount).to.equal(1);
+      expect(await shadowRepo.getStatus()).to.deep.equal([
+        [bar, 0, 2, 0],
+        [foo, 1, 1, 1],
+      ]);
     });
   });
 
