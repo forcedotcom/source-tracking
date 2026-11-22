@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@salesforce/cli-plugins-testkit": "^5.3.81",
-    "@salesforce/dev-scripts": "^14.0.0",
+    "@salesforce/dev-scripts": "^15.0.1",
     "@salesforce/schemas": "^1.10.3",
     "@types/chai": "^4.3.17",
     "@types/graceful-fs": "^4.1.9",
@@ -69,7 +69,7 @@
     "@types/node": "^18",
     "@types/sinon": "^10.0.20",
     "esbuild": "^0.28.2",
-    "eslint": "^10.13.0",
+    "eslint": "^10.14.0",
     "eslint-config-salesforce-typescript": "^7.0.0",
     "eslint-plugin-sf-plugin": "^3.0.4",
     "ts-node": "^10.9.2",
